@@ -1,24 +1,47 @@
 <?php
-require __DIR__ . '/vendor/autoload.php';
+$autoloaderPath = __DIR__ . '/vendor/autoload.php';
+if (!file_exists($autoloaderPath)) {
+    die("Error: No se encuentra el autoloader en: " . $autoloaderPath);
+}
+
+require $autoloaderPath;
+
+// Verificar que la clase existe
+if (!class_exists('Mike42\Escpos\PrintConnectors\WindowsPrintConnector')) {
+    die("Error: No se encuentra la clase WindowsPrintConnector");
+}
+
 use Mike42\Escpos\Printer;
 use Mike42\Escpos\EscposImage;
 use Mike42\Escpos\PrintConnectors\WindowsPrintConnector;
 
 try {
-    // Leer el archivo JSON con los datos de la orden
+    // Agregar logs
+    file_put_contents('php://stderr', "Iniciando proceso de impresión...\n");
+    
     $orderDataPath = $argv[1];
     if (!file_exists($orderDataPath)) {
         throw new Exception("Archivo de datos no encontrado: " . $orderDataPath);
     }
     
+    file_put_contents('php://stderr', "Leyendo datos de orden...\n");
     $orderData = json_decode(file_get_contents($orderDataPath), true);
     if (json_last_error() !== JSON_ERROR_NONE) {
         throw new Exception("Error al decodificar JSON: " . json_last_error_msg());
     }
 
     $nombre_impresora = "TP806L";
-    $connector = new WindowsPrintConnector($nombre_impresora);
+    file_put_contents('php://stderr', "Conectando a impresora: " . $nombre_impresora . "\n");
+    
+    try {
+        $connector = new WindowsPrintConnector($nombre_impresora);
+        file_put_contents('php://stderr', "Conexión exitosa\n");
+    } catch (Exception $e) {
+        throw new Exception("Error al conectar con la impresora: " . $e->getMessage());
+    }
+
     $printer = new Printer($connector);
+    file_put_contents('php://stderr', "Impresora inicializada\n");
 
     // Configuración inicial
     $printer->setJustification(Printer::JUSTIFY_CENTER);
@@ -72,6 +95,7 @@ try {
     $printer->cut();
     $printer->pulse();
     $printer->close();
+    file_put_contents('php://stderr', "Impresión completada exitosamente\n");
 
 } catch (Exception $e) {
     file_put_contents('php://stderr', "Error: " . $e->getMessage() . "\n");

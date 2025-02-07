@@ -1,11 +1,14 @@
 {
-    "name": "gino/resources",
+    "name": "abelp/resources",
     "autoload": {
         "psr-4": {
-            "Gino\\Resources\\": "src/"
+            "Mike42\\": "vendor/mike42/escpos-php/src/Mike42/"
         }
     },
     "require": {
-        "mike42/escpos-php": "^2.2"
+        "mike42/escpos-php": "^4.0"
+    },
+    "config": {
+        "optimize-autoloader": true
     }
 }
