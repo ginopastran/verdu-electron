@@ -68,11 +68,19 @@ export default function ShoppingCart() {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [closingDialogOpen, setClosingDialogOpen] = useState(false);
 
+  const appId = window.process.argv.find(arg => arg.startsWith('--app-id='))?.split('=')[1];
+  const headers = {
+    "Content-Type": "application/json",
+    ...(appId && { "X-App-ID": appId })
+  };
+
   // Cargar productos al montar el componente
   useEffect(() => {
     const fetchProducts = async () => {
       try {
-        const response = await fetch(`${API_URL}/api/productos`);
+        const response = await fetch(`${API_URL}/api/productos`, {
+          headers
+        });
         if (!response.ok) {
           throw new Error("Error al cargar productos");
         }
@@ -225,6 +233,7 @@ export default function ShoppingCart() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          ...(appId && { "X-App-ID": appId })
         },
         body: JSON.stringify(orderData),
       });
@@ -283,7 +292,8 @@ export default function ShoppingCart() {
     try {
       // Obtener el último cierre de caja para este vendedor
       const lastCloseResponse = await fetch(
-        `${API_URL}/api/cierres?vendedorId=${user.id}&last=true`
+        `${API_URL}/api/cierres?vendedorId=${user.id}&last=true`,
+        { headers }
       );
       const lastClose = await lastCloseResponse.json();
 
@@ -303,9 +313,7 @@ export default function ShoppingCart() {
       // Obtener las ventas para el periodo
       const ventasResponse = await fetch(`${API_URL}/api/ordenes/ventas`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers,
         body: JSON.stringify({
           vendedorId: user.id,
           sucursalId: user.sucursalId,
@@ -319,9 +327,7 @@ export default function ShoppingCart() {
       // Crear el registro de cierre
       const cierreResponse = await fetch(`${API_URL}/api/cierres`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers,
         body: JSON.stringify({
           vendedorId: user.id,
           sucursalId: user.sucursalId,

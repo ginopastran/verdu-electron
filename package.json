@@ -1,15 +1,17 @@
 {
-  "name": "electron-app",
-  "private": true,
-  "version": "0.0.0",
-  "main": "dist/electron/main.js",
+  "name": "verdu-electron",
+  "version": "1.0.0",
+  "description": "Sistema de punto de venta para verdulería",
+  "author": "Tu Nombre",
+  "main": "dist-electron/main.js",
   "type": "module",
   "scripts": {
-    "dev": "tsc -p electron/tsconfig.json && cross-env NODE_ENV=development concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
-    "build": "tsc -p electron/tsconfig.json && vite build",
-    "electron": "electron .",
-    "package": "electron-builder --dir",
-    "make": "electron-builder"
+    "dev": "vite",
+    "build": "npm run build:vite && npm run build:electron && electron-builder",
+    "build:vite": "tsc && vite build",
+    "build:electron": "tsc -p electron/tsconfig.json",
+    "preview": "vite preview",
+    "dist": "npm run build"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -81,5 +83,26 @@
     "typescript-eslint": "^8.22.0",
     "vite": "^6.1.0",
     "wait-on": "^8.0.2"
+  },
+  "build": {
+    "appId": "com.verdu.app",
+    "productName": "Verdulería",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "resources/**/*"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true
+    }
   }
 }

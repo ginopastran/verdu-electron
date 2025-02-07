@@ -56,11 +56,13 @@ export default function LoginPage() {
       }
 
       const API_URL = import.meta.env.VITE_API_URL;
+      const appId = import.meta.env.VITE_APP_ID;
 
       const response = await fetch(`${API_URL}/api/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          ...(appId && { "X-App-ID": appId })
         },
         body: JSON.stringify(values),
         credentials: "include",
