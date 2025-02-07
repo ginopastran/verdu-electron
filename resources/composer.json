@@ -1,0 +1,11 @@
+{
+    "name": "gino/resources",
+    "autoload": {
+        "psr-4": {
+            "Gino\\Resources\\": "src/"
+        }
+    },
+    "require": {
+        "mike42/escpos-php": "^2.2"
+    }
+}
