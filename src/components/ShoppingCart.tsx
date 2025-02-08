@@ -68,10 +68,13 @@ export default function ShoppingCart() {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [closingDialogOpen, setClosingDialogOpen] = useState(false);
 
-  const appId = window.process.argv.find(arg => arg.startsWith('--app-id='))?.split('=')[1];
+  const appId =
+    window.electron?.process?.argv
+      ?.find((arg) => arg.startsWith("--app-id="))
+      ?.split("=")[1] || null;
   const headers = {
     "Content-Type": "application/json",
-    ...(appId && { "X-App-ID": appId })
+    ...(appId && { "X-App-ID": appId }),
   };
 
   // Cargar productos al montar el componente
@@ -79,7 +82,7 @@ export default function ShoppingCart() {
     const fetchProducts = async () => {
       try {
         const response = await fetch(`${API_URL}/api/productos`, {
-          headers
+          headers,
         });
         if (!response.ok) {
           throw new Error("Error al cargar productos");
@@ -233,7 +236,7 @@ export default function ShoppingCart() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(appId && { "X-App-ID": appId })
+          ...(appId && { "X-App-ID": appId }),
         },
         body: JSON.stringify(orderData),
       });

@@ -1,34 +1,32 @@
-import { app, BrowserWindow, ipcMain } from "electron";
+import { app, BrowserWindow, ipcMain, dialog } from "electron";
 import * as path from "path";
 import { fileURLToPath } from "url";
 import { exec } from "child_process";
-import fs from 'fs';
-import * as fsPromises from 'fs/promises';
+import * as fsPromises from "fs/promises";
 import os from "os";
-import crypto from 'node:crypto';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Generar ID único para la aplicación
-const generateAppId = () => {
-  const storedId = app.getPath('userData') + '/app-id.txt';
-  try {
-    if (fs.existsSync(storedId)) {
-      return fs.readFileSync(storedId, 'utf8');
-    }
-    const newId = crypto.randomBytes(32).toString('hex');
-    fs.writeFileSync(storedId, newId);
-    return newId;
-  } catch (error) {
-    console.error('Error al generar/leer ID:', error);
-    return crypto.randomBytes(32).toString('hex');
-  }
-};
+// APP_ID fijo para toda la aplicación
+const APP_ID =
+  "b2fa850b9a1782595da81d0699892e93a3f29f9d5b0fd74ef4ede03f05658942";
 
-const APP_ID = generateAppId();
+// Hacer disponible el APP_ID para el proceso de renderizado
+process.env.VITE_APP_ID = APP_ID;
 
-console.log('App ID generado:', APP_ID);
+console.log("App ID:", APP_ID);
+
+// Agregar un manejador IPC para mostrar el APP_ID
+ipcMain.handle("show-app-id", () => {
+  dialog.showMessageBox({
+    type: "info",
+    title: "APP ID",
+    message: `APP_ID actual: ${APP_ID}`,
+    buttons: ["OK"],
+  });
+  return APP_ID;
+});
 
 function createWindow() {
   const iconPath = path.join(
@@ -46,7 +44,8 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
-      devTools: process.env.NODE_ENV === "development",
+      devTools: true,
+      webSecurity: false,
     },
   });
 
@@ -57,6 +56,16 @@ function createWindow() {
   } else {
     // En producción, carga el archivo HTML construido
     mainWindow.loadFile(path.join(__dirname, "../dist/index.html"));
+
+    // Manejar navegación para SPA
+    mainWindow.webContents.on(
+      "did-fail-load",
+      (event, errorCode, errorDescription, validatedURL) => {
+        if (errorCode === -6) {
+          mainWindow.loadFile(path.join(__dirname, "../dist/index.html"));
+        }
+      }
+    );
   }
 }
 
@@ -78,7 +87,7 @@ ipcMain.handle("print-ticket", async (_, orderData) => {
     const tempDataPath = path.join(tempDir, `order-data-${Date.now()}.json`);
 
     // Guardar datos de la orden en archivo temporal
-    await fsPromises.writeFile(tempDataPath, JSON.stringify(orderData), 'utf8');
+    await fsPromises.writeFile(tempDataPath, JSON.stringify(orderData), "utf8");
 
     // Ejecutar script PHP
     const phpScriptPath = path.join(
@@ -111,5 +120,13 @@ ipcMain.handle("print-ticket", async (_, orderData) => {
   } catch (error) {
     console.error("Error en impresión:", error);
     throw error;
+  }
+});
+
+// Agregar un nuevo manejador IPC para DevTools
+ipcMain.handle("toggle-devtools", () => {
+  const win = BrowserWindow.getFocusedWindow();
+  if (win) {
+    win.webContents.toggleDevTools();
   }
 });
