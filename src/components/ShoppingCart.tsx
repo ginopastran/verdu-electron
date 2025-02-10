@@ -248,11 +248,18 @@ export default function ShoppingCart() {
       // Imprimir ticket usando Electron IPC
       try {
         const { ipcRenderer } = window.require("electron");
-        await ipcRenderer.invoke("print-ticket", orderData);
-        toast.success("Ticket impreso correctamente");
-      } catch (printError) {
-        console.error("Error al imprimir:", printError);
-        toast.error("Error al imprimir el ticket");
+        console.log("Enviando datos para impresión:", orderData);
+        const result = await ipcRenderer.invoke("print-ticket", orderData);
+        console.log("Resultado de impresión:", result);
+
+        if (result.success) {
+          toast.success("Ticket impreso correctamente");
+        } else {
+          throw new Error(result.message || "Error desconocido al imprimir");
+        }
+      } catch (printError: any) {
+        console.error("Error detallado al imprimir:", printError);
+        toast.error(`Error al imprimir el ticket: ${printError.message}`);
       }
 
       setPaymentDialogOpen(false);

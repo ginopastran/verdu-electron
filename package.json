@@ -90,13 +90,12 @@
     "appId": "com.verdu.app",
     "productName": "Verdulería",
     "directories": {
-      "output": "release"
+      "output": "release",
+      "buildResources": "resources"
     },
     "files": [
       "dist/**/*",
-      "dist-electron/**/*",
-      "resources/**/*",
-      "!resources/app.asar"
+      "dist-electron/**/*"
     ],
     "extraResources": [
       {

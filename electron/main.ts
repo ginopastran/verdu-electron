@@ -97,12 +97,14 @@ ipcMain.handle("print-ticket", async (_, orderData) => {
     // Guardar datos de la orden en archivo temporal
     await fsPromises.writeFile(tempDataPath, JSON.stringify(orderData), "utf8");
 
-    // Ejecutar script PHP
-    const phpScriptPath = path.join(
-      app.getAppPath(),
-      "resources",
-      "ticket_printer.php"
-    );
+    // Obtener la ruta correcta del script PHP
+    const phpScriptPath =
+      process.env.NODE_ENV === "development"
+        ? path.join(app.getAppPath(), "resources", "ticket_printer.php")
+        : path.join(process.resourcesPath, "resources", "ticket_printer.php");
+
+    console.log("Ruta del script PHP:", phpScriptPath);
+    console.log("Ruta del archivo temporal:", tempDataPath);
 
     return new Promise((resolve, reject) => {
       exec(
@@ -113,13 +115,18 @@ ipcMain.handle("print-ticket", async (_, orderData) => {
             await fsPromises.unlink(tempDataPath);
 
             if (error) {
-              console.error("Error al imprimir:", error);
-              reject(new Error(stderr));
+              console.error("Error al ejecutar PHP:", error);
+              console.error("Salida de error:", stderr);
+              reject(
+                new Error(`Error al imprimir: ${stderr || error.message}`)
+              );
               return;
             }
 
+            console.log("Salida del script PHP:", stdout);
             resolve({ success: true, message: "Ticket impreso correctamente" });
           } catch (err) {
+            console.error("Error en el callback:", err);
             reject(err);
           }
         }
