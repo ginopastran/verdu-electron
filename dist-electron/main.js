@@ -37,7 +37,6 @@ function createWindow() {
             webSecurity: false,
         },
     });
-    // En desarrollo, carga la URL del servidor de Vite
     if (process.env.NODE_ENV === "development") {
         mainWindow.loadURL("http://localhost:5173");
         mainWindow.webContents.openDevTools();
@@ -45,6 +44,11 @@ function createWindow() {
     else {
         // En producción, carga el archivo HTML construido
         mainWindow.loadFile(path.join(__dirname, "../dist/index.html"));
+        // Configurar protocolo para recursos estáticos
+        mainWindow.webContents.session.protocol.registerFileProtocol("app", (request, callback) => {
+            const url = request.url.substr(6);
+            callback({ path: path.normalize(`${__dirname}/../dist/${url}`) });
+        });
         // Manejar navegación para SPA
         mainWindow.webContents.on("did-fail-load", (event, errorCode, errorDescription, validatedURL) => {
             if (errorCode === -6) {
@@ -55,6 +59,20 @@ function createWindow() {
 }
 app.whenReady().then(() => {
     createWindow();
+    // Registrar todos los handlers IPC aquí
+    ipcMain.handle("read-weight", async () => {
+        try {
+            const weightPath = "C:\\Peso\\peso.json";
+            const data = await fsPromises.readFile(weightPath, "utf8");
+            const weightData = JSON.parse(data);
+            console.log("Peso leído:", weightData.peso);
+            return weightData.peso;
+        }
+        catch (error) {
+            console.error("Error al leer el peso:", error);
+            return 0;
+        }
+    });
     app.on("activate", () => {
         if (BrowserWindow.getAllWindows().length === 0)
             createWindow();
@@ -70,21 +88,28 @@ ipcMain.handle("print-ticket", async (_, orderData) => {
         const tempDataPath = path.join(tempDir, `order-data-${Date.now()}.json`);
         // Guardar datos de la orden en archivo temporal
         await fsPromises.writeFile(tempDataPath, JSON.stringify(orderData), "utf8");
-        // Ejecutar script PHP
-        const phpScriptPath = path.join(app.getAppPath(), "resources", "ticket_printer.php");
+        // Obtener la ruta correcta del script PHP
+        const phpScriptPath = process.env.NODE_ENV === "development"
+            ? path.join(app.getAppPath(), "resources", "ticket_printer.php")
+            : path.join(process.resourcesPath, "resources", "ticket_printer.php");
+        console.log("Ruta del script PHP:", phpScriptPath);
+        console.log("Ruta del archivo temporal:", tempDataPath);
         return new Promise((resolve, reject) => {
             exec(`php "${phpScriptPath}" "${tempDataPath}"`, async (error, stdout, stderr) => {
                 try {
                     // Limpiar archivo temporal
                     await fsPromises.unlink(tempDataPath);
                     if (error) {
-                        console.error("Error al imprimir:", error);
-                        reject(new Error(stderr));
+                        console.error("Error al ejecutar PHP:", error);
+                        console.error("Salida de error:", stderr);
+                        reject(new Error(`Error al imprimir: ${stderr || error.message}`));
                         return;
                     }
+                    console.log("Salida del script PHP:", stdout);
                     resolve({ success: true, message: "Ticket impreso correctamente" });
                 }
                 catch (err) {
+                    console.error("Error en el callback:", err);
                     reject(err);
                 }
             });
@@ -100,5 +125,34 @@ ipcMain.handle("toggle-devtools", () => {
     const win = BrowserWindow.getFocusedWindow();
     if (win) {
         win.webContents.toggleDevTools();
+    }
+});
+ipcMain.handle("print-closing", async (_, closingData) => {
+    try {
+        const tempDir = os.tmpdir();
+        const tempDataPath = path.join(tempDir, `closing-data-${Date.now()}.json`);
+        await fsPromises.writeFile(tempDataPath, JSON.stringify(closingData), "utf8");
+        const phpScriptPath = process.env.NODE_ENV === "development"
+            ? path.join(app.getAppPath(), "resources", "closing_printer.php")
+            : path.join(process.resourcesPath, "resources", "closing_printer.php");
+        return new Promise((resolve, reject) => {
+            exec(`php "${phpScriptPath}" "${tempDataPath}"`, async (error, stdout, stderr) => {
+                try {
+                    await fsPromises.unlink(tempDataPath);
+                    if (error) {
+                        reject(new Error(`Error al imprimir: ${stderr || error.message}`));
+                        return;
+                    }
+                    resolve({ success: true, message: "Cierre impreso correctamente" });
+                }
+                catch (err) {
+                    reject(err);
+                }
+            });
+        });
+    }
+    catch (error) {
+        console.error("Error en impresión del cierre:", error);
+        throw error;
     }
 });

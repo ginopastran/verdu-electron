@@ -27,6 +27,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { UserMenu } from "@/components/user-menu";
 import { cn } from "@/lib/utils";
+import { useScaleWeight } from "@/hooks/useScaleWeight";
 
 interface Product {
   id: number;
@@ -76,6 +77,8 @@ export default function ShoppingCart() {
     "Content-Type": "application/json",
     ...(appId && { "X-App-ID": appId }),
   };
+
+  const weight = useScaleWeight();
 
   // Cargar productos al montar el componente
   useEffect(() => {
@@ -300,27 +303,23 @@ export default function ShoppingCart() {
     }
 
     try {
-      // Obtener el último cierre de caja para este vendedor
       const lastCloseResponse = await fetch(
         `${API_URL}/api/cierres?vendedorId=${user.id}&last=true`,
         { headers }
       );
       const lastClose = await lastCloseResponse.json();
 
-      // Determinar la fecha de inicio según el periodo
       let startDate;
       if (period === "mañana") {
         startDate = new Date();
-        startDate.setHours(6, 0, 0, 0); // Inicio día 6 AM
+        startDate.setHours(6, 0, 0, 0);
       } else if (period === "tarde") {
         startDate = lastClose ? new Date(lastClose.fechaCierre) : new Date();
       } else {
-        // todo el día
         startDate = new Date();
-        startDate.setHours(0, 0, 0, 0); // Inicio del día
+        startDate.setHours(0, 0, 0, 0);
       }
 
-      // Obtener las ventas para el periodo
       const ventasResponse = await fetch(`${API_URL}/api/ordenes/ventas`, {
         method: "POST",
         headers,
@@ -334,24 +333,49 @@ export default function ShoppingCart() {
 
       const ventas = await ventasResponse.json();
 
-      // Crear el registro de cierre
+      const closingData = {
+        vendedorId: user.id,
+        sucursalId: user.sucursalId,
+        fechaInicio: startDate,
+        fechaCierre: new Date(),
+        periodo: period,
+        totalVentas: ventas.total,
+        cantidadVentas: ventas.cantidad,
+        ventasPorMetodo: ventas.ventasPorMetodo,
+      };
+
       const cierreResponse = await fetch(`${API_URL}/api/cierres`, {
         method: "POST",
         headers,
-        body: JSON.stringify({
-          vendedorId: user.id,
-          sucursalId: user.sucursalId,
-          fechaInicio: startDate,
-          fechaCierre: new Date(),
-          periodo: period,
-          totalVentas: ventas.total,
-          cantidadVentas: ventas.cantidad,
-        }),
+        body: JSON.stringify(closingData),
       });
 
       if (!cierreResponse.ok) {
         throw new Error("Error al registrar el cierre");
       }
+
+      // Imprimir ticket de cierre
+      try {
+        const { ipcRenderer } = window.require("electron");
+        const result = await ipcRenderer.invoke("print-closing", closingData);
+        if (result.success) {
+          toast.success("Ticket de cierre impreso correctamente");
+        }
+      } catch (printError: any) {
+        console.error("Error al imprimir cierre:", printError);
+        toast.error(
+          `Error al imprimir el ticket de cierre: ${printError.message}`
+        );
+      }
+
+      console.log("Datos del cierre:", {
+        periodo: period,
+        fechaInicio: startDate,
+        fechaCierre: new Date(),
+        ventasPorMetodo: ventas.ventasPorMetodo,
+        totalVentas: ventas.total,
+        cantidadVentas: ventas.cantidad,
+      });
 
       toast.success(`Cierre de ${period} realizado correctamente`);
       setClosingDialogOpen(false);
@@ -521,22 +545,21 @@ export default function ShoppingCart() {
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium">
-                  Ingrese{" "}
-                  {selectedProduct?.unit === "Kg"
-                    ? "peso en gramos"
-                    : "cantidad"}
-                  :
-                </label>
-                <Input
-                  type="number"
-                  value={quantity}
-                  onChange={(e) => setQuantity(e.target.value)}
-                  onKeyPress={handleQuantityKeyPress}
-                  placeholder={
-                    selectedProduct?.unit === "Kg" ? "Gramos" : "Cantidad"
-                  }
-                />
+                <div className="text-center">
+                  <div className="text-4xl font-bold">
+                    {selectedProduct?.unit === "Kg" ? weight : quantity}{" "}
+                    {selectedProduct?.unit === "Kg" ? "g" : "u"}
+                  </div>
+                  {selectedProduct?.unit !== "Kg" && (
+                    <Input
+                      type="number"
+                      value={quantity}
+                      onChange={(e) => setQuantity(e.target.value)}
+                      onKeyPress={handleQuantityKeyPress}
+                      placeholder="Cantidad"
+                    />
+                  )}
+                </div>
               </div>
               <Button
                 onClick={addToCart}
