@@ -168,27 +168,34 @@ export default function ShoppingCart() {
   };
 
   const addToCart = () => {
-    if (selectedProduct && quantity) {
-      const quantityNum = parseFloat(quantity);
-      const finalQuantity =
-        selectedProduct.unit === "Kg" ? quantityNum / 1000 : quantityNum;
-      const newItem: Product = {
-        id: selectedProduct.id,
-        name: selectedProduct.name,
-        quantity: finalQuantity,
-        unit: selectedProduct.unit,
-        pricePerUnit: selectedProduct.pricePerUnit,
-        subtotal: selectedProduct.pricePerUnit * finalQuantity,
-        costo: selectedProduct.costo,
-      };
-      setCartItems((prev) => [...prev, newItem]);
-      setDialogOpen(false);
-      setSelectedProduct(null);
-      setQuantity("");
-      setTimeout(() => {
-        searchInputRef.current?.focus();
-      }, 0);
+    if (!selectedProduct) return;
+
+    let finalQuantity: number;
+
+    if (selectedProduct.unit === "Kg") {
+      finalQuantity = weight / 1000; // Convertir gramos a kilos
+    } else {
+      if (!quantity) return;
+      finalQuantity = parseFloat(quantity);
     }
+
+    const newItem: Product = {
+      id: selectedProduct.id,
+      name: selectedProduct.name,
+      quantity: finalQuantity,
+      unit: selectedProduct.unit,
+      pricePerUnit: selectedProduct.pricePerUnit,
+      subtotal: selectedProduct.pricePerUnit * finalQuantity,
+      costo: selectedProduct.costo,
+    };
+
+    setCartItems((prev) => [...prev, newItem]);
+    setDialogOpen(false);
+    setSelectedProduct(null);
+    setQuantity("");
+    setTimeout(() => {
+      searchInputRef.current?.focus();
+    }, 0);
   };
 
   const removeFromCart = (id: number) => {
