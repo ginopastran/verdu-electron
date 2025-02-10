@@ -49,13 +49,21 @@ function createWindow() {
     },
   });
 
-  // En desarrollo, carga la URL del servidor de Vite
   if (process.env.NODE_ENV === "development") {
     mainWindow.loadURL("http://localhost:5173");
     mainWindow.webContents.openDevTools();
   } else {
     // En producción, carga el archivo HTML construido
     mainWindow.loadFile(path.join(__dirname, "../dist/index.html"));
+
+    // Configurar protocolo para recursos estáticos
+    mainWindow.webContents.session.protocol.registerFileProtocol(
+      "app",
+      (request, callback) => {
+        const url = request.url.substr(6);
+        callback({ path: path.normalize(`${__dirname}/../dist/${url}`) });
+      }
+    );
 
     // Manejar navegación para SPA
     mainWindow.webContents.on(

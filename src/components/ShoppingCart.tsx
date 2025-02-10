@@ -600,7 +600,7 @@ export default function ShoppingCart() {
                     <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900" />
                   ) : (
                     <img
-                      src="/logos/mercadopago.webp"
+                      src="logos/mercadopago.webp"
                       alt="Mercado Pago"
                       width={48}
                       height={48}

@@ -95,7 +95,17 @@
     "files": [
       "dist/**/*",
       "dist-electron/**/*",
-      "resources/**/*"
+      "resources/**/*",
+      "!resources/app.asar"
+    ],
+    "extraResources": [
+      {
+        "from": "resources",
+        "to": "resources",
+        "filter": [
+          "**/*"
+        ]
+      }
     ],
     "win": {
       "target": "nsis",
