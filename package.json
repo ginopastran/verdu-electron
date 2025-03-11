@@ -1,8 +1,8 @@
 {
   "name": "verdu-electron",
-  "version": "1.0.0",
+  "version": "1.0",
   "description": "Sistema de punto de venta para verdulería",
-  "author": "Tu Nombre",
+  "author": "AndexTech",
   "main": "dist-electron/main.js",
   "type": "module",
   "scripts": {
@@ -88,7 +88,7 @@
   },
   "build": {
     "appId": "com.verdu.app",
-    "productName": "Verdulería",
+    "productName": "VerduSoft",
     "directories": {
       "output": "release",
       "buildResources": "resources"

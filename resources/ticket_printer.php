@@ -57,7 +57,7 @@ try {
     // Encabezado
     $printer->setEmphasis(true);
     $printer->setTextSize(2, 2);
-    $printer->text("\nVerdulería\n");
+    $printer->text("\nVerduSoft\n");
     $printer->setEmphasis(false);
     $printer->setTextSize(1, 1);
     $printer->text("Comprobante de Venta\n");

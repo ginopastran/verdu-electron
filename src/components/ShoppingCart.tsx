@@ -15,6 +15,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
 import {
   Dialog,
   DialogContent,
@@ -45,6 +46,7 @@ interface AvailableProduct {
   pricePerUnit: number;
   unit: string;
   costo: number;
+  codigoBarras: string | null;
 }
 
 export default function ShoppingCart() {
@@ -66,8 +68,11 @@ export default function ShoppingCart() {
   >([]);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [useManualWeight, setUseManualWeight] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [closingDialogOpen, setClosingDialogOpen] = useState(false);
+  const [lastInputTime, setLastInputTime] = useState<number>(0);
+  const [barcodeBuffer, setBarcodeBuffer] = useState<string>("");
 
   const appId =
     window.electron?.process?.argv
@@ -98,6 +103,7 @@ export default function ShoppingCart() {
           pricePerUnit: p.precio,
           unit: p.tipoMedida,
           costo: p.costo,
+          codigoBarras: p.codigoBarras,
         }));
 
         setAvailableProducts(transformedProducts);
@@ -167,13 +173,19 @@ export default function ShoppingCart() {
     setSearchQuery("");
   };
 
+  // Modificar addToCart para manejar peso manual
   const addToCart = () => {
     if (!selectedProduct) return;
 
     let finalQuantity: number;
 
     if (selectedProduct.unit === "Kg") {
-      finalQuantity = weight / 1000; // Convertir gramos a kilos
+      if (useManualWeight) {
+        if (!quantity) return;
+        finalQuantity = parseFloat(quantity) / 1000; // Convertir gramos a kilos
+      } else {
+        finalQuantity = weight / 1000; // Convertir gramos a kilos
+      }
     } else {
       if (!quantity) return;
       finalQuantity = parseFloat(quantity);
@@ -455,6 +467,44 @@ export default function ShoppingCart() {
     return () => window.removeEventListener("keydown", handleGlobalKeyPress);
   }, [closingDialogOpen, paymentDialogOpen, cartItems.length]);
 
+  // Modificar la función de búsqueda para incluir código de barras
+  const handleSearchInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const currentTime = Date.now();
+    const value = e.target.value;
+    setSearchQuery(value);
+
+    // Si el tiempo entre teclas es menor a 50ms, probablemente sea un scanner
+    if (currentTime - lastInputTime < 50) {
+      setBarcodeBuffer((prev) => prev + value.slice(-1));
+    } else {
+      setBarcodeBuffer(value);
+    }
+
+    setLastInputTime(currentTime);
+
+    // Si detectamos un patrón de código de barras (números y longitud específica)
+    if (/^\d{8,13}$/.test(value)) {
+      const product = availableProducts.find((p) => p.codigoBarras === value);
+      if (product) {
+        handleProductSelect(product);
+      }
+    }
+
+    // Actualizar resultados de búsqueda normal
+    if (value) {
+      const results = availableProducts.filter(
+        (product) =>
+          product.name.toLowerCase().includes(value.toLowerCase()) ||
+          product.codigoBarras === value
+      );
+      setSearchResults(results);
+      setShowResults(true);
+    } else {
+      setSearchResults([]);
+      setShowResults(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-white-cream h-screen">
       <div className="w-full mx-auto flex h-full flex-col px-8 py-6">
@@ -466,10 +516,7 @@ export default function ShoppingCart() {
               type="search"
               placeholder="Buscar productos..."
               value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                setShowResults(e.target.value.length > 0);
-              }}
+              onChange={handleSearchInputChange}
               onKeyDown={handleKeyPress}
               className="bg-background max-w-2xl md:text-base rounded-xl"
             />
@@ -544,37 +591,68 @@ export default function ShoppingCart() {
         </div>
 
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogContent className="w-[90vw] md:w-full rounded-xl">
+          <DialogContent>
             <DialogHeader>
               <DialogTitle className="text-emerald-gradient font-bold text-2xl">
-                Agregar {selectedProduct?.name}
+                Agregar producto
               </DialogTitle>
+              <DialogDescription>
+                {selectedProduct?.name} - ${selectedProduct?.pricePerUnit}/{" "}
+                {selectedProduct?.unit}
+              </DialogDescription>
             </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <div className="text-center">
-                  <div className="text-4xl font-bold">
-                    {selectedProduct?.unit === "Kg" ? weight : quantity}{" "}
-                    {selectedProduct?.unit === "Kg" ? "g" : "u"}
-                  </div>
-                  {selectedProduct?.unit !== "Kg" && (
-                    <Input
-                      type="number"
-                      value={quantity}
-                      onChange={(e) => setQuantity(e.target.value)}
-                      onKeyPress={handleQuantityKeyPress}
-                      placeholder="Cantidad"
-                    />
-                  )}
-                </div>
+
+            {selectedProduct?.unit === "Kg" && (
+              <div className="flex items-center space-x-4 py-2">
+                <Switch
+                  id="weight-mode"
+                  checked={useManualWeight}
+                  onCheckedChange={setUseManualWeight}
+                  className="data-[state=checked]:bg-emerald-700"
+                />
+                <label
+                  htmlFor="weight-mode"
+                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                >
+                  Peso manual
+                </label>
               </div>
+            )}
+
+            {selectedProduct?.unit !== "Kg" || useManualWeight ? (
+              <Input
+                type="number"
+                placeholder={`Cantidad ${
+                  selectedProduct?.unit === "Kg" ? "en gramos" : ""
+                }`}
+                value={quantity}
+                onChange={(e) => setQuantity(e.target.value)}
+                onKeyDown={handleQuantityKeyPress}
+                step={selectedProduct?.unit === "Kg" ? "1" : "1"}
+                min="0"
+              />
+            ) : (
+              <div className="text-start py-2">
+                <p className="text-3xl font-bold">{weight} g</p>
+                <p className="text-sm text-gray-500">Peso de la balanza</p>
+              </div>
+            )}
+
+            <DialogFooter>
+              <Button
+                variant="outline"
+                className="bg-cancel-gradient text-white hover:text-white text-base"
+                onClick={() => setDialogOpen(false)}
+              >
+                Cancelar
+              </Button>
               <Button
                 onClick={addToCart}
-                className="w-full bg-emerald-gradient text-white hover:text-white"
+                className="bg-emerald-gradient text-white hover:text-white text-base"
               >
                 Agregar al carrito
               </Button>
-            </div>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
 

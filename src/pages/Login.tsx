@@ -169,7 +169,7 @@ export default function LoginPage() {
           </p>
         </div>
 
-        <div className="flex gap-2 justify-center">
+        {/* <div className="flex gap-2 justify-center">
           <button
             onClick={checkAppId}
             className="text-sm text-gray-500 hover:text-gray-700"
@@ -182,7 +182,7 @@ export default function LoginPage() {
           >
             Abrir DevTools
           </button>
-        </div>
+        </div> */}
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
