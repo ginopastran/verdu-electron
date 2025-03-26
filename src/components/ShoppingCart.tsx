@@ -11,6 +11,7 @@ import {
   Sun,
   Moon,
   Calendar,
+  RefreshCw,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -50,8 +51,15 @@ interface AvailableProduct {
 }
 
 export default function ShoppingCart() {
-  const { user } = useAuth();
+  const { user, refreshUserData } = useAuth();
   const API_URL = import.meta.env.VITE_API_URL;
+
+  // Add detailed console logging for debugging
+  useEffect(() => {
+    console.log("User data:", user);
+    console.log("User permissions:", user?.permisos);
+    console.log("pesoManualEnabled:", user?.permisos?.pesoManualEnabled);
+  }, [user]);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [showResults, setShowResults] = useState(false);
@@ -69,6 +77,7 @@ export default function ShoppingCart() {
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [useManualWeight, setUseManualWeight] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [closingDialogOpen, setClosingDialogOpen] = useState(false);
   const [lastInputTime, setLastInputTime] = useState<number>(0);
@@ -84,6 +93,38 @@ export default function ShoppingCart() {
   };
 
   const weight = useScaleWeight();
+
+  // Add a periodic refresh for user data (every 2 minutes)
+  useEffect(() => {
+    // Initial refresh when component mounts
+    refreshUserData();
+
+    // Set up periodic refresh
+    const refreshInterval = setInterval(() => {
+      refreshUserData();
+    }, 2 * 60 * 1000); // 2 minutes
+
+    // Clean up on unmount
+    return () => clearInterval(refreshInterval);
+  }, [refreshUserData]);
+
+  // Add function to manually refresh user data
+  const handleRefreshUserData = async () => {
+    setIsRefreshing(true);
+    await refreshUserData();
+    setIsRefreshing(false);
+  };
+
+  // Initialize and update useManualWeight based on user permissions
+  useEffect(() => {
+    console.log("User permissions:", user?.permisos);
+    // Set weight mode based on user permissions
+    if (user?.permisos?.pesoManualEnabled === true) {
+      setUseManualWeight(true);
+    } else {
+      setUseManualWeight(false);
+    }
+  }, [user]);
 
   // Cargar productos al montar el componente
   useEffect(() => {
@@ -168,6 +209,12 @@ export default function ShoppingCart() {
 
   const handleProductSelect = (product: AvailableProduct) => {
     setSelectedProduct(product);
+    // Update the useManualWeight state based on current permissions when dialog opens
+    if (user?.permisos?.pesoManualEnabled === true) {
+      setUseManualWeight(true);
+    } else {
+      setUseManualWeight(false);
+    }
     setDialogOpen(true);
     setShowResults(false);
     setSearchQuery("");
@@ -505,6 +552,7 @@ export default function ShoppingCart() {
     }
   };
 
+  console.log(user);
   return (
     <div className="min-h-screen bg-white-cream h-screen">
       <div className="w-full mx-auto flex h-full flex-col px-8 py-6">
@@ -549,6 +597,14 @@ export default function ShoppingCart() {
             >
               <Store />
               Cierre de caja
+            </Button>
+            <Button
+              className="text-white hover:text-white text-base [&_svg]:size-6 bg-blue-500 hover:bg-blue-600"
+              onClick={handleRefreshUserData}
+              disabled={isRefreshing}
+            >
+              <RefreshCw className={isRefreshing ? "animate-spin" : ""} />
+              {isRefreshing ? "Actualizando..." : "Actualizar permisos"}
             </Button>
             <UserMenu
               user={{ nombre: user?.nombre || "", email: user?.email || "" }}
@@ -604,18 +660,27 @@ export default function ShoppingCart() {
 
             {selectedProduct?.unit === "Kg" && (
               <div className="flex items-center space-x-4 py-2">
-                <Switch
-                  id="weight-mode"
-                  checked={useManualWeight}
-                  onCheckedChange={setUseManualWeight}
-                  className="data-[state=checked]:bg-emerald-700"
-                />
-                <label
-                  htmlFor="weight-mode"
-                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                >
-                  Peso manual
-                </label>
+                {user?.permisos?.pesoManualEnabled === true && (
+                  <>
+                    <Switch
+                      id="weight-mode"
+                      checked={useManualWeight}
+                      onCheckedChange={setUseManualWeight}
+                      className="data-[state=checked]:bg-emerald-700"
+                    />
+                    <label
+                      htmlFor="weight-mode"
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                    >
+                      Peso manual
+                    </label>
+                  </>
+                )}
+                {user?.permisos?.pesoManualEnabled !== true && (
+                  <p className="text-sm text-gray-500">
+                    Modo de peso automático
+                  </p>
+                )}
               </div>
             )}
 

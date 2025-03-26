@@ -11,6 +11,9 @@ interface OfflineCredentials {
       id: number;
       nombre: string;
     };
+    permisos?: {
+      pesoManualEnabled?: boolean;
+    };
   };
 }
 

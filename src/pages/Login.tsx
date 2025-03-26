@@ -116,6 +116,25 @@ export default function LoginPage() {
         throw new Error("El usuario no tiene un rol asignado");
       }
 
+      // Ensure we have the permisos object with proper properties
+      if (!sessionData.user.permisos) {
+        sessionData.user.permisos = {};
+      }
+
+      // Check if pesoManualEnabled permission exists in the database response
+      if (sessionData.user.pesoManualEnabled !== undefined) {
+        // If it comes as a direct property, move it to the permisos object
+        if (!sessionData.user.permisos) {
+          sessionData.user.permisos = {};
+        }
+        sessionData.user.permisos.pesoManualEnabled =
+          sessionData.user.pesoManualEnabled;
+        // Remove the direct property to avoid duplication
+        delete sessionData.user.pesoManualEnabled;
+      }
+
+      console.log("Usuario procesado:", sessionData.user);
+
       // Guardar credenciales para uso offline
       saveOfflineCredentials({
         email: values.email,
