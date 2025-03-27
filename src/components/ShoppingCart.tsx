@@ -11,7 +11,6 @@ import {
   Sun,
   Moon,
   Calendar,
-  RefreshCw,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -77,7 +76,6 @@ export default function ShoppingCart() {
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [useManualWeight, setUseManualWeight] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [closingDialogOpen, setClosingDialogOpen] = useState(false);
   const [lastInputTime, setLastInputTime] = useState<number>(0);
@@ -94,7 +92,7 @@ export default function ShoppingCart() {
 
   const weight = useScaleWeight();
 
-  // Add a periodic refresh for user data (every 2 minutes)
+  // Add a periodic refresh for user data (every 30 seconds)
   useEffect(() => {
     // Initial refresh when component mounts
     refreshUserData();
@@ -102,18 +100,11 @@ export default function ShoppingCart() {
     // Set up periodic refresh
     const refreshInterval = setInterval(() => {
       refreshUserData();
-    }, 2 * 60 * 1000); // 2 minutes
+    }, 30 * 1000); // 30 seconds
 
     // Clean up on unmount
     return () => clearInterval(refreshInterval);
   }, [refreshUserData]);
-
-  // Add function to manually refresh user data
-  const handleRefreshUserData = async () => {
-    setIsRefreshing(true);
-    await refreshUserData();
-    setIsRefreshing(false);
-  };
 
   // Initialize and update useManualWeight based on user permissions
   useEffect(() => {
@@ -597,14 +588,6 @@ export default function ShoppingCart() {
             >
               <Store />
               Cierre de caja
-            </Button>
-            <Button
-              className="text-white hover:text-white text-base [&_svg]:size-6 bg-blue-500 hover:bg-blue-600"
-              onClick={handleRefreshUserData}
-              disabled={isRefreshing}
-            >
-              <RefreshCw className={isRefreshing ? "animate-spin" : ""} />
-              {isRefreshing ? "Actualizando..." : "Actualizar permisos"}
             </Button>
             <UserMenu
               user={{ nombre: user?.nombre || "", email: user?.email || "" }}

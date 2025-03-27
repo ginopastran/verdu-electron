@@ -32,6 +32,7 @@ export default function LoginPage() {
   const { isOnline } = useOfflineMode();
   const { saveOfflineCredentials } = useOfflineAuth();
   const [redirectTo, setRedirectTo] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -43,6 +44,8 @@ export default function LoginPage() {
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     try {
+      setIsLoading(true);
+
       if (!isOnline) {
         const stored = localStorage.getItem("offlineCredentials");
         if (stored) {
@@ -155,6 +158,8 @@ export default function LoginPage() {
             ? error.message
             : "Verifica tus credenciales e intenta nuevamente",
       });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -212,7 +217,11 @@ export default function LoginPage() {
                 <FormItem>
                   <FormLabel>Email</FormLabel>
                   <FormControl>
-                    <Input placeholder="tu@email.com" {...field} />
+                    <Input
+                      placeholder="tu@email.com"
+                      {...field}
+                      disabled={isLoading}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -225,14 +234,25 @@ export default function LoginPage() {
                 <FormItem>
                   <FormLabel>Contraseña</FormLabel>
                   <FormControl>
-                    <Input type="password" {...field} />
+                    <Input type="password" {...field} disabled={isLoading} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            <Button type="submit" className="w-full bg-emerald-gradient">
-              Iniciar Sesión
+            <Button
+              type="submit"
+              className="w-full bg-emerald-gradient"
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <div className="flex items-center gap-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                  <span>Iniciando sesión...</span>
+                </div>
+              ) : (
+                "Iniciar Sesión"
+              )}
             </Button>
           </form>
         </Form>
