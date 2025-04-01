@@ -11,6 +11,7 @@ import {
   Sun,
   Moon,
   Calendar,
+  LogOut,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -51,7 +52,7 @@ interface AvailableProduct {
 }
 
 export default function ShoppingCart() {
-  const { user, refreshUserData } = useAuth();
+  const { user, refreshUserData, logout } = useAuth();
   const API_URL = import.meta.env.VITE_API_URL;
 
   // Add detailed console logging for debugging
@@ -452,6 +453,13 @@ export default function ShoppingCart() {
 
   useEffect(() => {
     const handleGlobalKeyPress = (e: KeyboardEvent) => {
+      // Handle F4 for logout
+      if (e.key === "F4") {
+        e.preventDefault();
+        handleLogout();
+        return;
+      }
+
       // Evitar que se active cuando se está escribiendo en un input
       const isInputElement = e.target instanceof HTMLInputElement;
 
@@ -513,6 +521,14 @@ export default function ShoppingCart() {
     window.addEventListener("keydown", handleGlobalKeyPress);
     return () => window.removeEventListener("keydown", handleGlobalKeyPress);
   }, [closingDialogOpen, paymentDialogOpen, cartItems.length]);
+
+  // Función para cerrar sesión
+  const handleLogout = () => {
+    toast.success("Cerrando sesión...");
+    setTimeout(() => {
+      logout();
+    }, 1000);
+  };
 
   // Modificar la función de búsqueda para incluir código de barras
   const handleSearchInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -915,7 +931,7 @@ export default function ShoppingCart() {
 
         <div className="text-sm text-muted-foreground mt-2">
           Atajos: ↑↓ para navegar, Enter para seleccionar, F2 para pagar, F1
-          para cancelar
+          para cancelar, F4 para cerrar sesión
         </div>
       </div>
     </div>
