@@ -7,16 +7,13 @@ import {
 } from "react";
 
 interface User {
-  id: string;
-  email: string;
+  id: number;
   nombre: string;
-  sucursalId: string;
-  rol: {
-    id: number;
-    nombre: string;
-  };
-  permisos?: {
+  email: string;
+  sucursalId: number;
+  permisos: {
     pesoManualEnabled?: boolean;
+    cierreDeCajaEnabled?: boolean;
   };
 }
 
@@ -90,12 +87,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         userData.permisos = {};
       }
 
-      // Check if pesoManualEnabled permission exists in the response
+      // Check if permissions exist in the response at root level
       if (userData.pesoManualEnabled !== undefined) {
-        // If it comes as a direct property, move it to the permisos object
         userData.permisos.pesoManualEnabled = userData.pesoManualEnabled;
-        // Remove the direct property to avoid duplication
         delete userData.pesoManualEnabled;
+      }
+
+      if (userData.cierreDeCajaEnabled !== undefined) {
+        userData.permisos.cierreDeCajaEnabled = userData.cierreDeCajaEnabled;
+        delete userData.cierreDeCajaEnabled;
       }
 
       console.log("Usuario actualizado:", userData);

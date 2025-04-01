@@ -32,6 +32,7 @@ import { useScaleWeight } from "@/hooks/useScaleWeight";
 
 interface Product {
   id: number;
+  cartId: string;
   name: string;
   quantity: number;
   unit: string;
@@ -231,6 +232,7 @@ export default function ShoppingCart() {
 
     const newItem: Product = {
       id: selectedProduct.id,
+      cartId: `${selectedProduct.id}-${Date.now()}`,
       name: selectedProduct.name,
       quantity: finalQuantity,
       unit: selectedProduct.unit,
@@ -248,8 +250,8 @@ export default function ShoppingCart() {
     }, 0);
   };
 
-  const removeFromCart = (id: number) => {
-    setCartItems((prev) => prev.filter((item) => item.id !== id));
+  const removeFromCart = (cartId: string) => {
+    setCartItems((prev) => prev.filter((item) => item.cartId !== cartId));
   };
 
   const total = cartItems.reduce((sum, item) => sum + item.subtotal, 0);
@@ -359,6 +361,12 @@ export default function ShoppingCart() {
       return;
     }
 
+    if (!user.permisos?.cierreDeCajaEnabled) {
+      toast.error("No tienes permiso para realizar cierres de caja");
+      setClosingDialogOpen(false);
+      return;
+    }
+
     try {
       const lastCloseResponse = await fetch(
         `${API_URL}/api/cierres?vendedorId=${user.id}&last=true`,
@@ -461,7 +469,8 @@ export default function ShoppingCart() {
       // Para el resto de atajos, verificar que no estemos en un input
       if (isInputElement) return;
 
-      if (closingDialogOpen) {
+      // Solo procesar atajos de cierre si el usuario tiene permiso
+      if (closingDialogOpen && user?.permisos?.cierreDeCajaEnabled) {
         switch (e.key) {
           case "1":
             e.preventDefault();
@@ -566,14 +575,18 @@ export default function ShoppingCart() {
                   <div
                     key={product.id}
                     className={cn(
-                      "p-2 cursor-pointer",
-                      index === selectedIndex ? "bg-muted" : "hover:bg-muted"
+                      "p-3 cursor-pointer rounded-lg transition-colors",
+                      index === selectedIndex
+                        ? "bg-emerald-100 text-emerald-900 font-medium"
+                        : "hover:bg-muted"
                     )}
                     onClick={() => handleProductSelect(product)}
                   >
-                    <div className="text-base">
-                      {product.name} - ${product.pricePerUnit.toLocaleString()}/
-                      {product.unit}
+                    <div className="text-base flex items-center justify-between">
+                      <span>{product.name}</span>
+                      <span className="text-emerald-600">
+                        ${product.pricePerUnit.toLocaleString()}/{product.unit}
+                      </span>
                     </div>
                   </div>
                 ))}
@@ -582,13 +595,15 @@ export default function ShoppingCart() {
           </div>
 
           <div className="w-full flex justify-end items-center gap-4">
-            <Button
-              className="bg-emerald-gradient text-white hover:text-white text-base [&_svg]:size-6"
-              onClick={() => setClosingDialogOpen(true)}
-            >
-              <Store />
-              Cierre de caja
-            </Button>
+            {user?.permisos?.cierreDeCajaEnabled && (
+              <Button
+                className="bg-emerald-gradient text-white hover:text-white text-base [&_svg]:size-6"
+                onClick={() => setClosingDialogOpen(true)}
+              >
+                <Store />
+                Cierre de caja
+              </Button>
+            )}
             <UserMenu
               user={{ nombre: user?.nombre || "", email: user?.email || "" }}
             />
@@ -598,7 +613,7 @@ export default function ShoppingCart() {
         <div className="flex-1 space-y-2 overflow-auto mb-4">
           {cartItems.map((item) => (
             <Card
-              key={item.id}
+              key={item.cartId}
               className="bg-background border p-4 flex items-center justify-between shadow-sm rounded-xl"
             >
               <div className="flex justify-between w-full items-center">
@@ -620,7 +635,7 @@ export default function ShoppingCart() {
                   variant="destructive"
                   size="icon"
                   className="h-8 w-8 rounded-lg bg-cancel-gradient"
-                  onClick={() => removeFromCart(item.id)}
+                  onClick={() => removeFromCart(item.cartId)}
                 >
                   <Trash2 className="h-6 w-6" />
                 </Button>
@@ -630,7 +645,18 @@ export default function ShoppingCart() {
         </div>
 
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogContent>
+          <DialogContent
+            onKeyDown={(e) => {
+              if (
+                e.key === "Enter" &&
+                selectedProduct?.unit === "Kg" &&
+                !useManualWeight
+              ) {
+                e.preventDefault();
+                addToCart();
+              }
+            }}
+          >
             <DialogHeader>
               <DialogTitle className="text-emerald-gradient font-bold text-2xl">
                 Agregar producto
@@ -675,7 +701,12 @@ export default function ShoppingCart() {
                 }`}
                 value={quantity}
                 onChange={(e) => setQuantity(e.target.value)}
-                onKeyDown={handleQuantityKeyPress}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    addToCart();
+                  }
+                }}
                 step={selectedProduct?.unit === "Kg" ? "1" : "1"}
                 min="0"
               />
@@ -691,12 +722,14 @@ export default function ShoppingCart() {
                 variant="outline"
                 className="bg-cancel-gradient text-white hover:text-white text-base"
                 onClick={() => setDialogOpen(false)}
+                type="button"
               >
                 Cancelar
               </Button>
               <Button
                 onClick={addToCart}
                 className="bg-emerald-gradient text-white hover:text-white text-base"
+                type="submit"
               >
                 Agregar al carrito
               </Button>
@@ -728,7 +761,19 @@ export default function ShoppingCart() {
         </Dialog>
 
         <Dialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>
-          <DialogContent className="sm:max-w-md">
+          <DialogContent
+            className="sm:max-w-md"
+            onKeyDown={(e) => {
+              if (
+                e.key === "Enter" &&
+                selectedProduct?.unit === "Kg" &&
+                !useManualWeight
+              ) {
+                e.preventDefault();
+                addToCart();
+              }
+            }}
+          >
             <DialogHeader>
               <DialogTitle>Seleccionar método de pago</DialogTitle>
               <DialogDescription>
