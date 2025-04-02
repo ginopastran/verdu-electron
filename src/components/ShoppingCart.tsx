@@ -94,20 +94,6 @@ export default function ShoppingCart() {
 
   const weight = useScaleWeight();
 
-  // Add a periodic refresh for user data (every 30 seconds)
-  useEffect(() => {
-    // Initial refresh when component mounts
-    refreshUserData();
-
-    // Set up periodic refresh
-    const refreshInterval = setInterval(() => {
-      refreshUserData();
-    }, 30 * 1000); // 30 seconds
-
-    // Clean up on unmount
-    return () => clearInterval(refreshInterval);
-  }, [refreshUserData]);
-
   // Initialize and update useManualWeight based on user permissions
   useEffect(() => {
     console.log("User permissions:", user?.permisos);
