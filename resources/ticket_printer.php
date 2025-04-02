@@ -49,7 +49,13 @@ try {
     // Logo (opcional)
     try {
         $logoPath = __DIR__ . "/../public/logo.png";
+        
+        if (getenv('NODE_ENV') === 'production') {
+            $logoPath = __DIR__ . "/logo.png";
+        }
+        
         file_put_contents('php://stderr', "Intentando cargar logo desde: " . $logoPath . "\n");
+        
         if (file_exists($logoPath)) {
             // Cargar la imagen original
             $originalImage = imagecreatefrompng($logoPath);

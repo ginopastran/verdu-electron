@@ -95,7 +95,7 @@ ipcMain.handle("print-ticket", async (_, orderData) => {
         console.log("Ruta del script PHP:", phpScriptPath);
         console.log("Ruta del archivo temporal:", tempDataPath);
         return new Promise((resolve, reject) => {
-            exec(`php "${phpScriptPath}" "${tempDataPath}"`, async (error, stdout, stderr) => {
+            exec(`set NODE_ENV=${process.env.NODE_ENV}&& php "${phpScriptPath}" "${tempDataPath}"`, async (error, stdout, stderr) => {
                 try {
                     // Limpiar archivo temporal
                     await fsPromises.unlink(tempDataPath);
@@ -136,7 +136,7 @@ ipcMain.handle("print-closing", async (_, closingData) => {
             ? path.join(app.getAppPath(), "resources", "closing_printer.php")
             : path.join(process.resourcesPath, "resources", "closing_printer.php");
         return new Promise((resolve, reject) => {
-            exec(`php "${phpScriptPath}" "${tempDataPath}"`, async (error, stdout, stderr) => {
+            exec(`set NODE_ENV=${process.env.NODE_ENV}&& php "${phpScriptPath}" "${tempDataPath}"`, async (error, stdout, stderr) => {
                 try {
                     await fsPromises.unlink(tempDataPath);
                     if (error) {

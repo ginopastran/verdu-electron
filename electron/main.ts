@@ -122,7 +122,7 @@ ipcMain.handle("print-ticket", async (_, orderData) => {
 
     return new Promise((resolve, reject) => {
       exec(
-        `php "${phpScriptPath}" "${tempDataPath}"`,
+        `set NODE_ENV=${process.env.NODE_ENV}&& php "${phpScriptPath}" "${tempDataPath}"`,
         async (error, stdout, stderr) => {
           try {
             // Limpiar archivo temporal
@@ -177,7 +177,7 @@ ipcMain.handle("print-closing", async (_, closingData) => {
 
     return new Promise((resolve, reject) => {
       exec(
-        `php "${phpScriptPath}" "${tempDataPath}"`,
+        `set NODE_ENV=${process.env.NODE_ENV}&& php "${phpScriptPath}" "${tempDataPath}"`,
         async (error, stdout, stderr) => {
           try {
             await fsPromises.unlink(tempDataPath);

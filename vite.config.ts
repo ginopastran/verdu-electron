@@ -18,5 +18,6 @@ export default defineConfig({
         main: path.resolve(__dirname, 'index.html')
       }
     }
-  }
+  },
+  publicDir: 'public'
 });
