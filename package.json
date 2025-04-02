@@ -7,8 +7,8 @@
   "type": "module",
   "scripts": {
     "dev": "tsc -p electron/tsconfig.json && cross-env NODE_ENV=development concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
-    "prebuild": "node scripts/check-logo.js",
-    "build": "npm run build:vite && npm run build:electron && electron-builder",
+    "pre-build": "copy public\\logo.png resources\\logo.png",
+    "build": "npm run pre-build && npm run build:vite && npm run build:electron && electron-builder",
     "build:vite": "tsc && vite build",
     "build:electron": "tsc -p electron/tsconfig.json",
     "preview": "vite preview",

@@ -48,178 +48,157 @@ try {
 
     // Logo (opcional)
     try {
-        file_put_contents('php://stderr', "==== DIAGNÓSTICO DEL LOGO ====\n");
+        file_put_contents('php://stderr', "==== DEPURACIÓN AVANZADA LOGO ====\n");
         
-        // Definir posibles ubicaciones del logo
+        // Lista de posibles rutas para el logo
         $possibleLogoPaths = [
-            __DIR__ . "/logo.png",                   // Mismo directorio que el script
-            __DIR__ . "/../public/logo.png",         // Directorio public (desarrollo)
-            __DIR__ . "/../resources/logo.png",      // Directorio resources
-            __DIR__ . "/../../public/logo.png",      // Un nivel más arriba
-            __DIR__ . "/../../resources/logo.png",   // Un nivel más arriba en resources
+            __DIR__ . "/logo.png",
+            __DIR__ . "/../resources/logo.png",
+            __DIR__ . "/../logo.png",
+            __DIR__ . "/../public/logo.png",
+            __DIR__ . "/../../resources/logo.png",
+            __DIR__ . "/../../public/logo.png",
+            __DIR__ . "/../../logo.png"
         ];
         
-        // Variable para almacenar la ruta válida
-        $logoPath = null;
-        
-        // Imprimir directorio actual para diagnóstico
         file_put_contents('php://stderr', "Directorio actual: " . __DIR__ . "\n");
         file_put_contents('php://stderr', "NODE_ENV: " . getenv('NODE_ENV') . "\n");
         
-        // Verificar si existen los directorios principales
-        file_put_contents('php://stderr', "Verificando directorios principales:\n");
-        $dirsToCheck = [
-            __DIR__,
-            __DIR__ . "/../public",
-            __DIR__ . "/../resources", 
-            __DIR__ . "/../../public",
-            __DIR__ . "/../../resources"
-        ];
+        // Mostrar información del entorno
+        file_put_contents('php://stderr', "Memoria disponible: " . ini_get('memory_limit') . "\n");
+        file_put_contents('php://stderr', "Extensiones GD cargadas: " . (extension_loaded('gd') ? 'SÍ' : 'NO') . "\n");
         
-        foreach ($dirsToCheck as $dir) {
-            if (is_dir($dir)) {
-                file_put_contents('php://stderr', "✓ $dir existe\n");
-                
-                // Listar archivos en este directorio
-                $files = scandir($dir);
-                file_put_contents('php://stderr', "   Contenido: " . implode(", ", $files) . "\n");
-            } else {
-                file_put_contents('php://stderr', "✗ $dir no existe\n");
-            }
-        }
-        
-        // Buscar la primera ruta válida
+        // Probar cada ruta
+        $logoPath = null;
         foreach ($possibleLogoPaths as $path) {
-            file_put_contents('php://stderr', "Verificando logo en: " . $path . "\n");
+            file_put_contents('php://stderr', "Probando ruta: " . $path . "\n");
             if (file_exists($path)) {
-                $logoPath = $path;
-                file_put_contents('php://stderr', "✓ Logo encontrado en: " . $logoPath . "\n");
+                file_put_contents('php://stderr', "✅ Existe\n");
                 
-                // Verificar que es una imagen PNG válida
-                if (getimagesize($logoPath)) {
-                    file_put_contents('php://stderr', "✓ El archivo es una imagen válida\n");
+                // Verificar si es legible
+                if (is_readable($path)) {
+                    file_put_contents('php://stderr', "✅ Es legible\n");
+                    $filesize = filesize($path);
+                    file_put_contents('php://stderr', "✅ Tamaño: " . $filesize . " bytes\n");
                     
-                    // Verificar tamaño del archivo
-                    $size = filesize($logoPath);
-                    file_put_contents('php://stderr', "✓ Tamaño del archivo: " . $size . " bytes\n");
+                    if ($filesize > 0) {
+                        $logoPath = $path;
+                        file_put_contents('php://stderr', "✅ Logo encontrado en: " . $logoPath . "\n");
+                        break;
+                    } else {
+                        file_put_contents('php://stderr', "❌ Archivo de tamaño cero\n");
+                    }
                 } else {
-                    file_put_contents('php://stderr', "✗ El archivo no es una imagen válida\n");
+                    file_put_contents('php://stderr', "❌ No es legible\n");
                 }
-                break;
             } else {
-                file_put_contents('php://stderr', "✗ No existe en esta ubicación\n");
+                file_put_contents('php://stderr', "❌ No existe\n");
             }
         }
         
-        if ($logoPath && file_exists($logoPath)) {
+        if (!$logoPath) {
+            file_put_contents('php://stderr', "❌ No se encontró ningún logo válido\n");
+        } else {
+            // Intentar cargar la imagen
             try {
-                // Cargar la imagen original
-                file_put_contents('php://stderr', "Intentando cargar la imagen PNG...\n");
+                file_put_contents('php://stderr', "Intentando cargar imagen desde: " . $logoPath . "\n");
                 
-                // Obtener información sobre la imagen
-                $imageInfo = getimagesize($logoPath);
-                file_put_contents('php://stderr', "Información de imagen: " . print_r($imageInfo, true) . "\n");
-                $mimeType = $imageInfo['mime'] ?? '';
-                file_put_contents('php://stderr', "Tipo MIME: $mimeType\n");
-                
-                // Cargar la imagen según su tipo
-                $originalImage = null;
-                if ($mimeType === 'image/png') {
-                    $originalImage = @imagecreatefrompng($logoPath);
-                } elseif ($mimeType === 'image/jpeg') {
-                    $originalImage = @imagecreatefromjpeg($logoPath);
+                // Verificar el tipo de imagen
+                $imageInfo = @getimagesize($logoPath);
+                if ($imageInfo === false) {
+                    file_put_contents('php://stderr', "❌ No es una imagen válida\n");
                 } else {
-                    // Intentar con PNG por defecto
-                    $originalImage = @imagecreatefrompng($logoPath);
+                    file_put_contents('php://stderr', "✅ Información de imagen: " . print_r($imageInfo, true) . "\n");
                     
-                    // Si falla, intentar con JPEG
-                    if (!$originalImage) {
-                        file_put_contents('php://stderr', "Intentando cargar como JPEG...\n");
-                        $originalImage = @imagecreatefromjpeg($logoPath);
+                    // Cargar la imagen dependiendo del tipo
+                    switch ($imageInfo[2]) {
+                        case IMAGETYPE_PNG:
+                            file_put_contents('php://stderr', "Es una imagen PNG\n");
+                            $originalImage = @imagecreatefrompng($logoPath);
+                            break;
+                        case IMAGETYPE_JPEG:
+                            file_put_contents('php://stderr', "Es una imagen JPEG\n");
+                            $originalImage = @imagecreatefromjpeg($logoPath);
+                            break;
+                        default:
+                            file_put_contents('php://stderr', "Tipo de imagen no soportado\n");
+                            $originalImage = false;
+                    }
+                    
+                    if ($originalImage === false) {
+                        file_put_contents('php://stderr', "❌ Error al cargar la imagen: " . error_get_last()['message'] . "\n");
+                    } else {
+                        file_put_contents('php://stderr', "✅ Imagen cargada correctamente\n");
+                        
+                        $originalWidth = imagesx($originalImage);
+                        $originalHeight = imagesy($originalImage);
+                        file_put_contents('php://stderr', "Dimensiones: " . $originalWidth . "x" . $originalHeight . "\n");
+                        
+                        // Calcular el nuevo tamaño manteniendo la proporción
+                        $maxWidth = 556; // Ancho ajustado para mejor visualización
+                        $newWidth = $maxWidth;
+                        $newHeight = floor($originalHeight * ($maxWidth / $originalWidth));
+                        file_put_contents('php://stderr', "Nuevas dimensiones: " . $newWidth . "x" . $newHeight . "\n");
+                        
+                        // Crear nueva imagen redimensionada
+                        $newImage = imagecreatetruecolor($newWidth, $newHeight);
+                        if (!$newImage) {
+                            file_put_contents('php://stderr', "❌ Error al crear nueva imagen\n");
+                        } else {
+                            // Preservar transparencia
+                            imagealphablending($newImage, false);
+                            imagesavealpha($newImage, true);
+                            
+                            // Redimensionar
+                            $result = imagecopyresampled(
+                                $newImage, $originalImage,
+                                0, 0, 0, 0,
+                                $newWidth, $newHeight,
+                                $originalWidth, $originalHeight
+                            );
+                            
+                            if (!$result) {
+                                file_put_contents('php://stderr', "❌ Error al redimensionar\n");
+                            } else {
+                                // Guardar temporalmente
+                                $tempPath = __DIR__ . "/temp_logo.png";
+                                $saveResult = imagepng($newImage, $tempPath);
+                                
+                                if (!$saveResult) {
+                                    file_put_contents('php://stderr', "❌ Error al guardar imagen temporal: " . error_get_last()['message'] . "\n");
+                                } else {
+                                    file_put_contents('php://stderr', "✅ Imagen guardada en: " . $tempPath . "\n");
+                                    file_put_contents('php://stderr', "Tamaño del archivo: " . filesize($tempPath) . " bytes\n");
+                                    
+                                    // Liberar memoria
+                                    imagedestroy($originalImage);
+                                    imagedestroy($newImage);
+                                    
+                                    // Cargar y enviar a la impresora
+                                    try {
+                                        file_put_contents('php://stderr', "Cargando para la impresora\n");
+                                        $logo = EscposImage::load($tempPath);
+                                        $printer->bitImage($logo);
+                                        unlink($tempPath);
+                                        file_put_contents('php://stderr', "✅ Logo enviado a la impresora\n");
+                                    } catch (Exception $e) {
+                                        file_put_contents('php://stderr', "❌ Error al imprimir logo: " . $e->getMessage() . "\n");
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
-                
-                if (!$originalImage) {
-                    throw new Exception("No se pudo crear la imagen: " . error_get_last()['message']);
-                }
-                
-                file_put_contents('php://stderr', "✓ Imagen cargada correctamente\n");
-                
-                $originalWidth = imagesx($originalImage);
-                $originalHeight = imagesy($originalImage);
-                file_put_contents('php://stderr', "Dimensiones originales: {$originalWidth}x{$originalHeight}\n");
-                
-                // Calcular el nuevo tamaño manteniendo la proporción
-                $maxWidth = 556; // Ancho ajustado para mejor visualización
-                $newWidth = $maxWidth;
-                $newHeight = floor($originalHeight * ($maxWidth / $originalWidth));
-                file_put_contents('php://stderr', "Nuevas dimensiones: {$newWidth}x{$newHeight}\n");
-                
-                // Crear nueva imagen redimensionada
-                file_put_contents('php://stderr', "Creando imagen redimensionada...\n");
-                $newImage = imagecreatetruecolor($newWidth, $newHeight);
-                
-                // Configuración para manejar transparencia
-                imagealphablending($newImage, false);
-                imagesavealpha($newImage, true);
-                
-                // Redimensionar
-                file_put_contents('php://stderr', "Redimensionando imagen...\n");
-                $resizeResult = imagecopyresampled(
-                    $newImage, $originalImage,
-                    0, 0, 0, 0,
-                    $newWidth, $newHeight,
-                    $originalWidth, $originalHeight
-                );
-                
-                if (!$resizeResult) {
-                    throw new Exception("Error al redimensionar imagen");
-                }
-                
-                // Guardar temporalmente
-                file_put_contents('php://stderr', "Guardando imagen temporal...\n");
-                $tempPath = __DIR__ . "/temp_logo.png";
-                $saveResult = imagepng($newImage, $tempPath);
-                
-                if (!$saveResult) {
-                    throw new Exception("Error al guardar imagen temporal: " . error_get_last()['message']);
-                }
-                
-                // Verificar que el archivo temporal fue creado
-                if (!file_exists($tempPath)) {
-                    throw new Exception("El archivo temporal no fue creado");
-                }
-                
-                file_put_contents('php://stderr', "✓ Imagen temporal guardada en: " . $tempPath . "\n");
-                file_put_contents('php://stderr', "✓ Tamaño del archivo temporal: " . filesize($tempPath) . " bytes\n");
-                
-                // Liberar memoria
-                imagedestroy($originalImage);
-                imagedestroy($newImage);
-                
-                // Cargar y enviar a la impresora
-                file_put_contents('php://stderr', "Cargando imagen para la impresora...\n");
-                $logo = EscposImage::load($tempPath);
-                file_put_contents('php://stderr', "Enviando imagen a la impresora...\n");
-                $printer->bitImage($logo);
-                
-                // Eliminar archivo temporal
-                unlink($tempPath);
-                
-                file_put_contents('php://stderr', "✓ Logo redimensionado y enviado a la impresora\n");
-                file_put_contents('php://stderr', "==== FIN DIAGNÓSTICO DEL LOGO ====\n");
             } catch (Exception $e) {
-                file_put_contents('php://stderr', "✗ Error procesando la imagen: " . $e->getMessage() . "\n");
-                file_put_contents('php://stderr', "==== FIN DIAGNÓSTICO DEL LOGO (ERROR) ====\n");
+                file_put_contents('php://stderr', "❌ Error procesando imagen: " . $e->getMessage() . "\n");
+                file_put_contents('php://stderr', "Traza: " . $e->getTraceAsString() . "\n");
             }
-        } else {
-            file_put_contents('php://stderr', "✗ No se encontró el logo en ninguna ubicación\n");
-            file_put_contents('php://stderr', "==== FIN DIAGNÓSTICO DEL LOGO (NO ENCONTRADO) ====\n");
         }
+        
+        file_put_contents('php://stderr', "==== FIN DEPURACIÓN AVANZADA LOGO ====\n");
     } catch (Exception $e) {
-        file_put_contents('php://stderr', "✗ Error al cargar el logo: " . $e->getMessage() . "\n");
+        file_put_contents('php://stderr', "❌ Error general: " . $e->getMessage() . "\n");
         file_put_contents('php://stderr', "Traza: " . $e->getTraceAsString() . "\n");
-        file_put_contents('php://stderr', "==== FIN DIAGNÓSTICO DEL LOGO (ERROR GENERAL) ====\n");
     }
 
     // Encabezado

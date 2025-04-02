@@ -81,83 +81,24 @@ function createWindow() {
 app.whenReady().then(() => {
   createWindow();
 
-  // Copiar el logo a la carpeta resources en producción
+  // Copiar logo al iniciar la aplicación (en producción)
   if (process.env.NODE_ENV !== "development") {
+    const logoSourcePath = path.join(app.getAppPath(), "public", "logo.png");
+    const logoDestPath = path.join(process.resourcesPath, "logo.png");
+    
+    console.log("------ COPIANDO LOGO AL INICIAR ------");
+    console.log(`Origen: ${logoSourcePath}`);
+    console.log(`Destino: ${logoDestPath}`);
+    
     try {
-      console.log("=== DIAGNÓSTICO DEL LOGO EN MAIN PROCESS ===");
-
-      // Fuentes posibles del logo
-      const possibleSourcePaths = [
-        path.join(__dirname, "../public/logo.png"),
-        path.join(__dirname, "../dist/logo.png"),
-        path.join(__dirname, "../resources/logo.png"),
-        path.join(app.getAppPath(), "public/logo.png"),
-        path.join(app.getAppPath(), "dist/logo.png"),
-      ];
-
-      // Destinos donde copiaremos el logo
-      const targetDirectories = [
-        path.join(process.resourcesPath, "resources"),
-        path.join(process.resourcesPath, "public"),
-        path.join(process.resourcesPath),
-      ];
-
-      // Mostrar información del entorno
-      console.log("Directorio actual:", __dirname);
-      console.log("getAppPath:", app.getAppPath());
-      console.log("resourcesPath:", process.resourcesPath);
-
-      // Encontrar una fuente válida del logo
-      let sourceLogoPath = null;
-      for (const sourcePath of possibleSourcePaths) {
-        console.log(`Verificando fuente en: ${sourcePath}`);
-        if (fs.existsSync(sourcePath)) {
-          sourceLogoPath = sourcePath;
-          console.log(`✓ Logo fuente encontrado en: ${sourceLogoPath}`);
-
-          // Mostrar tamaño del archivo
-          const stats = fs.statSync(sourcePath);
-          console.log(`✓ Tamaño del archivo: ${stats.size} bytes`);
-          break;
-        } else {
-          console.log(`✗ No existe en esta ubicación`);
-        }
+      if (fs.existsSync(logoSourcePath)) {
+        fs.copyFileSync(logoSourcePath, logoDestPath);
+        console.log("Logo copiado exitosamente al iniciar la aplicación");
+      } else {
+        console.warn(`Logo no encontrado en: ${logoSourcePath}`);
       }
-
-      if (!sourceLogoPath) {
-        console.error("✗ No se encontró el logo en ninguna ubicación fuente");
-        return;
-      }
-
-      // Asegurarnos que los directorios destino existen
-      for (const targetDir of targetDirectories) {
-        console.log(`Preparando directorio destino: ${targetDir}`);
-        if (!fs.existsSync(targetDir)) {
-          fs.mkdirSync(targetDir, { recursive: true });
-          console.log(`✓ Directorio creado: ${targetDir}`);
-        } else {
-          console.log(`✓ Directorio ya existe: ${targetDir}`);
-        }
-
-        // Copiar el logo a este directorio
-        const targetLogoPath = path.join(targetDir, "logo.png");
-        try {
-          fs.copyFileSync(sourceLogoPath, targetLogoPath);
-          console.log(`✓ Logo copiado a: ${targetLogoPath}`);
-
-          // Verificar que se copió correctamente
-          if (fs.existsSync(targetLogoPath)) {
-            const stats = fs.statSync(targetLogoPath);
-            console.log(`✓ Tamaño del archivo copiado: ${stats.size} bytes`);
-          }
-        } catch (copyErr) {
-          console.error(`✗ Error al copiar a ${targetLogoPath}:`, copyErr);
-        }
-      }
-
-      console.log("=== FIN DIAGNÓSTICO DEL LOGO ===");
-    } catch (error) {
-      console.error("Error en el diagnóstico del logo:", error);
+    } catch (err) {
+      console.error("Error copiando logo al iniciar:", err);
     }
   }
 
@@ -189,48 +130,99 @@ ipcMain.handle("print-ticket", async (_, orderData) => {
     const tempDir = os.tmpdir();
     const tempDataPath = path.join(tempDir, `order-data-${Date.now()}.json`);
 
-    // Preparar para capturar logs sobre el logo
-    let logoStatus = "unknown";
-    let logoDetails = "";
-    let logoError: string | null = null;
-
     // Guardar datos de la orden en archivo temporal
     await fsPromises.writeFile(tempDataPath, JSON.stringify(orderData), "utf8");
 
-    // Obtener la ruta correcta del script PHP
-    const phpScriptPath =
-      process.env.NODE_ENV === "development"
-        ? path.join(app.getAppPath(), "resources", "ticket_printer.php")
-        : path.join(process.resourcesPath, "resources", "ticket_printer.php");
-
-    console.log("Ruta del script PHP:", phpScriptPath);
-    console.log("Ruta del archivo temporal:", tempDataPath);
-
-    // Verificar que el logo existe en las posibles ubicaciones antes de imprimir
-    const possibleLogoPaths = [
-      path.join(process.resourcesPath, "resources/logo.png"),
-      path.join(process.resourcesPath, "logo.png"),
-      path.join(app.getAppPath(), "resources/logo.png"),
-      path.join(app.getAppPath(), "public/logo.png"),
-    ];
-
-    let logoFound = false;
-    for (const logoPath of possibleLogoPaths) {
-      if (fs.existsSync(logoPath)) {
-        console.log(`Logo encontrado en: ${logoPath}`);
-        logoFound = true;
-        logoDetails += `Logo encontrado en: ${logoPath}; `;
-        const stats = fs.statSync(logoPath);
-        logoDetails += `Tamaño: ${stats.size} bytes; `;
-        break;
+    // Rutas del PHP y logo
+    const isProduction = process.env.NODE_ENV !== "development";
+    let phpScriptPath;
+    
+    if (isProduction) {
+      phpScriptPath = path.join(process.resourcesPath, "resources", "ticket_printer.php");
+      
+      // En producción - Lógica simple: copiar el logo directamente junto al PHP
+      console.log("------ CONFIGURACIÓN LOGO PRODUCCIÓN ------");
+      
+      // Posibles ubicaciones de origen del logo
+      const possibleSources = [
+        path.join(process.resourcesPath, "logo.png"),
+        path.join(process.resourcesPath, "resources", "logo.png"),
+        path.join(process.resourcesPath, "public", "logo.png"),
+        path.join(app.getAppPath(), "resources", "logo.png"),
+        path.join(app.getAppPath(), "public", "logo.png"),
+        path.join(__dirname, "../resources", "logo.png")
+      ];
+      
+      // Destino - siempre al lado del PHP script
+      const logoDestPath = path.join(path.dirname(phpScriptPath), "logo.png");
+      console.log(`Destino del logo: ${logoDestPath}`);
+      
+      // Buscar y copiar el logo
+      let found = false;
+      for (const src of possibleSources) {
+        console.log(`Buscando logo en: ${src}`);
+        if (fs.existsSync(src)) {
+          console.log(`Logo encontrado en: ${src}`);
+          try {
+            console.log(`Copiando a: ${logoDestPath}`);
+            fs.copyFileSync(src, logoDestPath);
+            console.log(`Logo copiado exitosamente (${fs.statSync(logoDestPath).size} bytes)`);
+            found = true;
+            break;
+          } catch (err) {
+            console.error(`Error copiando logo desde ${src}:`, err);
+          }
+        }
       }
+      
+      // Como último recurso, generar un logo mínimo
+      if (!found) {
+        try {
+          console.log("Intentando generar logo mínimo con PHP...");
+          const logoGenPath = path.join(tempDir, "gen_logo.php");
+          const logoContent = `<?php
+          $img = imagecreatetruecolor(400, 100);
+          $white = imagecolorallocate($img, 255, 255, 255);
+          $black = imagecolorallocate($img, 0, 0, 0);
+          imagefill($img, 0, 0, $white);
+          imagestring($img, 5, 150, 40, 'ISELIN II', $black);
+          imagepng($img, '${logoDestPath.replace(/\\/g, "\\\\")}');
+          echo "Logo creado";
+          ?>`;
+          
+          fs.writeFileSync(logoGenPath, logoContent);
+          
+          // Ejecutar PHP para generar la imagen
+          const { error, stdout, stderr } = await new Promise<{error: any, stdout: string, stderr: string}>((resolve) => {
+            exec(`php "${logoGenPath}"`, (error, stdout, stderr) => {
+              resolve({ error, stdout, stderr });
+            });
+          });
+          
+          if (error) {
+            console.error("Error generando logo:", stderr || error.message);
+          } else {
+            console.log("Logo generado:", stdout);
+            if (fs.existsSync(logoDestPath)) {
+              console.log(`Logo generado verificado: ${fs.statSync(logoDestPath).size} bytes`);
+            }
+          }
+          
+          // Limpiar archivo temporal
+          fs.unlinkSync(logoGenPath);
+        } catch (genErr) {
+          console.error("Error generando logo:", genErr);
+        }
+      }
+    } else {
+      // En desarrollo - Ruta normal
+      phpScriptPath = path.join(app.getAppPath(), "resources", "ticket_printer.php");
     }
 
-    if (!logoFound) {
-      console.warn("No se encontró el logo en ninguna ubicación");
-      logoStatus = "not_found";
-      logoDetails = "Logo no encontrado en ninguna ubicación";
-    }
+    console.log("------ INFO DE IMPRESIÓN ------");
+    console.log(`NODE_ENV: ${process.env.NODE_ENV}`);
+    console.log(`PHP Script: ${phpScriptPath}`);
+    console.log(`Datos: ${tempDataPath}`);
 
     return new Promise((resolve, reject) => {
       exec(
@@ -239,36 +231,6 @@ ipcMain.handle("print-ticket", async (_, orderData) => {
           try {
             // Limpiar archivo temporal
             await fsPromises.unlink(tempDataPath);
-
-            // Analizar el stderr para obtener información sobre el logo
-            if (stderr) {
-              console.log("Salida de error de PHP:", stderr);
-
-              // Buscar información sobre el logo en la salida
-              if (stderr.includes("Logo encontrado en:")) {
-                logoStatus = "success";
-                // Extraer detalles
-                const logoLines = stderr
-                  .split("\n")
-                  .filter(
-                    (line) =>
-                      line.includes("logo") ||
-                      line.includes("Logo") ||
-                      line.includes("imagen") ||
-                      line.includes("Imagen")
-                  );
-                logoDetails = logoLines.join("; ");
-              } else if (stderr.includes("Error al cargar el logo")) {
-                logoStatus = "error";
-                const errorLine = stderr
-                  .split("\n")
-                  .find((line) => line.includes("Error al cargar el logo"));
-                logoError = errorLine || "Error desconocido al cargar el logo";
-              } else if (stderr.includes("No se encontró el logo")) {
-                logoStatus = "not_found";
-                logoDetails = "Logo no encontrado durante la impresión";
-              }
-            }
 
             if (error) {
               console.error("Error al ejecutar PHP:", error);
@@ -282,10 +244,7 @@ ipcMain.handle("print-ticket", async (_, orderData) => {
             console.log("Salida del script PHP:", stdout);
             resolve({
               success: true,
-              message: "Ticket impreso correctamente",
-              logoStatus,
-              logoDetails,
-              logoError,
+              message: "Ticket impreso correctamente"
             });
           } catch (err) {
             console.error("Error en el callback:", err);
@@ -318,10 +277,56 @@ ipcMain.handle("print-closing", async (_, closingData) => {
       "utf8"
     );
 
-    const phpScriptPath =
-      process.env.NODE_ENV === "development"
-        ? path.join(app.getAppPath(), "resources", "closing_printer.php")
-        : path.join(process.resourcesPath, "resources", "closing_printer.php");
+    // Rutas del PHP y logo
+    const isProduction = process.env.NODE_ENV !== "development";
+    let phpScriptPath;
+    
+    if (isProduction) {
+      phpScriptPath = path.join(process.resourcesPath, "resources", "closing_printer.php");
+      
+      // En producción - Lógica simple: copiar el logo directamente junto al PHP
+      console.log("------ CONFIGURACIÓN LOGO CIERRE PRODUCCIÓN ------");
+      
+      // Posibles ubicaciones de origen del logo
+      const possibleSources = [
+        path.join(process.resourcesPath, "logo.png"),
+        path.join(process.resourcesPath, "resources", "logo.png"),
+        path.join(process.resourcesPath, "public", "logo.png"),
+        path.join(app.getAppPath(), "resources", "logo.png"),
+        path.join(app.getAppPath(), "public", "logo.png"),
+        path.join(__dirname, "../resources", "logo.png")
+      ];
+      
+      // Destino - siempre al lado del PHP script
+      const logoDestPath = path.join(path.dirname(phpScriptPath), "logo.png");
+      console.log(`Destino del logo: ${logoDestPath}`);
+      
+      // Buscar y copiar el logo
+      let found = false;
+      for (const src of possibleSources) {
+        console.log(`Buscando logo en: ${src}`);
+        if (fs.existsSync(src)) {
+          console.log(`Logo encontrado en: ${src}`);
+          try {
+            console.log(`Copiando a: ${logoDestPath}`);
+            fs.copyFileSync(src, logoDestPath);
+            console.log(`Logo copiado exitosamente (${fs.statSync(logoDestPath).size} bytes)`);
+            found = true;
+            break;
+          } catch (err) {
+            console.error(`Error copiando logo desde ${src}:`, err);
+          }
+        }
+      }
+    } else {
+      // En desarrollo - Ruta normal
+      phpScriptPath = path.join(app.getAppPath(), "resources", "closing_printer.php");
+    }
+
+    console.log("------ INFO DE IMPRESIÓN CIERRE ------");
+    console.log(`NODE_ENV: ${process.env.NODE_ENV}`);
+    console.log(`PHP Script: ${phpScriptPath}`);
+    console.log(`Datos: ${tempDataPath}`);
 
     return new Promise((resolve, reject) => {
       exec(
