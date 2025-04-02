@@ -7,6 +7,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsc -p electron/tsconfig.json && cross-env NODE_ENV=development concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
+    "prebuild": "node scripts/check-logo.js",
     "build": "npm run build:vite && npm run build:electron && electron-builder",
     "build:vite": "tsc && vite build",
     "build:electron": "tsc -p electron/tsconfig.json",
@@ -95,7 +96,8 @@
     },
     "files": [
       "dist/**/*",
-      "dist-electron/**/*"
+      "dist-electron/**/*",
+      "public/logo.png"
     ],
     "extraResources": [
       {
@@ -108,6 +110,10 @@
       {
         "from": "public/logo.png",
         "to": "resources/logo.png"
+      },
+      {
+        "from": "public/logo.png",
+        "to": "logo.png"
       }
     ],
     "win": {

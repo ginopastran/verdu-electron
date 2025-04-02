@@ -275,8 +275,8 @@ export default function ShoppingCart() {
       total: Number(total.toFixed(2)),
       items: orderItems,
       vendedorId: user.id,
-      vendedor: user.nombre,
       sucursalId: user.sucursalId,
+      vendedor: user.nombre,
       createdAt: new Date().toISOString(),
     };
 
@@ -299,11 +299,30 @@ export default function ShoppingCart() {
       try {
         const { ipcRenderer } = window.require("electron");
         console.log("Enviando datos para impresión:", orderData);
+        toast.info("Imprimiendo ticket...", {
+          duration: 3000,
+          description: "Enviando datos a la impresora",
+        });
+
         const result = await ipcRenderer.invoke("print-ticket", orderData);
         console.log("Resultado de impresión:", result);
 
         if (result.success) {
           toast.success("Ticket impreso correctamente");
+          console.log(
+            "Detalles de impresión:",
+            result.details || "No hay detalles adicionales"
+          );
+
+          // Mostrar si se imprimió el logo
+          if (result.logoStatus) {
+            console.log("Estado del logo:", result.logoStatus);
+            if (result.logoStatus === "success") {
+              console.log("✅ Logo impreso correctamente");
+            } else {
+              console.log("❌ Error al imprimir logo:", result.logoError);
+            }
+          }
         } else {
           throw new Error(result.message || "Error desconocido al imprimir");
         }
