@@ -48,15 +48,29 @@ try {
 
     // Logo (opcional)
     try {
-        $logoPath = __DIR__ . "/../public/logo.png";
+        // Definir posibles ubicaciones del logo
+        $possibleLogoPaths = [
+            __DIR__ . "/logo.png",                   // Mismo directorio que el script
+            __DIR__ . "/../public/logo.png",         // Directorio public (desarrollo)
+            __DIR__ . "/../resources/logo.png",      // Directorio resources
+            __DIR__ . "/../../public/logo.png",      // Un nivel más arriba
+            __DIR__ . "/../../resources/logo.png",   // Un nivel más arriba en resources
+        ];
         
-        if (getenv('NODE_ENV') === 'production') {
-            $logoPath = __DIR__ . "/logo.png";
+        // Variable para almacenar la ruta válida
+        $logoPath = null;
+        
+        // Buscar la primera ruta válida
+        foreach ($possibleLogoPaths as $path) {
+            file_put_contents('php://stderr', "Verificando logo en: " . $path . "\n");
+            if (file_exists($path)) {
+                $logoPath = $path;
+                file_put_contents('php://stderr', "Logo encontrado en: " . $logoPath . "\n");
+                break;
+            }
         }
         
-        file_put_contents('php://stderr', "Intentando cargar logo desde: " . $logoPath . "\n");
-        
-        if (file_exists($logoPath)) {
+        if ($logoPath && file_exists($logoPath)) {
             // Cargar la imagen original
             $originalImage = imagecreatefrompng($logoPath);
             $originalWidth = imagesx($originalImage);

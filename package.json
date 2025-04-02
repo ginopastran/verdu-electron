@@ -104,6 +104,10 @@
         "filter": [
           "**/*"
         ]
+      },
+      {
+        "from": "public/logo.png",
+        "to": "resources/logo.png"
       }
     ],
     "win": {

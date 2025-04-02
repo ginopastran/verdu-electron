@@ -4,6 +4,7 @@ import { fileURLToPath } from "url";
 import { exec } from "child_process";
 import * as fsPromises from "fs/promises";
 import os from "os";
+import * as fs from "fs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -79,6 +80,33 @@ function createWindow() {
 
 app.whenReady().then(() => {
   createWindow();
+
+  // Copiar el logo a la carpeta resources en producción
+  if (process.env.NODE_ENV !== "development") {
+    try {
+      const sourceLogoPath = path.join(__dirname, "../public/logo.png");
+      const targetLogoPath = path.join(
+        process.resourcesPath,
+        "resources/logo.png"
+      );
+
+      // Asegurarse de que el directorio de destino existe
+      const targetDir = path.dirname(targetLogoPath);
+      if (!fs.existsSync(targetDir)) {
+        fs.mkdirSync(targetDir, { recursive: true });
+      }
+
+      // Copiar el archivo solo si existe
+      if (fs.existsSync(sourceLogoPath)) {
+        fs.copyFileSync(sourceLogoPath, targetLogoPath);
+        console.log(`Logo copiado de ${sourceLogoPath} a ${targetLogoPath}`);
+      } else {
+        console.error(`Logo no encontrado en ${sourceLogoPath}`);
+      }
+    } catch (error) {
+      console.error("Error al copiar el logo:", error);
+    }
+  }
 
   // Registrar todos los handlers IPC aquí
   ipcMain.handle("read-weight", async () => {
