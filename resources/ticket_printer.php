@@ -48,19 +48,63 @@ try {
 
     // Logo (opcional)
     try {
-        $logo = EscposImage::load(__DIR__ . "/public/logo.png");
-        $printer->bitImage($logo);
+        $logoPath = __DIR__ . "/../public/logo.png";
+        file_put_contents('php://stderr', "Intentando cargar logo desde: " . $logoPath . "\n");
+        if (file_exists($logoPath)) {
+            // Cargar la imagen original
+            $originalImage = imagecreatefrompng($logoPath);
+            $originalWidth = imagesx($originalImage);
+            $originalHeight = imagesy($originalImage);
+            
+            // Calcular el nuevo tamaño manteniendo la proporción
+            $maxWidth = 556; // Ancho ajustado para mejor visualización
+            $newWidth = $maxWidth;
+            $newHeight = floor($originalHeight * ($maxWidth / $originalWidth));
+            
+            // Crear nueva imagen redimensionada
+            $newImage = imagecreatetruecolor($newWidth, $newHeight);
+            imagealphablending($newImage, false);
+            imagesavealpha($newImage, true);
+            
+            // Redimensionar
+            imagecopyresampled(
+                $newImage, $originalImage,
+                0, 0, 0, 0,
+                $newWidth, $newHeight,
+                $originalWidth, $originalHeight
+            );
+            
+            // Guardar temporalmente
+            $tempPath = __DIR__ . "/temp_logo.png";
+            imagepng($newImage, $tempPath);
+            
+            // Liberar memoria
+            imagedestroy($originalImage);
+            imagedestroy($newImage);
+            
+            // Cargar y enviar a la impresora
+            $logo = EscposImage::load($tempPath);
+            $printer->bitImage($logo);
+            
+            // Eliminar archivo temporal
+            unlink($tempPath);
+            
+            file_put_contents('php://stderr', "Logo redimensionado y enviado a la impresora\n");
+        } else {
+            file_put_contents('php://stderr', "El archivo del logo no existe en: " . $logoPath . "\n");
+        }
     } catch (Exception $e) {
-        // Si no hay logo, continuamos sin él
+        file_put_contents('php://stderr', "Error al cargar el logo: " . $e->getMessage() . "\n");
     }
 
     // Encabezado
     $printer->setEmphasis(true);
-    $printer->setTextSize(2, 2);
-    $printer->text("\nVerduSoft\n");
+    $printer->setTextSize(1, 1);
+    $printer->text("Iselín II\n");
     $printer->setEmphasis(false);
     $printer->setTextSize(1, 1);
-    $printer->text("Comprobante de Venta\n");
+    $printer->text("Vendedor: " . $orderData['vendedor'] . "\n");
+    date_default_timezone_set('America/Argentina/Buenos_Aires');
     $printer->text(date("Y-m-d H:i:s") . "\n");
     $printer->text("-----------------------------\n");
 

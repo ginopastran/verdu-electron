@@ -1,9 +1,9 @@
 <?php return array(
     'root' => array(
         'name' => 'abelp/resources',
-        'pretty_version' => '1.0.0+no-version-set',
-        'version' => '1.0.0.0',
-        'reference' => NULL,
+        'pretty_version' => 'dev-main',
+        'version' => 'dev-main',
+        'reference' => '40bfe014b52e038f9c5e04c1c1bf26a09021f550',
         'type' => 'library',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
@@ -11,9 +11,9 @@
     ),
     'versions' => array(
         'abelp/resources' => array(
-            'pretty_version' => '1.0.0+no-version-set',
-            'version' => '1.0.0.0',
-            'reference' => NULL,
+            'pretty_version' => 'dev-main',
+            'version' => 'dev-main',
+            'reference' => '40bfe014b52e038f9c5e04c1c1bf26a09021f550',
             'type' => 'library',
             'install_path' => __DIR__ . '/../../',
             'aliases' => array(),

@@ -275,6 +275,7 @@ export default function ShoppingCart() {
       total: Number(total.toFixed(2)),
       items: orderItems,
       vendedorId: user.id,
+      vendedor: user.nombre,
       sucursalId: user.sucursalId,
       createdAt: new Date().toISOString(),
     };

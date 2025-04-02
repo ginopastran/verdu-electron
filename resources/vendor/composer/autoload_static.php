@@ -4,7 +4,7 @@
 
 namespace Composer\Autoload;
 
-class ComposerStaticInit601c33ed658c149e483c0cfd00d3f6e9
+class ComposerStaticInit67d3003945963c5fd75051d5661b89cf
 {
     public static $prefixLengthsPsr4 = array (
         'M' => 
@@ -17,8 +17,8 @@ class ComposerStaticInit601c33ed658c149e483c0cfd00d3f6e9
         'Mike42\\' => 
         array (
             0 => __DIR__ . '/..' . '/mike42/escpos-php/src/Mike42',
-            1 => __DIR__ . '/..' . '/mike42/gfx-php/src/Mike42',
-            2 => __DIR__ . '/..' . '/mike42/escpos-php/src/Mike42',
+            1 => __DIR__ . '/..' . '/mike42/escpos-php/src/Mike42',
+            2 => __DIR__ . '/..' . '/mike42/gfx-php/src/Mike42',
         ),
     );
 
@@ -106,9 +106,9 @@ class ComposerStaticInit601c33ed658c149e483c0cfd00d3f6e9
     public static function getInitializer(ClassLoader $loader)
     {
         return \Closure::bind(function () use ($loader) {
-            $loader->prefixLengthsPsr4 = ComposerStaticInit601c33ed658c149e483c0cfd00d3f6e9::$prefixLengthsPsr4;
-            $loader->prefixDirsPsr4 = ComposerStaticInit601c33ed658c149e483c0cfd00d3f6e9::$prefixDirsPsr4;
-            $loader->classMap = ComposerStaticInit601c33ed658c149e483c0cfd00d3f6e9::$classMap;
+            $loader->prefixLengthsPsr4 = ComposerStaticInit67d3003945963c5fd75051d5661b89cf::$prefixLengthsPsr4;
+            $loader->prefixDirsPsr4 = ComposerStaticInit67d3003945963c5fd75051d5661b89cf::$prefixDirsPsr4;
+            $loader->classMap = ComposerStaticInit67d3003945963c5fd75051d5661b89cf::$classMap;
 
         }, null, ClassLoader::class);
     }

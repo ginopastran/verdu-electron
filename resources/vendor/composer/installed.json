@@ -32,7 +32,7 @@
             },
             "time": "2022-05-23T11:05:09+00:00",
             "type": "library",
-            "installation-source": "dist",
+            "installation-source": "source",
             "autoload": {
                 "psr-4": {
                     "Mike42\\": "src/Mike42"
@@ -88,7 +88,7 @@
             },
             "time": "2019-10-05T02:44:33+00:00",
             "type": "library",
-            "installation-source": "dist",
+            "installation-source": "source",
             "autoload": {
                 "psr-4": {
                     "Mike42\\": "src/Mike42"
