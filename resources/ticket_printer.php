@@ -160,8 +160,9 @@ try {
                             if (!$result) {
                                 file_put_contents('php://stderr', "❌ Error al redimensionar\n");
                             } else {
-                                // Guardar temporalmente
-                                $tempPath = __DIR__ . "/temp_logo.png";
+                                // Guardar temporalmente en directorio temporal del sistema
+                                $tempPath = sys_get_temp_dir() . "/temp_logo_" . uniqid() . ".png";
+                                file_put_contents('php://stderr', "Guardando en directorio temporal: " . $tempPath . "\n");
                                 $saveResult = imagepng($newImage, $tempPath);
                                 
                                 if (!$saveResult) {
