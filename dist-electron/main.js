@@ -234,6 +234,88 @@ ipcMain.handle("print-closing", async (_, closingData) => {
     try {
         const tempDir = os.tmpdir();
         const tempDataPath = path.join(tempDir, `closing-data-${Date.now()}.json`);
+        // Crear una copia para depuración
+        const debugDataPath = path.join(app.getPath("desktop"), `debug-closing-data-${Date.now()}.json`);
+        // Guardar una copia de los datos recibidos para análisis
+        try {
+            await fsPromises.writeFile(debugDataPath, JSON.stringify(closingData, null, 2), "utf8");
+            console.log(`Copia de depuración guardada en: ${debugDataPath}`);
+        }
+        catch (err) {
+            console.error("Error guardando archivo de depuración:", err);
+        }
+        // Logs completos y detallados
+        console.log("==========================================");
+        console.log("DATOS COMPLETOS RECIBIDOS PARA CIERRE:");
+        console.log("==========================================");
+        console.log(JSON.stringify(closingData, null, 2));
+        // Análisis específico de los datos críticos
+        console.log("==========================================");
+        console.log("ANÁLISIS DE DATOS CRÍTICOS:");
+        console.log("==========================================");
+        console.log("Total ventas:", closingData.totalVentas);
+        console.log("Cantidad ventas:", closingData.cantidadVentas);
+        // Análisis profundo de la estructura ventasPorMetodo
+        console.log("ESTRUCTURA VENTAS POR MÉTODO:");
+        if (closingData.ventasPorMetodo) {
+            console.log("Tipo de ventasPorMetodo:", typeof closingData.ventasPorMetodo);
+            console.log("Es array:", Array.isArray(closingData.ventasPorMetodo));
+            console.log("Claves disponibles:", Object.keys(closingData.ventasPorMetodo));
+            if (typeof closingData.ventasPorMetodo === "object") {
+                for (const key in closingData.ventasPorMetodo) {
+                    console.log(`Propiedad '${key}':`, JSON.stringify(closingData.ventasPorMetodo[key]));
+                }
+            }
+            if (closingData.ventasPorMetodo.ventasPorMetodo) {
+                // Nueva estructura API
+                console.log("DESGLOSE POR MÉTODO DE PAGO (NUEVA ESTRUCTURA):");
+                const metodos = closingData.ventasPorMetodo.ventasPorMetodo;
+                for (const metodo in metodos) {
+                    console.log(`- ${metodo}: ${metodos[metodo]}`);
+                }
+                // Calcular suma para verificación
+                let suma = 0;
+                for (const metodo in metodos) {
+                    suma += metodos[metodo];
+                }
+                console.log("Suma calculada de ventas por método:", suma);
+                if (Math.abs(suma - closingData.totalVentas) > 0.01) {
+                    console.log("⚠️ ADVERTENCIA: Discrepancia entre la suma de métodos y el total de ventas");
+                    console.log("Diferencia:", closingData.totalVentas - suma);
+                }
+            }
+            else {
+                // Estructura antigua
+                console.log("DESGLOSE POR MÉTODO DE PAGO (ESTRUCTURA ANTIGUA):");
+                console.log(JSON.stringify(closingData.ventasPorMetodo, null, 2));
+            }
+        }
+        else {
+            console.log("❌ No hay datos de ventas por método");
+        }
+        // Análisis de la estructura de vendedores
+        console.log("VENDEDORES:");
+        if (closingData.ventasPorMetodo &&
+            closingData.ventasPorMetodo.ventasPorVendedor) {
+            const vendedores = closingData.ventasPorMetodo.ventasPorVendedor;
+            for (const vendedor of vendedores) {
+                console.log(`- ${vendedor.nombre} (${vendedor.email}): ${vendedor.totalVentas} (${vendedor.cantidadVentas} ventas)`);
+            }
+            // Sumar totales de vendedores para verificación
+            let sumaVendedores = 0;
+            for (const vendedor of vendedores) {
+                sumaVendedores += vendedor.totalVentas;
+            }
+            console.log("Suma calculada de ventas por vendedor:", sumaVendedores);
+            if (Math.abs(sumaVendedores - closingData.totalVentas) > 0.01) {
+                console.log("⚠️ ADVERTENCIA: Discrepancia entre la suma de vendedores y el total de ventas");
+                console.log("Diferencia:", closingData.totalVentas - sumaVendedores);
+            }
+        }
+        else {
+            console.log("❌ No hay datos de ventas por vendedor");
+        }
+        console.log("==========================================");
         await fsPromises.writeFile(tempDataPath, JSON.stringify(closingData), "utf8");
         // Rutas del PHP y logo
         const isProduction = process.env.NODE_ENV !== "development";
@@ -241,6 +323,8 @@ ipcMain.handle("print-closing", async (_, closingData) => {
         if (isProduction) {
             phpScriptPath = path.join(process.resourcesPath, "resources", "closing_printer.php");
             // En producción - Lógica simple: copiar el logo directamente junto al PHP
+            console.log("------ CONFIGURACIÓN LOGO CIERRE PRODUCCIÓN ------");
+            // Posibles ubicaciones de origen del logo
             const possibleSources = [
                 path.join(process.resourcesPath, "logo.png"),
                 path.join(process.resourcesPath, "resources", "logo.png"),
@@ -251,18 +335,60 @@ ipcMain.handle("print-closing", async (_, closingData) => {
             ];
             // Destino - siempre al lado del PHP script
             const logoDestPath = path.join(path.dirname(phpScriptPath), "logo.png");
+            console.log(`Destino del logo: ${logoDestPath}`);
             // Buscar y copiar el logo
             let found = false;
             for (const src of possibleSources) {
+                console.log(`Buscando logo en: ${src}`);
                 if (fs.existsSync(src)) {
+                    console.log(`Logo encontrado en: ${src}`);
                     try {
+                        console.log(`Copiando a: ${logoDestPath}`);
                         fs.copyFileSync(src, logoDestPath);
+                        console.log(`Logo copiado exitosamente (${fs.statSync(logoDestPath).size} bytes)`);
                         found = true;
                         break;
                     }
                     catch (err) {
-                        // Continuar con la siguiente fuente si falla
+                        console.error(`Error copiando logo desde ${src}:`, err);
                     }
+                }
+            }
+            // Como último recurso, generar un logo mínimo
+            if (!found) {
+                try {
+                    console.log("Intentando generar logo mínimo con PHP...");
+                    const logoGenPath = path.join(tempDir, "gen_logo_closing.php");
+                    const logoContent = `<?php
+          $img = imagecreatetruecolor(400, 100);
+          $white = imagecolorallocate($img, 255, 255, 255);
+          $black = imagecolorallocate($img, 0, 0, 0);
+          imagefill($img, 0, 0, $white);
+          imagestring($img, 5, 150, 40, 'ISELIN II', $black);
+          imagepng($img, '${logoDestPath.replace(/\\/g, "\\\\")}');
+          echo "Logo creado";
+          ?>`;
+                    fs.writeFileSync(logoGenPath, logoContent);
+                    // Ejecutar PHP para generar la imagen
+                    const { error, stdout, stderr } = await new Promise((resolve) => {
+                        exec(`php "${logoGenPath}"`, (error, stdout, stderr) => {
+                            resolve({ error, stdout, stderr });
+                        });
+                    });
+                    if (error) {
+                        console.error("Error generando logo para cierre:", stderr || error.message);
+                    }
+                    else {
+                        console.log("Logo generado para cierre:", stdout);
+                        if (fs.existsSync(logoDestPath)) {
+                            console.log(`Logo generado verificado: ${fs.statSync(logoDestPath).size} bytes`);
+                        }
+                    }
+                    // Limpiar archivo temporal
+                    fs.unlinkSync(logoGenPath);
+                }
+                catch (genErr) {
+                    console.error("Error generando logo para cierre:", genErr);
                 }
             }
         }
@@ -270,6 +396,10 @@ ipcMain.handle("print-closing", async (_, closingData) => {
             // En desarrollo - Ruta normal
             phpScriptPath = path.join(app.getAppPath(), "resources", "closing_printer.php");
         }
+        console.log("------ INFO DE IMPRESIÓN CIERRE ------");
+        console.log(`NODE_ENV: ${process.env.NODE_ENV}`);
+        console.log(`PHP Script: ${phpScriptPath}`);
+        console.log(`Datos: ${tempDataPath}`);
         return new Promise((resolve, reject) => {
             exec(`set NODE_ENV=${process.env.NODE_ENV}&& php "${phpScriptPath}" "${tempDataPath}"`, async (error, stdout, stderr) => {
                 try {
