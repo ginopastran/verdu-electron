@@ -54,6 +54,9 @@ function createWindow() {
     mainWindow.loadURL("http://localhost:5173");
     mainWindow.webContents.openDevTools();
   } else {
+    // En producción, oculta el menú nativo (File, Edit, View, Window, Help)
+    mainWindow.setMenuBarVisibility(false);
+
     // En producción, carga el archivo HTML construido
     mainWindow.loadFile(path.join(__dirname, "../dist/index.html"));
 
@@ -85,11 +88,11 @@ app.whenReady().then(() => {
   if (process.env.NODE_ENV !== "development") {
     const logoSourcePath = path.join(app.getAppPath(), "public", "logo.png");
     const logoDestPath = path.join(process.resourcesPath, "logo.png");
-    
+
     console.log("------ COPIANDO LOGO AL INICIAR ------");
     console.log(`Origen: ${logoSourcePath}`);
     console.log(`Destino: ${logoDestPath}`);
-    
+
     try {
       if (fs.existsSync(logoSourcePath)) {
         fs.copyFileSync(logoSourcePath, logoDestPath);
@@ -136,13 +139,17 @@ ipcMain.handle("print-ticket", async (_, orderData) => {
     // Rutas del PHP y logo
     const isProduction = process.env.NODE_ENV !== "development";
     let phpScriptPath;
-    
+
     if (isProduction) {
-      phpScriptPath = path.join(process.resourcesPath, "resources", "ticket_printer.php");
-      
+      phpScriptPath = path.join(
+        process.resourcesPath,
+        "resources",
+        "ticket_printer.php"
+      );
+
       // En producción - Lógica simple: copiar el logo directamente junto al PHP
       console.log("------ CONFIGURACIÓN LOGO PRODUCCIÓN ------");
-      
+
       // Posibles ubicaciones de origen del logo
       const possibleSources = [
         path.join(process.resourcesPath, "logo.png"),
@@ -150,13 +157,13 @@ ipcMain.handle("print-ticket", async (_, orderData) => {
         path.join(process.resourcesPath, "public", "logo.png"),
         path.join(app.getAppPath(), "resources", "logo.png"),
         path.join(app.getAppPath(), "public", "logo.png"),
-        path.join(__dirname, "../resources", "logo.png")
+        path.join(__dirname, "../resources", "logo.png"),
       ];
-      
+
       // Destino - siempre al lado del PHP script
       const logoDestPath = path.join(path.dirname(phpScriptPath), "logo.png");
       console.log(`Destino del logo: ${logoDestPath}`);
-      
+
       // Buscar y copiar el logo
       let found = false;
       for (const src of possibleSources) {
@@ -166,7 +173,11 @@ ipcMain.handle("print-ticket", async (_, orderData) => {
           try {
             console.log(`Copiando a: ${logoDestPath}`);
             fs.copyFileSync(src, logoDestPath);
-            console.log(`Logo copiado exitosamente (${fs.statSync(logoDestPath).size} bytes)`);
+            console.log(
+              `Logo copiado exitosamente (${
+                fs.statSync(logoDestPath).size
+              } bytes)`
+            );
             found = true;
             break;
           } catch (err) {
@@ -174,7 +185,7 @@ ipcMain.handle("print-ticket", async (_, orderData) => {
           }
         }
       }
-      
+
       // Como último recurso, generar un logo mínimo
       if (!found) {
         try {
@@ -189,25 +200,33 @@ ipcMain.handle("print-ticket", async (_, orderData) => {
           imagepng($img, '${logoDestPath.replace(/\\/g, "\\\\")}');
           echo "Logo creado";
           ?>`;
-          
+
           fs.writeFileSync(logoGenPath, logoContent);
-          
+
           // Ejecutar PHP para generar la imagen
-          const { error, stdout, stderr } = await new Promise<{error: any, stdout: string, stderr: string}>((resolve) => {
+          const { error, stdout, stderr } = await new Promise<{
+            error: any;
+            stdout: string;
+            stderr: string;
+          }>((resolve) => {
             exec(`php "${logoGenPath}"`, (error, stdout, stderr) => {
               resolve({ error, stdout, stderr });
             });
           });
-          
+
           if (error) {
             console.error("Error generando logo:", stderr || error.message);
           } else {
             console.log("Logo generado:", stdout);
             if (fs.existsSync(logoDestPath)) {
-              console.log(`Logo generado verificado: ${fs.statSync(logoDestPath).size} bytes`);
+              console.log(
+                `Logo generado verificado: ${
+                  fs.statSync(logoDestPath).size
+                } bytes`
+              );
             }
           }
-          
+
           // Limpiar archivo temporal
           fs.unlinkSync(logoGenPath);
         } catch (genErr) {
@@ -216,7 +235,11 @@ ipcMain.handle("print-ticket", async (_, orderData) => {
       }
     } else {
       // En desarrollo - Ruta normal
-      phpScriptPath = path.join(app.getAppPath(), "resources", "ticket_printer.php");
+      phpScriptPath = path.join(
+        app.getAppPath(),
+        "resources",
+        "ticket_printer.php"
+      );
     }
 
     console.log("------ INFO DE IMPRESIÓN ------");
@@ -244,7 +267,7 @@ ipcMain.handle("print-ticket", async (_, orderData) => {
             console.log("Salida del script PHP:", stdout);
             resolve({
               success: true,
-              message: "Ticket impreso correctamente"
+              message: "Ticket impreso correctamente",
             });
           } catch (err) {
             console.error("Error en el callback:", err);
@@ -271,6 +294,7 @@ ipcMain.handle("print-closing", async (_, closingData) => {
   try {
     const tempDir = os.tmpdir();
     const tempDataPath = path.join(tempDir, `closing-data-${Date.now()}.json`);
+
     await fsPromises.writeFile(
       tempDataPath,
       JSON.stringify(closingData),
@@ -280,67 +304,96 @@ ipcMain.handle("print-closing", async (_, closingData) => {
     // Rutas del PHP y logo
     const isProduction = process.env.NODE_ENV !== "development";
     let phpScriptPath;
-    
+
     if (isProduction) {
-      phpScriptPath = path.join(process.resourcesPath, "resources", "closing_printer.php");
-      
+      phpScriptPath = path.join(
+        process.resourcesPath,
+        "resources",
+        "closing_printer.php"
+      );
+
       // En producción - Lógica simple: copiar el logo directamente junto al PHP
-      console.log("------ CONFIGURACIÓN LOGO CIERRE PRODUCCIÓN ------");
-      
-      // Posibles ubicaciones de origen del logo
       const possibleSources = [
         path.join(process.resourcesPath, "logo.png"),
         path.join(process.resourcesPath, "resources", "logo.png"),
         path.join(process.resourcesPath, "public", "logo.png"),
         path.join(app.getAppPath(), "resources", "logo.png"),
         path.join(app.getAppPath(), "public", "logo.png"),
-        path.join(__dirname, "../resources", "logo.png")
+        path.join(__dirname, "../resources", "logo.png"),
       ];
-      
+
       // Destino - siempre al lado del PHP script
       const logoDestPath = path.join(path.dirname(phpScriptPath), "logo.png");
-      console.log(`Destino del logo: ${logoDestPath}`);
-      
+
       // Buscar y copiar el logo
       let found = false;
       for (const src of possibleSources) {
-        console.log(`Buscando logo en: ${src}`);
         if (fs.existsSync(src)) {
-          console.log(`Logo encontrado en: ${src}`);
           try {
-            console.log(`Copiando a: ${logoDestPath}`);
             fs.copyFileSync(src, logoDestPath);
-            console.log(`Logo copiado exitosamente (${fs.statSync(logoDestPath).size} bytes)`);
             found = true;
             break;
           } catch (err) {
-            console.error(`Error copiando logo desde ${src}:`, err);
+            // Continuar con la siguiente fuente si falla
           }
         }
       }
     } else {
       // En desarrollo - Ruta normal
-      phpScriptPath = path.join(app.getAppPath(), "resources", "closing_printer.php");
+      phpScriptPath = path.join(
+        app.getAppPath(),
+        "resources",
+        "closing_printer.php"
+      );
     }
-
-    console.log("------ INFO DE IMPRESIÓN CIERRE ------");
-    console.log(`NODE_ENV: ${process.env.NODE_ENV}`);
-    console.log(`PHP Script: ${phpScriptPath}`);
-    console.log(`Datos: ${tempDataPath}`);
 
     return new Promise((resolve, reject) => {
       exec(
         `set NODE_ENV=${process.env.NODE_ENV}&& php "${phpScriptPath}" "${tempDataPath}"`,
         async (error, stdout, stderr) => {
           try {
+            // Limpiar archivo temporal
             await fsPromises.unlink(tempDataPath);
-            if (error) {
-              reject(
-                new Error(`Error al imprimir: ${stderr || error.message}`)
+
+            let printerError = null;
+
+            // Verificar si hay errores en la salida del script PHP relacionados con la impresora
+            if (stderr && stderr.includes("Error con la impresora:")) {
+              // Extraer el mensaje de error específico
+              const errorMatch = stderr.match(
+                /Error con la impresora: (.*?)(\n|$)/
               );
-              return;
+              if (errorMatch && errorMatch[1]) {
+                printerError = errorMatch[1];
+              } else {
+                printerError = "Error desconocido con la impresora";
+              }
             }
-            resolve({ success: true, message: "Cierre impreso correctamente" });
+
+            // Verificar también errores generales del comando
+            if (error) {
+              if (!printerError) {
+                printerError =
+                  error.message || "Error al ejecutar el comando de impresión";
+              }
+
+              // En caso de error grave (no solo de impresora), rechazar la promesa
+              if (!stderr.includes("Error con la impresora:")) {
+                reject(
+                  new Error(`Error al imprimir: ${stderr || error.message}`)
+                );
+                return;
+              }
+            }
+
+            // Siempre resolver con información sobre si hubo un error de impresora
+            resolve({
+              success: !error || stderr.includes("Error con la impresora:"), // Consideramos éxito parcial si solo falló la impresora
+              printerError,
+              message: printerError
+                ? "Cierre registrado pero no se pudo imprimir"
+                : "Cierre impreso correctamente",
+            });
           } catch (err) {
             reject(err);
           }

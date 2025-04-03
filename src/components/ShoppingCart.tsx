@@ -30,6 +30,14 @@ import { useAuth } from "@/contexts/AuthContext";
 import { UserMenu } from "@/components/user-menu";
 import { cn } from "@/lib/utils";
 import { useScaleWeight } from "@/hooks/useScaleWeight";
+import {
+  Table,
+  TableHeader,
+  TableRow,
+  TableHead,
+  TableBody,
+  TableCell,
+} from "@/components/ui/table";
 
 interface Product {
   id: number;
@@ -78,11 +86,16 @@ export default function ShoppingCart() {
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [useManualWeight, setUseManualWeight] = useState(false);
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string | null>(null);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<
+    string | null
+  >(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [closingDialogOpen, setClosingDialogOpen] = useState(false);
   const [lastInputTime, setLastInputTime] = useState<number>(0);
   const [barcodeBuffer, setBarcodeBuffer] = useState<string>("");
+  const [closeResultDialogOpen, setCloseResultDialogOpen] = useState(false);
+  const [closeResultData, setCloseResultData] = useState<any>(null);
+  const [isClosing, setIsClosing] = useState(false);
 
   const appId =
     window.electron?.process?.argv
@@ -261,7 +274,7 @@ export default function ShoppingCart() {
 
     // Prevenir procesamiento duplicado
     if (isProcessingPayment || selectedPaymentMethod) return;
-    
+
     // Establecer el método seleccionado y marcar como procesando
     setSelectedPaymentMethod(method);
     setIsProcessingPayment(true);
@@ -381,6 +394,9 @@ export default function ShoppingCart() {
       return;
     }
 
+    // Activar estado de carga
+    setIsClosing(true);
+
     try {
       const lastCloseResponse = await fetch(
         `${API_URL}/api/cierres?vendedorId=${user.id}&last=true`,
@@ -399,6 +415,7 @@ export default function ShoppingCart() {
         startDate.setHours(0, 0, 0, 0);
       }
 
+      // Preparar datos de métodos de pago (si están disponibles)
       const ventasResponse = await fetch(`${API_URL}/api/ordenes/ventas`, {
         method: "POST",
         headers,
@@ -412,15 +429,19 @@ export default function ShoppingCart() {
 
       const ventas = await ventasResponse.json();
 
+      // Crear objeto con datos actualizados según nueva API
       const closingData = {
         vendedorId: user.id,
         sucursalId: user.sucursalId,
         fechaInicio: startDate,
         fechaCierre: new Date(),
         periodo: period,
-        totalVentas: ventas.total,
-        cantidadVentas: ventas.cantidad,
-        ventasPorMetodo: ventas.ventasPorMetodo,
+        ventasPorMetodo: ventas.ventasPorMetodo || {
+          efectivo: 0,
+          tarjeta: 0,
+          transferencia: 0,
+          mercadoPago: 0,
+        },
       };
 
       const cierreResponse = await fetch(`${API_URL}/api/cierres`, {
@@ -433,34 +454,37 @@ export default function ShoppingCart() {
         throw new Error("Error al registrar el cierre");
       }
 
-      // Imprimir ticket de cierre
+      const cierreResponseData = await cierreResponse.json();
+
+      // Imprimir ticket de cierre usando los datos de la respuesta
       try {
         const { ipcRenderer } = window.require("electron");
-        const result = await ipcRenderer.invoke("print-closing", closingData);
-        if (result.success) {
+        const printingToast = toast.loading("Imprimiendo ticket de cierre...");
+
+        // Usar los datos de la respuesta para la impresión
+        const result = await ipcRenderer.invoke(
+          "print-closing",
+          cierreResponseData
+        );
+
+        toast.dismiss(printingToast);
+
+        if (result.success && !result.printerError) {
           toast.success("Ticket de cierre impreso correctamente");
+        } else if (result.printerError) {
+          toast.error(`No se pudo imprimir: ${result.printerError}`);
         }
       } catch (printError: any) {
-        console.error("Error al imprimir cierre:", printError);
-        toast.error(
-          `Error al imprimir el ticket de cierre: ${printError.message}`
-        );
+        toast.error(`Error al imprimir: ${printError.message}`);
       }
-
-      console.log("Datos del cierre:", {
-        periodo: period,
-        fechaInicio: startDate,
-        fechaCierre: new Date(),
-        ventasPorMetodo: ventas.ventasPorMetodo,
-        totalVentas: ventas.total,
-        cantidadVentas: ventas.cantidad,
-      });
 
       toast.success(`Cierre de ${period} realizado correctamente`);
       setClosingDialogOpen(false);
-    } catch (error) {
-      console.error("Error:", error);
-      toast.error("Error al realizar el cierre de caja");
+    } catch (error: any) {
+      toast.error(`Error: ${error.message || "Error al realizar el cierre"}`);
+    } finally {
+      // Desactivar estado de carga independientemente del resultado
+      setIsClosing(false);
     }
   };
 
@@ -490,8 +514,12 @@ export default function ShoppingCart() {
       // Para el resto de atajos, verificar que no estemos en un input
       if (isInputElement) return;
 
-      // Solo procesar atajos de cierre si el usuario tiene permiso
-      if (closingDialogOpen && user?.permisos?.cierreDeCajaEnabled) {
+      // Solo procesar atajos de cierre si el usuario tiene permiso y no está cargando
+      if (
+        closingDialogOpen &&
+        user?.permisos?.cierreDeCajaEnabled &&
+        !isClosing
+      ) {
         switch (e.key) {
           case "1":
             e.preventDefault();
@@ -512,21 +540,17 @@ export default function ShoppingCart() {
       if (paymentDialogOpen) {
         // Si ya hay un método seleccionado o se está procesando, evitar nuevas selecciones
         if (isProcessingPayment || selectedPaymentMethod) return;
-        
+
         switch (e.key) {
           case "1":
             e.preventDefault();
-            handlePayment("transferencia");
+            handlePayment("qr");
             break;
           case "2":
             e.preventDefault();
-            handlePayment("mercadoPago");
-            break;
-          case "3":
-            e.preventDefault();
             handlePayment("tarjeta");
             break;
-          case "4":
+          case "3":
             e.preventDefault();
             handlePayment("efectivo");
             break;
@@ -536,7 +560,14 @@ export default function ShoppingCart() {
 
     window.addEventListener("keydown", handleGlobalKeyPress);
     return () => window.removeEventListener("keydown", handleGlobalKeyPress);
-  }, [closingDialogOpen, paymentDialogOpen, cartItems.length, isProcessingPayment, selectedPaymentMethod]);
+  }, [
+    closingDialogOpen,
+    paymentDialogOpen,
+    cartItems.length,
+    isProcessingPayment,
+    selectedPaymentMethod,
+    isClosing,
+  ]);
 
   // Función para cerrar sesión
   const handleLogout = () => {
@@ -792,14 +823,17 @@ export default function ShoppingCart() {
           </DialogContent>
         </Dialog>
 
-        <Dialog open={paymentDialogOpen} onOpenChange={(open) => {
-          if (!open) {
-            // Resetear el método seleccionado al cerrar el diálogo
-            setSelectedPaymentMethod(null);
-            setIsProcessingPayment(false);
-          }
-          setPaymentDialogOpen(open);
-        }}>
+        <Dialog
+          open={paymentDialogOpen}
+          onOpenChange={(open) => {
+            if (!open) {
+              // Resetear el método seleccionado al cerrar el diálogo
+              setSelectedPaymentMethod(null);
+              setIsProcessingPayment(false);
+            }
+            setPaymentDialogOpen(open);
+          }}
+        >
           <DialogContent
             className="sm:max-w-md"
             onKeyDown={(e) => {
@@ -820,72 +854,77 @@ export default function ShoppingCart() {
                 en el botón
               </DialogDescription>
             </DialogHeader>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <Button
-                onClick={() => handlePayment("transferencia")}
-                className={`h-32 flex flex-col items-center justify-center space-y-2 [&_svg]:size-8 ${selectedPaymentMethod === "transferencia" ? "bg-emerald-100 border-emerald-600 border-2" : ""}`}
+                onClick={() => handlePayment("qr")}
+                className={`h-32 flex flex-col items-center justify-center space-y-2 [&_svg]:size-8 ${
+                  selectedPaymentMethod === "qr"
+                    ? "bg-emerald-100 border-emerald-600 border-2"
+                    : ""
+                }`}
                 variant="outline"
-                disabled={isProcessingPayment || (selectedPaymentMethod !== null && selectedPaymentMethod !== "transferencia")}
+                disabled={
+                  isProcessingPayment ||
+                  (selectedPaymentMethod !== null &&
+                    selectedPaymentMethod !== "qr")
+                }
               >
                 <div className="h-12 flex items-center justify-center">
-                  {isProcessingPayment && selectedPaymentMethod === "transferencia" ? (
+                  {isProcessingPayment && selectedPaymentMethod === "qr" ? (
                     <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900" />
                   ) : (
-                    <Landmark className="h-12 w-12" />
+                    <QrCode className="h-12 w-12" />
                   )}
                 </div>
-                <span>Transferencia Bancaria (1)</span>
-              </Button>
-              <Button
-                onClick={() => handlePayment("mercadoPago")}
-                className={`h-32 flex flex-col items-center justify-center space-y-2 [&_svg]:size-8 ${selectedPaymentMethod === "mercadoPago" ? "bg-emerald-100 border-emerald-600 border-2" : ""}`}
-                variant="outline"
-                disabled={isProcessingPayment || (selectedPaymentMethod !== null && selectedPaymentMethod !== "mercadoPago")}
-              >
-                <div className="h-12 flex items-center justify-center">
-                  {isProcessingPayment && selectedPaymentMethod === "mercadoPago" ? (
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900" />
-                  ) : (
-                    <img
-                      src="logos/mercadopago.webp"
-                      alt="Mercado Pago"
-                      width={48}
-                      height={48}
-                      className="object-contain"
-                    />
-                  )}
-                </div>
-                <span>Mercado Pago (2)</span>
+                <span>QR (1)</span>
               </Button>
               <Button
                 onClick={() => handlePayment("tarjeta")}
-                className={`h-32 flex flex-col items-center justify-center space-y-2 [&_svg]:size-8 ${selectedPaymentMethod === "tarjeta" ? "bg-emerald-100 border-emerald-600 border-2" : ""}`}
+                className={`h-32 flex flex-col items-center justify-center space-y-2 [&_svg]:size-8 ${
+                  selectedPaymentMethod === "tarjeta"
+                    ? "bg-emerald-100 border-emerald-600 border-2"
+                    : ""
+                }`}
                 variant="outline"
-                disabled={isProcessingPayment || (selectedPaymentMethod !== null && selectedPaymentMethod !== "tarjeta")}
+                disabled={
+                  isProcessingPayment ||
+                  (selectedPaymentMethod !== null &&
+                    selectedPaymentMethod !== "tarjeta")
+                }
               >
                 <div className="h-12 flex items-center justify-center">
-                  {isProcessingPayment && selectedPaymentMethod === "tarjeta" ? (
+                  {isProcessingPayment &&
+                  selectedPaymentMethod === "tarjeta" ? (
                     <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900" />
                   ) : (
                     <CreditCard className="h-12 w-12" />
                   )}
                 </div>
-                <span>Tarjeta (3)</span>
+                <span>Tarjeta (2)</span>
               </Button>
               <Button
                 onClick={() => handlePayment("efectivo")}
-                className={`h-32 flex flex-col items-center justify-center space-y-2 [&_svg]:size-8 ${selectedPaymentMethod === "efectivo" ? "bg-emerald-100 border-emerald-600 border-2" : ""}`}
+                className={`h-32 flex flex-col items-center justify-center space-y-2 [&_svg]:size-8 ${
+                  selectedPaymentMethod === "efectivo"
+                    ? "bg-emerald-100 border-emerald-600 border-2"
+                    : ""
+                }`}
                 variant="outline"
-                disabled={isProcessingPayment || (selectedPaymentMethod !== null && selectedPaymentMethod !== "efectivo")}
+                disabled={
+                  isProcessingPayment ||
+                  (selectedPaymentMethod !== null &&
+                    selectedPaymentMethod !== "efectivo")
+                }
               >
                 <div className="h-12 flex items-center justify-center">
-                  {isProcessingPayment && selectedPaymentMethod === "efectivo" ? (
+                  {isProcessingPayment &&
+                  selectedPaymentMethod === "efectivo" ? (
                     <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900" />
                   ) : (
                     <Wallet className="h-12 w-12" />
                   )}
                 </div>
-                <span>Efectivo (4)</span>
+                <span>Efectivo (3)</span>
               </Button>
             </div>
           </DialogContent>
@@ -905,27 +944,189 @@ export default function ShoppingCart() {
                 onClick={() => handleClosing("mañana")}
                 className="h-32 flex flex-col items-center justify-center space-y-2 [&_svg]:size-8"
                 variant="outline"
+                disabled={isClosing}
               >
-                <Sun />
+                {isClosing ? (
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" />
+                ) : (
+                  <Sun />
+                )}
                 <span className="text-base">Mañana (1)</span>
               </Button>
               <Button
                 onClick={() => handleClosing("tarde")}
                 className="h-32 flex flex-col items-center justify-center space-y-2 [&_svg]:size-8"
                 variant="outline"
+                disabled={isClosing}
               >
-                <Moon />
+                {isClosing ? (
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" />
+                ) : (
+                  <Moon />
+                )}
                 <span className="text-base">Tarde (2)</span>
               </Button>
               <Button
                 onClick={() => handleClosing("todo")}
                 className="h-32 flex flex-col items-center justify-center space-y-2 [&_svg]:size-8"
                 variant="outline"
+                disabled={isClosing}
               >
-                <Calendar />
+                {isClosing ? (
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" />
+                ) : (
+                  <Calendar />
+                )}
                 <span className="text-base">Todo el día (3)</span>
               </Button>
             </div>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog
+          open={closeResultDialogOpen}
+          onOpenChange={setCloseResultDialogOpen}
+        >
+          <DialogContent className="sm:max-w-[700px]">
+            <DialogHeader>
+              <DialogTitle>Resultado del Cierre de Caja</DialogTitle>
+              <DialogDescription>
+                Resumen de ventas del período seleccionado
+              </DialogDescription>
+            </DialogHeader>
+
+            {closeResultData && (
+              <div className="space-y-4 max-h-[70vh] overflow-y-auto">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <h3 className="text-sm font-medium">Período</h3>
+                    <p className="text-xl font-bold">
+                      {closeResultData.periodo.toUpperCase()}
+                    </p>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-medium">Fecha</h3>
+                    <p>
+                      {new Date(closeResultData.fechaInicio).toLocaleString()} -{" "}
+                      {new Date(closeResultData.fechaCierre).toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="rounded-lg border p-4">
+                  <h3 className="text-lg font-semibold mb-2">
+                    Resumen General
+                  </h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-muted-foreground">
+                        Total Ventas
+                      </p>
+                      <p className="text-2xl font-bold text-emerald-600">
+                        $
+                        {Number(closeResultData.totalVentas).toLocaleString(
+                          "es-AR",
+                          { minimumFractionDigits: 2, maximumFractionDigits: 2 }
+                        )}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">
+                        Cantidad de Ventas
+                      </p>
+                      <p className="text-2xl font-bold">
+                        {closeResultData.cantidadVentas}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {closeResultData.ventasPorMetodo &&
+                  closeResultData.ventasPorMetodo.ventasPorMetodo && (
+                    <div className="rounded-lg border p-4">
+                      <h3 className="text-lg font-semibold mb-2">
+                        Ventas por Método de Pago
+                      </h3>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Método</TableHead>
+                            <TableHead className="text-right">Monto</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {Object.entries(
+                            closeResultData.ventasPorMetodo.ventasPorMetodo
+                          ).map(([metodo, monto]: [string, any]) => (
+                            <TableRow key={metodo}>
+                              <TableCell className="font-medium capitalize">
+                                {metodo}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                $
+                                {Number(monto).toLocaleString("es-AR", {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2,
+                                })}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+
+                {closeResultData.ventasPorMetodo &&
+                  closeResultData.ventasPorMetodo.ventasPorVendedor && (
+                    <div className="rounded-lg border p-4">
+                      <h3 className="text-lg font-semibold mb-2">
+                        Desglose por Vendedor
+                      </h3>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Vendedor</TableHead>
+                            <TableHead>Email</TableHead>
+                            <TableHead className="text-right">Total</TableHead>
+                            <TableHead className="text-right">Ventas</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {closeResultData.ventasPorMetodo.ventasPorVendedor.map(
+                            (vendedor: any) => (
+                              <TableRow key={vendedor.id}>
+                                <TableCell className="font-medium">
+                                  {vendedor.nombre}
+                                </TableCell>
+                                <TableCell>{vendedor.email}</TableCell>
+                                <TableCell className="text-right">
+                                  $
+                                  {Number(vendedor.totalVentas).toLocaleString(
+                                    "es-AR",
+                                    {
+                                      minimumFractionDigits: 2,
+                                      maximumFractionDigits: 2,
+                                    }
+                                  )}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  {vendedor.cantidadVentas}
+                                </TableCell>
+                              </TableRow>
+                            )
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+
+                <DialogFooter>
+                  <Button onClick={() => setCloseResultDialogOpen(false)}>
+                    Cerrar
+                  </Button>
+                </DialogFooter>
+              </div>
+            )}
           </DialogContent>
         </Dialog>
 
