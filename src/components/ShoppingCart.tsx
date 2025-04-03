@@ -78,6 +78,7 @@ export default function ShoppingCart() {
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [useManualWeight, setUseManualWeight] = useState(false);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [closingDialogOpen, setClosingDialogOpen] = useState(false);
   const [lastInputTime, setLastInputTime] = useState<number>(0);
@@ -258,7 +259,11 @@ export default function ShoppingCart() {
       return;
     }
 
-    if (isProcessingPayment) return;
+    // Prevenir procesamiento duplicado
+    if (isProcessingPayment || selectedPaymentMethod) return;
+    
+    // Establecer el método seleccionado y marcar como procesando
+    setSelectedPaymentMethod(method);
     setIsProcessingPayment(true);
 
     const orderItems = cartItems.map((item) => ({
@@ -338,7 +343,9 @@ export default function ShoppingCart() {
       console.error("Error:", error);
       toast.error("Error al procesar la orden");
     } finally {
+      // Al finalizar, reiniciar los estados
       setIsProcessingPayment(false);
+      setSelectedPaymentMethod(null);
     }
   };
 
@@ -503,6 +510,9 @@ export default function ShoppingCart() {
       }
 
       if (paymentDialogOpen) {
+        // Si ya hay un método seleccionado o se está procesando, evitar nuevas selecciones
+        if (isProcessingPayment || selectedPaymentMethod) return;
+        
         switch (e.key) {
           case "1":
             e.preventDefault();
@@ -526,7 +536,7 @@ export default function ShoppingCart() {
 
     window.addEventListener("keydown", handleGlobalKeyPress);
     return () => window.removeEventListener("keydown", handleGlobalKeyPress);
-  }, [closingDialogOpen, paymentDialogOpen, cartItems.length]);
+  }, [closingDialogOpen, paymentDialogOpen, cartItems.length, isProcessingPayment, selectedPaymentMethod]);
 
   // Función para cerrar sesión
   const handleLogout = () => {
@@ -782,7 +792,14 @@ export default function ShoppingCart() {
           </DialogContent>
         </Dialog>
 
-        <Dialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>
+        <Dialog open={paymentDialogOpen} onOpenChange={(open) => {
+          if (!open) {
+            // Resetear el método seleccionado al cerrar el diálogo
+            setSelectedPaymentMethod(null);
+            setIsProcessingPayment(false);
+          }
+          setPaymentDialogOpen(open);
+        }}>
           <DialogContent
             className="sm:max-w-md"
             onKeyDown={(e) => {
@@ -806,12 +823,12 @@ export default function ShoppingCart() {
             <div className="grid grid-cols-2 gap-4">
               <Button
                 onClick={() => handlePayment("transferencia")}
-                className="h-32 flex flex-col items-center justify-center space-y-2 [&_svg]:size-8"
+                className={`h-32 flex flex-col items-center justify-center space-y-2 [&_svg]:size-8 ${selectedPaymentMethod === "transferencia" ? "bg-emerald-100 border-emerald-600 border-2" : ""}`}
                 variant="outline"
-                disabled={isProcessingPayment}
+                disabled={isProcessingPayment || (selectedPaymentMethod !== null && selectedPaymentMethod !== "transferencia")}
               >
                 <div className="h-12 flex items-center justify-center">
-                  {isProcessingPayment ? (
+                  {isProcessingPayment && selectedPaymentMethod === "transferencia" ? (
                     <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900" />
                   ) : (
                     <Landmark className="h-12 w-12" />
@@ -821,12 +838,12 @@ export default function ShoppingCart() {
               </Button>
               <Button
                 onClick={() => handlePayment("mercadoPago")}
-                className="h-32 flex flex-col items-center justify-center space-y-2 [&_svg]:size-8"
+                className={`h-32 flex flex-col items-center justify-center space-y-2 [&_svg]:size-8 ${selectedPaymentMethod === "mercadoPago" ? "bg-emerald-100 border-emerald-600 border-2" : ""}`}
                 variant="outline"
-                disabled={isProcessingPayment}
+                disabled={isProcessingPayment || (selectedPaymentMethod !== null && selectedPaymentMethod !== "mercadoPago")}
               >
                 <div className="h-12 flex items-center justify-center">
-                  {isProcessingPayment ? (
+                  {isProcessingPayment && selectedPaymentMethod === "mercadoPago" ? (
                     <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900" />
                   ) : (
                     <img
@@ -842,12 +859,12 @@ export default function ShoppingCart() {
               </Button>
               <Button
                 onClick={() => handlePayment("tarjeta")}
-                className="h-32 flex flex-col items-center justify-center space-y-2 [&_svg]:size-8"
+                className={`h-32 flex flex-col items-center justify-center space-y-2 [&_svg]:size-8 ${selectedPaymentMethod === "tarjeta" ? "bg-emerald-100 border-emerald-600 border-2" : ""}`}
                 variant="outline"
-                disabled={isProcessingPayment}
+                disabled={isProcessingPayment || (selectedPaymentMethod !== null && selectedPaymentMethod !== "tarjeta")}
               >
                 <div className="h-12 flex items-center justify-center">
-                  {isProcessingPayment ? (
+                  {isProcessingPayment && selectedPaymentMethod === "tarjeta" ? (
                     <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900" />
                   ) : (
                     <CreditCard className="h-12 w-12" />
@@ -857,12 +874,12 @@ export default function ShoppingCart() {
               </Button>
               <Button
                 onClick={() => handlePayment("efectivo")}
-                className="h-32 flex flex-col items-center justify-center space-y-2 [&_svg]:size-8"
+                className={`h-32 flex flex-col items-center justify-center space-y-2 [&_svg]:size-8 ${selectedPaymentMethod === "efectivo" ? "bg-emerald-100 border-emerald-600 border-2" : ""}`}
                 variant="outline"
-                disabled={isProcessingPayment}
+                disabled={isProcessingPayment || (selectedPaymentMethod !== null && selectedPaymentMethod !== "efectivo")}
               >
                 <div className="h-12 flex items-center justify-center">
-                  {isProcessingPayment ? (
+                  {isProcessingPayment && selectedPaymentMethod === "efectivo" ? (
                     <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900" />
                   ) : (
                     <Wallet className="h-12 w-12" />
