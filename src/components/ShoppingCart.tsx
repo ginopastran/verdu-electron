@@ -96,6 +96,11 @@ export default function ShoppingCart() {
   const [closeResultDialogOpen, setCloseResultDialogOpen] = useState(false);
   const [closeResultData, setCloseResultData] = useState<any>(null);
   const [isClosing, setIsClosing] = useState(false);
+  // Nuevos estados para el sistema de redondeo
+  const [businessInfo, setBusinessInfo] = useState<any>(null);
+  const [roundedAmountDialogOpen, setRoundedAmountDialogOpen] = useState(false);
+  const [originalAmount, setOriginalAmount] = useState<number>(0);
+  const [roundedAmount, setRoundedAmount] = useState<number>(0);
 
   const appId =
     window.electron?.process?.argv
@@ -107,6 +112,49 @@ export default function ShoppingCart() {
   };
 
   const weight = useScaleWeight();
+
+  // Cargar información del negocio con businessId 1
+  useEffect(() => {
+    const fetchBusinessInfo = async () => {
+      try {
+        console.log("🏢 Iniciando carga de información del negocio");
+        const response = await fetch(`${API_URL}/api/business/1`, {
+          headers,
+        });
+
+        if (!response.ok) {
+          console.error(
+            "❌ Error en la respuesta al cargar información del negocio:",
+            response.status
+          );
+          throw new Error("Error al cargar información del negocio");
+        }
+
+        const data = await response.json();
+        console.log("✅ Información del negocio cargada:", data);
+
+        // Verificar si tiene configuración de sistema de pago
+        if (!data.sistemaPago) {
+          console.warn(
+            "⚠️ El negocio no tiene configurado sistemaPago, estableciendo por defecto"
+          );
+          data.sistemaPago = "redondeo"; // Establecer valor por defecto
+        } else {
+          console.log("✅ Sistema de pago configurado:", data.sistemaPago);
+        }
+
+        // Guardar en el estado
+        setBusinessInfo(data);
+      } catch (error) {
+        console.error("❌ Error al cargar información del negocio:", error);
+        // En caso de error, establecer un valor por defecto para evitar problemas
+        setBusinessInfo({ sistemaPago: "redondeo" });
+      }
+    };
+
+    // Ejecutar la carga de información
+    fetchBusinessInfo();
+  }, [API_URL]);
 
   // Initialize and update useManualWeight based on user permissions
   useEffect(() => {
@@ -266,17 +314,97 @@ export default function ShoppingCart() {
     toast.success("Carrito cancelado", {});
   };
 
+  // Función para redondear a los 50 pesos más cercanos hacia abajo
+  const roundToNearest50 = (amount: number): number => {
+    // Redondeamos a los 50 pesos más cercanos por debajo
+    const remainder = amount % 50;
+    const roundedDown = amount - remainder;
+    return roundedDown;
+  };
+
+  // Reemplazar completamente la función handleCashPayment para forzar siempre un diálogo
+  const handleCashPayment = () => {
+    console.log("🛒 EFECTIVO: Iniciando proceso de pago en efectivo");
+
+    // Calcular los importes para cualquier caso
+    const originalTotal = Number(total.toFixed(2));
+    let roundedTotal = originalTotal;
+
+    // Si el sistema de pago es redondeo, calcular el monto redondeado
+    if (businessInfo?.sistemaPago === "redondeo") {
+      roundedTotal = roundToNearest50(originalTotal);
+      console.log("🧮 EFECTIVO: Cálculos de redondeo:", {
+        originalTotal,
+        roundedTotal,
+        diferencia: originalTotal - roundedTotal,
+      });
+    } else {
+      console.log("💰 EFECTIVO: No hay redondeo, usando monto original");
+    }
+
+    // Guardar los montos calculados en el estado
+    setOriginalAmount(originalTotal);
+    setRoundedAmount(roundedTotal);
+
+    // Establecer efectivo como método seleccionado
+    setSelectedPaymentMethod("efectivo");
+
+    // SIEMPRE cerrar el diálogo de pago y abrir el diálogo de redondeo
+    console.log("🔄 EFECTIVO: Mostrando diálogo de confirmación");
+
+    // Cerrar primero el diálogo de pagos
+    setPaymentDialogOpen(false);
+
+    // Abrir diálogo de redondeo o confirmación con un pequeño retraso
+    setTimeout(() => {
+      // Es crucial que esto siempre se ejecute
+      setRoundedAmountDialogOpen(true);
+      console.log("🔄 EFECTIVO: Diálogo de confirmación abierto");
+    }, 100);
+  };
+
+  // Modificar la función handlePayment para evitar procesar pagos en efectivo directamente
   const handlePayment = async (method: string) => {
     if (!user) {
       toast.error("Debes iniciar sesión para realizar una orden");
       return;
     }
 
+    console.log("🔄 handlePayment llamado con método:", method);
+
+    // Si es efectivo, siempre usar nuestra función especializada
+    if (method === "efectivo") {
+      console.log("🔄 Redirigiendo a handleCashPayment");
+      handleCashPayment();
+      return;
+    }
+
+    // Para otros métodos, continuar con el flujo normal
+    console.log("🔄 Estado actual:", {
+      isProcessingPayment,
+      selectedPaymentMethod,
+      roundedAmountDialogOpen,
+    });
+
     // Prevenir procesamiento duplicado
-    if (isProcessingPayment || selectedPaymentMethod) return;
+    if (isProcessingPayment || selectedPaymentMethod) {
+      console.log(
+        "⚠️ Procesamiento bloqueado - ya está procesando o hay método seleccionado"
+      );
+      return;
+    }
 
     // Establecer el método seleccionado y marcar como procesando
     setSelectedPaymentMethod(method);
+    setIsProcessingPayment(true);
+
+    // Procesar directamente los métodos que no son efectivo
+    console.log("🔄 Procesando pago con:", method);
+    await processPayment(method, Number(total.toFixed(2)));
+  };
+
+  // Función separada para procesar el pago
+  const processPayment = async (method: string, finalTotal: number) => {
     setIsProcessingPayment(true);
 
     const orderItems = cartItems.map((item) => ({
@@ -288,9 +416,17 @@ export default function ShoppingCart() {
       nombre: item.name,
     }));
 
+    // Asegurar que user no sea null
+    if (!user) {
+      toast.error("Debes iniciar sesión para realizar una orden");
+      setIsProcessingPayment(false);
+      setSelectedPaymentMethod(null);
+      return;
+    }
+
     const orderData = {
       metodoPago: method,
-      total: Number(total.toFixed(2)),
+      total: finalTotal, // Usamos el total final (que puede estar redondeado)
       items: orderItems,
       vendedorId: user.id,
       sucursalId: user.sucursalId,
@@ -349,16 +485,56 @@ export default function ShoppingCart() {
         toast.error(`Error al imprimir el ticket: ${printError.message}`);
       }
 
+      // Limpiar todos los estados relacionados con el pago
       setPaymentDialogOpen(false);
+      setRoundedAmountDialogOpen(false);
       setCartItems([]);
+      setSelectedPaymentMethod(null);
+      setIsProcessingPayment(false);
+      setOriginalAmount(0);
+      setRoundedAmount(0);
+
       toast.success("Orden completada exitosamente");
+      // Devolver el foco al input de búsqueda
+      setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 100);
     } catch (error) {
       console.error("Error:", error);
       toast.error("Error al procesar la orden");
-    } finally {
-      // Al finalizar, reiniciar los estados
-      setIsProcessingPayment(false);
+
+      // También limpiar estados en caso de error
+      setPaymentDialogOpen(false);
+      setRoundedAmountDialogOpen(false);
       setSelectedPaymentMethod(null);
+      setIsProcessingPayment(false);
+      setOriginalAmount(0);
+      setRoundedAmount(0);
+    }
+  };
+
+  // Función para confirmar pago con monto redondeado
+  const confirmRoundedPayment = () => {
+    console.log("🔄 Iniciando confirmRoundedPayment");
+    console.log("🔄 Estado actual:", {
+      isProcessingPayment,
+      selectedPaymentMethod,
+      roundedAmount,
+      originalAmount,
+    });
+
+    if (isProcessingPayment) {
+      console.log("⚠️ Ya hay un pago en proceso, ignorando solicitud");
+      return;
+    }
+
+    console.log("✅ Procesando pago:", roundedAmount);
+
+    // Usar el método correcto según el tipo de pago seleccionado
+    if (selectedPaymentMethod === "efectivo-descuento") {
+      processPayment("efectivo-descuento", roundedAmount);
+    } else {
+      processPayment("efectivo", roundedAmount);
     }
   };
 
@@ -625,6 +801,7 @@ export default function ShoppingCart() {
     }
   };
 
+  // Modificar el manejador de eventos de teclado
   useEffect(() => {
     const handleGlobalKeyPress = (e: KeyboardEvent) => {
       // Handle F4 for logout
@@ -674,9 +851,24 @@ export default function ShoppingCart() {
         return;
       }
 
+      // Para el diálogo de pago, verificar los estados antes de procesar las teclas
       if (paymentDialogOpen) {
+        console.log("⌨️ TECLADO: Tecla presionada en diálogo de pago:", e.key);
+        console.log("⌨️ TECLADO: Estados actuales:", {
+          isProcessingPayment,
+          selectedPaymentMethod,
+          roundedAmountDialogOpen,
+          businessInfo: businessInfo?.sistemaPago,
+          descuentoEfectivo: businessInfo?.descuentoEfectivo,
+        });
+
         // Si ya hay un método seleccionado o se está procesando, evitar nuevas selecciones
-        if (isProcessingPayment || selectedPaymentMethod) return;
+        if (isProcessingPayment || selectedPaymentMethod) {
+          console.log(
+            "⌨️ TECLADO: Tecla ignorada - ya está procesando o hay método seleccionado"
+          );
+          return;
+        }
 
         switch (e.key) {
           case "1":
@@ -689,7 +881,19 @@ export default function ShoppingCart() {
             break;
           case "3":
             e.preventDefault();
-            handlePayment("efectivo");
+            // Usar el nuevo manejador especializado para efectivo
+            console.log(
+              "⌨️ TECLADO: Tecla 3 detectada - Iniciando flujo de efectivo"
+            );
+            handleCashPayment();
+            break;
+          case "4":
+            e.preventDefault();
+            // Usar el manejador para efectivo con descuento
+            console.log(
+              "⌨️ TECLADO: Tecla 4 detectada - Iniciando flujo de efectivo con descuento"
+            );
+            handleCashWithDiscountPayment();
             break;
         }
       }
@@ -704,6 +908,9 @@ export default function ShoppingCart() {
     isProcessingPayment,
     selectedPaymentMethod,
     isClosing,
+    businessInfo,
+    total,
+    roundedAmountDialogOpen,
   ]);
 
   // Función para cerrar sesión
@@ -752,10 +959,71 @@ export default function ShoppingCart() {
     }
   };
 
+  // Agregar una nueva función para manejar el pago con efectivo con descuento
+  const handleCashWithDiscountPayment = () => {
+    console.log(
+      "🛒 EFECTIVO CON DESCUENTO: Iniciando proceso de pago en efectivo con descuento"
+    );
+
+    // Verificación inicial
+    if (!businessInfo?.descuentoEfectivo) {
+      console.log(
+        "⚠️ DESCUENTO: No hay descuento configurado, usando método normal"
+      );
+      handleCashPayment();
+      return;
+    }
+
+    // Calcular el descuento
+    const originalTotal = Number(total.toFixed(2));
+    const discountPercentage = Number(businessInfo.descuentoEfectivo);
+    const discountAmount = (originalTotal * discountPercentage) / 100;
+    const discountedTotal = originalTotal - discountAmount;
+
+    console.log("💰 DESCUENTO: Información de descuento:", {
+      originalTotal,
+      discountPercentage: `${discountPercentage}%`,
+      discountAmount,
+      discountedTotal,
+    });
+
+    // Guardar los montos calculados en el estado
+    setOriginalAmount(originalTotal);
+    setRoundedAmount(discountedTotal);
+
+    // Establecer efectivo con descuento como método seleccionado
+    setSelectedPaymentMethod("efectivo-descuento");
+
+    // Cerrar diálogo de pago y abrir diálogo de confirmación
+    console.log("🔄 DESCUENTO: Mostrando diálogo de confirmación");
+    setPaymentDialogOpen(false);
+
+    // Abrir diálogo de confirmación con pequeño retraso
+    setTimeout(() => {
+      setRoundedAmountDialogOpen(true);
+      console.log("🔄 DESCUENTO: Diálogo de confirmación abierto");
+    }, 100);
+  };
+
   console.log(user);
   return (
-    <div className="min-h-screen bg-white-cream h-screen">
-      <div className="w-full mx-auto flex h-full flex-col px-8 py-6">
+    <div className="min-h-screen bg-white-cream h-screen relative overflow-hidden">
+      {/* Background logos */}
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
+        <div className="relative w-full h-full flex flex-col items-center justify-center gap-10">
+          <img
+            src="/iselin-logo.png"
+            alt="Iselin Logo"
+            className="w-[540px] opacity-[.07] select-none"
+          />
+          <img
+            src="/andextech-black.png"
+            alt="Andextech Logo"
+            className="w-[440px] opacity-[.07] select-none"
+          />
+        </div>
+      </div>
+      <div className="w-full mx-auto flex h-full flex-col px-8 py-6 relative z-10">
         <div className="flex w-full justify-between items-center mb-4">
           <div className="relative w-full">
             <Input
@@ -844,16 +1112,29 @@ export default function ShoppingCart() {
           ))}
         </div>
 
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <Dialog
+          open={dialogOpen}
+          onOpenChange={(open) => {
+            if (!open) {
+              setDialogOpen(false);
+              // Devolver el foco al input de búsqueda cuando se cierra el diálogo
+              setTimeout(() => {
+                searchInputRef.current?.focus();
+              }, 100);
+            } else {
+              setDialogOpen(open);
+            }
+          }}
+        >
           <DialogContent
             onKeyDown={(e) => {
-              if (
-                e.key === "Enter" &&
-                selectedProduct?.unit === "Kg" &&
-                !useManualWeight
-              ) {
+              if (e.key === "Enter") {
                 e.preventDefault();
-                addToCart();
+                if (selectedProduct?.unit === "Kg" && !useManualWeight) {
+                  addToCart();
+                } else if (quantity) {
+                  addToCart();
+                }
               }
             }}
           >
@@ -909,6 +1190,7 @@ export default function ShoppingCart() {
                 }}
                 step={selectedProduct?.unit === "Kg" ? "1" : "1"}
                 min="0"
+                autoFocus
               />
             ) : (
               <div className="text-start py-2">
@@ -923,6 +1205,7 @@ export default function ShoppingCart() {
                 className="bg-cancel-gradient text-white hover:text-white text-base"
                 onClick={() => setDialogOpen(false)}
                 type="button"
+                tabIndex={2}
               >
                 Cancelar
               </Button>
@@ -930,6 +1213,8 @@ export default function ShoppingCart() {
                 onClick={addToCart}
                 className="bg-emerald-gradient text-white hover:text-white text-base"
                 type="submit"
+                autoFocus={!(selectedProduct?.unit !== "Kg" || useManualWeight)}
+                tabIndex={1}
               >
                 Agregar al carrito
               </Button>
@@ -967,6 +1252,10 @@ export default function ShoppingCart() {
               // Resetear el método seleccionado al cerrar el diálogo
               setSelectedPaymentMethod(null);
               setIsProcessingPayment(false);
+              // Devolver el foco al input de búsqueda cuando se cierra el diálogo
+              setTimeout(() => {
+                searchInputRef.current?.focus();
+              }, 100);
             }
             setPaymentDialogOpen(open);
           }}
@@ -991,7 +1280,7 @@ export default function ShoppingCart() {
                 en el botón
               </DialogDescription>
             </DialogHeader>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 gap-4">
               <Button
                 onClick={() => handlePayment("qr")}
                 className={`h-32 flex flex-col items-center justify-center space-y-2 [&_svg]:size-8 ${
@@ -1040,7 +1329,7 @@ export default function ShoppingCart() {
                 <span>Tarjeta (2)</span>
               </Button>
               <Button
-                onClick={() => handlePayment("efectivo")}
+                onClick={() => handleCashPayment()}
                 className={`h-32 flex flex-col items-center justify-center space-y-2 [&_svg]:size-8 ${
                   selectedPaymentMethod === "efectivo"
                     ? "bg-emerald-100 border-emerald-600 border-2"
@@ -1063,11 +1352,52 @@ export default function ShoppingCart() {
                 </div>
                 <span>Efectivo (3)</span>
               </Button>
+              {businessInfo?.descuentoEfectivo && (
+                <Button
+                  onClick={() => handleCashWithDiscountPayment()}
+                  className={`h-32 flex flex-col items-center justify-center space-y-2 [&_svg]:size-8 ${
+                    selectedPaymentMethod === "efectivo-descuento"
+                      ? "bg-emerald-100 border-emerald-600 border-2"
+                      : ""
+                  }`}
+                  variant="outline"
+                  disabled={
+                    isProcessingPayment ||
+                    (selectedPaymentMethod !== null &&
+                      selectedPaymentMethod !== "efectivo-descuento")
+                  }
+                >
+                  <div className="h-12 flex items-center justify-center">
+                    {isProcessingPayment &&
+                    selectedPaymentMethod === "efectivo-descuento" ? (
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900" />
+                    ) : (
+                      <Receipt className="h-12 w-12" />
+                    )}
+                  </div>
+                  <span>
+                    Efectivo con {businessInfo.descuentoEfectivo}% (4)
+                  </span>
+                </Button>
+              )}
             </div>
           </DialogContent>
         </Dialog>
 
-        <Dialog open={closingDialogOpen} onOpenChange={setClosingDialogOpen}>
+        <Dialog
+          open={closingDialogOpen}
+          onOpenChange={(open) => {
+            if (!open) {
+              setClosingDialogOpen(false);
+              // Devolver el foco al input de búsqueda cuando se cierra el diálogo
+              setTimeout(() => {
+                searchInputRef.current?.focus();
+              }, 100);
+            } else {
+              setClosingDialogOpen(open);
+            }
+          }}
+        >
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>Seleccionar período de cierre</DialogTitle>
@@ -1264,6 +1594,155 @@ export default function ShoppingCart() {
                 </DialogFooter>
               </div>
             )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Diálogo para mostrar monto redondeado */}
+        <Dialog
+          open={roundedAmountDialogOpen}
+          onOpenChange={(open) => {
+            console.log(
+              "🔄 Estado del diálogo de confirmación cambiado a:",
+              open
+            );
+            if (!open) {
+              console.log("🔄 Cerrando diálogo de confirmación manualmente");
+
+              // Limpiar TODOS los estados relacionados con el pago
+              setRoundedAmountDialogOpen(false);
+              setPaymentDialogOpen(false);
+              setSelectedPaymentMethod(null);
+              setIsProcessingPayment(false);
+              setOriginalAmount(0);
+              setRoundedAmount(0);
+
+              console.log("🔄 Estados limpiados después de cerrar diálogo");
+
+              // Devolver el foco al input de búsqueda cuando se cierra el diálogo
+              setTimeout(() => {
+                if (searchInputRef.current) {
+                  console.log("🔄 Devolviendo foco al input de búsqueda");
+                  searchInputRef.current.focus();
+                } else {
+                  console.log("⚠️ searchInputRef.current es null");
+                }
+              }, 100);
+            }
+          }}
+        >
+          <DialogContent
+            className="sm:max-w-md"
+            onKeyDown={(e) => {
+              console.log(
+                "🔑 Tecla presionada en diálogo de confirmación:",
+                e.key
+              );
+              if (e.key === "Enter" && !isProcessingPayment) {
+                e.preventDefault();
+                console.log("🔄 ENTER detectado - Confirmando pago");
+                confirmRoundedPayment();
+              }
+              if (e.key === "Escape") {
+                console.log(
+                  "🔄 ESC detectado - Cerrando diálogo de confirmación"
+                );
+                setRoundedAmountDialogOpen(false);
+                setSelectedPaymentMethod(null);
+                setIsProcessingPayment(false);
+              }
+            }}
+          >
+            <DialogHeader>
+              <DialogTitle>
+                {selectedPaymentMethod === "efectivo-descuento"
+                  ? "Efectivo con descuento"
+                  : businessInfo?.sistemaPago === "redondeo"
+                  ? "Redondeo de pago en efectivo"
+                  : "Confirmar pago en efectivo"}
+              </DialogTitle>
+              <DialogDescription>
+                {selectedPaymentMethod === "efectivo-descuento"
+                  ? `Se aplicará un descuento del ${businessInfo?.descuentoEfectivo}% por pago en efectivo.`
+                  : businessInfo?.sistemaPago === "redondeo"
+                  ? "El sistema de redondeo ha ajustado el monto para facilitar el pago en efectivo."
+                  : "Por favor confirma el pago en efectivo."}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              {selectedPaymentMethod === "efectivo-descuento" ||
+              (businessInfo?.sistemaPago === "redondeo" &&
+                originalAmount !== roundedAmount) ? (
+                <>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">
+                      Monto original:
+                    </span>
+                    <span className="text-lg">
+                      ${originalAmount.toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-base font-medium">
+                      Monto a cobrar:
+                    </span>
+                    <span className="text-2xl font-bold text-emerald-600">
+                      ${roundedAmount.toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">
+                      {selectedPaymentMethod === "efectivo-descuento"
+                        ? "Descuento aplicado:"
+                        : "Descuento del redondeo:"}
+                    </span>
+                    <span className="text-base text-emerald-700">
+                      ${(originalAmount - roundedAmount).toLocaleString()}
+                      {selectedPaymentMethod === "efectivo-descuento" && (
+                        <span className="ml-1 text-xs">
+                          ({businessInfo?.descuentoEfectivo}%)
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <div className="flex justify-between items-center">
+                  <span className="text-base font-medium">Monto a cobrar:</span>
+                  <span className="text-2xl font-bold text-emerald-600">
+                    ${originalAmount.toLocaleString()}
+                  </span>
+                </div>
+              )}
+            </div>
+            <DialogFooter className="flex space-x-2 justify-end">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setRoundedAmountDialogOpen(false);
+                  setSelectedPaymentMethod(null);
+                  setIsProcessingPayment(false);
+                }}
+                tabIndex={2}
+              >
+                Cancelar
+              </Button>
+              <Button
+                className="bg-emerald-gradient"
+                onClick={confirmRoundedPayment}
+                disabled={isProcessingPayment}
+                autoFocus
+                tabIndex={1}
+              >
+                {isProcessingPayment ? (
+                  <div className="flex items-center gap-2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <span>Procesando...</span>
+                  </div>
+                ) : (
+                  "Confirmar pago"
+                )}
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
 

@@ -126,10 +126,25 @@ ipcMain.handle("print-ticket", async (_, orderData) => {
                 path.join(app.getAppPath(), "resources", "logo.png"),
                 path.join(app.getAppPath(), "public", "logo.png"),
                 path.join(__dirname, "../resources", "logo.png"),
+                path.join(app.getAppPath(), "public", "logos", "logo.png"),
+                path.join(__dirname, "../public", "logo.png"),
             ];
             // Destino - siempre al lado del PHP script
             const logoDestPath = path.join(path.dirname(phpScriptPath), "logo.png");
             console.log(`Destino del logo: ${logoDestPath}`);
+            // Verificar si el destino es escribible
+            try {
+                // Intentar acceder al directorio destino para verificar permisos
+                const destDir = path.dirname(logoDestPath);
+                const testFile = path.join(destDir, `test_write_${Date.now()}.tmp`);
+                fs.writeFileSync(testFile, "test");
+                fs.unlinkSync(testFile);
+                console.log(`✅ Directorio destino ${destDir} tiene permisos de escritura`);
+            }
+            catch (err) {
+                console.error(`❌ ALERTA: No se puede escribir en el directorio destino:`, err);
+                console.log(`Intentando continuar de todas formas...`);
+            }
             // Buscar y copiar el logo
             let found = false;
             for (const src of possibleSources) {
@@ -137,11 +152,25 @@ ipcMain.handle("print-ticket", async (_, orderData) => {
                 if (fs.existsSync(src)) {
                     console.log(`Logo encontrado en: ${src}`);
                     try {
+                        const logoStats = fs.statSync(src);
+                        console.log(`Tamaño original: ${logoStats.size} bytes`);
+                        // Verificar que sea un archivo válido
+                        if (logoStats.size === 0) {
+                            console.error(`Logo encontrado pero tiene tamaño cero: ${src}`);
+                            continue;
+                        }
                         console.log(`Copiando a: ${logoDestPath}`);
                         fs.copyFileSync(src, logoDestPath);
-                        console.log(`Logo copiado exitosamente (${fs.statSync(logoDestPath).size} bytes)`);
-                        found = true;
-                        break;
+                        // Verificar que se copió correctamente
+                        if (fs.existsSync(logoDestPath)) {
+                            const destStats = fs.statSync(logoDestPath);
+                            console.log(`Logo copiado exitosamente (${destStats.size} bytes)`);
+                            found = true;
+                            break;
+                        }
+                        else {
+                            console.error(`No se pudo verificar la copia del logo en: ${logoDestPath}`);
+                        }
                     }
                     catch (err) {
                         console.error(`Error copiando logo desde ${src}:`, err);
@@ -332,10 +361,25 @@ ipcMain.handle("print-closing", async (_, closingData) => {
                 path.join(app.getAppPath(), "resources", "logo.png"),
                 path.join(app.getAppPath(), "public", "logo.png"),
                 path.join(__dirname, "../resources", "logo.png"),
+                path.join(app.getAppPath(), "public", "logos", "logo.png"),
+                path.join(__dirname, "../public", "logo.png"),
             ];
             // Destino - siempre al lado del PHP script
             const logoDestPath = path.join(path.dirname(phpScriptPath), "logo.png");
             console.log(`Destino del logo: ${logoDestPath}`);
+            // Verificar si el destino es escribible
+            try {
+                // Intentar acceder al directorio destino para verificar permisos
+                const destDir = path.dirname(logoDestPath);
+                const testFile = path.join(destDir, `test_write_${Date.now()}.tmp`);
+                fs.writeFileSync(testFile, "test");
+                fs.unlinkSync(testFile);
+                console.log(`✅ Directorio destino ${destDir} tiene permisos de escritura`);
+            }
+            catch (err) {
+                console.error(`❌ ALERTA: No se puede escribir en el directorio destino:`, err);
+                console.log(`Intentando continuar de todas formas...`);
+            }
             // Buscar y copiar el logo
             let found = false;
             for (const src of possibleSources) {
@@ -343,11 +387,25 @@ ipcMain.handle("print-closing", async (_, closingData) => {
                 if (fs.existsSync(src)) {
                     console.log(`Logo encontrado en: ${src}`);
                     try {
+                        const logoStats = fs.statSync(src);
+                        console.log(`Tamaño original: ${logoStats.size} bytes`);
+                        // Verificar que sea un archivo válido
+                        if (logoStats.size === 0) {
+                            console.error(`Logo encontrado pero tiene tamaño cero: ${src}`);
+                            continue;
+                        }
                         console.log(`Copiando a: ${logoDestPath}`);
                         fs.copyFileSync(src, logoDestPath);
-                        console.log(`Logo copiado exitosamente (${fs.statSync(logoDestPath).size} bytes)`);
-                        found = true;
-                        break;
+                        // Verificar que se copió correctamente
+                        if (fs.existsSync(logoDestPath)) {
+                            const destStats = fs.statSync(logoDestPath);
+                            console.log(`Logo copiado exitosamente (${destStats.size} bytes)`);
+                            found = true;
+                            break;
+                        }
+                        else {
+                            console.error(`No se pudo verificar la copia del logo en: ${logoDestPath}`);
+                        }
                     }
                     catch (err) {
                         console.error(`Error copiando logo desde ${src}:`, err);
