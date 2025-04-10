@@ -38,6 +38,9 @@ import {
   TableBody,
   TableCell,
 } from "@/components/ui/table";
+// Importar las imágenes como recursos desde assets
+import iselinLogo from "../assets/iselin-logo.png";
+import andextechLogo from "../assets/andextech-black.png";
 
 interface Product {
   id: number;
@@ -959,7 +962,7 @@ export default function ShoppingCart() {
     }
   };
 
-  // Agregar una nueva función para manejar el pago con efectivo con descuento
+  // Modificar la función para combinar descuento y redondeo
   const handleCashWithDiscountPayment = () => {
     console.log(
       "🛒 EFECTIVO CON DESCUENTO: Iniciando proceso de pago en efectivo con descuento"
@@ -974,22 +977,30 @@ export default function ShoppingCart() {
       return;
     }
 
-    // Calcular el descuento
+    // Calcular el descuento primero
     const originalTotal = Number(total.toFixed(2));
     const discountPercentage = Number(businessInfo.descuentoEfectivo);
     const discountAmount = (originalTotal * discountPercentage) / 100;
     const discountedTotal = originalTotal - discountAmount;
 
-    console.log("💰 DESCUENTO: Información de descuento:", {
+    // Luego aplicar el redondeo al total con descuento
+    const roundedDiscountedTotal =
+      businessInfo?.sistemaPago === "redondeo"
+        ? roundToNearest50(discountedTotal)
+        : discountedTotal;
+
+    console.log("💰 DESCUENTO + REDONDEO: Información completa:", {
       originalTotal,
       discountPercentage: `${discountPercentage}%`,
       discountAmount,
       discountedTotal,
+      roundedDiscountedTotal,
+      totalDescuento: originalTotal - roundedDiscountedTotal,
     });
 
     // Guardar los montos calculados en el estado
     setOriginalAmount(originalTotal);
-    setRoundedAmount(discountedTotal);
+    setRoundedAmount(roundedDiscountedTotal);
 
     // Establecer efectivo con descuento como método seleccionado
     setSelectedPaymentMethod("efectivo-descuento");
@@ -1012,12 +1023,12 @@ export default function ShoppingCart() {
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
         <div className="relative w-full h-full flex flex-col items-center justify-center gap-10">
           <img
-            src="/iselin-logo.png"
+            src={iselinLogo}
             alt="Iselin Logo"
             className="w-[540px] opacity-[.07] select-none"
           />
           <img
-            src="/andextech-black.png"
+            src={andextechLogo}
             alt="Andextech Logo"
             className="w-[440px] opacity-[.07] select-none"
           />
@@ -1375,9 +1386,7 @@ export default function ShoppingCart() {
                       <Receipt className="h-12 w-12" />
                     )}
                   </div>
-                  <span>
-                    Efectivo con {businessInfo.descuentoEfectivo}% (4)
-                  </span>
+                  <span>Efectivo D (4)</span>
                 </Button>
               )}
             </div>
@@ -1681,6 +1690,24 @@ export default function ShoppingCart() {
                       ${originalAmount.toLocaleString()}
                     </span>
                   </div>
+
+                  {selectedPaymentMethod === "efectivo-descuento" && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">
+                        Con descuento ({businessInfo?.descuentoEfectivo}%):
+                      </span>
+                      <span className="text-lg text-blue-600">
+                        $
+                        {(
+                          originalAmount -
+                          (originalAmount *
+                            Number(businessInfo?.descuentoEfectivo)) /
+                            100
+                        ).toLocaleString()}
+                      </span>
+                    </div>
+                  )}
+
                   <div className="flex justify-between items-center">
                     <span className="text-base font-medium">
                       Monto a cobrar:
@@ -1689,19 +1716,21 @@ export default function ShoppingCart() {
                       ${roundedAmount.toLocaleString()}
                     </span>
                   </div>
+
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-muted-foreground">
                       {selectedPaymentMethod === "efectivo-descuento"
-                        ? "Descuento aplicado:"
+                        ? "Ahorro total:"
                         : "Descuento del redondeo:"}
                     </span>
                     <span className="text-base text-emerald-700">
                       ${(originalAmount - roundedAmount).toLocaleString()}
-                      {selectedPaymentMethod === "efectivo-descuento" && (
-                        <span className="ml-1 text-xs">
-                          ({businessInfo?.descuentoEfectivo}%)
-                        </span>
-                      )}
+                      {selectedPaymentMethod === "efectivo-descuento" &&
+                        businessInfo?.sistemaPago === "redondeo" && (
+                          <span className="ml-1 text-xs">
+                            (descuento + redondeo)
+                          </span>
+                        )}
                     </span>
                   </div>
                 </>
