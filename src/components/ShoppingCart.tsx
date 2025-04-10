@@ -104,6 +104,11 @@ export default function ShoppingCart() {
   const [roundedAmountDialogOpen, setRoundedAmountDialogOpen] = useState(false);
   const [originalAmount, setOriginalAmount] = useState<number>(0);
   const [roundedAmount, setRoundedAmount] = useState<number>(0);
+  // Agregar un estado para evitar múltiples adiciones
+  const [isAddingToCart, setIsAddingToCart] = useState(false);
+
+  // Agregar una referencia para rastrear la última solicitud
+  const lastAddRequestRef = useRef<string>("");
 
   const appId =
     window.electron?.process?.argv
@@ -264,46 +269,167 @@ export default function ShoppingCart() {
     setSearchQuery("");
   };
 
-  // Modificar addToCart para manejar peso manual
+  // Modificar la función addToCart para implementar una verificación de duplicación basada en huella única
   const addToCart = () => {
-    if (!selectedProduct) return;
+    // Crear un identificador único para esta solicitud específica
+    const currentRequestId = `${selectedProduct?.id}-${Date.now()}-${quantity}`;
 
-    let finalQuantity: number;
+    console.log("🔄 DEBUG CRITICAL: Nueva solicitud de adición", {
+      requestId: currentRequestId,
+      lastRequestId: lastAddRequestRef.current,
+      timeDiff: lastAddRequestRef.current
+        ? Date.now() - parseInt(lastAddRequestRef.current.split("-")[1] || "0")
+        : "Primera solicitud",
+      productName: selectedProduct?.name,
+      productUnit: selectedProduct?.unit,
+    });
 
-    if (selectedProduct.unit === "Kg") {
-      if (useManualWeight) {
-        if (!quantity) return;
-        finalQuantity = parseFloat(quantity) / 1000; // Convertir gramos a kilos
-      } else {
-        finalQuantity = weight / 1000; // Convertir gramos a kilos
-      }
-    } else {
-      if (!quantity) return;
-      finalQuantity = parseFloat(quantity);
+    // Si esta solicitud es idéntica a la última dentro de 1 segundo, es un duplicado
+    if (
+      lastAddRequestRef.current &&
+      lastAddRequestRef.current.split("-")[0] ===
+        currentRequestId.split("-")[0] &&
+      Date.now() - parseInt(lastAddRequestRef.current.split("-")[1] || "0") <
+        1000
+    ) {
+      console.log("🚫 BLOQUEADO: Solicitud duplicada detectada", {
+        current: currentRequestId,
+        last: lastAddRequestRef.current,
+      });
+      return;
     }
 
-    const newItem: Product = {
-      id: selectedProduct.id,
-      cartId: `${selectedProduct.id}-${Date.now()}`,
-      name: selectedProduct.name,
-      quantity: finalQuantity,
-      unit: selectedProduct.unit,
-      pricePerUnit: selectedProduct.pricePerUnit,
-      subtotal: selectedProduct.pricePerUnit * finalQuantity,
-      costo: selectedProduct.costo,
-    };
+    // Actualizar la referencia con la solicitud actual
+    lastAddRequestRef.current = currentRequestId;
 
-    setCartItems((prev) => [...prev, newItem]);
-    setDialogOpen(false);
-    setSelectedProduct(null);
-    setQuantity("");
-    setTimeout(() => {
-      searchInputRef.current?.focus();
-    }, 0);
+    // --- El resto de la lógica de addToCart continúa aquí ---
+
+    console.log("🔍 DEBUG: Iniciando addToCart", {
+      selectedProduct: selectedProduct?.name,
+      isAddingToCart,
+      quantity,
+      time: new Date().toISOString(),
+    });
+
+    // Protección contra adiciones duplicadas
+    if (isAddingToCart) {
+      console.log(
+        "🛑 DEBUG: Bloqueando adición - ya hay una adición en progreso"
+      );
+      return;
+    }
+
+    if (!selectedProduct) {
+      console.log(
+        "🛑 DEBUG: Bloqueando adición - no hay producto seleccionado"
+      );
+      return;
+    }
+
+    // Marcar el inicio del proceso de adición
+    setIsAddingToCart(true);
+
+    try {
+      let finalQuantity: number;
+
+      // Validación específica para productos de tipo Kg
+      if (selectedProduct.unit === "Kg") {
+        if (useManualWeight) {
+          if (!quantity) {
+            console.log("❌ DEBUG: Cantidad faltante para producto de peso");
+            throw new Error(
+              "Se requiere especificar una cantidad para este producto"
+            );
+          }
+          finalQuantity = parseFloat(quantity) / 1000; // Convertir gramos a kilos
+        } else {
+          finalQuantity = weight / 1000; // Convertir gramos a kilos
+        }
+      }
+      // Validación específica para productos de tipo Unidad
+      else {
+        if (!quantity) {
+          console.log("❌ DEBUG: Cantidad faltante para producto unitario");
+          throw new Error(
+            "Se requiere especificar una cantidad para este producto"
+          );
+        }
+        finalQuantity = parseFloat(quantity);
+      }
+
+      // Validación adicional de la cantidad
+      if (isNaN(finalQuantity) || finalQuantity <= 0) {
+        console.log("❌ DEBUG: Cantidad inválida:", finalQuantity);
+        throw new Error("La cantidad debe ser un número mayor que cero");
+      }
+
+      // Crear un ID verdaderamente único (mejor entropia)
+      const uniqueId = `${selectedProduct.id}-${Date.now()}-${Math.random()
+        .toString(36)
+        .substring(2, 10)}-${Math.random().toString(36).substring(2, 10)}`;
+
+      console.log("✓ DEBUG: ID generado:", uniqueId);
+
+      // Crear el objeto a añadir con información completa para debugging
+      const newItem: Product = {
+        id: selectedProduct.id,
+        cartId: uniqueId,
+        name: selectedProduct.name,
+        quantity: finalQuantity,
+        unit: selectedProduct.unit,
+        pricePerUnit: selectedProduct.pricePerUnit,
+        subtotal: selectedProduct.pricePerUnit * finalQuantity,
+        costo: selectedProduct.costo,
+      };
+
+      console.log("✓ DEBUG: Añadiendo producto al carrito:", newItem);
+
+      // Hacemos una actualización segura del estado
+      setCartItems((prevItems) => {
+        console.log(
+          "✓ DEBUG: Estado actual del carrito:",
+          prevItems.length,
+          "items"
+        );
+        const updatedItems = [...prevItems, newItem];
+        console.log(
+          "✓ DEBUG: Nuevo estado del carrito:",
+          updatedItems.length,
+          "items"
+        );
+        return updatedItems;
+      });
+
+      // Cerramos el diálogo y limpiamos el estado
+      setDialogOpen(false);
+      setSelectedProduct(null);
+      setQuantity("");
+
+      console.log("✅ DEBUG: Producto añadido con éxito, limpiando estados");
+    } catch (error: any) {
+      console.error("❌ ERROR:", error.message);
+      toast.error(error.message || "Error al añadir producto");
+    } finally {
+      // Aseguramos que el estado isAddingToCart se resetea después de un tiempo suficiente
+      // para evitar problemas de carrera y dar tiempo a los estados a actualizarse
+      setTimeout(() => {
+        setIsAddingToCart(false);
+        console.log("✓ DEBUG: Estado de adición reiniciado después de timeout");
+        // Enfocar el input de búsqueda
+        if (searchInputRef.current) {
+          searchInputRef.current.focus();
+        }
+      }, 500); // Permitimos 500ms para que todos los estados se actualicen
+    }
   };
 
   const removeFromCart = (cartId: string) => {
-    setCartItems((prev) => prev.filter((item) => item.cartId !== cartId));
+    console.log("Eliminando producto con cartId:", cartId);
+    setCartItems((prev) => {
+      const updatedItems = prev.filter((item) => item.cartId !== cartId);
+      console.log("Items restantes:", updatedItems.length);
+      return updatedItems;
+    });
   };
 
   const total = cartItems.reduce((sum, item) => sum + item.subtotal, 0);
@@ -1126,11 +1252,17 @@ export default function ShoppingCart() {
         <Dialog
           open={dialogOpen}
           onOpenChange={(open) => {
+            console.log("🔍 DEBUG: Cambio de estado del diálogo:", open);
             if (!open) {
               setDialogOpen(false);
+              setIsAddingToCart(false); // Asegurar que se resetea el estado al cerrar
+
               // Devolver el foco al input de búsqueda cuando se cierra el diálogo
               setTimeout(() => {
-                searchInputRef.current?.focus();
+                if (searchInputRef.current) {
+                  searchInputRef.current.focus();
+                  console.log("✓ DEBUG: Foco devuelto al input de búsqueda");
+                }
               }, 100);
             } else {
               setDialogOpen(open);
@@ -1139,13 +1271,37 @@ export default function ShoppingCart() {
         >
           <DialogContent
             onKeyDown={(e) => {
-              if (e.key === "Enter") {
+              console.log(
+                "🔑 DEBUG: Tecla en diálogo:",
+                e.key,
+                "isAddingToCart:",
+                isAddingToCart
+              );
+
+              // Asegurar que sólo procesamos un evento a la vez
+              if (e.key === "Enter" && !isAddingToCart) {
                 e.preventDefault();
-                if (selectedProduct?.unit === "Kg" && !useManualWeight) {
-                  addToCart();
-                } else if (quantity) {
-                  addToCart();
-                }
+                e.stopPropagation(); // Esto es crítico - detiene la propagación del evento
+
+                // Usar un setTimeout para asegurar que la ejecución se separa del evento
+                setTimeout(() => {
+                  console.log("🔍 DEBUG: Procesando tecla Enter para adición");
+
+                  if (selectedProduct?.unit === "Kg" && !useManualWeight) {
+                    console.log("⚖️ DEBUG: Adición por peso automático");
+                    addToCart();
+                  } else if (quantity) {
+                    console.log(
+                      "📦 DEBUG: Adición con cantidad manual:",
+                      quantity
+                    );
+                    addToCart();
+                  } else {
+                    console.log(
+                      "⚠️ DEBUG: Enter presionado pero faltan datos para añadir"
+                    );
+                  }
+                }, 0);
               }
             }}
           >
@@ -1221,13 +1377,40 @@ export default function ShoppingCart() {
                 Cancelar
               </Button>
               <Button
-                onClick={addToCart}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation(); // Prevenir propagación de eventos
+
+                  // Usar un setTimeout para asegurar que la ejecución se desacopla del evento
+                  setTimeout(() => {
+                    console.log(
+                      "🖱️ DEBUG: Clic en botón de agregar al carrito"
+                    );
+
+                    // Solo procesar si no estamos ya añadiendo
+                    if (!isAddingToCart) {
+                      addToCart();
+                    } else {
+                      console.log(
+                        "⚠️ DEBUG: Clic ignorado, ya hay una adición en progreso"
+                      );
+                    }
+                  }, 0);
+                }}
                 className="bg-emerald-gradient text-white hover:text-white text-base"
-                type="submit"
+                type="button" // Cambiar a button para mejor control
+                disabled={isAddingToCart}
                 autoFocus={!(selectedProduct?.unit !== "Kg" || useManualWeight)}
                 tabIndex={1}
               >
-                Agregar al carrito
+                {isAddingToCart ? (
+                  <div className="flex items-center gap-2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <span>Agregando...</span>
+                  </div>
+                ) : (
+                  "Agregar al carrito"
+                )}
               </Button>
             </DialogFooter>
           </DialogContent>
