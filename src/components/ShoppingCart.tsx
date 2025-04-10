@@ -149,9 +149,32 @@ export default function ShoppingCart() {
           data.sistemaPago = "redondeo"; // Establecer valor por defecto
         } else {
           console.log("✅ Sistema de pago configurado:", data.sistemaPago);
+          // Verificación explícita para asegurar que sea "redondeo"
+          if (data.sistemaPago !== "redondeo") {
+            console.warn(
+              `⚠️ Sistema de pago '${data.sistemaPago}' no es 'redondeo', el redondeo no se aplicará`
+            );
+          } else {
+            console.log("✅ Sistema de redondeo activado");
+          }
         }
 
-        // Guardar en el estado
+        // Verificar descuento en efectivo
+        if (data.descuentoEfectivo) {
+          console.log(
+            `✅ Descuento en efectivo configurado: ${data.descuentoEfectivo}%`
+          );
+        } else {
+          console.log("ℹ️ No hay descuento en efectivo configurado");
+        }
+
+        // Guardar en el estado con un resumen
+        console.log("🧮 Resumen de configuración:", {
+          sistemaPago: data.sistemaPago,
+          redondeoActivo: data.sistemaPago === "redondeo",
+          descuentoEfectivo: data.descuentoEfectivo || "No configurado",
+        });
+
         setBusinessInfo(data);
       } catch (error) {
         console.error("❌ Error al cargar información del negocio:", error);
@@ -445,9 +468,37 @@ export default function ShoppingCart() {
 
   // Función para redondear a los 50 pesos más cercanos hacia abajo
   const roundToNearest50 = (amount: number): number => {
-    // Redondeamos a los 50 pesos más cercanos por debajo
-    const remainder = amount % 50;
-    const roundedDown = amount - remainder;
+    // Primero asegurarse de que estamos trabajando con un número entero
+    // Redondear a 2 decimales primero para evitar problemas de punto flotante
+    const amountFixed = parseFloat(amount.toFixed(2));
+
+    // Obtener la parte entera
+    const integerPart = Math.floor(amountFixed);
+
+    // Calcular el resto solo con la parte entera
+    const remainder = integerPart % 50;
+
+    // Obtener la parte decimal
+    const decimalPart = amountFixed - integerPart;
+
+    // Si el resto es 0 y no hay decimales, ya está redondeado a 50
+    if (remainder === 0 && decimalPart === 0) {
+      console.log("🧮 Ya está redondeado a 50:", amountFixed);
+      return amountFixed;
+    }
+
+    // Redondear hacia abajo a múltiplo de 50
+    const roundedDown = integerPart - remainder;
+
+    console.log("🧮 DEBUG Redondeo:", {
+      original: amount,
+      redondeadoA2Decimales: amountFixed,
+      parteEntera: integerPart,
+      parteDecimal: decimalPart,
+      resto: remainder,
+      redondeadoA50: roundedDown,
+    });
+
     return roundedDown;
   };
 
@@ -466,9 +517,13 @@ export default function ShoppingCart() {
         originalTotal,
         roundedTotal,
         diferencia: originalTotal - roundedTotal,
+        sistemaRedondeo: businessInfo?.sistemaPago,
       });
     } else {
-      console.log("💰 EFECTIVO: No hay redondeo, usando monto original");
+      console.log("💰 EFECTIVO: No hay redondeo, usando monto original:", {
+        originalTotal,
+        sistemaRedondeo: businessInfo?.sistemaPago,
+      });
     }
 
     // Guardar los montos calculados en el estado
@@ -1109,11 +1164,22 @@ export default function ShoppingCart() {
     const discountAmount = (originalTotal * discountPercentage) / 100;
     const discountedTotal = originalTotal - discountAmount;
 
+    console.log("💰 DESCUENTO: Información del negocio:", {
+      sistemaPago: businessInfo?.sistemaPago || "no configurado",
+      descuentoEfectivo: businessInfo?.descuentoEfectivo || "no configurado",
+    });
+
     // Luego aplicar el redondeo al total con descuento
-    const roundedDiscountedTotal =
-      businessInfo?.sistemaPago === "redondeo"
-        ? roundToNearest50(discountedTotal)
-        : discountedTotal;
+    let roundedDiscountedTotal = discountedTotal;
+
+    if (businessInfo?.sistemaPago === "redondeo") {
+      roundedDiscountedTotal = roundToNearest50(discountedTotal);
+      console.log("🧮 DESCUENTO: Aplicando redondeo");
+    } else {
+      console.log(
+        "💰 DESCUENTO: No se aplica redondeo (sistema no configurado como 'redondeo')"
+      );
+    }
 
     console.log("💰 DESCUENTO + REDONDEO: Información completa:", {
       originalTotal,
@@ -1122,6 +1188,7 @@ export default function ShoppingCart() {
       discountedTotal,
       roundedDiscountedTotal,
       totalDescuento: originalTotal - roundedDiscountedTotal,
+      aplicoRedondeo: businessInfo?.sistemaPago === "redondeo",
     });
 
     // Guardar los montos calculados en el estado
