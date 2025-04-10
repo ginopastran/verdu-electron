@@ -775,36 +775,18 @@ export default function ShoppingCart() {
         startDate.setHours(0, 0, 0, 0);
       }
 
-      // Preparar datos de métodos de pago (si están disponibles)
-      const ventasResponse = await fetch(`${API_URL}/api/ordenes/ventas`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          vendedorId: user.id,
-          sucursalId: user.sucursalId,
-          fechaInicio: startDate,
-          fechaCierre: new Date(),
-        }),
-      });
-
-      const ventasData = await ventasResponse.json();
-      console.log("🔄 Datos originales RAW de la API:", ventasData);
-
-      // Crear objeto con datos actualizados según nueva API
+      // Preparar datos para el cierre - simplificado porque el backend ahora hace los cálculos
       const closingData = {
         vendedorId: user.id,
         sucursalId: user.sucursalId,
         fechaInicio: startDate,
         fechaCierre: new Date(),
         periodo: period,
-        ventasPorMetodo: ventasData.ventasPorMetodo || {
-          efectivo: 0,
-          tarjeta: 0,
-          transferencia: 0,
-          mercadoPago: 0,
-        },
       };
 
+      console.log("🔄 Enviando solicitud de cierre con datos:", closingData);
+
+      // Enviar datos al endpoint de cierres
       const cierreResponse = await fetch(`${API_URL}/api/cierres`, {
         method: "POST",
         headers,
@@ -815,91 +797,11 @@ export default function ShoppingCart() {
         throw new Error("Error al registrar el cierre");
       }
 
-      const cierreResponseData = await cierreResponse.json();
-      console.log(
-        "🔄 Datos completos de respuesta del cierre:",
-        cierreResponseData
-      );
+      // Los datos devueltos ahora tienen toda la información necesaria
+      const cierreData = await cierreResponse.json();
+      console.log("✅ Datos de cierre recibidos:", cierreData);
 
-      // CORRECCIÓN: Usar directamente los datos proporcionados por los logs del backend
-      // Recrear manualmente la estructura correcta
-      console.log("🔄 Verificando estructura de ventasData:", ventasData);
-
-      // La estructura debe ser { ventasPorMetodo: { qr: 5000, tarjeta: 17000 } }
-      // Si no está así, la recreamos manualmente para debugging
-      const metodosCorrectos =
-        cierreResponseData.ventasPorMetodo?.ventasPorMetodo || {};
-
-      // Comprobar si tenemos todos los elementos esperados según el log del backend
-      let qrOk = "qr" in metodosCorrectos;
-      let tarjetaOk = "tarjeta" in metodosCorrectos;
-
-      console.log("🔍 Estado de métodos:", {
-        qrOk,
-        tarjetaOk,
-        metodosCorrectos,
-      });
-
-      // Verificar si hay discrepancia entre lo que informa el backend (log) y lo que realmente llega
-      if (cierreResponseData.totalVentas) {
-        // Calcular la suma actual
-        let sumaActual = 0;
-        for (const metodo in metodosCorrectos) {
-          sumaActual += Number(metodosCorrectos[metodo]);
-        }
-
-        // Si hay discrepancia relevante, intentar arreglar la estructura
-        const diferencia = cierreResponseData.totalVentas - sumaActual;
-        if (Math.abs(diferencia) > 1) {
-          console.log(
-            "⚠️ Discrepancia detectada: total API indica",
-            cierreResponseData.totalVentas,
-            "pero la suma es",
-            sumaActual
-          );
-          console.log("⚠️ Diferencia:", diferencia);
-
-          // CORRECCIÓN MANUAL TEMPORAL: Redistribuir el valor faltante según logs del backend
-          if (!qrOk && diferencia > 0) {
-            console.log("🔧 Ajustando: Añadiendo QR faltante");
-            metodosCorrectos.qr = diferencia;
-          }
-
-          // Si hay tarjeta pero con valor incorrecto, ajustarla
-          if (tarjetaOk && metodosCorrectos.tarjeta < 10000 && diferencia > 0) {
-            console.log("🔧 Ajustando: Corrigiendo valor de tarjeta");
-            metodosCorrectos.tarjeta =
-              Number(metodosCorrectos.tarjeta) + diferencia;
-          }
-        }
-      }
-
-      // Crear objeto para impresión usando los datos correctos
-      const datosImprimir = {
-        ...cierreResponseData,
-        // Usar los datos de venta por método del segundo llamado API
-        // que parece estar incluyendo QR (pero con valor incorrecto de tarjeta)
-        ventasPorMetodo: {
-          ventasPorMetodo: metodosCorrectos,
-          ventasPorVendedor:
-            cierreResponseData.ventasPorMetodo?.ventasPorVendedor || [],
-        },
-        // Agregar debug info
-        _debug: {
-          timestamp: new Date().toISOString(),
-          originalData: ventasData,
-        },
-      };
-
-      console.log("🔄 Datos preparados para impresión:", datosImprimir);
-      console.log("🔄 Comparación de métodos de pago (VERIFICACIÓN FINAL):");
-      console.log("  - DIRECTO desde API:", metodosCorrectos);
-      console.log(
-        "  - Para impresión:",
-        datosImprimir.ventasPorMetodo.ventasPorMetodo
-      );
-
-      // Imprimir ticket de cierre usando los datos corregidos
+      // Imprimir ticket de cierre con los datos del backend
       try {
         const { ipcRenderer } = window.require("electron");
         const printingToast = toast.loading("Imprimiendo ticket de cierre...");
@@ -912,57 +814,53 @@ export default function ShoppingCart() {
         console.log("-------------------------------------");
         console.log("VENTAS POR MÉTODO DE PAGO:");
 
-        // Mostrar métodos de pago
-        const metodosPago = datosImprimir.ventasPorMetodo.ventasPorMetodo;
-        console.log("Debug - métodos de pago:", metodosPago);
-
-        let sumaPorMetodos = 0;
-        // Asegurarnos de que se muestran todos los métodos
-        if (metodosPago) {
-          // Primero mostrar los métodos principales en orden específico
-          const ordenMetodos = ["efectivo", "tarjeta", "qr"];
-          for (const metodo of ordenMetodos) {
-            if (metodosPago[metodo] > 0) {
-              console.log(
-                `${
-                  metodo.charAt(0).toUpperCase() + metodo.slice(1)
-                }: $${metodosPago[metodo].toLocaleString()}`
-              );
-              sumaPorMetodos += Number(metodosPago[metodo]);
-            }
-          }
-
-          // Luego mostrar otros métodos que pudieran existir
-          Object.entries(metodosPago).forEach(
-            ([metodo, monto]: [string, any]) => {
-              if (!ordenMetodos.includes(metodo) && Number(monto) > 0) {
-                console.log(
-                  `${
-                    metodo.charAt(0).toUpperCase() + metodo.slice(1)
-                  }: $${monto.toLocaleString()}`
-                );
-                // No sumamos de nuevo los que ya se sumaron
-                if (!ordenMetodos.includes(metodo)) {
-                  sumaPorMetodos += Number(monto);
-                }
-              }
+        // Mostrar ventas por método de pago
+        if (cierreData.ventasPorMetodo) {
+          Object.entries(cierreData.ventasPorMetodo).forEach(
+            ([metodo, total]) => {
+              console.log(`${metodo}: $${Number(total).toLocaleString()}`);
             }
           );
-        } else {
-          console.log("⚠️ No hay información de métodos de pago");
         }
 
-        // Verificar si hay diferencia con el total
-        const total = datosImprimir.totalVentas;
-        console.log("Total de ventas:", total);
-        console.log("Suma por métodos:", sumaPorMetodos);
+        console.log("-------------------------------------");
+        console.log("VENTAS POR VENDEDOR:");
+
+        // Mostrar ventas por vendedor
+        if (
+          cierreData.ventasPorVendedor &&
+          Array.isArray(cierreData.ventasPorVendedor)
+        ) {
+          cierreData.ventasPorVendedor.forEach((vendedor: any) => {
+            console.log(
+              `${vendedor.nombre}: $${Number(
+                vendedor.totalVentas
+              ).toLocaleString()} (${vendedor.cantidadVentas} ventas)`
+            );
+
+            // Mostrar métodos de pago por vendedor si existen
+            if (vendedor.metodosPago) {
+              Object.entries(vendedor.metodosPago).forEach(
+                ([metodo, total]) => {
+                  console.log(
+                    `  ${metodo}: $${Number(total).toLocaleString()}`
+                  );
+                }
+              );
+            }
+          });
+        }
 
         console.log("-------------------------------------");
-        console.log(`TOTAL: $${total.toLocaleString()}`);
-        console.log(`CANT. VENTAS: ${datosImprimir.cantidadVentas}`);
+        console.log(
+          `TOTAL: $${Number(cierreData.totalVentas).toLocaleString()} (${
+            cierreData.cantidadVentas
+          } ventas)`
+        );
+        console.log("======================================");
 
-        // Usar los datos CORREGIDOS para la impresión
-        const result = await ipcRenderer.invoke("print-closing", datosImprimir);
+        // Usar directamente los datos del backend sin manipulación adicional
+        const result = await ipcRenderer.invoke("print-closing", cierreData);
 
         toast.dismiss(printingToast);
 

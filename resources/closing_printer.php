@@ -348,7 +348,7 @@ try {
         $printer->setEmphasis(false);
         
         // Ventas por vendedor (nuevo)
-        if (isset($closingData['ventasPorMetodo']) && isset($closingData['ventasPorMetodo']['ventasPorVendedor'])) {
+        if (isset($closingData['ventasPorVendedor']) && is_array($closingData['ventasPorVendedor'])) {
             $printer->text("\n\n");
             $printer->setJustification(Printer::JUSTIFY_CENTER);
             $printer->setEmphasis(true);
@@ -357,7 +357,7 @@ try {
             $printer->text("=============================\n\n");
             $printer->setJustification(Printer::JUSTIFY_LEFT);
             
-            foreach ($closingData['ventasPorMetodo']['ventasPorVendedor'] as $vendedor) {
+            foreach ($closingData['ventasPorVendedor'] as $vendedor) {
                 $printer->setEmphasis(true);
                 $printer->text(strtoupper($vendedor['nombre']) . "\n");
                 $printer->setEmphasis(false);

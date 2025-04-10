@@ -331,13 +331,12 @@ ipcMain.handle("print-closing", async (_, closingData) => {
     const tempDir = os.tmpdir();
     const tempDataPath = path.join(tempDir, `closing-data-${Date.now()}.json`);
 
-    // Crear una copia para depuración
+    // Guardar una copia de los datos recibidos para análisis
     const debugDataPath = path.join(
       app.getPath("desktop"),
       `debug-closing-data-${Date.now()}.json`
     );
 
-    // Guardar una copia de los datos recibidos para análisis
     try {
       await fsPromises.writeFile(
         debugDataPath,
@@ -349,105 +348,109 @@ ipcMain.handle("print-closing", async (_, closingData) => {
       console.error("Error guardando archivo de depuración:", err);
     }
 
-    // Logs completos y detallados
+    // DIAGNÓSTICO COMPLETO DE LA ESTRUCTURA DE DATOS
     console.log("==========================================");
-    console.log("DATOS COMPLETOS RECIBIDOS PARA CIERRE:");
+    console.log("DIAGNÓSTICO COMPLETO DEL OBJETO RECIBIDO:");
     console.log("==========================================");
-    console.log(JSON.stringify(closingData, null, 2));
 
-    // Análisis específico de los datos críticos
-    console.log("==========================================");
-    console.log("ANÁLISIS DE DATOS CRÍTICOS:");
-    console.log("==========================================");
-    console.log("Total ventas:", closingData.totalVentas);
-    console.log("Cantidad ventas:", closingData.cantidadVentas);
+    // Función para mostrar estructura de objeto
+    const mostrarEstructura = (obj: any, prefijo = "") => {
+      for (const key in obj) {
+        if (obj.hasOwnProperty(key)) {
+          const valor = obj[key];
+          const tipo = Array.isArray(valor) ? "array" : typeof valor;
 
-    // Análisis profundo de la estructura ventasPorMetodo
-    console.log("ESTRUCTURA VENTAS POR MÉTODO:");
-    if (closingData.ventasPorMetodo) {
-      console.log(
-        "Tipo de ventasPorMetodo:",
-        typeof closingData.ventasPorMetodo
-      );
-      console.log("Es array:", Array.isArray(closingData.ventasPorMetodo));
-      console.log(
-        "Claves disponibles:",
-        Object.keys(closingData.ventasPorMetodo)
-      );
-
-      if (typeof closingData.ventasPorMetodo === "object") {
-        for (const key in closingData.ventasPorMetodo) {
-          console.log(
-            `Propiedad '${key}':`,
-            JSON.stringify(closingData.ventasPorMetodo[key])
-          );
+          if (tipo === "object" && valor !== null) {
+            console.log(
+              `${prefijo}${key} (${tipo}${
+                Array.isArray(valor) ? `[${valor.length}]` : ""
+              })`
+            );
+            if (Array.isArray(valor)) {
+              if (valor.length > 0) {
+                console.log(`${prefijo}  Primer elemento:`);
+                mostrarEstructura(valor[0], `${prefijo}    `);
+              }
+            } else {
+              mostrarEstructura(valor, `${prefijo}  `);
+            }
+          } else {
+            console.log(`${prefijo}${key}: ${valor} (${tipo})`);
+          }
         }
       }
+    };
 
-      if (closingData.ventasPorMetodo.ventasPorMetodo) {
-        // Nueva estructura API
-        console.log("DESGLOSE POR MÉTODO DE PAGO (NUEVA ESTRUCTURA):");
-        const metodos = closingData.ventasPorMetodo.ventasPorMetodo;
-        for (const metodo in metodos) {
-          console.log(`- ${metodo}: ${metodos[metodo]}`);
-        }
+    mostrarEstructura(closingData);
 
-        // Calcular suma para verificación
-        let suma = 0;
-        for (const metodo in metodos) {
-          suma += metodos[metodo];
-        }
-        console.log("Suma calculada de ventas por método:", suma);
+    // Crear una copia profunda para manipular
+    const datosAdaptados = JSON.parse(JSON.stringify(closingData));
 
-        if (Math.abs(suma - closingData.totalVentas) > 0.01) {
-          console.log(
-            "⚠️ ADVERTENCIA: Discrepancia entre la suma de métodos y el total de ventas"
-          );
-          console.log("Diferencia:", closingData.totalVentas - suma);
-        }
-      } else {
-        // Estructura antigua
-        console.log("DESGLOSE POR MÉTODO DE PAGO (ESTRUCTURA ANTIGUA):");
-        console.log(JSON.stringify(closingData.ventasPorMetodo, null, 2));
-      }
-    } else {
-      console.log("❌ No hay datos de ventas por método");
-    }
+    // GENERAR LA SIMULACIÓN DEL TICKET
+    console.log("\n\n====== SIMULACIÓN DEL TICKET DE CIERRE ======");
+    console.log(`CIERRE DE CAJA - ${datosAdaptados.periodo.toUpperCase()}`);
+    console.log(
+      `Fecha inicio: ${new Date(datosAdaptados.fechaInicio).toLocaleString()}`
+    );
+    console.log(
+      `Fecha cierre: ${new Date(datosAdaptados.fechaCierre).toLocaleString()}`
+    );
+    console.log("-------------------------------------");
 
-    // Análisis de la estructura de vendedores
-    console.log("VENDEDORES:");
+    // MOSTRAR VENTAS POR MÉTODO DE PAGO
+    console.log("VENTAS POR MÉTODO DE PAGO:");
     if (
-      closingData.ventasPorMetodo &&
-      closingData.ventasPorMetodo.ventasPorVendedor
+      datosAdaptados.ventasPorMetodo &&
+      typeof datosAdaptados.ventasPorMetodo === "object"
     ) {
-      const vendedores = closingData.ventasPorMetodo.ventasPorVendedor;
-      for (const vendedor of vendedores) {
-        console.log(
-          `- ${vendedor.nombre} (${vendedor.email}): ${vendedor.totalVentas} (${vendedor.cantidadVentas} ventas)`
-        );
-      }
-
-      // Sumar totales de vendedores para verificación
-      let sumaVendedores = 0;
-      for (const vendedor of vendedores) {
-        sumaVendedores += vendedor.totalVentas;
-      }
-      console.log("Suma calculada de ventas por vendedor:", sumaVendedores);
-
-      if (Math.abs(sumaVendedores - closingData.totalVentas) > 0.01) {
-        console.log(
-          "⚠️ ADVERTENCIA: Discrepancia entre la suma de vendedores y el total de ventas"
-        );
-        console.log("Diferencia:", closingData.totalVentas - sumaVendedores);
-      }
+      Object.entries(datosAdaptados.ventasPorMetodo).forEach(
+        ([metodo, total]) => {
+          console.log(`${metodo}: $${Number(total).toLocaleString()}`);
+        }
+      );
     } else {
-      console.log("❌ No hay datos de ventas por vendedor");
+      console.log("No hay datos de ventas por método de pago");
     }
-    console.log("==========================================");
 
+    // MOSTRAR VENTAS POR VENDEDOR
+    console.log("-------------------------------------");
+    console.log("VENTAS POR VENDEDOR:");
+
+    if (
+      datosAdaptados.ventasPorVendedor &&
+      Array.isArray(datosAdaptados.ventasPorVendedor)
+    ) {
+      datosAdaptados.ventasPorVendedor.forEach((vendedor: any) => {
+        console.log(
+          `${vendedor.nombre}: $${Number(
+            vendedor.totalVentas
+          ).toLocaleString()} (${vendedor.cantidadVentas} ventas)`
+        );
+
+        // Mostrar métodos de pago por vendedor si existen
+        if (vendedor.metodosPago && typeof vendedor.metodosPago === "object") {
+          Object.entries(vendedor.metodosPago).forEach(([metodo, total]) => {
+            console.log(`  ${metodo}: $${Number(total).toLocaleString()}`);
+          });
+        }
+      });
+    } else {
+      console.log("No hay datos de ventas por vendedor");
+    }
+
+    // MOSTRAR TOTAL GENERAL
+    console.log("-------------------------------------");
+    console.log(
+      `TOTAL: $${Number(datosAdaptados.totalVentas).toLocaleString()} (${
+        datosAdaptados.cantidadVentas
+      } ventas)`
+    );
+    console.log("======================================");
+
+    // Escribir datos para la impresión
     await fsPromises.writeFile(
       tempDataPath,
-      JSON.stringify(closingData),
+      JSON.stringify(datosAdaptados),
       "utf8"
     );
 
