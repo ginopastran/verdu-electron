@@ -349,6 +349,9 @@ try {
         
         // Ventas por vendedor (nuevo)
         if (isset($closingData['ventasPorVendedor']) && is_array($closingData['ventasPorVendedor'])) {
+            file_put_contents('php://stderr', "=== DEPURACIÓN AVANZADA VENTAS POR VENDEDOR ===\n");
+            file_put_contents('php://stderr', "Estructura completa de ventasPorVendedor: " . json_encode($closingData['ventasPorVendedor']) . "\n");
+            
             $printer->text("\n\n");
             $printer->setJustification(Printer::JUSTIFY_CENTER);
             $printer->setEmphasis(true);
@@ -358,10 +361,54 @@ try {
             $printer->setJustification(Printer::JUSTIFY_LEFT);
             
             foreach ($closingData['ventasPorVendedor'] as $vendedor) {
+                // Añadir log para ver la estructura completa del vendedor
+                file_put_contents('php://stderr', "ESTRUCTURA COMPLETA DEL VENDEDOR: " . json_encode($vendedor) . "\n");
+                
                 $printer->setEmphasis(true);
                 $printer->text(strtoupper($vendedor['nombre']) . "\n");
                 $printer->setEmphasis(false);
                 $printer->text("Email: " . $vendedor['email'] . "\n");
+                
+                // Intentar acceder a los datos con diferentes formatos posibles
+                if (isset($vendedor['metodosPago'])) {
+                    // Si existe metodosPago como objeto
+                    file_put_contents('php://stderr', "USANDO metodosPago: " . json_encode($vendedor['metodosPago']) . "\n");
+                    
+                    // Si es un objeto JSON en string, decodificarlo
+                    $metodosPago = $vendedor['metodosPago'];
+                    if (is_string($metodosPago) && substr($metodosPago, 0, 1) === '{') {
+                        $metodosPago = json_decode($metodosPago, true);
+                    }
+                    
+                    if (isset($metodosPago['qr'])) {
+                        $printer->text("QR: $" . number_format(floatval($metodosPago['qr']), 2) . "\n");
+                    }
+                    if (isset($metodosPago['tarjeta'])) {
+                        $printer->text("Tarjeta: $" . number_format(floatval($metodosPago['tarjeta']), 2) . "\n");
+                    }
+                    if (isset($metodosPago['efectivo'])) {
+                        $printer->text("Efectivo: $" . number_format(floatval($metodosPago['efectivo']), 2) . "\n");
+                    }
+                } else {
+                    // Imprimir directamente de las propiedades del vendedor
+                    file_put_contents('php://stderr', "USANDO PROPIEDADES DIRECTAS\n");
+                    
+                    // QR
+                    if (isset($vendedor['qr'])) {
+                        $printer->text("QR: $" . number_format(floatval($vendedor['qr']), 2) . "\n");
+                    }
+                    
+                    // Tarjeta
+                    if (isset($vendedor['tarjeta'])) {
+                        $printer->text("Tarjeta: $" . number_format(floatval($vendedor['tarjeta']), 2) . "\n");
+                    }
+                    
+                    // Efectivo
+                    if (isset($vendedor['efectivo'])) {
+                        $printer->text("Efectivo: $" . number_format(floatval($vendedor['efectivo']), 2) . "\n");
+                    }
+                }
+                
                 $printer->text("Total: $" . number_format($vendedor['totalVentas'], 2) . "\n");
                 $printer->text("Cantidad: " . $vendedor['cantidadVentas'] . "\n");
                 $printer->text("-----------------------------\n");
