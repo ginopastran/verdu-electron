@@ -106,6 +106,8 @@ export default function ShoppingCart() {
   const [roundedAmount, setRoundedAmount] = useState<number>(0);
   // Agregar un estado para evitar múltiples adiciones
   const [isAddingToCart, setIsAddingToCart] = useState(false);
+  // Modificar la función handleCashPayment para establecer un estado que indique si se está aplicando descuento o no
+  const [applyingDiscount, setApplyingDiscount] = useState(false);
 
   // Agregar una referencia para rastrear la última solicitud
   const lastAddRequestRef = useRef<string>("");
@@ -232,14 +234,48 @@ export default function ShoppingCart() {
   // Filtrar productos según búsqueda
   useEffect(() => {
     if (searchQuery) {
-      const results = availableProducts.filter((product) =>
+      // Filtrar productos que coinciden con la búsqueda
+      const filtered = availableProducts.filter((product) =>
         product.name.toLowerCase().includes(searchQuery.toLowerCase())
       );
-      setSearchResults(results);
+
+      // Ordenar los resultados: primero por relevancia, luego alfabéticamente
+      const sortedResults = filtered.sort((a, b) => {
+        // 1. Priorizar coincidencias exactas al inicio
+        const aStartsWithQuery = a.name
+          .toLowerCase()
+          .startsWith(searchQuery.toLowerCase());
+        const bStartsWithQuery = b.name
+          .toLowerCase()
+          .startsWith(searchQuery.toLowerCase());
+
+        if (aStartsWithQuery && !bStartsWithQuery) return -1;
+        if (!aStartsWithQuery && bStartsWithQuery) return 1;
+
+        // 2. Priorizar coincidencias de ID/código (números al inicio)
+        const aStartsWithNumber =
+          /^\d+/.test(a.name) &&
+          a.name.toLowerCase().includes(searchQuery.toLowerCase());
+        const bStartsWithNumber =
+          /^\d+/.test(b.name) &&
+          b.name.toLowerCase().includes(searchQuery.toLowerCase());
+
+        if (aStartsWithNumber && !bStartsWithNumber) return -1;
+        if (!aStartsWithNumber && bStartsWithNumber) return 1;
+
+        // 3. Orden alfabético para misma relevancia
+        return a.name.localeCompare(b.name);
+      });
+
+      setSearchResults(sortedResults);
       setShowResults(true);
+
+      // Seleccionar automáticamente el primer resultado
+      setSelectedIndex(sortedResults.length > 0 ? 0 : -1);
     } else {
       setSearchResults([]);
       setShowResults(false);
+      setSelectedIndex(-1);
     }
   }, [searchQuery, availableProducts]);
 
@@ -503,25 +539,46 @@ export default function ShoppingCart() {
   };
 
   // Reemplazar completamente la función handleCashPayment para forzar siempre un diálogo
-  const handleCashPayment = () => {
-    console.log("🛒 EFECTIVO: Iniciando proceso de pago en efectivo");
+  const handleCashPayment = (withDiscount = false) => {
+    console.log(
+      "🛒 EFECTIVO: Iniciando proceso de pago en efectivo",
+      withDiscount ? "con descuento" : ""
+    );
+
+    // Establecer el estado de descuento
+    setApplyingDiscount(withDiscount);
 
     // Calcular los importes para cualquier caso
     const originalTotal = Number(total.toFixed(2));
-    let roundedTotal = originalTotal;
+    let finalTotal = originalTotal;
+
+    // Aplicar descuento si es necesario
+    if (withDiscount && businessInfo?.descuentoEfectivo) {
+      const discountPercentage = Number(businessInfo.descuentoEfectivo);
+      const discountAmount = (originalTotal * discountPercentage) / 100;
+      finalTotal = originalTotal - discountAmount;
+
+      console.log("💰 DESCUENTO: Cálculos:", {
+        originalTotal,
+        discountPercentage,
+        discountAmount,
+        finalTotal,
+      });
+    }
 
     // Si el sistema de pago es redondeo, calcular el monto redondeado
+    let roundedTotal = finalTotal;
     if (businessInfo?.sistemaPago === "redondeo") {
-      roundedTotal = roundToNearest50(originalTotal);
+      roundedTotal = roundToNearest50(finalTotal);
       console.log("🧮 EFECTIVO: Cálculos de redondeo:", {
-        originalTotal,
+        finalTotal,
         roundedTotal,
-        diferencia: originalTotal - roundedTotal,
+        diferencia: finalTotal - roundedTotal,
         sistemaRedondeo: businessInfo?.sistemaPago,
       });
     } else {
       console.log("💰 EFECTIVO: No hay redondeo, usando monto original:", {
-        originalTotal,
+        finalTotal,
         sistemaRedondeo: businessInfo?.sistemaPago,
       });
     }
@@ -714,12 +771,8 @@ export default function ShoppingCart() {
 
     console.log("✅ Procesando pago:", roundedAmount);
 
-    // Usar el método correcto según el tipo de pago seleccionado
-    if (selectedPaymentMethod === "efectivo-descuento") {
-      processPayment("efectivo-descuento", roundedAmount);
-    } else {
-      processPayment("efectivo", roundedAmount);
-    }
+    // Siempre procesar como "efectivo", independientemente de si tiene descuento o no
+    processPayment("efectivo", roundedAmount);
   };
 
   const handlePaymentClick = () => {
@@ -967,15 +1020,7 @@ export default function ShoppingCart() {
             console.log(
               "⌨️ TECLADO: Tecla 3 detectada - Iniciando flujo de efectivo"
             );
-            handleCashPayment();
-            break;
-          case "4":
-            e.preventDefault();
-            // Usar el manejador para efectivo con descuento
-            console.log(
-              "⌨️ TECLADO: Tecla 4 detectada - Iniciando flujo de efectivo con descuento"
-            );
-            handleCashWithDiscountPayment();
+            handleCashPayment(false);
             break;
         }
       }
@@ -993,6 +1038,7 @@ export default function ShoppingCart() {
     businessInfo,
     total,
     roundedAmountDialogOpen,
+    applyingDiscount,
   ]);
 
   // Función para cerrar sesión
@@ -1025,86 +1071,6 @@ export default function ShoppingCart() {
         handleProductSelect(product);
       }
     }
-
-    // Actualizar resultados de búsqueda normal
-    if (value) {
-      const results = availableProducts.filter(
-        (product) =>
-          product.name.toLowerCase().includes(value.toLowerCase()) ||
-          product.codigoBarras === value
-      );
-      setSearchResults(results);
-      setShowResults(true);
-    } else {
-      setSearchResults([]);
-      setShowResults(false);
-    }
-  };
-
-  // Modificar la función para combinar descuento y redondeo
-  const handleCashWithDiscountPayment = () => {
-    console.log(
-      "🛒 EFECTIVO CON DESCUENTO: Iniciando proceso de pago en efectivo con descuento"
-    );
-
-    // Verificación inicial
-    if (!businessInfo?.descuentoEfectivo) {
-      console.log(
-        "⚠️ DESCUENTO: No hay descuento configurado, usando método normal"
-      );
-      handleCashPayment();
-      return;
-    }
-
-    // Calcular el descuento primero
-    const originalTotal = Number(total.toFixed(2));
-    const discountPercentage = Number(businessInfo.descuentoEfectivo);
-    const discountAmount = (originalTotal * discountPercentage) / 100;
-    const discountedTotal = originalTotal - discountAmount;
-
-    console.log("💰 DESCUENTO: Información del negocio:", {
-      sistemaPago: businessInfo?.sistemaPago || "no configurado",
-      descuentoEfectivo: businessInfo?.descuentoEfectivo || "no configurado",
-    });
-
-    // Luego aplicar el redondeo al total con descuento
-    let roundedDiscountedTotal = discountedTotal;
-
-    if (businessInfo?.sistemaPago === "redondeo") {
-      roundedDiscountedTotal = roundToNearest50(discountedTotal);
-      console.log("🧮 DESCUENTO: Aplicando redondeo");
-    } else {
-      console.log(
-        "💰 DESCUENTO: No se aplica redondeo (sistema no configurado como 'redondeo')"
-      );
-    }
-
-    console.log("💰 DESCUENTO + REDONDEO: Información completa:", {
-      originalTotal,
-      discountPercentage: `${discountPercentage}%`,
-      discountAmount,
-      discountedTotal,
-      roundedDiscountedTotal,
-      totalDescuento: originalTotal - roundedDiscountedTotal,
-      aplicoRedondeo: businessInfo?.sistemaPago === "redondeo",
-    });
-
-    // Guardar los montos calculados en el estado
-    setOriginalAmount(originalTotal);
-    setRoundedAmount(roundedDiscountedTotal);
-
-    // Establecer efectivo con descuento como método seleccionado
-    setSelectedPaymentMethod("efectivo-descuento");
-
-    // Cerrar diálogo de pago y abrir diálogo de confirmación
-    console.log("🔄 DESCUENTO: Mostrando diálogo de confirmación");
-    setPaymentDialogOpen(false);
-
-    // Abrir diálogo de confirmación con pequeño retraso
-    setTimeout(() => {
-      setRoundedAmountDialogOpen(true);
-      console.log("🔄 DESCUENTO: Diálogo de confirmación abierto");
-    }, 100);
   };
 
   console.log(user);
@@ -1511,32 +1477,6 @@ export default function ShoppingCart() {
                 </div>
                 <span>Efectivo (3)</span>
               </Button>
-              {businessInfo?.descuentoEfectivo && (
-                <Button
-                  onClick={() => handleCashWithDiscountPayment()}
-                  className={`h-32 flex flex-col items-center justify-center space-y-2 [&_svg]:size-8 ${
-                    selectedPaymentMethod === "efectivo-descuento"
-                      ? "bg-emerald-100 border-emerald-600 border-2"
-                      : ""
-                  }`}
-                  variant="outline"
-                  disabled={
-                    isProcessingPayment ||
-                    (selectedPaymentMethod !== null &&
-                      selectedPaymentMethod !== "efectivo-descuento")
-                  }
-                >
-                  <div className="h-12 flex items-center justify-center">
-                    {isProcessingPayment &&
-                    selectedPaymentMethod === "efectivo-descuento" ? (
-                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900" />
-                    ) : (
-                      <Receipt className="h-12 w-12" />
-                    )}
-                  </div>
-                  <span>Efectivo D (4)</span>
-                </Button>
-              )}
             </div>
           </DialogContent>
         </Dialog>
@@ -1788,7 +1728,7 @@ export default function ShoppingCart() {
           }}
         >
           <DialogContent
-            className="sm:max-w-md"
+            className=""
             onKeyDown={(e) => {
               console.log(
                 "🔑 Tecla presionada en diálogo de confirmación:",
@@ -1806,45 +1746,64 @@ export default function ShoppingCart() {
                 setRoundedAmountDialogOpen(false);
                 setSelectedPaymentMethod(null);
                 setIsProcessingPayment(false);
+                setApplyingDiscount(false);
+              }
+              // Agregar manejo de F5 para aplicar descuento
+              if (
+                e.key === "F5" &&
+                !applyingDiscount &&
+                businessInfo?.descuentoEfectivo &&
+                !isProcessingPayment
+              ) {
+                e.preventDefault();
+                console.log("🔄 F5 detectado - Aplicando descuento");
+                // Cerrar el diálogo actual
+                setRoundedAmountDialogOpen(false);
+                // Pequeña pausa para asegurar que se cierre primero
+                setTimeout(() => {
+                  // Volver a abrir con descuento
+                  handleCashPayment(true);
+                }, 100);
               }
             }}
           >
             <DialogHeader>
-              <DialogTitle>
-                {selectedPaymentMethod === "efectivo-descuento"
+              <DialogTitle className="text-2xl">
+                {applyingDiscount
                   ? "Efectivo con descuento"
                   : businessInfo?.sistemaPago === "redondeo"
                   ? "Redondeo de pago en efectivo"
                   : "Confirmar pago en efectivo"}
               </DialogTitle>
-              <DialogDescription>
-                {selectedPaymentMethod === "efectivo-descuento"
+              <DialogDescription className="text-lg">
+                {applyingDiscount
                   ? `Se aplicará un descuento del ${businessInfo?.descuentoEfectivo}% por pago en efectivo.`
                   : businessInfo?.sistemaPago === "redondeo"
                   ? "El sistema de redondeo ha ajustado el monto para facilitar el pago en efectivo."
                   : "Por favor confirma el pago en efectivo."}
               </DialogDescription>
             </DialogHeader>
+
             <div className="space-y-4 py-4">
-              {selectedPaymentMethod === "efectivo-descuento" ||
+              {applyingDiscount ||
               (businessInfo?.sistemaPago === "redondeo" &&
                 originalAmount !== roundedAmount) ? (
                 <>
                   <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">
+                    <span className="text-base text-muted-foreground">
                       Monto original:
                     </span>
-                    <span className="text-lg">
+                    <span className="text-xl">
                       ${originalAmount.toLocaleString()}
                     </span>
                   </div>
 
-                  {selectedPaymentMethod === "efectivo-descuento" && (
+                  {applyingDiscount && (
                     <div className="flex justify-between items-center">
-                      <span className="text-sm text-muted-foreground">
+                      <span className="text-base text-muted-foreground">
                         Con descuento ({businessInfo?.descuentoEfectivo}%):
                       </span>
-                      <span className="text-lg text-blue-600">
+                      <span className="text-xl text-blue-600">
                         $
                         {(
                           originalAmount -
@@ -1857,25 +1816,23 @@ export default function ShoppingCart() {
                   )}
 
                   <div className="flex justify-between items-center">
-                    <span className="text-base font-medium">
-                      Monto a cobrar:
-                    </span>
-                    <span className="text-2xl font-bold text-emerald-600">
+                    <span className="text-lg font-medium">Monto a cobrar:</span>
+                    <span className="text-3xl font-bold text-emerald-600">
                       ${roundedAmount.toLocaleString()}
                     </span>
                   </div>
 
                   <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">
-                      {selectedPaymentMethod === "efectivo-descuento"
+                    <span className="text-base text-muted-foreground">
+                      {applyingDiscount
                         ? "Ahorro total:"
                         : "Descuento del redondeo:"}
                     </span>
-                    <span className="text-base text-emerald-700">
+                    <span className="text-lg text-emerald-700">
                       ${(originalAmount - roundedAmount).toLocaleString()}
-                      {selectedPaymentMethod === "efectivo-descuento" &&
+                      {applyingDiscount &&
                         businessInfo?.sistemaPago === "redondeo" && (
-                          <span className="ml-1 text-xs">
+                          <span className="ml-1 text-sm">
                             (descuento + redondeo)
                           </span>
                         )}
@@ -1884,13 +1841,14 @@ export default function ShoppingCart() {
                 </>
               ) : (
                 <div className="flex justify-between items-center">
-                  <span className="text-base font-medium">Monto a cobrar:</span>
-                  <span className="text-2xl font-bold text-emerald-600">
+                  <span className="text-lg font-medium">Monto a cobrar:</span>
+                  <span className="text-3xl font-bold text-emerald-600">
                     ${originalAmount.toLocaleString()}
                   </span>
                 </div>
               )}
             </div>
+
             <DialogFooter className="flex space-x-2 justify-end">
               <Button
                 variant="outline"
@@ -1898,13 +1856,35 @@ export default function ShoppingCart() {
                   setRoundedAmountDialogOpen(false);
                   setSelectedPaymentMethod(null);
                   setIsProcessingPayment(false);
+                  setApplyingDiscount(false);
                 }}
-                tabIndex={2}
+                tabIndex={3}
+                className="text-base py-5 px-4"
               >
                 Cancelar
               </Button>
+
+              {!applyingDiscount && businessInfo?.descuentoEfectivo && (
+                <Button
+                  variant="outline"
+                  className="bg-blue-50 border-blue-200 hover:bg-blue-100 hover:text-blue-700 text-base py-5 px-4"
+                  onClick={() => {
+                    // Cerrar el diálogo actual
+                    setRoundedAmountDialogOpen(false);
+                    // Pequeña pausa para asegurar que se cierre primero
+                    setTimeout(() => {
+                      // Volver a abrir con descuento
+                      handleCashPayment(true);
+                    }, 100);
+                  }}
+                  tabIndex={2}
+                >
+                  Aplicar D (F5)
+                </Button>
+              )}
+
               <Button
-                className="bg-emerald-gradient"
+                className="bg-emerald-gradient text-lg py-5 px-6"
                 onClick={confirmRoundedPayment}
                 disabled={isProcessingPayment}
                 autoFocus
