@@ -1,6 +1,6 @@
 {
   "name": "verdu-electron",
-  "version": "1.0.4",
+  "version": "1.0.6",
   "description": "Sistema de punto de venta para verdulería",
   "author": "AndexTech",
   "main": "dist-electron/main.js",

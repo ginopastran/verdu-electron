@@ -12,6 +12,8 @@ import {
   Moon,
   Calendar,
   LogOut,
+  Plus,
+  X,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -38,6 +40,7 @@ import {
   TableBody,
   TableCell,
 } from "@/components/ui/table";
+import { Select, SelectItem, SelectContent } from "@/components/ui/select";
 // Importar las imágenes como recursos desde assets
 import iselinLogo from "../assets/iselin-logo.png";
 import andextechLogo from "../assets/andextech-black.png";
@@ -108,6 +111,10 @@ export default function ShoppingCart() {
   const [isAddingToCart, setIsAddingToCart] = useState(false);
   // Modificar la función handleCashPayment para establecer un estado que indique si se está aplicando descuento o no
   const [applyingDiscount, setApplyingDiscount] = useState(false);
+
+  // Nuevos estados para múltiples pantallas
+  const [activeScreen, setActiveScreen] = useState(0);
+  const [screens, setScreens] = useState<{id: number, items: Product[]}[]>([{id: 0, items: []}]);
 
   // Agregar una referencia para rastrear la última solicitud
   const lastAddRequestRef = useRef<string>("");
@@ -361,8 +368,6 @@ export default function ShoppingCart() {
     // Actualizar la referencia con la solicitud actual
     lastAddRequestRef.current = currentRequestId;
 
-    // --- El resto de la lógica de addToCart continúa aquí ---
-
     console.log("🔍 DEBUG: Iniciando addToCart", {
       selectedProduct: selectedProduct?.name,
       isAddingToCart,
@@ -443,21 +448,34 @@ export default function ShoppingCart() {
 
       console.log("✓ DEBUG: Añadiendo producto al carrito:", newItem);
 
-      // Hacemos una actualización segura del estado
-      setCartItems((prevItems) => {
-        console.log(
-          "✓ DEBUG: Estado actual del carrito:",
-          prevItems.length,
-          "items"
-        );
-        const updatedItems = [...prevItems, newItem];
-        console.log(
-          "✓ DEBUG: Nuevo estado del carrito:",
-          updatedItems.length,
-          "items"
-        );
-        return updatedItems;
-      });
+      // Actualizar la hoja activa con el nuevo item
+      setScreens(screens.map((screen, index) => {
+        if (index === activeScreen) {
+          const existingItem = screen.items.find(item => item.id === newItem.id);
+          if (existingItem) {
+            // Si el item ya existe, actualizar la cantidad
+            return {
+              ...screen,
+              items: screen.items.map(item =>
+                item.id === newItem.id
+                  ? {
+                      ...item,
+                      quantity: item.quantity + newItem.quantity,
+                      subtotal: item.subtotal + newItem.subtotal
+                    }
+                  : item
+              )
+            };
+          } else {
+            // Si es un nuevo item, agregarlo
+            return {
+              ...screen,
+              items: [...screen.items, newItem]
+            };
+          }
+        }
+        return screen;
+      }));
 
       // Cerramos el diálogo y limpiamos el estado
       setDialogOpen(false);
@@ -491,10 +509,18 @@ export default function ShoppingCart() {
     });
   };
 
-  const total = cartItems.reduce((sum, item) => sum + item.subtotal, 0);
+  const calculateTotal = () => {
+    const currentScreen = screens[activeScreen];
+    return currentScreen.items.reduce((total, item) => {
+      const subtotal = item.pricePerUnit * item.quantity;
+      return total + subtotal;
+    }, 0);
+  };
 
   const handleCancelCart = () => {
-    setCartItems([]);
+    setScreens(screens.map((screen, index) => 
+      index === activeScreen ? { ...screen, items: [] } : screen
+    ));
     setCancelDialogOpen(false);
     setTimeout(() => {
       searchInputRef.current?.focus();
@@ -549,7 +575,7 @@ export default function ShoppingCart() {
     setApplyingDiscount(withDiscount);
 
     // Calcular los importes para cualquier caso
-    const originalTotal = Number(total.toFixed(2));
+    const originalTotal = Number(calculateTotal().toFixed(2));
     let finalTotal = originalTotal;
 
     // Aplicar descuento si es necesario
@@ -641,14 +667,15 @@ export default function ShoppingCart() {
 
     // Procesar directamente los métodos que no son efectivo
     console.log("🔄 Procesando pago con:", method);
-    await processPayment(method, Number(total.toFixed(2)));
+    await processPayment(method, Number(calculateTotal().toFixed(2)));
   };
 
   // Función separada para procesar el pago
   const processPayment = async (method: string, finalTotal: number) => {
     setIsProcessingPayment(true);
 
-    const orderItems = cartItems.map((item) => ({
+    const currentScreen = screens[activeScreen];
+    const orderItems = currentScreen.items.map((item) => ({
       productoId: item.id,
       cantidad: item.quantity,
       subtotal: Number(item.subtotal.toFixed(2)),
@@ -667,7 +694,7 @@ export default function ShoppingCart() {
 
     const orderData = {
       metodoPago: method,
-      total: finalTotal, // Usamos el total final (que puede estar redondeado)
+      total: finalTotal,
       items: orderItems,
       vendedorId: user.id,
       sucursalId: user.sucursalId,
@@ -729,7 +756,9 @@ export default function ShoppingCart() {
       // Limpiar todos los estados relacionados con el pago
       setPaymentDialogOpen(false);
       setRoundedAmountDialogOpen(false);
-      setCartItems([]);
+      setScreens(screens.map((screen, index) => 
+        index === activeScreen ? { ...screen, items: [] } : screen
+      ));
       setSelectedPaymentMethod(null);
       setIsProcessingPayment(false);
       setOriginalAmount(0);
@@ -776,7 +805,8 @@ export default function ShoppingCart() {
   };
 
   const handlePaymentClick = () => {
-    if (cartItems.length === 0) {
+    const currentScreen = screens[activeScreen];
+    if (currentScreen.items.length === 0) {
       toast.error("No hay productos en el carrito", {
         description: "Agrega al menos un producto antes de continuar",
       });
@@ -786,7 +816,8 @@ export default function ShoppingCart() {
   };
 
   const handleCancelClick = () => {
-    if (cartItems.length === 0) {
+    const currentScreen = screens[activeScreen];
+    if (currentScreen.items.length === 0) {
       toast.error("No hay productos en el carrito", {
         description: "El carrito ya está vacío",
       });
@@ -952,10 +983,23 @@ export default function ShoppingCart() {
       // Manejar F1 y F2 incluso en inputs
       if (e.key === "F1" || e.key === "F2") {
         e.preventDefault();
-        if (e.key === "F2") {
-          handlePaymentClick();
-        } else {
+        const currentScreen = screens[activeScreen];
+        if (e.key === "F1") {
+          if (currentScreen.items.length === 0) {
+            toast.error("No hay productos en el carrito", {
+              description: "El carrito ya está vacío",
+            });
+            return;
+          }
           handleCancelClick();
+        } else {
+          if (currentScreen.items.length === 0) {
+            toast.error("No hay productos en el carrito", {
+              description: "Agrega al menos un producto antes de continuar",
+            });
+            return;
+          }
+          handlePaymentClick();
         }
         return;
       }
@@ -1031,12 +1075,13 @@ export default function ShoppingCart() {
   }, [
     closingDialogOpen,
     paymentDialogOpen,
-    cartItems.length,
+    screens,
+    activeScreen,
     isProcessingPayment,
     selectedPaymentMethod,
     isClosing,
     businessInfo,
-    total,
+    calculateTotal,
     roundedAmountDialogOpen,
     applyingDiscount,
   ]);
@@ -1073,6 +1118,72 @@ export default function ShoppingCart() {
     }
   };
 
+  const handleAddProduct = (product: Product) => {
+    const currentScreen = screens[activeScreen];
+    const existingItem = currentScreen.items.find(item => item.id === product.id);
+    
+    if (existingItem) {
+      const updatedItems = currentScreen.items.map(item =>
+        item.id === product.id
+          ? { ...item, quantity: item.quantity + 1 }
+          : item
+      );
+      setScreens(screens.map((screen, index) => 
+        index === activeScreen ? { ...screen, items: updatedItems } : screen
+      ));
+    } else {
+      setScreens(screens.map((screen, index) => 
+        index === activeScreen ? { ...screen, items: [...screen.items, { ...product, quantity: 1 }] } : screen
+      ));
+    }
+  };
+
+  const handleRemoveProduct = (productId: number) => {
+    const currentScreen = screens[activeScreen];
+    const updatedItems = currentScreen.items.filter(item => item.id !== productId);
+    setScreens(screens.map((screen, index) => 
+      index === activeScreen ? { ...screen, items: updatedItems } : screen
+    ));
+  };
+
+  const [deleteScreenDialogOpen, setDeleteScreenDialogOpen] = useState(false);
+  const [screenToDelete, setScreenToDelete] = useState<number | null>(null);
+
+  const handleAddScreen = () => {
+    if (screens.length >= 4) {
+      toast.error("No se pueden crear más de 4 pantallas");
+      return;
+    }
+    const newId = screens.length;
+    setScreens([...screens, {id: newId, items: []}]);
+    setActiveScreen(newId);
+  };
+
+  const handleDeleteScreen = (screenId: number) => {
+    if (screens.length <= 1) {
+      toast.error("No se puede eliminar la última pantalla");
+      return;
+    }
+    setScreenToDelete(screenId);
+    setDeleteScreenDialogOpen(true);
+  };
+
+  const confirmDeleteScreen = () => {
+    if (screenToDelete === null) return;
+    
+    const newScreens = screens.filter(screen => screen.id !== screenToDelete);
+    setScreens(newScreens);
+    
+    // Si la pantalla activa es la que se eliminó, cambiar a la primera pantalla
+    if (activeScreen === screenToDelete) {
+      setActiveScreen(0);
+    }
+    
+    setDeleteScreenDialogOpen(false);
+    setScreenToDelete(null);
+    toast.success("Pantalla eliminada correctamente");
+  };
+
   console.log(user);
   return (
     <div className="min-h-screen bg-white-cream h-screen relative overflow-hidden">
@@ -1094,16 +1205,51 @@ export default function ShoppingCart() {
       <div className="w-full mx-auto flex h-full flex-col px-8 py-6 relative z-10">
         <div className="flex w-full justify-between items-center mb-4">
           <div className="relative w-full">
-            <Input
-              ref={searchInputRef}
-              autoFocus
-              type="search"
-              placeholder="Buscar productos..."
-              value={searchQuery}
-              onChange={handleSearchInputChange}
-              onKeyDown={handleKeyPress}
-              className="bg-background max-w-2xl md:text-base rounded-xl"
-            />
+            <div className="flex items-center gap-2">
+              <Input
+                type="text"
+                placeholder="Buscar productos..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={handleKeyPress}
+                className="w-[300px]"
+                ref={searchInputRef}
+              />
+              <div className="flex items-center gap-2">
+                {screens.map((screen) => (
+                  <div key={screen.id} className="flex items-center gap-1">
+                    <Button
+                      variant={activeScreen === screen.id ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setActiveScreen(screen.id)}
+                      className="h-8"
+                    >
+                      Orden {screen.id + 1}
+                    </Button>
+                    {screen.id > 0 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0 hover:bg-red-100 hover:text-red-600"
+                        onClick={() => handleDeleteScreen(screen.id)}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+                {screens.length < 4 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8"
+                    onClick={handleAddScreen}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+            </div>
 
             {showResults && searchResults.length > 0 && (
               <Card className="absolute w-full mt-1 bg-background border shadow-lg p-2 z-10 max-w-2xl rounded-xl">
@@ -1147,7 +1293,7 @@ export default function ShoppingCart() {
         </div>
 
         <div className="flex-1 space-y-2 overflow-auto mb-4">
-          {cartItems.map((item) => (
+          {screens[activeScreen].items.map((item) => (
             <Card
               key={item.cartId}
               className="bg-background border p-4 flex items-center justify-between shadow-sm rounded-xl"
@@ -1155,14 +1301,14 @@ export default function ShoppingCart() {
               <div className="flex justify-between w-full items-center">
                 <div className="flex justify-between items-end gap-10">
                   <span className="text-2xl font-medium">{item.name}</span>
-                  <div className=" text-muted-foreground">
+                  <div className="text-muted-foreground">
                     Cantidad: {item.quantity} {item.unit}
                   </div>
-                  <div className=" text-muted-foreground">
+                  <div className="text-muted-foreground">
                     {item.unit === "Kg" ? "$/Kg" : "$/U"}: $
                     {item.pricePerUnit.toLocaleString()}
                   </div>
-                  <div className=" text-muted-foreground">
+                  <div className="text-muted-foreground">
                     SUBTOTAL: ${item.subtotal.toLocaleString()}
                   </div>
                 </div>
@@ -1171,7 +1317,7 @@ export default function ShoppingCart() {
                   variant="destructive"
                   size="icon"
                   className="h-8 w-8 rounded-lg bg-cancel-gradient"
-                  onClick={() => removeFromCart(item.cartId)}
+                  onClick={() => handleRemoveProduct(item.id)}
                 >
                   <Trash2 className="h-6 w-6" />
                 </Button>
@@ -1903,6 +2049,34 @@ export default function ShoppingCart() {
           </DialogContent>
         </Dialog>
 
+        <Dialog
+          open={deleteScreenDialogOpen}
+          onOpenChange={setDeleteScreenDialogOpen}
+        >
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>¿Eliminar pantalla?</DialogTitle>
+              <DialogDescription>
+                ¿Estás seguro de que deseas eliminar esta pantalla? Se perderán todos los productos en ella.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="flex space-x-2 justify-end">
+              <Button
+                variant="outline"
+                onClick={() => setDeleteScreenDialogOpen(false)}
+              >
+                Cancelar
+              </Button>
+              <Button 
+                variant="destructive"
+                onClick={confirmDeleteScreen}
+              >
+                Eliminar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         <div className="sticky bottom-0">
           <div className="flex items-center justify-between">
             <div className="space-x-2">
@@ -1921,7 +2095,7 @@ export default function ShoppingCart() {
               </Button>
             </div>
             <div className="text-4xl font-semibold bg-white border px-8 py-6 shadow-sm rounded-xl">
-              TOTAL: ${total.toLocaleString()}
+              TOTAL: ${calculateTotal().toLocaleString()}
             </div>
           </div>
         </div>
