@@ -14,6 +14,7 @@ import {
   LogOut,
   Plus,
   X,
+  History,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -114,7 +115,9 @@ export default function ShoppingCart() {
 
   // Nuevos estados para múltiples pantallas
   const [activeScreen, setActiveScreen] = useState(0);
-  const [screens, setScreens] = useState<{id: number, items: Product[]}[]>([{id: 0, items: []}]);
+  const [screens, setScreens] = useState<{ id: number; items: Product[] }[]>([
+    { id: 0, items: [] },
+  ]);
 
   // Agregar una referencia para rastrear la última solicitud
   const lastAddRequestRef = useRef<string>("");
@@ -449,33 +452,37 @@ export default function ShoppingCart() {
       console.log("✓ DEBUG: Añadiendo producto al carrito:", newItem);
 
       // Actualizar la hoja activa con el nuevo item
-      setScreens(screens.map((screen, index) => {
-        if (index === activeScreen) {
-          const existingItem = screen.items.find(item => item.id === newItem.id);
-          if (existingItem) {
-            // Si el item ya existe, actualizar la cantidad
-            return {
-              ...screen,
-              items: screen.items.map(item =>
-                item.id === newItem.id
-                  ? {
-                      ...item,
-                      quantity: item.quantity + newItem.quantity,
-                      subtotal: item.subtotal + newItem.subtotal
-                    }
-                  : item
-              )
-            };
-          } else {
-            // Si es un nuevo item, agregarlo
-            return {
-              ...screen,
-              items: [...screen.items, newItem]
-            };
+      setScreens(
+        screens.map((screen, index) => {
+          if (index === activeScreen) {
+            const existingItem = screen.items.find(
+              (item) => item.id === newItem.id
+            );
+            if (existingItem) {
+              // Si el item ya existe, actualizar la cantidad
+              return {
+                ...screen,
+                items: screen.items.map((item) =>
+                  item.id === newItem.id
+                    ? {
+                        ...item,
+                        quantity: item.quantity + newItem.quantity,
+                        subtotal: item.subtotal + newItem.subtotal,
+                      }
+                    : item
+                ),
+              };
+            } else {
+              // Si es un nuevo item, agregarlo
+              return {
+                ...screen,
+                items: [...screen.items, newItem],
+              };
+            }
           }
-        }
-        return screen;
-      }));
+          return screen;
+        })
+      );
 
       // Cerramos el diálogo y limpiamos el estado
       setDialogOpen(false);
@@ -518,9 +525,11 @@ export default function ShoppingCart() {
   };
 
   const handleCancelCart = () => {
-    setScreens(screens.map((screen, index) => 
-      index === activeScreen ? { ...screen, items: [] } : screen
-    ));
+    setScreens(
+      screens.map((screen, index) =>
+        index === activeScreen ? { ...screen, items: [] } : screen
+      )
+    );
     setCancelDialogOpen(false);
     setTimeout(() => {
       searchInputRef.current?.focus();
@@ -630,7 +639,7 @@ export default function ShoppingCart() {
     }, 100);
   };
 
-  // Modificar la función handlePayment para evitar procesar pagos en efectivo directamente
+  // Modificar la función handlePayment para manejar el método de pago QR
   const handlePayment = async (method: string) => {
     if (!user) {
       toast.error("Debes iniciar sesión para realizar una orden");
@@ -643,6 +652,13 @@ export default function ShoppingCart() {
     if (method === "efectivo") {
       console.log("🔄 Redirigiendo a handleCashPayment");
       handleCashPayment();
+      return;
+    }
+
+    // Para QR, implementar el flujo de Mercado Pago
+    if (method === "qr") {
+      console.log("🔄 Iniciando flujo de pago con QR de Mercado Pago");
+      generateQRPayment();
       return;
     }
 
@@ -665,7 +681,7 @@ export default function ShoppingCart() {
     setSelectedPaymentMethod(method);
     setIsProcessingPayment(true);
 
-    // Procesar directamente los métodos que no son efectivo
+    // Procesar directamente los métodos que no son efectivo ni QR
     console.log("🔄 Procesando pago con:", method);
     await processPayment(method, Number(calculateTotal().toFixed(2)));
   };
@@ -756,9 +772,11 @@ export default function ShoppingCart() {
       // Limpiar todos los estados relacionados con el pago
       setPaymentDialogOpen(false);
       setRoundedAmountDialogOpen(false);
-      setScreens(screens.map((screen, index) => 
-        index === activeScreen ? { ...screen, items: [] } : screen
-      ));
+      setScreens(
+        screens.map((screen, index) =>
+          index === activeScreen ? { ...screen, items: [] } : screen
+        )
+      );
       setSelectedPaymentMethod(null);
       setIsProcessingPayment(false);
       setOriginalAmount(0);
@@ -1120,30 +1138,43 @@ export default function ShoppingCart() {
 
   const handleAddProduct = (product: Product) => {
     const currentScreen = screens[activeScreen];
-    const existingItem = currentScreen.items.find(item => item.id === product.id);
-    
+    const existingItem = currentScreen.items.find(
+      (item) => item.id === product.id
+    );
+
     if (existingItem) {
-      const updatedItems = currentScreen.items.map(item =>
-        item.id === product.id
-          ? { ...item, quantity: item.quantity + 1 }
-          : item
+      const updatedItems = currentScreen.items.map((item) =>
+        item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
       );
-      setScreens(screens.map((screen, index) => 
-        index === activeScreen ? { ...screen, items: updatedItems } : screen
-      ));
+      setScreens(
+        screens.map((screen, index) =>
+          index === activeScreen ? { ...screen, items: updatedItems } : screen
+        )
+      );
     } else {
-      setScreens(screens.map((screen, index) => 
-        index === activeScreen ? { ...screen, items: [...screen.items, { ...product, quantity: 1 }] } : screen
-      ));
+      setScreens(
+        screens.map((screen, index) =>
+          index === activeScreen
+            ? {
+                ...screen,
+                items: [...screen.items, { ...product, quantity: 1 }],
+              }
+            : screen
+        )
+      );
     }
   };
 
   const handleRemoveProduct = (productId: number) => {
     const currentScreen = screens[activeScreen];
-    const updatedItems = currentScreen.items.filter(item => item.id !== productId);
-    setScreens(screens.map((screen, index) => 
-      index === activeScreen ? { ...screen, items: updatedItems } : screen
-    ));
+    const updatedItems = currentScreen.items.filter(
+      (item) => item.id !== productId
+    );
+    setScreens(
+      screens.map((screen, index) =>
+        index === activeScreen ? { ...screen, items: updatedItems } : screen
+      )
+    );
   };
 
   const [deleteScreenDialogOpen, setDeleteScreenDialogOpen] = useState(false);
@@ -1155,7 +1186,7 @@ export default function ShoppingCart() {
       return;
     }
     const newId = screens.length;
-    setScreens([...screens, {id: newId, items: []}]);
+    setScreens([...screens, { id: newId, items: [] }]);
     setActiveScreen(newId);
   };
 
@@ -1170,19 +1201,478 @@ export default function ShoppingCart() {
 
   const confirmDeleteScreen = () => {
     if (screenToDelete === null) return;
-    
-    const newScreens = screens.filter(screen => screen.id !== screenToDelete);
+
+    const newScreens = screens.filter((screen) => screen.id !== screenToDelete);
     setScreens(newScreens);
-    
+
     // Si la pantalla activa es la que se eliminó, cambiar a la primera pantalla
     if (activeScreen === screenToDelete) {
       setActiveScreen(0);
     }
-    
+
     setDeleteScreenDialogOpen(false);
     setScreenToDelete(null);
     toast.success("Pantalla eliminada correctamente");
   };
+
+  // Agregar estados necesarios para el diálogo de órdenes recientes
+  const [ordersDialogOpen, setOrdersDialogOpen] = useState(false);
+  const [recentOrders, setRecentOrders] = useState<any[]>([]);
+  const [isLoadingOrders, setIsLoadingOrders] = useState(false);
+  const [isPrinting, setIsPrinting] = useState(false);
+
+  // Función para cargar órdenes recientes
+  const loadRecentOrders = async () => {
+    if (!user) {
+      toast.error("Debes iniciar sesión para ver órdenes");
+      return;
+    }
+
+    setIsLoadingOrders(true);
+
+    try {
+      // Usar el nuevo endpoint específico para órdenes del vendedor
+      const response = await fetch(
+        `${API_URL}/api/ordenes/vendedor/${user.id}?limit=5`,
+        {
+          headers,
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Error al cargar órdenes recientes");
+      }
+
+      const data = await response.json();
+      console.log("Órdenes recientes cargadas:", data);
+      setRecentOrders(data);
+    } catch (error) {
+      console.error("Error al cargar órdenes:", error);
+      toast.error("Error al cargar las órdenes recientes");
+    } finally {
+      setIsLoadingOrders(false);
+    }
+  };
+
+  // Función para reimprimir un ticket
+  const handleReprintTicket = async (order: any) => {
+    if (isPrinting) return;
+
+    setIsPrinting(true);
+
+    try {
+      const { ipcRenderer } = window.require("electron");
+
+      toast.info("Reimprimiendo ticket...", {
+        duration: 3000,
+        description: "Enviando datos a la impresora",
+      });
+
+      console.log("Reimprimiendo ticket para orden:", order);
+
+      const result = await ipcRenderer.invoke("print-ticket", order);
+
+      if (result.success) {
+        toast.success("Ticket reimpreso correctamente");
+      } else {
+        throw new Error(result.message || "Error desconocido al reimprimir");
+      }
+    } catch (error: any) {
+      console.error("Error al reimprimir ticket:", error);
+      toast.error(`Error al reimprimir: ${error.message}`);
+    } finally {
+      setIsPrinting(false);
+    }
+  };
+
+  // Abrir diálogo de órdenes y cargar datos
+  const handleOrdersButtonClick = () => {
+    setOrdersDialogOpen(true);
+    loadRecentOrders();
+  };
+
+  // Agregar los estados necesarios para la integración con Mercado Pago QR
+  const [qrData, setQrData] = useState<any>(null);
+  const [qrDialogOpen, setQrDialogOpen] = useState(false);
+  const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(
+    null
+  );
+  const [paymentStatus, setPaymentStatus] = useState<string | null>(null);
+
+  // Actualizar la función generateQRPayment para ajustar el manejo de la respuesta
+  const generateQRPayment = async () => {
+    if (!user) {
+      toast.error("Debes iniciar sesión para realizar una orden");
+      return;
+    }
+
+    // Prevenir procesamiento duplicado
+    if (isProcessingPayment) {
+      console.log("⚠️ Ya hay un pago en proceso");
+      return;
+    }
+
+    setIsProcessingPayment(true);
+    setSelectedPaymentMethod("qr");
+
+    try {
+      const currentScreen = screens[activeScreen];
+      const orderItems = currentScreen.items.map((item) => ({
+        productoId: item.id,
+        nombre: item.name,
+        cantidad: item.quantity,
+        subtotal: Number(item.subtotal.toFixed(2)),
+        precioHistorico: item.pricePerUnit,
+        costo: Number(item.costo),
+      }));
+
+      const orderData = {
+        monto: Number(calculateTotal().toFixed(2)),
+        descripcion: `Compra de ${orderItems.length} productos`,
+        vendedorId: user.id,
+        sucursalId: user.sucursalId,
+        items: orderItems,
+      };
+
+      console.log("🔄 Enviando solicitud para generar QR:", orderData);
+
+      // Cerrar diálogo de pagos y mostrar cargando
+      setPaymentDialogOpen(false);
+      toast.loading("Generando código QR...", { id: "qr-loading" });
+
+      // Realizar la solicitud para generar el QR
+      const response = await fetch(
+        `${API_URL}/api/mercadopago/generate-qr-simple`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(appId && { "X-App-ID": appId }),
+          },
+          body: JSON.stringify(orderData),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Error al generar el código QR");
+      }
+
+      const data = await response.json();
+      console.log("✅ QR generado:", data);
+
+      // Log all properties for debugging
+      console.log("QR response properties:", Object.keys(data));
+      for (const key of Object.keys(data)) {
+        console.log(`QR response ${key}:`, data[key]);
+      }
+
+      // Don't try to generate a URL, just use what's in the response
+      setQrData({
+        ...data,
+        monto: orderData.monto, // Asegurar que el monto se establece desde nuestros datos
+        items: orderItems,
+      });
+
+      toast.dismiss("qr-loading");
+      setQrDialogOpen(true);
+
+      // Iniciar el polling para verificar el estado del pago
+      startPaymentStatusPolling(data.orderId);
+    } catch (error: any) {
+      console.error("❌ Error al generar QR:", error);
+      toast.dismiss("qr-loading");
+      toast.error(`Error al generar QR: ${error.message}`);
+      setIsProcessingPayment(false);
+      setSelectedPaymentMethod(null);
+    }
+  };
+
+  // Agregar función para iniciar el polling del estado del pago
+  const startPaymentStatusPolling = (orderId: number) => {
+    console.log(
+      "🔄 Iniciando polling para verificar estado del pago:",
+      orderId
+    );
+
+    setPaymentStatus("PENDIENTE");
+
+    // Limpiar cualquier intervalo existente
+    if (pollingInterval) {
+      clearInterval(pollingInterval);
+    }
+
+    // Crear intervalo de polling (cada 3 segundos)
+    const interval = setInterval(async () => {
+      try {
+        console.log("🔄 Verificando estado del pago...");
+        const response = await fetch(
+          `${API_URL}/api/mercadopago/check-status?orderId=${orderId}`,
+          {
+            headers,
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error("Error al verificar estado del pago");
+        }
+
+        const statusData = await response.json();
+        console.log("🔄 Estado actual del pago:", statusData);
+
+        setPaymentStatus(statusData.status);
+
+        // Si el pago se completó o canceló, detener el polling
+        if (statusData.isCompleted || statusData.isCancelled) {
+          clearInterval(interval);
+          setPollingInterval(null);
+
+          if (statusData.isCompleted) {
+            console.log("✅ Pago completado exitosamente");
+
+            // Crear la orden en el sistema y limpiar el carrito
+            finalizeMPPayment(statusData);
+          } else {
+            console.log("❌ Pago cancelado o rechazado");
+            toast.error("El pago ha sido cancelado o rechazado");
+            setQrDialogOpen(false);
+            setIsProcessingPayment(false);
+            setSelectedPaymentMethod(null);
+          }
+        }
+      } catch (error: any) {
+        console.error("❌ Error al verificar estado:", error);
+      }
+    }, 3000);
+
+    setPollingInterval(interval);
+
+    // Establecer un tiempo máximo de espera (5 minutos)
+    setTimeout(() => {
+      if (pollingInterval) {
+        clearInterval(pollingInterval);
+        setPollingInterval(null);
+        console.log("⏱️ Tiempo de espera agotado");
+        toast.error("Tiempo de espera agotado. Intente nuevamente.");
+        setQrDialogOpen(false);
+        setIsProcessingPayment(false);
+        setSelectedPaymentMethod(null);
+      }
+    }, 5 * 60 * 1000);
+  };
+
+  // Función para finalizar el pago después de que MP confirme
+  const finalizeMPPayment = async (paymentData: any) => {
+    try {
+      console.log("🔄 Finalizando pago con datos:", paymentData);
+
+      // Imprimir ticket solo si el pago fue completado
+      if (paymentData.isCompleted) {
+        try {
+          const { ipcRenderer } = window.require("electron");
+
+          // Crear los datos para el ticket
+          const ticketData = {
+            id: paymentData.orderId,
+            metodoPago: paymentData.metodoPago || "qr",
+            total: paymentData.total,
+            fecha: paymentData.fecha,
+            items: qrData.items || [],
+            vendedorId: user?.id,
+            sucursalId: user?.sucursalId,
+            vendedor: user?.nombre,
+          };
+
+          console.log("🖨️ Imprimiendo ticket con datos:", ticketData);
+          toast.info("Imprimiendo ticket...");
+
+          const result = await ipcRenderer.invoke("print-ticket", ticketData);
+
+          if (result.success) {
+            toast.success("Ticket impreso correctamente");
+          } else {
+            toast.error(`Error al imprimir: ${result.message}`);
+          }
+        } catch (printError: any) {
+          console.error("❌ Error al imprimir:", printError);
+          toast.error(`Error al imprimir: ${printError.message}`);
+        }
+      }
+
+      // Limpiar estados
+      setQrDialogOpen(false);
+      setQrData(null);
+      setPaymentStatus(null);
+      setIsProcessingPayment(false);
+      setSelectedPaymentMethod(null);
+
+      // Limpiar el carrito
+      setScreens(
+        screens.map((screen, index) =>
+          index === activeScreen ? { ...screen, items: [] } : screen
+        )
+      );
+
+      toast.success("Pago completado exitosamente");
+
+      // Devolver el foco al input de búsqueda
+      setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 100);
+    } catch (error: any) {
+      console.error("❌ Error al finalizar pago:", error);
+      toast.error(`Error al finalizar el pago: ${error.message}`);
+      setQrDialogOpen(false);
+      setIsProcessingPayment(false);
+      setSelectedPaymentMethod(null);
+    }
+  };
+
+  // Cancelar el pago con QR
+  const cancelQRPayment = () => {
+    // Limpiar el intervalo de polling
+    if (pollingInterval) {
+      clearInterval(pollingInterval);
+      setPollingInterval(null);
+    }
+
+    // Cerrar el diálogo y limpiar estados
+    setQrDialogOpen(false);
+    setQrData(null);
+    setPaymentStatus(null);
+    setIsProcessingPayment(false);
+    setSelectedPaymentMethod(null);
+
+    console.log("❌ Pago con QR cancelado por el usuario");
+  };
+
+  // Limpiar intervalos cuando se desmonte el componente
+  useEffect(() => {
+    return () => {
+      if (pollingInterval) {
+        clearInterval(pollingInterval);
+      }
+    };
+  }, [pollingInterval]);
+
+  // Agregar el diálogo QR después de los otros diálogos
+  // ... existing code ...
+
+  {
+    /* Diálogo para mostrar QR de Mercado Pago */
+  }
+  <Dialog
+    open={qrDialogOpen}
+    onOpenChange={(open) => {
+      if (!open) {
+        cancelQRPayment();
+      }
+    }}
+  >
+    <DialogContent className="sm:max-w-md">
+      <DialogHeader>
+        <DialogTitle className="text-xl">
+          Escanea el código QR para pagar
+        </DialogTitle>
+        <DialogDescription>
+          Usa la app de Mercado Pago para escanear este código
+        </DialogDescription>
+      </DialogHeader>
+
+      <div className="flex flex-col items-center justify-center py-4">
+        {qrData ? (
+          <div className="space-y-4 text-center">
+            {/* Debug information */}
+            <div className="text-xs text-left text-gray-400 mb-2">
+              <p>Debug info:</p>
+              <p>Has qrBase64: {qrData.qrBase64 ? "Sí" : "No"}</p>
+              <p>Has qrImageUrl: {qrData.qrImageUrl ? "Sí" : "No"}</p>
+              <p>Has qrImage: {qrData.qrImage ? "Sí" : "No"}</p>
+              <p>Has preferenceId: {qrData.preferenceId ? "Sí" : "No"}</p>
+              {qrData.qrImageUrl && (
+                <p>URL: {qrData.qrImageUrl.substring(0, 50)}...</p>
+              )}
+            </div>
+
+            {/* Try direct QR image display */}
+            {qrData.qrImageUrl && (
+              <img
+                src={qrData.qrImageUrl}
+                alt="Código QR de Mercado Pago"
+                className="mx-auto w-64 h-64 border border-gray-200 p-2"
+                onError={(e) => {
+                  console.error("Error loading direct QR image URL");
+                  e.currentTarget.style.display = "none";
+                }}
+              />
+            )}
+
+            {/* Fallback - Generate QR from preferenceId */}
+            {qrData.preferenceId && (
+              <img
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(
+                  `https://www.mercadopago.com.ar/checkout/v1/redirect?pref_id=${qrData.preferenceId}`
+                )}`}
+                alt="Código QR generado de Mercado Pago"
+                className="mx-auto w-64 h-64 border border-gray-200 p-2"
+                onError={(e) => {
+                  console.error("Error loading fallback QR");
+                }}
+              />
+            )}
+
+            <div className="font-medium text-lg">
+              Monto a pagar: ${Number(qrData.monto || 0).toLocaleString()}
+            </div>
+
+            <div className="space-y-2">
+              <div
+                className={`text-center py-2 px-4 rounded-full font-medium ${
+                  paymentStatus === "PENDIENTE"
+                    ? "bg-yellow-100 text-yellow-800"
+                    : paymentStatus === "COMPLETADA"
+                    ? "bg-green-100 text-green-800"
+                    : paymentStatus === "CANCELADA"
+                    ? "bg-red-100 text-red-800"
+                    : "bg-gray-100 text-gray-800"
+                }`}
+              >
+                Estado:{" "}
+                {paymentStatus === "PENDIENTE"
+                  ? "Esperando pago..."
+                  : paymentStatus === "COMPLETADA"
+                  ? "¡Pago completado!"
+                  : paymentStatus === "CANCELADA"
+                  ? "Pago cancelado"
+                  : "Desconocido"}
+                {paymentStatus === "PENDIENTE" && (
+                  <span className="inline-block ml-2">
+                    <div className="animate-pulse w-2 h-2 bg-yellow-500 rounded-full inline-block mx-0.5"></div>
+                    <div className="animate-pulse delay-150 w-2 h-2 bg-yellow-500 rounded-full inline-block mx-0.5"></div>
+                    <div className="animate-pulse delay-300 w-2 h-2 bg-yellow-500 rounded-full inline-block mx-0.5"></div>
+                  </span>
+                )}
+              </div>
+
+              <p className="text-sm text-muted-foreground">
+                No cierres esta ventana hasta que el pago sea completado
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center h-64">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
+            <p className="mt-4">Generando código QR...</p>
+          </div>
+        )}
+      </div>
+
+      <DialogFooter>
+        <Button variant="outline" onClick={cancelQRPayment} className="w-full">
+          Cancelar
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>;
 
   console.log(user);
   return (
@@ -1219,7 +1709,9 @@ export default function ShoppingCart() {
                 {screens.map((screen) => (
                   <div key={screen.id} className="flex items-center gap-1">
                     <Button
-                      variant={activeScreen === screen.id ? "default" : "outline"}
+                      variant={
+                        activeScreen === screen.id ? "default" : "outline"
+                      }
                       size="sm"
                       onClick={() => setActiveScreen(screen.id)}
                       className="h-8"
@@ -1277,6 +1769,15 @@ export default function ShoppingCart() {
           </div>
 
           <div className="w-full flex justify-end items-center gap-4">
+            {/* Botón de Órdenes recientes */}
+            <Button
+              className="bg-emerald-gradient text-white hover:text-white text-base [&_svg]:size-6"
+              onClick={handleOrdersButtonClick}
+            >
+              <History />
+              Órdenes
+            </Button>
+
             {user?.permisos?.cierreDeCajaEnabled && (
               <Button
                 className="bg-emerald-gradient text-white hover:text-white text-base [&_svg]:size-6"
@@ -2057,7 +2558,8 @@ export default function ShoppingCart() {
             <DialogHeader>
               <DialogTitle>¿Eliminar pantalla?</DialogTitle>
               <DialogDescription>
-                ¿Estás seguro de que deseas eliminar esta pantalla? Se perderán todos los productos en ella.
+                ¿Estás seguro de que deseas eliminar esta pantalla? Se perderán
+                todos los productos en ella.
               </DialogDescription>
             </DialogHeader>
             <DialogFooter className="flex space-x-2 justify-end">
@@ -2067,10 +2569,7 @@ export default function ShoppingCart() {
               >
                 Cancelar
               </Button>
-              <Button 
-                variant="destructive"
-                onClick={confirmDeleteScreen}
-              >
+              <Button variant="destructive" onClick={confirmDeleteScreen}>
                 Eliminar
               </Button>
             </DialogFooter>
@@ -2104,6 +2603,193 @@ export default function ShoppingCart() {
           Atajos: ↑↓ para navegar, Enter para seleccionar, F2 para pagar, F1
           para cancelar, F4 para cerrar sesión
         </div>
+
+        {/* Diálogo de órdenes recientes */}
+        <Dialog open={ordersDialogOpen} onOpenChange={setOrdersDialogOpen}>
+          <DialogContent className="sm:max-w-3xl">
+            <DialogHeader>
+              <DialogTitle className="text-xl">Órdenes recientes</DialogTitle>
+              <DialogDescription>
+                Últimas 5 órdenes realizadas por {user?.nombre}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 max-h-[60vh] overflow-y-auto py-2">
+              {isLoadingOrders ? (
+                <div className="flex justify-center items-center h-40">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+                </div>
+              ) : recentOrders.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  No se encontraron órdenes recientes
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Fecha</TableHead>
+                      <TableHead>Método de pago</TableHead>
+                      <TableHead className="text-right">Total</TableHead>
+                      <TableHead className="text-center">Acciones</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {recentOrders.map((order) => (
+                      <TableRow key={order.id}>
+                        <TableCell>
+                          {new Date(order.fecha).toLocaleString("es-AR", {
+                            day: "2-digit",
+                            month: "2-digit",
+                            year: "2-digit",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </TableCell>
+                        <TableCell className="capitalize">
+                          {order.metodoPago}
+                        </TableCell>
+                        <TableCell className="text-right font-medium">
+                          ${Number(order.total).toLocaleString()}
+                        </TableCell>
+
+                        <TableCell className="text-center">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleReprintTicket(order)}
+                            disabled={isPrinting}
+                            className="hover:bg-blue-50 hover:text-blue-600"
+                          >
+                            {isPrinting ? (
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
+                            ) : (
+                              <Receipt className="h-4 w-4 mr-1" />
+                            )}
+                            Reimprimir
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </div>
+
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setOrdersDialogOpen(false)}
+              >
+                Cerrar
+              </Button>
+              <Button onClick={loadRecentOrders} disabled={isLoadingOrders}>
+                {isLoadingOrders ? (
+                  <div className="flex items-center gap-2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <span>Cargando...</span>
+                  </div>
+                ) : (
+                  "Actualizar"
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Diálogo para mostrar QR de Mercado Pago */}
+        <Dialog
+          open={qrDialogOpen}
+          onOpenChange={(open) => {
+            if (!open) {
+              cancelQRPayment();
+            }
+          }}
+        >
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-xl">
+                Escanea el código QR para pagar
+              </DialogTitle>
+              <DialogDescription>
+                Usa la app de Mercado Pago para escanear este código
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="flex flex-col items-center justify-center py-4">
+              {qrData ? (
+                <div className="space-y-4 text-center">
+                  {/* Debug information */}
+
+                  {/* Try direct QR image display */}
+                  {qrData.qrImageUrl && (
+                    <img
+                      src={qrData.qrImageUrl}
+                      alt="Código QR de Mercado Pago"
+                      className="mx-auto w-64 h-64 border border-gray-200 p-2"
+                      onError={(e) => {
+                        console.error("Error loading direct QR image URL");
+                        e.currentTarget.style.display = "none";
+                      }}
+                    />
+                  )}
+
+                  <div className="font-medium text-lg">
+                    Monto a pagar: ${Number(qrData.monto || 0).toLocaleString()}
+                  </div>
+
+                  <div className="space-y-2">
+                    <div
+                      className={`text-center py-2 px-4 rounded-full font-medium ${
+                        paymentStatus === "PENDIENTE"
+                          ? "bg-yellow-100 text-yellow-800"
+                          : paymentStatus === "COMPLETADA"
+                          ? "bg-green-100 text-green-800"
+                          : paymentStatus === "CANCELADA"
+                          ? "bg-red-100 text-red-800"
+                          : "bg-gray-100 text-gray-800"
+                      }`}
+                    >
+                      Estado:{" "}
+                      {paymentStatus === "PENDIENTE"
+                        ? "Esperando pago..."
+                        : paymentStatus === "COMPLETADA"
+                        ? "¡Pago completado!"
+                        : paymentStatus === "CANCELADA"
+                        ? "Pago cancelado"
+                        : "Desconocido"}
+                      {paymentStatus === "PENDIENTE" && (
+                        <span className="inline-block ml-2">
+                          <div className="animate-pulse w-2 h-2 bg-yellow-500 rounded-full inline-block mx-0.5"></div>
+                          <div className="animate-pulse delay-150 w-2 h-2 bg-yellow-500 rounded-full inline-block mx-0.5"></div>
+                          <div className="animate-pulse delay-300 w-2 h-2 bg-yellow-500 rounded-full inline-block mx-0.5"></div>
+                        </span>
+                      )}
+                    </div>
+
+                    <p className="text-sm text-muted-foreground">
+                      No cierres esta ventana hasta que el pago sea completado
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center h-64">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
+                  <p className="mt-4">Generando código QR...</p>
+                </div>
+              )}
+            </div>
+
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={cancelQRPayment}
+                className="w-full"
+              >
+                Cancelar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

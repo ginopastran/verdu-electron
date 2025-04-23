@@ -24,7 +24,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   }
 
   // Redirigir administradores al mensaje de acceso no permitido
-  if (user.rol.nombre === "ADMIN") {
+  if (user.role === "ADMIN") {
     return <Navigate to="/admin-message" replace />;
   }
 
