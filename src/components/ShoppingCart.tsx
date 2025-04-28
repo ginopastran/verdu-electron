@@ -1428,7 +1428,32 @@ export default function ShoppingCart() {
           if (statusData.isCompleted) {
             console.log("✅ Pago completado exitosamente");
 
+            // Capturar una copia de los datos necesarios para la impresión antes de cualquier limpieza
+            const currentQrData = qrData;
+
             // Crear la orden en el sistema y limpiar el carrito
+            if (
+              currentQrData &&
+              currentQrData.items &&
+              currentQrData.items.length > 0
+            ) {
+              const ticketItems = [...currentQrData.items];
+              const ticketMonto = currentQrData.monto;
+
+              // Añadir los datos capturados al statusData para usarlos en finalizeMPPayment
+              statusData.ticketItems = ticketItems;
+              statusData.ticketMonto = ticketMonto;
+              console.log("✅ Datos del ticket capturados correctamente:", {
+                items: ticketItems.length,
+                monto: ticketMonto,
+              });
+            } else {
+              console.error(
+                "❌ No se pudieron capturar los datos del ticket en el momento del pago",
+                currentQrData
+              );
+            }
+
             finalizeMPPayment(statusData);
           } else {
             console.log("❌ Pago cancelado o rechazado");
@@ -1471,20 +1496,50 @@ export default function ShoppingCart() {
           console.log("💰 Pago completado, preparando para imprimir ticket");
           const { ipcRenderer } = window.require("electron");
 
+          // Primero intentar usar los datos capturados en statusData
+          let ticketItems = paymentData.ticketItems;
+          let ticketMonto = paymentData.ticketMonto;
+
+          // Si no hay datos capturados, intentar usar qrData como respaldo
+          if (!ticketItems && qrData && qrData.items) {
+            console.log("⚠️ Usando datos de respaldo de qrData");
+            ticketItems = qrData.items;
+            ticketMonto = qrData.monto;
+          }
+
           // Verificar que tenemos los datos necesarios
-          if (!qrData || !qrData.items || qrData.items.length === 0) {
-            console.error("❌ Datos de QR incompletos para impresión:", qrData);
-            toast.error("Error: Datos de ticket incompletos");
-            return;
+          if (!ticketItems || ticketItems.length === 0) {
+            console.error(
+              "❌ No se encontraron datos de items para el ticket",
+              {
+                ticketItems,
+                ticketMonto,
+                paymentData,
+                qrData,
+              }
+            );
+
+            // Como último recurso, crear un item genérico para imprimir al menos el total
+            console.log("⚠️ Creando item genérico para el ticket");
+            ticketItems = [
+              {
+                nombre: "Pago con QR",
+                cantidad: 1,
+                subtotal: paymentData.total || 0,
+                precioHistorico: paymentData.total || 0,
+                costo: 0,
+              },
+            ];
+            ticketMonto = paymentData.total || 0;
           }
 
           // Crear los datos para el ticket
           const ticketData = {
             id: paymentData.orderId,
             metodoPago: paymentData.metodoPago || "qr",
-            total: paymentData.total,
-            fecha: paymentData.fecha,
-            items: qrData.items || [],
+            total: paymentData.total || ticketMonto,
+            fecha: paymentData.fecha || new Date().toISOString(),
+            items: ticketItems,
             vendedorId: user?.id,
             sucursalId: user?.sucursalId,
             vendedor: user?.nombre,
