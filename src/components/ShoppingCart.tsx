@@ -1463,11 +1463,20 @@ export default function ShoppingCart() {
   const finalizeMPPayment = async (paymentData: any) => {
     try {
       console.log("🔄 Finalizando pago con datos:", paymentData);
+      console.log("🔄 Estado de qrData:", qrData);
 
       // Imprimir ticket solo si el pago fue completado
       if (paymentData.isCompleted) {
         try {
+          console.log("💰 Pago completado, preparando para imprimir ticket");
           const { ipcRenderer } = window.require("electron");
+
+          // Verificar que tenemos los datos necesarios
+          if (!qrData || !qrData.items || qrData.items.length === 0) {
+            console.error("❌ Datos de QR incompletos para impresión:", qrData);
+            toast.error("Error: Datos de ticket incompletos");
+            return;
+          }
 
           // Crear los datos para el ticket
           const ticketData = {
@@ -1481,23 +1490,43 @@ export default function ShoppingCart() {
             vendedor: user?.nombre,
           };
 
-          console.log("🖨️ Imprimiendo ticket con datos:", ticketData);
-          toast.info("Imprimiendo ticket...");
+          console.log(
+            "🖨️ Imprimiendo ticket con datos:",
+            JSON.stringify(ticketData)
+          );
+          toast.loading("Imprimiendo ticket...", { id: "print-ticket" });
 
-          const result = await ipcRenderer.invoke("print-ticket", ticketData);
+          try {
+            const result = await ipcRenderer.invoke("print-ticket", ticketData);
+            console.log("🖨️ Resultado de impresión:", result);
 
-          if (result.success) {
-            toast.success("Ticket impreso correctamente");
-          } else {
-            toast.error(`Error al imprimir: ${result.message}`);
+            toast.dismiss("print-ticket");
+            if (result.success) {
+              toast.success("Ticket impreso correctamente");
+            } else {
+              console.error("❌ Error al imprimir:", result.message);
+              toast.error(`Error al imprimir: ${result.message}`);
+            }
+          } catch (innerError: any) {
+            console.error("❌ Error en invoke print-ticket:", innerError);
+            toast.dismiss("print-ticket");
+            toast.error(`Error al invocar impresión: ${innerError.message}`);
           }
+
+          // Esperar un poco antes de continuar para asegurar que la impresión se complete
+          await new Promise((resolve) => setTimeout(resolve, 1000));
         } catch (printError: any) {
-          console.error("❌ Error al imprimir:", printError);
+          console.error("❌ Error general al imprimir:", printError);
           toast.error(`Error al imprimir: ${printError.message}`);
         }
+      } else {
+        console.log(
+          "⚠️ El pago no está marcado como completado, no se imprimirá ticket"
+        );
       }
 
-      // Limpiar estados
+      // Ahora que la impresión ha terminado (o falló), podemos limpiar estados
+      console.log("🧹 Limpiando estados después del pago");
       setQrDialogOpen(false);
       setQrData(null);
       setPaymentStatus(null);
