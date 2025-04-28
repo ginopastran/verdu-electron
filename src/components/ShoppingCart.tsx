@@ -860,18 +860,17 @@ export default function ShoppingCart() {
     setIsClosing(true);
 
     try {
-      const lastCloseResponse = await fetch(
-        `${API_URL}/api/cierres?vendedorId=${user.id}&last=true`,
-        { headers }
-      );
-      const lastClose = await lastCloseResponse.json();
+      // Removing unused API call for last closing since we're not using it anymore
 
       let startDate;
       if (period === "mañana") {
         startDate = new Date();
         startDate.setHours(6, 0, 0, 0);
       } else if (period === "tarde") {
-        startDate = lastClose ? new Date(lastClose.fechaCierre) : new Date();
+        // Usar mediodía del día actual en lugar de la fecha del último cierre
+        // para evitar incluir transacciones de días anteriores
+        startDate = new Date();
+        startDate.setHours(12, 0, 0, 0);
       } else {
         startDate = new Date();
         startDate.setHours(0, 0, 0, 0);
