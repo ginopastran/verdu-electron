@@ -655,11 +655,21 @@ export default function ShoppingCart() {
       return;
     }
 
-    // Para QR, implementar el flujo de Mercado Pago
+    // Para QR, desactivar temporalmente el flujo de Mercado Pago y procesar como un pago normal
+    // Comentado el flujo de Mercado Pago
+    /* 
     if (method === "qr") {
       console.log("🔄 Iniciando flujo de pago con QR de Mercado Pago");
       generateQRPayment();
       return;
+    }
+    */
+
+    // Mostrar notificación informativa para pagos QR
+    if (method === "qr") {
+      toast.info(
+        "Procesando pago QR normalmente (Mercado Pago temporalmente desactivado)"
+      );
     }
 
     // Para otros métodos, continuar con el flujo normal
@@ -681,7 +691,7 @@ export default function ShoppingCart() {
     setSelectedPaymentMethod(method);
     setIsProcessingPayment(true);
 
-    // Procesar directamente los métodos que no son efectivo ni QR
+    // Procesar directamente los métodos que no son efectivo
     console.log("🔄 Procesando pago con:", method);
     await processPayment(method, Number(calculateTotal().toFixed(2)));
   };
@@ -1340,17 +1350,14 @@ export default function ShoppingCart() {
       toast.loading("Generando código QR...", { id: "qr-loading" });
 
       // Realizar la solicitud para generar el QR
-      const response = await fetch(
-        `${API_URL}/api/mercadopago/generate-qr-simple`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(appId && { "X-App-ID": appId }),
-          },
-          body: JSON.stringify(orderData),
-        }
-      );
+      const response = await fetch(`${API_URL}/api/mercadopago/generate-qr`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(appId && { "X-App-ID": appId }),
+        },
+        body: JSON.stringify(orderData),
+      });
 
       if (!response.ok) {
         throw new Error("Error al generar el código QR");
@@ -1636,126 +1643,6 @@ export default function ShoppingCart() {
       }
     };
   }, [pollingInterval]);
-
-  // Agregar el diálogo QR después de los otros diálogos
-  // ... existing code ...
-
-  {
-    /* Diálogo para mostrar QR de Mercado Pago */
-  }
-  <Dialog
-    open={qrDialogOpen}
-    onOpenChange={(open) => {
-      if (!open) {
-        cancelQRPayment();
-      }
-    }}
-  >
-    <DialogContent className="sm:max-w-md">
-      <DialogHeader>
-        <DialogTitle className="text-xl">
-          Escanea el código QR para pagar
-        </DialogTitle>
-        <DialogDescription>
-          Usa la app de Mercado Pago para escanear este código
-        </DialogDescription>
-      </DialogHeader>
-
-      <div className="flex flex-col items-center justify-center py-4">
-        {qrData ? (
-          <div className="space-y-4 text-center">
-            {/* Debug information */}
-            <div className="text-xs text-left text-gray-400 mb-2">
-              <p>Debug info:</p>
-              <p>Has qrBase64: {qrData.qrBase64 ? "Sí" : "No"}</p>
-              <p>Has qrImageUrl: {qrData.qrImageUrl ? "Sí" : "No"}</p>
-              <p>Has qrImage: {qrData.qrImage ? "Sí" : "No"}</p>
-              <p>Has preferenceId: {qrData.preferenceId ? "Sí" : "No"}</p>
-              {qrData.qrImageUrl && (
-                <p>URL: {qrData.qrImageUrl.substring(0, 50)}...</p>
-              )}
-            </div>
-
-            {/* Try direct QR image display */}
-            {qrData.qrImageUrl && (
-              <img
-                src={qrData.qrImageUrl}
-                alt="Código QR de Mercado Pago"
-                className="mx-auto w-64 h-64 border border-gray-200 p-2"
-                onError={(e) => {
-                  console.error("Error loading direct QR image URL");
-                  e.currentTarget.style.display = "none";
-                }}
-              />
-            )}
-
-            {/* Fallback - Generate QR from preferenceId */}
-            {qrData.preferenceId && (
-              <img
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(
-                  `https://www.mercadopago.com.ar/checkout/v1/redirect?pref_id=${qrData.preferenceId}`
-                )}`}
-                alt="Código QR generado de Mercado Pago"
-                className="mx-auto w-64 h-64 border border-gray-200 p-2"
-                onError={(e) => {
-                  console.error("Error loading fallback QR");
-                }}
-              />
-            )}
-
-            <div className="font-medium text-lg">
-              Monto a pagar: ${Number(qrData.monto || 0).toLocaleString()}
-            </div>
-
-            <div className="space-y-2">
-              <div
-                className={`text-center py-2 px-4 rounded-full font-medium ${
-                  paymentStatus === "PENDIENTE"
-                    ? "bg-yellow-100 text-yellow-800"
-                    : paymentStatus === "COMPLETADA"
-                    ? "bg-green-100 text-green-800"
-                    : paymentStatus === "CANCELADA"
-                    ? "bg-red-100 text-red-800"
-                    : "bg-gray-100 text-gray-800"
-                }`}
-              >
-                Estado:{" "}
-                {paymentStatus === "PENDIENTE"
-                  ? "Esperando pago..."
-                  : paymentStatus === "COMPLETADA"
-                  ? "¡Pago completado!"
-                  : paymentStatus === "CANCELADA"
-                  ? "Pago cancelado"
-                  : "Desconocido"}
-                {paymentStatus === "PENDIENTE" && (
-                  <span className="inline-block ml-2">
-                    <div className="animate-pulse w-2 h-2 bg-yellow-500 rounded-full inline-block mx-0.5"></div>
-                    <div className="animate-pulse delay-150 w-2 h-2 bg-yellow-500 rounded-full inline-block mx-0.5"></div>
-                    <div className="animate-pulse delay-300 w-2 h-2 bg-yellow-500 rounded-full inline-block mx-0.5"></div>
-                  </span>
-                )}
-              </div>
-
-              <p className="text-sm text-muted-foreground">
-                No cierres esta ventana hasta que el pago sea completado
-              </p>
-            </div>
-          </div>
-        ) : (
-          <div className="flex flex-col items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
-            <p className="mt-4">Generando código QR...</p>
-          </div>
-        )}
-      </div>
-
-      <DialogFooter>
-        <Button variant="outline" onClick={cancelQRPayment} className="w-full">
-          Cancelar
-        </Button>
-      </DialogFooter>
-    </DialogContent>
-  </Dialog>;
 
   console.log(user);
   return (
@@ -2794,27 +2681,22 @@ export default function ShoppingCart() {
                 Escanea el código QR para pagar
               </DialogTitle>
               <DialogDescription>
-                Usa la app de Mercado Pago para escanear este código
+                Usa la app de Mercado Pago para escanear
               </DialogDescription>
             </DialogHeader>
 
             <div className="flex flex-col items-center justify-center py-4">
               {qrData ? (
                 <div className="space-y-4 text-center">
-                  {/* Debug information */}
-
-                  {/* Try direct QR image display */}
-                  {qrData.qrImageUrl && (
-                    <img
-                      src={qrData.qrImageUrl}
-                      alt="Código QR de Mercado Pago"
-                      className="mx-auto w-64 h-64 border border-gray-200 p-2"
-                      onError={(e) => {
-                        console.error("Error loading direct QR image URL");
-                        e.currentTarget.style.display = "none";
-                      }}
-                    />
-                  )}
+                  <img
+                    src={qrData.qrImageUrl}
+                    alt="Código QR de Mercado Pago"
+                    className="mx-auto w-64 h-64 border border-gray-200 p-2"
+                    onError={(e) => {
+                      console.error("Error loading direct QR image URL");
+                      e.currentTarget.style.display = "none";
+                    }}
+                  />
 
                   <div className="font-medium text-lg">
                     Monto a pagar: ${Number(qrData.monto || 0).toLocaleString()}
