@@ -904,15 +904,33 @@ export default function ShoppingCart() {
         body: JSON.stringify(closingData),
       });
 
+      // Obtener los datos de la respuesta
+      const responseData = await cierreResponse.json();
+
       if (!cierreResponse.ok) {
-        throw new Error("Error al registrar el cierre");
+        // Verificar si es el error específico de cierre de mañana requerido
+        if (responseData.error === "ERROR_CIERRE_MAÑANA_REQUERIDO") {
+          toast.error(
+            "No puedes realizar un cierre de tarde sin haber realizado el cierre de mañana del día actual.",
+            {
+              duration: 5000,
+              description: "Primero debes realizar el cierre de mañana",
+            }
+          );
+        } else {
+          // Otros errores
+          throw new Error(
+            responseData.message || "Error al registrar el cierre"
+          );
+        }
+        return;
       }
 
       // Los datos devueltos ahora tienen toda la información necesaria
-      const cierreData = await cierreResponse.json();
+      const cierreData = await responseData;
       console.log("✅ Datos de cierre recibidos:", cierreData);
 
-      // Imprimir ticket de cierre con los datos del backend
+      // Imprimir ticket de cierre usando Electron IPC
       try {
         const { ipcRenderer } = window.require("electron");
         const printingToast = toast.loading("Imprimiendo ticket de cierre...");
