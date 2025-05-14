@@ -8,6 +8,9 @@ use Mike42\Escpos\PrintConnectors\WindowsPrintConnector;
 try {
     file_put_contents('php://stderr', "==== INICIO DE CLOSING PRINTER ====\n");
     
+    // Establecer zona horaria para Argentina
+    date_default_timezone_set('America/Argentina/Buenos_Aires');
+    
     // Recibir y validar datos
     $closingDataPath = $argv[1];
     if (!file_exists($closingDataPath)) {

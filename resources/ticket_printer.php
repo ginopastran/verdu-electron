@@ -234,7 +234,18 @@ try {
     $printer->setEmphasis(false);
 
     // Método de pago
-    $printer->text("Método de pago: " . strtoupper($orderData['metodoPago']) . "\n");
+    // Verificar si es un pago con múltiples métodos
+    if (isset($orderData['pagos']) && is_array($orderData['pagos']) && count($orderData['pagos']) > 1) {
+        $printer->text("MÉTODOS DE PAGO:\n");
+        foreach ($orderData['pagos'] as $pago) {
+            $metodoPago = strtoupper($pago['metodoPago']);
+            $monto = number_format($pago['monto'], 2);
+            $printer->text("$metodoPago: $$monto\n");
+        }
+    } else {
+        // Para pagos con un solo método, mantener el comportamiento actual
+        $printer->text("Método de pago: " . strtoupper($orderData['metodoPago']) . "\n");
+    }
 
     // Pie de página
     $printer->setJustification(Printer::JUSTIFY_CENTER);
