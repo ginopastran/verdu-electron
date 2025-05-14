@@ -2089,7 +2089,7 @@ export default function ShoppingCart() {
             console.log("✅ Pago mixto QR completado exitosamente");
 
             // Set a timeout to automatically close the dialog after 5 seconds
-            toast.success("¡Pago completado! Cerrando en 5 segundos...");
+            toast.success("¡Pago completado! Cerrando en 2 segundos...");
             setTimeout(() => {
               setQrDialogOpen(false);
               // Clear cart items
@@ -2109,7 +2109,7 @@ export default function ShoppingCart() {
               setTimeout(() => {
                 searchInputRef.current?.focus();
               }, 100);
-            }, 5000);
+            }, 2000);
 
             finalizeSplitMPPayment(statusData, cashAmount);
           } else {
