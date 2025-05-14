@@ -1490,6 +1490,27 @@ export default function ShoppingCart() {
           if (statusData.isCompleted) {
             console.log("✅ Pago completado exitosamente");
 
+            // Set a timeout to automatically close the dialog after 5 seconds
+            toast.success("¡Pago completado! Cerrando en 5 segundos...");
+            setTimeout(() => {
+              setQrDialogOpen(false);
+              // Clear cart items
+              setScreens(
+                screens.map((screen, index) =>
+                  index === activeScreen ? { ...screen, items: [] } : screen
+                )
+              );
+              console.log(
+                "✅ Diálogo cerrado automáticamente después del pago"
+              );
+              setIsProcessingPayment(false);
+              setSelectedPaymentMethod(null);
+              // Return focus to search input
+              setTimeout(() => {
+                searchInputRef.current?.focus();
+              }, 100);
+            }, 5000);
+
             // Capturar una copia de los datos necesarios para la impresión antes de cualquier limpieza
             const currentQrData = qrData;
 
@@ -2066,6 +2087,30 @@ export default function ShoppingCart() {
 
           if (statusData.isCompleted) {
             console.log("✅ Pago mixto QR completado exitosamente");
+
+            // Set a timeout to automatically close the dialog after 5 seconds
+            toast.success("¡Pago completado! Cerrando en 5 segundos...");
+            setTimeout(() => {
+              setQrDialogOpen(false);
+              // Clear cart items
+              setScreens(
+                screens.map((screen, index) =>
+                  index === activeScreen ? { ...screen, items: [] } : screen
+                )
+              );
+              console.log(
+                "✅ Diálogo cerrado automáticamente después del pago mixto"
+              );
+              setIsProcessingPayment(false);
+              setSelectedPaymentMethod(null);
+              setCashAmount("");
+              setSecondPaymentMethod("tarjeta");
+              // Return focus to search input
+              setTimeout(() => {
+                searchInputRef.current?.focus();
+              }, 100);
+            }, 5000);
+
             finalizeSplitMPPayment(statusData, cashAmount);
           } else {
             console.log("❌ Pago mixto QR cancelado o rechazado");
