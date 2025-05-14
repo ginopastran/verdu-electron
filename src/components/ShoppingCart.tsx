@@ -2639,7 +2639,7 @@ export default function ShoppingCart() {
                     <QrCode className="h-12 w-12" />
                   )}
                 </div>
-                <span>QR (1)</span>
+                <span>Transferencia (1)</span>
               </Button>
               <Button
                 onClick={() => handlePayment("tarjeta")}
@@ -3543,7 +3543,7 @@ export default function ShoppingCart() {
                       disabled={isProcessingPayment}
                     >
                       <QrCode className="mr-2 h-4 w-4" />
-                      QR
+                      Transferencia
                     </Button>
                   </div>
                 </div>
@@ -3559,7 +3559,7 @@ export default function ShoppingCart() {
                       ) : (
                         <div className="flex items-center">
                           <QrCode className="mr-2 h-4 w-4" />
-                          QR
+                          Transferencia
                         </div>
                       )}
                     </div>
