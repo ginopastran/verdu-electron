@@ -45,6 +45,8 @@ import { Select, SelectItem, SelectContent } from "@/components/ui/select";
 // Importar las imágenes como recursos desde assets
 import iselinLogo from "../assets/iselin-logo.png";
 import andextechLogo from "../assets/andextech-black.png";
+// Importar QRCode para generación de QR en cliente
+import QRCode from "qrcode";
 
 interface Product {
   id: number;
@@ -83,6 +85,10 @@ export default function ShoppingCart() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
+  const [splitPaymentDialogOpen, setSplitPaymentDialogOpen] = useState(false);
+  const [cashAmount, setCashAmount] = useState<string>("");
+  const [secondPaymentMethod, setSecondPaymentMethod] =
+    useState<string>("tarjeta");
   const [selectedProduct, setSelectedProduct] =
     useState<AvailableProduct | null>(null);
   const [quantity, setQuantity] = useState<string>("");
@@ -655,21 +661,13 @@ export default function ShoppingCart() {
       return;
     }
 
-    // Para QR, desactivar temporalmente el flujo de Mercado Pago y procesar como un pago normal
-    // Comentado el flujo de Mercado Pago
-    /* 
+    // Re-habilitar el flujo de Mercado Pago para QR, ahora con generación local de QR
     if (method === "qr") {
-      console.log("🔄 Iniciando flujo de pago con QR de Mercado Pago");
+      console.log(
+        "🔄 Iniciando flujo de pago con QR de Mercado Pago (generación local)"
+      );
       generateQRPayment();
       return;
-    }
-    */
-
-    // Mostrar notificación informativa para pagos QR
-    if (method === "qr") {
-      toast.info(
-        "Procesando pago QR normalmente (Mercado Pago temporalmente desactivado)"
-      );
     }
 
     // Para otros métodos, continuar con el flujo normal
@@ -718,8 +716,9 @@ export default function ShoppingCart() {
       return;
     }
 
+    // Para métodos de pago únicos, usar metodoPago directamente
     const orderData = {
-      metodoPago: method,
+      metodoPago: method, // Campo único para pagos simples
       total: finalTotal,
       items: orderItems,
       vendedorId: user.id,
@@ -1111,6 +1110,13 @@ export default function ShoppingCart() {
             );
             handleCashPayment(false);
             break;
+          case "4":
+            e.preventDefault();
+            console.log(
+              "⌨️ TECLADO: Tecla 4 detectada - Iniciando flujo de pago mixto"
+            );
+            handleSplitPayment();
+            break;
         }
       }
     };
@@ -1358,6 +1364,7 @@ export default function ShoppingCart() {
         descripcion: `Compra de ${orderItems.length} productos`,
         vendedorId: user.id,
         sucursalId: user.sucursalId,
+        externalPosId: "POS1747060777151", // El POS ID que ya está configurado
         items: orderItems,
       };
 
@@ -1390,10 +1397,40 @@ export default function ShoppingCart() {
         console.log(`QR response ${key}:`, data[key]);
       }
 
-      // Don't try to generate a URL, just use what's in the response
+      // Generar la imagen QR del lado del cliente usando la biblioteca QRCode
+      // en lugar de usar la URL de imagen proporcionada por la API
+      let qrImageDataUrl;
+      try {
+        if (data.qrData) {
+          // Generar QR a partir de los datos recibidos
+          qrImageDataUrl = await QRCode.toDataURL(data.qrData, {
+            errorCorrectionLevel: "H",
+            margin: 1,
+            width: 256,
+            color: {
+              dark: "#000000", // Color de los puntos del QR
+              light: "#FFFFFF", // Color de fondo
+            },
+          });
+          console.log("✅ QR generado localmente con éxito");
+        } else {
+          console.error("❌ No se recibieron datos de QR del servidor");
+          throw new Error("Datos de QR no disponibles");
+        }
+      } catch (qrError: any) {
+        console.error("❌ Error al generar QR local:", qrError);
+        // Si falla la generación local, intentar usar la URL proporcionada por la API
+        qrImageDataUrl = data.qrImageUrl || null;
+        if (!qrImageDataUrl) {
+          throw new Error("No se pudo generar ni obtener imagen QR");
+        }
+      }
+
+      // Agregar el dataUrl generado a los datos del QR
       setQrData({
         ...data,
-        monto: orderData.monto, // Asegurar que el monto se establece desde nuestros datos
+        qrImageUrl: qrImageDataUrl, // Usar la imagen generada localmente
+        monto: orderData.monto,
         items: orderItems,
       });
 
@@ -1661,6 +1698,546 @@ export default function ShoppingCart() {
       }
     };
   }, [pollingInterval]);
+
+  // Función para manejar el pago mixto
+  const handleSplitPayment = () => {
+    if (!user) {
+      toast.error("Debes iniciar sesión para realizar una orden");
+      return;
+    }
+
+    // Prevenir procesamiento duplicado
+    if (isProcessingPayment) {
+      console.log("⚠️ Ya hay un pago en proceso");
+      return;
+    }
+
+    // Establecer el método seleccionado
+    setSelectedPaymentMethod("split");
+
+    // Inicializar el efectivo con un valor vacío
+    setCashAmount("");
+
+    // Establecer tarjeta como método secundario por defecto
+    setSecondPaymentMethod("tarjeta");
+
+    // Cerrar el diálogo de pago y abrir el diálogo de pago mixto
+    setPaymentDialogOpen(false);
+    setSplitPaymentDialogOpen(true);
+  };
+
+  // Función para procesar el pago mixto
+  const processSplitPayment = async () => {
+    if (!user) {
+      toast.error("Debes iniciar sesión para realizar una orden");
+      return;
+    }
+
+    // Validar que el monto de efectivo sea válido
+    const cashAmountValue = parseFloat(cashAmount);
+    if (isNaN(cashAmountValue) || cashAmountValue <= 0) {
+      toast.error("Ingresa un monto válido para el pago en efectivo");
+      return;
+    }
+
+    const totalAmount = calculateTotal();
+
+    // Validar que el monto de efectivo no sea mayor al total
+    if (cashAmountValue > totalAmount) {
+      toast.error("El monto en efectivo no puede ser mayor al total");
+      return;
+    }
+
+    // Calcular el monto restante para el segundo método de pago
+    const secondAmount = parseFloat((totalAmount - cashAmountValue).toFixed(2));
+
+    // Validar que el monto restante sea positivo
+    if (secondAmount <= 0) {
+      toast.error("El monto para el segundo método debe ser mayor a cero");
+      return;
+    }
+
+    // Si el segundo método es QR, generar el QR
+    if (secondPaymentMethod === "qr") {
+      generateSplitQRPayment(cashAmountValue, secondAmount);
+      return;
+    }
+
+    // Si es tarjeta, continuar con el flujo normal
+    setIsProcessingPayment(true);
+
+    const currentScreen = screens[activeScreen];
+    const orderItems = currentScreen.items.map((item) => ({
+      productoId: item.id,
+      cantidad: item.quantity,
+      subtotal: Number(item.subtotal.toFixed(2)),
+      precioHistorico: item.pricePerUnit,
+      costo: Number(item.costo),
+      nombre: item.name,
+    }));
+
+    // Crear la estructura de pagos múltiples siguiendo el formato API
+    const orderData = {
+      total: Number(totalAmount.toFixed(2)),
+      items: orderItems,
+      vendedorId: user.id,
+      sucursalId: user.sucursalId,
+      vendedor: user.nombre,
+      createdAt: new Date().toISOString(),
+      // Array de pagos con los dos métodos
+      pagos: [
+        {
+          metodoPago: "efectivo",
+          monto: cashAmountValue,
+        },
+        {
+          metodoPago: secondPaymentMethod,
+          monto: secondAmount,
+        },
+      ],
+    };
+
+    try {
+      // Crear la orden
+      const orderResponse = await fetch(`${API_URL}/api/ordenes`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(appId && { "X-App-ID": appId }),
+        },
+        body: JSON.stringify(orderData),
+      });
+
+      if (!orderResponse.ok) {
+        throw new Error("Error al crear la orden");
+      }
+
+      // Imprimir ticket usando Electron IPC
+      try {
+        const { ipcRenderer } = window.require("electron");
+        console.log("Enviando datos para impresión:", orderData);
+        toast.info("Imprimiendo ticket...", {
+          duration: 3000,
+          description: "Enviando datos a la impresora",
+        });
+
+        const result = await ipcRenderer.invoke("print-ticket", orderData);
+        console.log("Resultado de impresión:", result);
+
+        if (result.success) {
+          toast.success("Ticket impreso correctamente");
+        } else {
+          throw new Error(result.message || "Error desconocido al imprimir");
+        }
+      } catch (printError: any) {
+        console.error("Error detallado al imprimir:", printError);
+        toast.error(`Error al imprimir el ticket: ${printError.message}`);
+      }
+
+      // Limpiar todos los estados relacionados con el pago
+      setSplitPaymentDialogOpen(false);
+      setScreens(
+        screens.map((screen, index) =>
+          index === activeScreen ? { ...screen, items: [] } : screen
+        )
+      );
+      setSelectedPaymentMethod(null);
+      setIsProcessingPayment(false);
+      setCashAmount("");
+      setSecondPaymentMethod("tarjeta");
+
+      toast.success("Orden completada exitosamente");
+      // Devolver el foco al input de búsqueda
+      setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 100);
+    } catch (error) {
+      console.error("Error:", error);
+      toast.error("Error al procesar la orden");
+
+      // También limpiar estados en caso de error
+      setSplitPaymentDialogOpen(false);
+      setSelectedPaymentMethod(null);
+      setIsProcessingPayment(false);
+      setCashAmount("");
+      setSecondPaymentMethod("tarjeta");
+    }
+  };
+
+  // Función para generar QR en caso de pago mixto con QR
+  const generateSplitQRPayment = async (
+    cashAmountValue: number,
+    qrAmount: number
+  ) => {
+    if (!user) {
+      toast.error("Debes iniciar sesión para realizar una orden");
+      return;
+    }
+
+    // Prevenir procesamiento duplicado
+    if (isProcessingPayment) {
+      console.log("⚠️ Ya hay un pago en proceso");
+      return;
+    }
+
+    setIsProcessingPayment(true);
+
+    try {
+      const currentScreen = screens[activeScreen];
+      // Guardar los items originales para usarlos después en la orden final
+      const originalOrderItems = currentScreen.items.map((item) => ({
+        productoId: item.id,
+        nombre: item.name,
+        cantidad: item.quantity,
+        subtotal: Number(item.subtotal.toFixed(2)),
+        precioHistorico: item.pricePerUnit,
+        costo: Number(item.costo),
+      }));
+
+      // Guardar información del pago en efectivo para usarla después
+      const splitPaymentInfo = {
+        cashAmount: cashAmountValue,
+        total: calculateTotal(),
+        qrAmount: qrAmount,
+        originalItems: originalOrderItems,
+      };
+
+      localStorage.setItem(
+        "splitPaymentInfo",
+        JSON.stringify(splitPaymentInfo)
+      );
+
+      // Acceder a las propiedades del usuario de forma segura
+      const userId = user.id;
+      const sucursalId = user.sucursalId;
+
+      // Usar el primer producto de la lista como base para el pago parcial
+      // para asegurarnos de tener un productoId válido
+      const firstProduct = currentScreen.items[0];
+
+      // Crear un único item que representa el pago parcial
+      // para que el monto total coincida con el monto del QR
+      const singleQrItem = {
+        productoId: firstProduct.id, // Usar un ID de producto válido
+        nombre: "Pago parcial",
+        cantidad: 1,
+        subtotal: qrAmount,
+        precioHistorico: qrAmount,
+        costo: 0,
+      };
+
+      console.log("🔄 Creando solicitud QR para pago parcial de:", qrAmount);
+
+      const orderData = {
+        monto: qrAmount, // Solo el monto para QR
+        descripcion: `Pago parcial de $${qrAmount.toFixed(2)}`,
+        vendedorId: userId,
+        sucursalId: sucursalId,
+        externalPosId: "POS1747060777151",
+        // Enviar solo un item que representa el pago parcial
+        items: [singleQrItem],
+        // Metadatos adicionales
+        isSplitPayment: true,
+        cashAmount: cashAmountValue,
+        originalItems: originalOrderItems,
+      };
+
+      console.log(
+        "🔄 Enviando solicitud para generar QR (pago mixto):",
+        orderData
+      );
+
+      // Cerrar diálogo de pago mixto y mostrar cargando
+      setSplitPaymentDialogOpen(false);
+      toast.loading("Generando código QR...", { id: "qr-loading" });
+
+      // Realizar la solicitud para generar el QR
+      const response = await fetch(`${API_URL}/api/mercadopago/generate-qr`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(appId && { "X-App-ID": appId }),
+        },
+        body: JSON.stringify(orderData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error("Error detallado del servidor:", errorData);
+        throw new Error(errorData.message || "Error al generar el código QR");
+      }
+
+      const data = await response.json();
+      console.log("✅ QR generado (pago mixto):", data);
+
+      // Generar la imagen QR del lado del cliente
+      let qrImageDataUrl;
+      try {
+        if (data.qrData) {
+          qrImageDataUrl = await QRCode.toDataURL(data.qrData, {
+            errorCorrectionLevel: "H",
+            margin: 1,
+            width: 256,
+            color: {
+              dark: "#000000",
+              light: "#FFFFFF",
+            },
+          });
+          console.log("✅ QR generado localmente con éxito");
+        } else {
+          console.error("❌ No se recibieron datos de QR del servidor");
+          throw new Error("Datos de QR no disponibles");
+        }
+      } catch (qrError: any) {
+        console.error("❌ Error al generar QR local:", qrError);
+        qrImageDataUrl = data.qrImageUrl || null;
+        if (!qrImageDataUrl) {
+          throw new Error("No se pudo generar ni obtener imagen QR");
+        }
+      }
+
+      // Agregar información del pago mixto a los datos del QR
+      setQrData({
+        ...data,
+        qrImageUrl: qrImageDataUrl,
+        monto: qrAmount,
+        items: originalOrderItems,
+        isSplitPayment: true,
+        cashAmount: cashAmountValue,
+      });
+
+      toast.dismiss("qr-loading");
+      setQrDialogOpen(true);
+
+      // Iniciar el polling para verificar el estado del pago
+      startSplitPaymentStatusPolling(data.orderId, cashAmountValue);
+    } catch (error: any) {
+      console.error("❌ Error al generar QR para pago mixto:", error);
+      toast.dismiss("qr-loading");
+      toast.error(`Error al generar QR: ${error.message}`);
+      setIsProcessingPayment(false);
+      setSelectedPaymentMethod(null);
+      setCashAmount("");
+      setSecondPaymentMethod("tarjeta");
+    }
+  };
+
+  // Función para verificar el estado del pago con QR en caso de pago mixto
+  const startSplitPaymentStatusPolling = (
+    orderId: number,
+    cashAmount: number
+  ) => {
+    console.log(
+      "🔄 Iniciando polling para verificar estado del pago mixto:",
+      orderId
+    );
+
+    setPaymentStatus("PENDIENTE");
+
+    // Limpiar cualquier intervalo existente
+    if (pollingInterval) {
+      clearInterval(pollingInterval);
+    }
+
+    // Crear intervalo de polling (cada 3 segundos)
+    const interval = setInterval(async () => {
+      try {
+        console.log("🔄 Verificando estado del pago mixto...");
+        const response = await fetch(
+          `${API_URL}/api/mercadopago/check-status?orderId=${orderId}`,
+          {
+            headers,
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error("Error al verificar estado del pago");
+        }
+
+        const statusData = await response.json();
+        console.log("🔄 Estado actual del pago mixto:", statusData);
+
+        setPaymentStatus(statusData.status);
+
+        // Si el pago se completó o canceló, detener el polling
+        if (statusData.isCompleted || statusData.isCancelled) {
+          clearInterval(interval);
+          setPollingInterval(null);
+
+          if (statusData.isCompleted) {
+            console.log("✅ Pago mixto QR completado exitosamente");
+            finalizeSplitMPPayment(statusData, cashAmount);
+          } else {
+            console.log("❌ Pago mixto QR cancelado o rechazado");
+            toast.error("El pago ha sido cancelado o rechazado");
+            setQrDialogOpen(false);
+            setIsProcessingPayment(false);
+            setSelectedPaymentMethod(null);
+            setCashAmount("");
+            setSecondPaymentMethod("tarjeta");
+          }
+        }
+      } catch (error: any) {
+        console.error("❌ Error al verificar estado:", error);
+      }
+    }, 3000);
+
+    setPollingInterval(interval);
+
+    // Establecer un tiempo máximo de espera (5 minutos)
+    setTimeout(() => {
+      if (pollingInterval) {
+        clearInterval(pollingInterval);
+        setPollingInterval(null);
+        console.log("⏱️ Tiempo de espera agotado");
+        toast.error("Tiempo de espera agotado. Intente nuevamente.");
+        setQrDialogOpen(false);
+        setIsProcessingPayment(false);
+        setSelectedPaymentMethod(null);
+        setCashAmount("");
+        setSecondPaymentMethod("tarjeta");
+      }
+    }, 5 * 60 * 1000);
+  };
+
+  // Función para finalizar el pago mixto después de que QR sea confirmado
+  const finalizeSplitMPPayment = async (
+    paymentData: any,
+    cashAmount: number
+  ) => {
+    try {
+      console.log("🔄 Finalizando pago mixto con datos:", paymentData);
+      console.log("🔄 Monto en efectivo:", cashAmount);
+
+      // Verificar que user no sea null
+      if (!user) {
+        toast.error(
+          "Sesión no disponible. Por favor inicia sesión nuevamente."
+        );
+        return;
+      }
+
+      const totalAmount = calculateTotal();
+      const qrAmount = totalAmount - cashAmount;
+
+      const currentScreen = screens[activeScreen];
+      const orderItems = currentScreen.items.map((item) => ({
+        productoId: item.id,
+        cantidad: item.quantity,
+        subtotal: Number(item.subtotal.toFixed(2)),
+        precioHistorico: item.pricePerUnit,
+        costo: Number(item.costo),
+        nombre: item.name,
+      }));
+
+      // Crear la orden con los dos métodos de pago
+      // Usar el formato correcto para pagos múltiples
+      const orderData = {
+        total: Number(totalAmount.toFixed(2)),
+        items: orderItems,
+        vendedorId: user.id,
+        sucursalId: user.sucursalId,
+        vendedor: user.nombre,
+        createdAt: new Date().toISOString(),
+        pagos: [
+          {
+            metodoPago: "efectivo",
+            monto: cashAmount,
+          },
+          {
+            metodoPago: "qr",
+            monto: qrAmount,
+            referencia: paymentData.orderId?.toString() || "unknown",
+          },
+        ],
+      };
+
+      try {
+        // Crear la orden
+        const orderResponse = await fetch(`${API_URL}/api/ordenes`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(appId && { "X-App-ID": appId }),
+          },
+          body: JSON.stringify(orderData),
+        });
+
+        if (!orderResponse.ok) {
+          throw new Error("Error al crear la orden");
+        }
+
+        // Imprimir ticket usando Electron IPC
+        try {
+          const { ipcRenderer } = window.require("electron");
+          console.log(
+            "Enviando datos para impresión de pago mixto:",
+            orderData
+          );
+          toast.loading("Imprimiendo ticket...", { id: "print-ticket" });
+
+          const result = await ipcRenderer.invoke("print-ticket", orderData);
+          console.log("Resultado de impresión:", result);
+
+          toast.dismiss("print-ticket");
+          if (result.success) {
+            toast.success("Ticket impreso correctamente");
+          } else {
+            console.error("❌ Error al imprimir:", result.message);
+            toast.error(`Error al imprimir: ${result.message}`);
+          }
+        } catch (printError: any) {
+          console.error("❌ Error al imprimir:", printError);
+          toast.error(`Error al imprimir: ${printError.message}`);
+        }
+
+        // Limpiar todos los estados relacionados con el pago
+        setQrDialogOpen(false);
+        setQrData(null);
+        setPaymentStatus(null);
+        setScreens(
+          screens.map((screen, index) =>
+            index === activeScreen ? { ...screen, items: [] } : screen
+          )
+        );
+        setSelectedPaymentMethod(null);
+        setIsProcessingPayment(false);
+        setCashAmount("");
+        setSecondPaymentMethod("tarjeta");
+
+        toast.success("Pago mixto completado exitosamente");
+
+        // Devolver el foco al input de búsqueda
+        setTimeout(() => {
+          searchInputRef.current?.focus();
+        }, 100);
+      } catch (error: any) {
+        console.error("❌ Error al finalizar pago mixto:", error);
+        toast.error(`Error al finalizar el pago: ${error.message}`);
+
+        // Limpiar estados en caso de error
+        setQrDialogOpen(false);
+        setQrData(null);
+        setPaymentStatus(null);
+        setSelectedPaymentMethod(null);
+        setIsProcessingPayment(false);
+        setCashAmount("");
+        setSecondPaymentMethod("tarjeta");
+      }
+    } catch (error: any) {
+      console.error("❌ Error general en finalizeSplitMPPayment:", error);
+      toast.error(`Error al procesar el pago mixto: ${error.message}`);
+
+      // Limpiar estados en caso de error
+      setQrDialogOpen(false);
+      setQrData(null);
+      setPaymentStatus(null);
+      setSelectedPaymentMethod(null);
+      setIsProcessingPayment(false);
+      setCashAmount("");
+      setSecondPaymentMethod("tarjeta");
+    }
+  };
 
   console.log(user);
   return (
@@ -2111,6 +2688,33 @@ export default function ShoppingCart() {
                   )}
                 </div>
                 <span>Efectivo (3)</span>
+              </Button>
+              <Button
+                onClick={() => handleSplitPayment()}
+                className={`h-32 flex flex-col items-center justify-center space-y-2 [&_svg]:size-8 ${
+                  selectedPaymentMethod === "split"
+                    ? "bg-emerald-100 border-emerald-600 border-2"
+                    : ""
+                }`}
+                variant="outline"
+                disabled={
+                  isProcessingPayment ||
+                  (selectedPaymentMethod !== null &&
+                    selectedPaymentMethod !== "split")
+                }
+              >
+                <div className="h-12 flex items-center justify-center">
+                  {isProcessingPayment && selectedPaymentMethod === "split" ? (
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900" />
+                  ) : (
+                    <div className="flex items-center gap-1">
+                      <Wallet className="h-10 w-10" />
+                      <span className="text-xl">+</span>
+                      <CreditCard className="h-10 w-10" />
+                    </div>
+                  )}
+                </div>
+                <span>Pago Mixto (4)</span>
               </Button>
             </div>
           </DialogContent>
@@ -2711,13 +3315,45 @@ export default function ShoppingCart() {
                     alt="Código QR de Mercado Pago"
                     className="mx-auto w-64 h-64 border border-gray-200 p-2"
                     onError={(e) => {
-                      console.error("Error loading direct QR image URL");
+                      console.error("Error loading QR image");
                       e.currentTarget.style.display = "none";
+                      toast.error("Error al cargar la imagen QR", {
+                        description: "Intenta nuevamente o contacta a soporte",
+                      });
                     }}
                   />
 
                   <div className="font-medium text-lg">
-                    Monto a pagar: ${Number(qrData.monto || 0).toLocaleString()}
+                    {qrData.isSplitPayment ? (
+                      <div className="space-y-1">
+                        <div className="text-sm text-muted-foreground">
+                          Pago mixto:
+                        </div>
+                        <div className="flex justify-between items-center text-base">
+                          <span className="flex items-center">
+                            <Wallet className="h-4 w-4 mr-1" />
+                            Efectivo:
+                          </span>
+                          <span>
+                            ${Number(qrData.cashAmount || 0).toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center font-semibold">
+                          <span className="flex items-center">
+                            <QrCode className="h-4 w-4 mr-1" />
+                            QR:
+                          </span>
+                          <span>
+                            ${Number(qrData.monto || 0).toLocaleString()}
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <span>
+                        Monto a pagar: $
+                        {Number(qrData.monto || 0).toLocaleString()}
+                      </span>
+                    )}
                   </div>
 
                   <div className="space-y-2">
@@ -2769,6 +3405,208 @@ export default function ShoppingCart() {
                 className="w-full"
               >
                 Cancelar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Diálogo de pago mixto */}
+        <Dialog
+          open={splitPaymentDialogOpen}
+          onOpenChange={(open) => {
+            if (!open) {
+              setSplitPaymentDialogOpen(false);
+              setSelectedPaymentMethod(null);
+              setIsProcessingPayment(false);
+              setCashAmount("");
+              setSecondPaymentMethod("tarjeta");
+
+              // Devolver el foco al input de búsqueda
+              setTimeout(() => {
+                searchInputRef.current?.focus();
+              }, 100);
+            }
+          }}
+        >
+          <DialogContent
+            className="sm:max-w-[500px]"
+            onKeyDown={(e) => {
+              // Si se presiona Enter, simular clic en el botón "Completar pago"
+              if (e.key === "Enter") {
+                e.preventDefault();
+
+                // Verificar si el botón debería estar habilitado
+                const isButtonEnabled = !(
+                  isProcessingPayment ||
+                  !cashAmount ||
+                  isNaN(parseFloat(cashAmount)) ||
+                  parseFloat(cashAmount) <= 0 ||
+                  parseFloat(cashAmount) >= calculateTotal()
+                );
+
+                // Solo disparar la acción si el botón estaría habilitado
+                if (isButtonEnabled) {
+                  console.log(
+                    "⌨️ TECLADO: Enter detectado en diálogo de pago mixto"
+                  );
+                  // Ejecutar la función según el método de pago seleccionado
+                  if (secondPaymentMethod === "qr") {
+                    // Para QR, generar QR con el monto restante
+                    const cashAmountValue = parseFloat(cashAmount);
+                    const totalAmount = calculateTotal();
+                    const secondAmount = parseFloat(
+                      (totalAmount - cashAmountValue).toFixed(2)
+                    );
+                    generateSplitQRPayment(cashAmountValue, secondAmount);
+                  } else {
+                    // Para tarjeta, procesar el pago mixto directamente
+                    processSplitPayment();
+                  }
+                } else {
+                  console.log(
+                    "⌨️ TECLADO: Enter detectado pero el botón está deshabilitado"
+                  );
+                }
+              }
+            }}
+          >
+            <DialogHeader>
+              <DialogTitle className="text-xl">Pago mixto</DialogTitle>
+              <DialogDescription>
+                Ingresa el monto a pagar con efectivo y selecciona el método
+                para el resto
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-6 py-4">
+              <div className="text-center">
+                <div className="text-lg text-muted-foreground">
+                  Total a pagar
+                </div>
+                <div className="text-3xl font-bold text-emerald-600 mt-1">
+                  ${calculateTotal().toLocaleString()}
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <label className="text-sm font-medium flex items-center">
+                      <Wallet className="mr-2 h-4 w-4" />
+                      Efectivo
+                    </label>
+                    <Input
+                      type="number"
+                      placeholder="Monto en efectivo"
+                      value={cashAmount}
+                      onChange={(e) => setCashAmount(e.target.value)}
+                      className="w-40 text-right"
+                      step="0.01"
+                      min="0"
+                      max={calculateTotal().toString()}
+                      disabled={isProcessingPayment}
+                      autoFocus
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Segundo método</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Button
+                      variant={
+                        secondPaymentMethod === "tarjeta"
+                          ? "default"
+                          : "outline"
+                      }
+                      className={
+                        secondPaymentMethod === "tarjeta"
+                          ? "bg-emerald-600 hover:bg-emerald-700"
+                          : ""
+                      }
+                      onClick={() => setSecondPaymentMethod("tarjeta")}
+                      disabled={isProcessingPayment}
+                    >
+                      <CreditCard className="mr-2 h-4 w-4" />
+                      Tarjeta
+                    </Button>
+                    <Button
+                      variant={
+                        secondPaymentMethod === "qr" ? "default" : "outline"
+                      }
+                      className={
+                        secondPaymentMethod === "qr"
+                          ? "bg-emerald-600 hover:bg-emerald-700"
+                          : ""
+                      }
+                      onClick={() => setSecondPaymentMethod("qr")}
+                      disabled={isProcessingPayment}
+                    >
+                      <QrCode className="mr-2 h-4 w-4" />
+                      QR
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="flex justify-between pt-2">
+                  <div className="flex items-center">
+                    <div className="text-sm font-medium">
+                      {secondPaymentMethod === "tarjeta" ? (
+                        <div className="flex items-center">
+                          <CreditCard className="mr-2 h-4 w-4" />
+                          Tarjeta
+                        </div>
+                      ) : (
+                        <div className="flex items-center">
+                          <QrCode className="mr-2 h-4 w-4" />
+                          QR
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-xl font-semibold text-emerald-600">
+                    $
+                    {!cashAmount || isNaN(parseFloat(cashAmount))
+                      ? calculateTotal().toLocaleString()
+                      : (
+                          calculateTotal() -
+                          Math.min(parseFloat(cashAmount), calculateTotal())
+                        ).toLocaleString()}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setSplitPaymentDialogOpen(false);
+                  setSelectedPaymentMethod(null);
+                }}
+                disabled={isProcessingPayment}
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={processSplitPayment}
+                disabled={
+                  isProcessingPayment ||
+                  !cashAmount ||
+                  isNaN(parseFloat(cashAmount)) ||
+                  parseFloat(cashAmount) <= 0 ||
+                  parseFloat(cashAmount) >= calculateTotal()
+                }
+                className="bg-emerald-gradient"
+              >
+                {isProcessingPayment ? (
+                  <div className="flex items-center gap-2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <span>Procesando...</span>
+                  </div>
+                ) : (
+                  "Completar pago"
+                )}
               </Button>
             </DialogFooter>
           </DialogContent>
