@@ -1364,7 +1364,7 @@ export default function ShoppingCart() {
         descripcion: `Compra de ${orderItems.length} productos`,
         vendedorId: user.id,
         sucursalId: user.sucursalId,
-        externalPosId: "POS1747060777151", // El POS ID que ya está configurado
+        externalPosId: "POS1747232351167", // El POS ID que ya está configurado
         items: orderItems,
       };
 
@@ -1933,7 +1933,7 @@ export default function ShoppingCart() {
         descripcion: `Pago parcial de $${qrAmount.toFixed(2)}`,
         vendedorId: userId,
         sucursalId: sucursalId,
-        externalPosId: "POS1747060777151",
+        externalPosId: "POS1747232351167",
         // Enviar solo un item que representa el pago parcial
         items: [singleQrItem],
         // Metadatos adicionales
