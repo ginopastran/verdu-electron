@@ -10,6 +10,7 @@ import { Toaster } from "sonner";
 import { useAuth } from "./contexts/AuthContext";
 import Login from "./pages/Login";
 import ShoppingCart from "./components/ShoppingCart";
+import ShoppingCartRefactored from "./components/ShoppingCartRefactored";
 import AdminMessage from "./components/AdminMessage";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -44,7 +45,16 @@ export default function App() {
               path="/cart"
               element={
                 <ProtectedRoute>
-                  <ShoppingCart />
+                  {/* <ShoppingCart /> */}
+                  <ShoppingCartRefactored />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/cart-refactored"
+              element={
+                <ProtectedRoute>
+                  <ShoppingCartRefactored />
                 </ProtectedRoute>
               }
             />

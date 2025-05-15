@@ -11,6 +11,7 @@ interface User {
   nombre: string;
   email: string;
   sucursalId: number;
+  role?: string;
   permisos: {
     pesoManualEnabled?: boolean;
     cierreDeCajaEnabled?: boolean;
