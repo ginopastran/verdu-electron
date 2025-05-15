@@ -1573,11 +1573,19 @@ export default function ShoppingCart() {
       console.log("🔄 Finalizando pago con datos:", paymentData);
       console.log("🔄 Estado de qrData:", qrData);
 
+      // Verificar que user no sea null
+      if (!user) {
+        toast.error("Se perdió la sesión. Por favor inicia sesión nuevamente.");
+        setQrDialogOpen(false);
+        setIsProcessingPayment(false);
+        setSelectedPaymentMethod(null);
+        return;
+      }
+
       // Imprimir ticket solo si el pago fue completado
       if (paymentData.isCompleted) {
         try {
-          console.log("💰 Pago completado, preparando para imprimir ticket");
-          const { ipcRenderer } = window.require("electron");
+          console.log("💰 Pago completado, preparando para crear orden en BD");
 
           // Primero intentar usar los datos capturados en statusData
           let ticketItems = paymentData.ticketItems;
@@ -1616,26 +1624,58 @@ export default function ShoppingCart() {
             ticketMonto = paymentData.total || 0;
           }
 
-          // Crear los datos para el ticket
-          const ticketData = {
-            id: paymentData.orderId,
-            metodoPago: paymentData.metodoPago || "qr",
+          // Crear los datos para la orden en BD
+          const orderData = {
+            metodoPago: "qr",
             total: paymentData.total || ticketMonto,
-            fecha: paymentData.fecha || new Date().toISOString(),
-            items: ticketItems,
-            vendedorId: user?.id,
-            sucursalId: user?.sucursalId,
-            vendedor: user?.nombre,
+            items: ticketItems.map((item: any) => ({
+              productoId: item.productoId || item.id || 0,
+              cantidad: item.cantidad || item.quantity || 1,
+              subtotal: Number((item.subtotal || 0).toFixed(2)),
+              precioHistorico: item.precioHistorico || item.pricePerUnit || 0,
+              costo: Number((item.costo || 0).toFixed(2)),
+              nombre: item.nombre || item.name || "Producto",
+            })),
+            vendedorId: user.id,
+            sucursalId: user.sucursalId,
+            vendedor: user.nombre,
+            createdAt: new Date().toISOString(),
+            referencia: paymentData.orderId?.toString() || "unknown",
           };
 
+          console.log("💾 Guardando orden en BD:", orderData);
+
+          // Crear la orden en la BD
+          const orderResponse = await fetch(`${API_URL}/api/ordenes`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(appId && { "X-App-ID": appId }),
+            },
+            body: JSON.stringify(orderData),
+          });
+
+          if (!orderResponse.ok) {
+            console.error(
+              "❌ Error al crear la orden en BD:",
+              await orderResponse.text()
+            );
+            throw new Error("Error al crear la orden en base de datos");
+          }
+
+          console.log("✅ Orden creada correctamente en BD");
+
+          // Ahora imprimir el ticket
           console.log(
             "🖨️ Imprimiendo ticket con datos:",
-            JSON.stringify(ticketData)
+            JSON.stringify(orderData)
           );
+
+          const { ipcRenderer } = window.require("electron");
           toast.loading("Imprimiendo ticket...", { id: "print-ticket" });
 
           try {
-            const result = await ipcRenderer.invoke("print-ticket", ticketData);
+            const result = await ipcRenderer.invoke("print-ticket", orderData);
             console.log("🖨️ Resultado de impresión:", result);
 
             toast.dismiss("print-ticket");
@@ -1654,12 +1694,12 @@ export default function ShoppingCart() {
           // Esperar un poco antes de continuar para asegurar que la impresión se complete
           await new Promise((resolve) => setTimeout(resolve, 1000));
         } catch (printError: any) {
-          console.error("❌ Error general al imprimir:", printError);
-          toast.error(`Error al imprimir: ${printError.message}`);
+          console.error("❌ Error general al procesar/imprimir:", printError);
+          toast.error(`Error: ${printError.message}`);
         }
       } else {
         console.log(
-          "⚠️ El pago no está marcado como completado, no se imprimirá ticket"
+          "⚠️ El pago no está marcado como completado, no se creará orden ni imprimirá ticket"
         );
       }
 
