@@ -72,6 +72,19 @@ export default function ShoppingCart() {
   const { user, refreshUserData, logout } = useAuth();
   const API_URL = import.meta.env.VITE_API_URL;
 
+  // Función para formatear fechas en zona horaria Argentina
+  const formatFechaArgentina = (fecha: string | Date) => {
+    return new Date(fecha).toLocaleString("es-AR", {
+      timeZone: "America/Argentina/Buenos_Aires",
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+  };
+
   // Add detailed console logging for debugging
   useEffect(() => {
     console.log("User data:", user);
@@ -869,28 +882,38 @@ export default function ShoppingCart() {
     setIsClosing(true);
 
     try {
-      // Removing unused API call for last closing since we're not using it anymore
+      // Función para convertir fechas a ISO string (UTC)
+      const getUTCDate = (hours: number) => {
+        const date = new Date();
+        date.setHours(hours, 0, 0, 0);
+        return date.toISOString();
+      };
 
+      // Determinar la fecha de inicio según el periodo
       let startDate;
       if (period === "mañana") {
-        startDate = new Date();
-        startDate.setHours(6, 0, 0, 0);
+        // 6 AM hora Argentina (equivale a 9 AM UTC)
+        startDate = getUTCDate(6);
       } else if (period === "tarde") {
-        // Usar mediodía del día actual en lugar de la fecha del último cierre
-        // para evitar incluir transacciones de días anteriores
-        startDate = new Date();
-        startDate.setHours(12, 0, 0, 0);
+        // 12 PM hora Argentina (equivale a 15 PM UTC)
+        startDate = getUTCDate(12);
       } else {
-        startDate = new Date();
-        startDate.setHours(0, 0, 0, 0);
+        // 0 AM hora Argentina (equivale a 3 AM UTC)
+        startDate = getUTCDate(0);
       }
+
+      console.log(
+        `🕒 Fecha inicio (${period}) hora local:`,
+        new Date(startDate).toLocaleString("es-AR")
+      );
+      console.log(`🕒 Fecha inicio (${period}) UTC:`, startDate);
 
       // Preparar datos para el cierre - simplificado porque el backend ahora hace los cálculos
       const closingData = {
         vendedorId: user.id,
         sucursalId: user.sucursalId,
         fechaInicio: startDate,
-        fechaCierre: new Date(),
+        fechaCierre: new Date().toISOString(), // Fecha actual en UTC
         periodo: period,
       };
 
@@ -937,8 +960,12 @@ export default function ShoppingCart() {
         // Log de representación del ticket que se imprimirá
         console.log("====== SIMULACIÓN DEL TICKET DE CIERRE ======");
         console.log(`CIERRE DE CAJA - ${period.toUpperCase()}`);
-        console.log(`Fecha inicio: ${new Date(startDate).toLocaleString()}`);
-        console.log(`Fecha cierre: ${new Date().toLocaleString()}`);
+        console.log(
+          `Fecha inicio: ${formatFechaArgentina(cierreData.fechaInicio)}`
+        );
+        console.log(
+          `Fecha cierre: ${formatFechaArgentina(cierreData.fechaCierre)}`
+        );
         console.log("-------------------------------------");
         console.log("VENTAS POR MÉTODO DE PAGO:");
 
@@ -1491,7 +1518,7 @@ export default function ShoppingCart() {
             console.log("✅ Pago completado exitosamente");
 
             // Set a timeout to automatically close the dialog after 5 seconds
-            toast.success("¡Pago completado! Cerrando en 5 segundos...");
+            toast.success("¡Pago completado! Cerrando en 2 segundos...");
             setTimeout(() => {
               setQrDialogOpen(false);
               // Clear cart items
@@ -1509,7 +1536,7 @@ export default function ShoppingCart() {
               setTimeout(() => {
                 searchInputRef.current?.focus();
               }, 100);
-            }, 5000);
+            }, 2000);
 
             // Capturar una copia de los datos necesarios para la impresión antes de cualquier limpieza
             const currentQrData = qrData;
@@ -1587,55 +1614,35 @@ export default function ShoppingCart() {
         try {
           console.log("💰 Pago completado, preparando para crear orden en BD");
 
-          // Primero intentar usar los datos capturados en statusData
-          let ticketItems = paymentData.ticketItems;
-          let ticketMonto = paymentData.ticketMonto;
+          // CAMBIO IMPORTANTE: Capturar los datos directamente del estado actual
+          // antes de que se limpie el carrito
+          const currentScreen = screens[activeScreen];
+          const orderItems = currentScreen.items.map((item) => ({
+            productoId: item.id,
+            cantidad: item.quantity,
+            subtotal: Number(item.subtotal.toFixed(2)),
+            precioHistorico: item.pricePerUnit,
+            costo: Number(item.costo.toFixed(2)),
+            nombre: item.name,
+          }));
 
-          // Si no hay datos capturados, intentar usar qrData como respaldo
-          if (!ticketItems && qrData && qrData.items) {
-            console.log("⚠️ Usando datos de respaldo de qrData");
-            ticketItems = qrData.items;
-            ticketMonto = qrData.monto;
-          }
+          // Calcular el total desde los items actuales
+          const orderTotal = currentScreen.items.reduce(
+            (total, item) => total + item.subtotal,
+            0
+          );
 
-          // Verificar que tenemos los datos necesarios
-          if (!ticketItems || ticketItems.length === 0) {
-            console.error(
-              "❌ No se encontraron datos de items para el ticket",
-              {
-                ticketItems,
-                ticketMonto,
-                paymentData,
-                qrData,
-              }
-            );
-
-            // Como último recurso, crear un item genérico para imprimir al menos el total
-            console.log("⚠️ Creando item genérico para el ticket");
-            ticketItems = [
-              {
-                nombre: "Pago con QR",
-                cantidad: 1,
-                subtotal: paymentData.total || 0,
-                precioHistorico: paymentData.total || 0,
-                costo: 0,
-              },
-            ];
-            ticketMonto = paymentData.total || 0;
-          }
+          console.log("📦 Items capturados directamente del carrito:", {
+            items: orderItems.length,
+            itemsDetails: orderItems,
+            total: orderTotal,
+          });
 
           // Crear los datos para la orden en BD
           const orderData = {
             metodoPago: "qr",
-            total: paymentData.total || ticketMonto,
-            items: ticketItems.map((item: any) => ({
-              productoId: item.productoId || item.id || 0,
-              cantidad: item.cantidad || item.quantity || 1,
-              subtotal: Number((item.subtotal || 0).toFixed(2)),
-              precioHistorico: item.precioHistorico || item.pricePerUnit || 0,
-              costo: Number((item.costo || 0).toFixed(2)),
-              nombre: item.nombre || item.name || "Producto",
-            })),
+            total: Number(orderTotal.toFixed(2)),
+            items: orderItems,
             vendedorId: user.id,
             sucursalId: user.sucursalId,
             vendedor: user.nombre,
@@ -2895,8 +2902,8 @@ export default function ShoppingCart() {
                   <div>
                     <h3 className="text-sm font-medium">Fecha</h3>
                     <p>
-                      {new Date(closeResultData.fechaInicio).toLocaleString()} -{" "}
-                      {new Date(closeResultData.fechaCierre).toLocaleString()}
+                      {formatFechaArgentina(closeResultData.fechaInicio)} -{" "}
+                      {formatFechaArgentina(closeResultData.fechaCierre)}
                     </p>
                   </div>
                 </div>
