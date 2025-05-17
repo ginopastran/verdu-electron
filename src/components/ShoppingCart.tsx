@@ -1517,7 +1517,10 @@ export default function ShoppingCart() {
           if (statusData.isCompleted) {
             console.log("✅ Pago completado exitosamente");
 
-            // Set a timeout to automatically close the dialog after 5 seconds
+            // IMPORTANTE: Primero procesar el pago mientras aún tenemos los datos del carrito
+            finalizeMPPayment(statusData);
+
+            // Después mostrar mensaje y programar limpieza
             toast.success("¡Pago completado! Cerrando en 2 segundos...");
             setTimeout(() => {
               setQrDialogOpen(false);
@@ -1537,34 +1540,6 @@ export default function ShoppingCart() {
                 searchInputRef.current?.focus();
               }, 100);
             }, 2000);
-
-            // Capturar una copia de los datos necesarios para la impresión antes de cualquier limpieza
-            const currentQrData = qrData;
-
-            // Crear la orden en el sistema y limpiar el carrito
-            if (
-              currentQrData &&
-              currentQrData.items &&
-              currentQrData.items.length > 0
-            ) {
-              const ticketItems = [...currentQrData.items];
-              const ticketMonto = currentQrData.monto;
-
-              // Añadir los datos capturados al statusData para usarlos en finalizeMPPayment
-              statusData.ticketItems = ticketItems;
-              statusData.ticketMonto = ticketMonto;
-              console.log("✅ Datos del ticket capturados correctamente:", {
-                items: ticketItems.length,
-                monto: ticketMonto,
-              });
-            } else {
-              console.error(
-                "❌ No se pudieron capturar los datos del ticket en el momento del pago",
-                currentQrData
-              );
-            }
-
-            finalizeMPPayment(statusData);
           } else {
             console.log("❌ Pago cancelado o rechazado");
             toast.error("El pago ha sido cancelado o rechazado");
