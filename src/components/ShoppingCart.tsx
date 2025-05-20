@@ -960,9 +960,6 @@ export default function ShoppingCart() {
       // Imprimir ticket de cierre usando Electron IPC
       try {
         const { ipcRenderer } = window.require("electron");
-        const printingToast = toast.loading("Imprimiendo ticket de cierre...");
-
-        // Log de representación del ticket que se imprimirá
         console.log("====== SIMULACIÓN DEL TICKET DE CIERRE ======");
         console.log(`CIERRE DE CAJA - ${period.toUpperCase()}`);
         console.log(
@@ -1022,19 +1019,20 @@ export default function ShoppingCart() {
         // Usar directamente los datos del backend sin manipulación adicional
         const result = await ipcRenderer.invoke("print-closing", cierreData);
 
-        toast.dismiss(printingToast);
-
         if (result.success && !result.printerError) {
           toast.success("Ticket de cierre impreso correctamente");
-        } else if (result.printerError) {
-          toast.error(`No se pudo imprimir: ${result.printerError}`);
         }
-      } catch (printError: any) {
-        toast.error(`Error al imprimir: ${printError.message}`);
-      }
+        // Si hay error, solo lo logueamos pero no mostramos toast
 
-      toast.success(`Cierre de ${period} realizado correctamente`);
-      setClosingDialogOpen(false);
+        toast.success(`Cierre de ${period} realizado correctamente`);
+        setClosingDialogOpen(false);
+      } catch (printError: any) {
+        console.error("Error al imprimir cierre:", printError);
+        // No mostramos toast de error de impresión
+        // Pero sí mostramos que el cierre se realizó correctamente
+        toast.success(`Cierre de ${period} realizado correctamente`);
+        setClosingDialogOpen(false);
+      }
     } catch (error: any) {
       toast.error(`Error: ${error.message || "Error al realizar el cierre"}`);
     } finally {
@@ -1296,7 +1294,6 @@ export default function ShoppingCart() {
     setIsLoadingOrders(true);
 
     try {
-      // Usar el nuevo endpoint específico para órdenes del vendedor
       const response = await fetch(
         `${API_URL}/api/ordenes/vendedor/${user.id}?limit=5`,
         {
@@ -1309,8 +1306,38 @@ export default function ShoppingCart() {
       }
 
       const data = await response.json();
-      console.log("Órdenes recientes cargadas:", data);
-      setRecentOrders(data);
+      console.log("Órdenes recientes cargadas (raw):", data);
+
+      // Procesar y formatear cada orden
+      const ordersWithVendor = data.map((order: any) => ({
+        ...order,
+        vendedor:
+          typeof order.vendedor === "object"
+            ? order.vendedor.nombre || user.nombre
+            : order.vendedor || user.nombre,
+        vendedorId: order.vendedorId || user.id,
+        sucursalId: order.sucursalId || user.sucursalId,
+        items: Array.isArray(order.detalles)
+          ? order.detalles.map((detalle: any) => ({
+              ...detalle,
+              nombre:
+                detalle.producto?.nombre ||
+                detalle.nombre ||
+                "Producto sin nombre",
+              cantidad: Number(detalle.cantidad || 0),
+              precioHistorico: Number(
+                detalle.precioHistorico || detalle.precio || 0
+              ),
+              subtotal: Number(detalle.subtotal || 0),
+            }))
+          : [],
+        total: Number(order.total || 0),
+        metodoPago: order.metodoPago || "N/A",
+        fecha: order.fecha || order.createdAt,
+      }));
+
+      console.log("Órdenes procesadas:", ordersWithVendor);
+      setRecentOrders(ordersWithVendor);
     } catch (error) {
       console.error("Error al cargar órdenes:", error);
       toast.error("Error al cargar las órdenes recientes");
@@ -1322,29 +1349,40 @@ export default function ShoppingCart() {
   // Función para reimprimir un ticket
   const handleReprintTicket = async (order: any) => {
     if (isPrinting) return;
-
     setIsPrinting(true);
 
     try {
-      const { ipcRenderer } = window.require("electron");
+      console.log("Datos originales de la orden:", order);
 
-      toast.info("Reimprimiendo ticket...", {
-        duration: 3000,
-        description: "Enviando datos a la impresora",
-      });
+      // Asegurarnos de que la orden tenga toda la información necesaria y bien formateada
+      const orderData = {
+        ...order,
+        vendedor:
+          typeof order.vendedor === "object"
+            ? order.vendedor.nombre || user?.nombre
+            : order.vendedor || user?.nombre,
+        vendedorId: order.vendedorId || user?.id,
+        sucursalId: order.sucursalId || user?.sucursalId,
+        createdAt: order.fecha || new Date().toISOString(),
+        items: Array.isArray(order.items)
+          ? order.items.map((item: any) => ({
+              ...item,
+              nombre: item.nombre || item.name || "Producto sin nombre",
+              cantidad: Number(item.cantidad || item.quantity || 0),
+              precioHistorico: Number(
+                item.precioHistorico || item.pricePerUnit || 0
+              ),
+              subtotal: Number(item.subtotal || 0),
+            }))
+          : [],
+        total: Number(order.total || 0),
+        metodoPago: order.metodoPago || "N/A",
+      };
 
-      console.log("Reimprimiendo ticket para orden:", order);
-
-      const result = await ipcRenderer.invoke("print-ticket", order);
-
-      if (result.success) {
-        toast.success("Ticket reimpreso correctamente");
-      } else {
-        throw new Error(result.message || "Error desconocido al reimprimir");
-      }
+      console.log("Datos procesados para reimpresión:", orderData);
+      await handleTicketPrinting(orderData);
     } catch (error: any) {
       console.error("Error al reimprimir ticket:", error);
-      toast.error(`Error al reimprimir: ${error.message}`);
     } finally {
       setIsPrinting(false);
     }
@@ -1637,23 +1675,8 @@ export default function ShoppingCart() {
             throw new Error("Error al crear la orden en base de datos");
           }
 
-          // Imprimir ticket
-          const { ipcRenderer } = window.require("electron");
-          const printingToast = toast.loading("Imprimiendo ticket...");
-
-          try {
-            const result = await ipcRenderer.invoke("print-ticket", orderData);
-
-            toast.dismiss(printingToast);
-            if (result.success) {
-              toast.success("Ticket impreso correctamente");
-            } else {
-              throw new Error(result.message || "Error al imprimir");
-            }
-          } catch (printError: any) {
-            console.error("❌ Error al imprimir:", printError);
-            toast.error(`Error al imprimir: ${printError.message}`);
-          }
+          // Intentar imprimir el ticket sin mostrar toast de carga
+          await handleTicketPrinting(orderData);
         } catch (error: any) {
           console.error("❌ Error al procesar orden:", error);
           toast.error(`Error: ${error.message}`);
@@ -2185,23 +2208,8 @@ export default function ShoppingCart() {
             throw new Error("Error al crear la orden");
           }
 
-          // Imprimir ticket
-          const { ipcRenderer } = window.require("electron");
-          const printingToast = toast.loading("Imprimiendo ticket...");
-
-          try {
-            const result = await ipcRenderer.invoke("print-ticket", orderData);
-            toast.dismiss(printingToast);
-
-            if (result.success) {
-              toast.success("Ticket impreso correctamente");
-            } else {
-              throw new Error(result.message || "Error al imprimir");
-            }
-          } catch (printError: any) {
-            console.error("❌ Error al imprimir:", printError);
-            toast.error(`Error al imprimir: ${printError.message}`);
-          }
+          // Intentar imprimir el ticket sin mostrar toast de carga
+          await handleTicketPrinting(orderData);
         } catch (error: any) {
           console.error("❌ Error al procesar orden mixta:", error);
           toast.error(`Error: ${error.message}`);
@@ -2291,6 +2299,81 @@ export default function ShoppingCart() {
     } catch (error: any) {
       console.error("❌ Error al completar manualmente:", error);
       toast.error(`Error al completar la orden manualmente: ${error.message}`);
+    }
+  };
+
+  // Después de las funciones existentes y antes del return
+  const handleTicketPrinting = async (orderData: any) => {
+    try {
+      // Simular el ticket antes de imprimir
+      console.log("\n====== SIMULACIÓN DEL TICKET ======");
+      console.log("ISELIN II");
+      console.log(`Vendedor: ${orderData.vendedor}`);
+      console.log(
+        `Fecha: ${new Date(
+          orderData.createdAt || orderData.fecha
+        ).toLocaleString("es-AR", {
+          timeZone: "America/Argentina/Buenos_Aires",
+          hour12: false,
+        })}`
+      );
+      console.log("-----------------------------");
+      console.log("PRODUCTO      CANT    PRECIO    TOTAL");
+      console.log("-----------------------------");
+
+      // Mostrar productos
+      const items = orderData.items || orderData.detalles || [];
+      if (items && items.length > 0) {
+        items.forEach((item: any) => {
+          const nombre = (item.nombre || item.producto?.nombre || "").padEnd(
+            12
+          );
+          const cantidad = (item.cantidad || 0).toString().padStart(8);
+          const precio = `$${Number(
+            item.precioHistorico || item.precio || 0
+          ).toFixed(2)}`.padStart(8);
+          const subtotal = `$${Number(item.subtotal || 0).toFixed(2)}`.padStart(
+            8
+          );
+          console.log(`${nombre} ${cantidad} ${precio} ${subtotal}`);
+        });
+      } else {
+        console.log("❌ No hay items en la orden");
+      }
+
+      console.log("-----------------------------");
+      console.log(`TOTAL: $${Number(orderData.total).toFixed(2)}`);
+
+      // Mostrar método(s) de pago
+      if (orderData.pagos && Array.isArray(orderData.pagos)) {
+        console.log("\nMÉTODOS DE PAGO:");
+        orderData.pagos.forEach((pago: any) => {
+          console.log(
+            `${pago.metodoPago.toUpperCase()}: $${Number(pago.monto).toFixed(
+              2
+            )}`
+          );
+        });
+      } else {
+        console.log(`\nMétodo de pago: ${orderData.metodoPago?.toUpperCase()}`);
+      }
+
+      console.log("\n¡Gracias por su compra!");
+      console.log("==============================\n");
+
+      // Intentar imprimir
+      const { ipcRenderer } = window.require("electron");
+      const result = await ipcRenderer.invoke("print-ticket", orderData);
+
+      if (result.success) {
+        toast.success("Ticket impreso correctamente");
+      }
+      // Si hay error, solo lo logueamos pero no mostramos toast
+      return result.success;
+    } catch (error: any) {
+      console.error("❌ Error al imprimir:", error);
+      // No mostramos toast de error
+      return false;
     }
   };
 
