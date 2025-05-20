@@ -15,6 +15,7 @@ import {
   Plus,
   X,
   History,
+  Loader2,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -42,6 +43,7 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { Select, SelectItem, SelectContent } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 // Importar las imágenes como recursos desde assets
 import iselinLogo from "../assets/iselin-logo.png";
 import andextechLogo from "../assets/andextech-black.png";
@@ -71,6 +73,7 @@ interface AvailableProduct {
 export default function ShoppingCart() {
   const { user, refreshUserData, logout } = useAuth();
   const API_URL = import.meta.env.VITE_API_URL;
+  const MANUAL_QR_PASSWORD = import.meta.env.VITE_MANUAL_QR_PASSWORD;
 
   // Función para formatear fechas en zona horaria Argentina
   const formatFechaArgentina = (fecha: string | Date) => {
@@ -1690,20 +1693,12 @@ export default function ShoppingCart() {
 
   // Cancelar el pago con QR
   const cancelQRPayment = () => {
-    // Limpiar el intervalo de polling
+    console.log("🚫 Cancelando pago QR");
     if (pollingInterval) {
       clearInterval(pollingInterval);
       setPollingInterval(null);
     }
-
-    // Cerrar el diálogo y limpiar estados
-    setQrDialogOpen(false);
-    setQrData(null);
-    setPaymentStatus(null);
-    setIsProcessingPayment(false);
-    setSelectedPaymentMethod(null);
-
-    console.log("❌ Pago con QR cancelado por el usuario");
+    resetQRStates();
   };
 
   // Limpiar intervalos cuando se desmonte el componente
@@ -2233,6 +2228,25 @@ export default function ShoppingCart() {
         isSplitPayment,
         cashAmount,
       });
+
+      // Primero verificar el estado y tipo de la orden
+      const checkResponse = await fetch(`${API_URL}/api/ordenes/${orderId}`, {
+        headers: {
+          ...headers,
+          ...(appId && { "X-App-ID": appId }),
+        },
+      });
+
+      if (!checkResponse.ok) {
+        throw new Error("Error al verificar la orden");
+      }
+
+      const orderData = await checkResponse.json();
+      if (orderData.metodoPago !== "qr") {
+        throw new Error("La orden no es de tipo QR");
+      }
+
+      // Si la verificación es exitosa, proceder con la completación manual
       const response = await fetch(
         `${API_URL}/api/mercadopago/manual-complete`,
         {
@@ -2241,7 +2255,11 @@ export default function ShoppingCart() {
             "Content-Type": "application/json",
             ...(appId && { "X-App-ID": appId }),
           },
-          body: JSON.stringify({ orderId }),
+          body: JSON.stringify({
+            orderId,
+            isSplitPayment,
+            ...(cashAmount && { cashAmount }),
+          }),
         }
       );
 
@@ -2253,52 +2271,12 @@ export default function ShoppingCart() {
       const result = await response.json();
       console.log("✅ Orden completada manualmente:", result);
 
-      // Procesar el pago según el tipo (normal o mixto)
-      if (isSplitPayment && typeof cashAmount === "number") {
-        await finalizeSplitMPPayment(
-          {
-            isCompleted: true,
-            orderId: result.orderId,
-          },
-          cashAmount
-        );
-      } else {
-        const currentScreen = screens[activeScreen];
-        const cartData = {
-          items: currentScreen.items,
-          total: Number(
-            currentScreen.items
-              .reduce((sum, item) => sum + item.subtotal, 0)
-              .toFixed(2)
-          ),
-        };
-
-        await finalizeMPPayment({
-          isCompleted: true,
-          orderId: result.orderId,
-          cartData,
-        });
-      }
-
-      toast.success("Orden completada manualmente con éxito");
-
-      // Cerrar diálogos y limpiar estados
-      setQrDialogOpen(false);
-      setIsProcessingPayment(false);
-      setSelectedPaymentMethod(null);
-      if (isSplitPayment) {
-        setSplitPaymentDialogOpen(false);
-        setCashAmount("");
-        setSecondPaymentMethod("tarjeta");
-      }
-
-      // Devolver el foco al input de búsqueda
-      setTimeout(() => {
-        searchInputRef.current?.focus();
-      }, 100);
+      // No mostrar toast aquí, se mostrará después
+      return true;
     } catch (error: any) {
-      console.error("❌ Error al completar manualmente:", error);
-      toast.error(`Error al completar la orden manualmente: ${error.message}`);
+      console.error("Error al completar orden manualmente:", error);
+      toast.error(error.message || "Error al completar la orden manualmente");
+      return false;
     }
   };
 
@@ -2374,6 +2352,150 @@ export default function ShoppingCart() {
       console.error("❌ Error al imprimir:", error);
       // No mostramos toast de error
       return false;
+    }
+  };
+
+  // Estados para el diálogo de contraseña
+  const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
+  const [manualPassword, setManualPassword] = useState("");
+  const [isProcessingManualPayment, setIsProcessingManualPayment] =
+    useState(false);
+  const [tempOrderData, setTempOrderData] = useState<{
+    orderId: number;
+    isSplitPayment: boolean;
+    cashAmount?: number;
+  } | null>(null);
+
+  // Función para manejar el intento de pago manual
+  const handleManualPaymentAttempt = (
+    orderId: number,
+    isSplitPayment: boolean = false,
+    cashAmount?: number
+  ) => {
+    if (!MANUAL_QR_PASSWORD) {
+      console.error(
+        "❌ No se ha configurado la contraseña para pagos manuales"
+      );
+      toast.error("Error en la configuración de pagos manuales");
+      return;
+    }
+
+    setTempOrderData({ orderId, isSplitPayment, cashAmount });
+    setManualPassword("");
+    setIsPasswordDialogOpen(true);
+  };
+
+  // Después de las funciones existentes y antes del return
+  const resetQRStates = () => {
+    setIsPasswordDialogOpen(false);
+    setQrDialogOpen(false);
+    setManualPassword("");
+    setTempOrderData(null);
+    setQrData(null);
+    setPaymentStatus("PENDIENTE");
+    setIsProcessingPayment(false);
+    setSelectedPaymentMethod(null);
+    if (pollingInterval) {
+      clearInterval(pollingInterval);
+      setPollingInterval(null);
+    }
+    setPollingStartTime(null);
+    setRetryCount(0);
+  };
+
+  // Modificar handlePasswordSubmit para usar resetQRStates
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (isProcessingManualPayment || !tempOrderData) return;
+
+    try {
+      setIsProcessingManualPayment(true);
+
+      if (manualPassword !== MANUAL_QR_PASSWORD) {
+        toast.error("Contraseña incorrecta");
+        return;
+      }
+
+      const result = await completarOrdenManualmente(
+        tempOrderData.orderId,
+        tempOrderData.isSplitPayment,
+        tempOrderData.cashAmount
+      );
+
+      if (result) {
+        try {
+          const response = await fetch(
+            `${API_URL}/api/ordenes/${tempOrderData.orderId}`,
+            { headers }
+          );
+
+          if (!response.ok) {
+            throw new Error("Error al obtener datos de la orden");
+          }
+
+          const orderData = await response.json();
+          console.log("Datos de orden para ticket:", orderData);
+
+          const ticketData = {
+            ...orderData,
+            items: orderData.detalles.map((detalle: any) => ({
+              nombre:
+                detalle.producto?.nombre ||
+                detalle.nombre ||
+                "Producto sin nombre",
+              cantidad: Number(detalle.cantidad || 0),
+              precioHistorico: Number(
+                detalle.precioHistorico || detalle.precio || 0
+              ),
+              subtotal: Number(detalle.subtotal || 0),
+            })),
+            vendedor: orderData.vendedor?.nombre || user?.nombre,
+            metodoPago: tempOrderData.isSplitPayment ? "QR + EFECTIVO" : "QR",
+            total: Number(orderData.total || 0),
+          };
+
+          // En handlePasswordSubmit, dentro del bloque if (result)
+          // Primero mostrar el toast de éxito
+          toast.success("Orden completada manualmente");
+
+          // Esperar un momento antes de cerrar los diálogos
+          await new Promise((resolve) => setTimeout(resolve, 500));
+
+          // Reiniciar estados y cerrar diálogos
+          resetQRStates();
+
+          // Limpiar estados adicionales si es pago mixto
+          if (tempOrderData.isSplitPayment) {
+            setSplitPaymentDialogOpen(false);
+            setCashAmount("");
+            setSecondPaymentMethod("tarjeta");
+          }
+
+          // Limpiar el carrito actual
+          const newScreens = [...screens];
+          newScreens[activeScreen] = {
+            id: activeScreen,
+            items: [],
+          };
+          setScreens(newScreens);
+
+          // Imprimir el ticket después de limpiar los estados
+          await handleTicketPrinting(ticketData);
+        } catch (error) {
+          console.error("Error al imprimir ticket:", error);
+          toast.error("Error al imprimir el ticket");
+          resetQRStates();
+        }
+      } else {
+        resetQRStates();
+      }
+    } catch (error) {
+      console.error("Error al procesar pago manual:", error);
+      toast.error("Error al procesar el pago manual");
+      resetQRStates();
+    } finally {
+      setIsProcessingManualPayment(false);
     }
   };
 
@@ -3530,17 +3652,17 @@ export default function ShoppingCart() {
                     {/* Botón para completar manualmente en pago mixto */}
                     {paymentStatus === "PENDIENTE" && (
                       <Button
-                        variant="outline"
-                        className="w-full mt-4 bg-emerald-50 border-emerald-200 hover:bg-emerald-100 hover:text-emerald-700"
                         onClick={() =>
-                          completarOrdenManualmente(
-                            qrData.orderId,
+                          handleManualPaymentAttempt(
+                            qrData.orderId || 0,
                             true,
                             qrData.cashAmount
                           )
                         }
+                        disabled={!qrData?.orderId}
+                        variant="outline"
+                        className="w-full mt-2"
                       >
-                        <Receipt className="h-4 w-4 mr-2" />
                         Completar manualmente
                       </Button>
                     )}
@@ -3765,6 +3887,63 @@ export default function ShoppingCart() {
                 )}
               </Button>
             </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog
+          open={isPasswordDialogOpen}
+          onOpenChange={setIsPasswordDialogOpen}
+        >
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Validación de Pago Manual</DialogTitle>
+              <DialogDescription>
+                Ingresa la contraseña para completar el pago manualmente
+              </DialogDescription>
+            </DialogHeader>
+
+            <form onSubmit={handlePasswordSubmit} className="space-y-4">
+              <div className="flex flex-col space-y-2">
+                <Label htmlFor="manualPassword">Contraseña</Label>
+                <Input
+                  id="manualPassword"
+                  type="password"
+                  value={manualPassword}
+                  onChange={(e) => setManualPassword(e.target.value)}
+                  placeholder="Ingresa la contraseña"
+                  autoComplete="off"
+                  disabled={isProcessingManualPayment}
+                />
+              </div>
+
+              <div className="flex justify-end space-x-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setIsPasswordDialogOpen(false);
+                    setManualPassword("");
+                    setTempOrderData(null);
+                  }}
+                  disabled={isProcessingManualPayment}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={!manualPassword || isProcessingManualPayment}
+                >
+                  {isProcessingManualPayment ? (
+                    <span className="flex items-center">
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Procesando...
+                    </span>
+                  ) : (
+                    "Confirmar"
+                  )}
+                </Button>
+              </div>
+            </form>
           </DialogContent>
         </Dialog>
       </div>
