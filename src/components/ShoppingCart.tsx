@@ -666,53 +666,58 @@ export default function ShoppingCart() {
     }, 100);
   };
 
-  // Modificar la función handlePayment para manejar el método de pago QR
+  // Función para limpiar completamente todos los estados
+  const resetAllPaymentStates = () => {
+    // Reset QR states
+    setQrData(null);
+    setPaymentStatus("PENDIENTE");
+    setIsProcessingPayment(false);
+    setSelectedPaymentMethod(null);
+    if (pollingInterval) {
+      clearInterval(pollingInterval);
+      setPollingInterval(null);
+    }
+    setPollingStartTime(null);
+    setRetryCount(0);
+
+    // Reset manual payment states
+    setIsPasswordDialogOpen(false);
+    setQrDialogOpen(false);
+    setManualPassword("");
+    setTempOrderData(null);
+
+    // Reset split payment states
+    setSplitPaymentDialogOpen(false);
+    setCashAmount("");
+    setSecondPaymentMethod("tarjeta");
+
+    // Reset cart
+    const newScreens = [...screens];
+    newScreens[activeScreen] = {
+      id: activeScreen,
+      items: [],
+    };
+    setScreens(newScreens);
+  };
+
+  // Modificar handlePayment para usar el nuevo reset
   const handlePayment = async (method: string) => {
     if (!user) {
-      toast.error("Debes iniciar sesión para realizar una orden");
+      toast.error("Debes iniciar sesión para realizar pagos");
       return;
     }
 
-    console.log("🔄 handlePayment llamado con método:", method);
-
-    // Si es efectivo, siempre usar nuestra función especializada
-    if (method === "efectivo") {
-      console.log("🔄 Redirigiendo a handleCashPayment");
-      handleCashPayment();
-      return;
-    }
-
-    // Re-habilitar el flujo de Mercado Pago para QR, ahora con generación local de QR
-    if (method === "qr") {
-      console.log(
-        "🔄 Iniciando flujo de pago con QR de Mercado Pago (generación local)"
-      );
-      generateQRPayment();
-      return;
-    }
-
-    // Para otros métodos, continuar con el flujo normal
-    console.log("🔄 Estado actual:", {
-      isProcessingPayment,
-      selectedPaymentMethod,
-      roundedAmountDialogOpen,
-    });
-
-    // Prevenir procesamiento duplicado
-    if (isProcessingPayment || selectedPaymentMethod) {
-      console.log(
-        "⚠️ Procesamiento bloqueado - ya está procesando o hay método seleccionado"
-      );
-      return;
-    }
-
-    // Establecer el método seleccionado y marcar como procesando
+    resetAllPaymentStates(); // Reset all states before starting new payment
     setSelectedPaymentMethod(method);
-    setIsProcessingPayment(true);
 
-    // Procesar directamente los métodos que no son efectivo
-    console.log("🔄 Procesando pago con:", method);
-    await processPayment(method, Number(calculateTotal().toFixed(2)));
+    const currentScreen = screens[activeScreen];
+    if (!currentScreen.items.length) {
+      toast.error("No hay productos en el carrito");
+      return;
+    }
+
+    const total = calculateTotal();
+    await processPayment(method, total);
   };
 
   // Función separada para procesar el pago
@@ -2403,7 +2408,7 @@ export default function ShoppingCart() {
     setRetryCount(0);
   };
 
-  // Modificar handlePasswordSubmit para usar resetQRStates
+  // Modificar handlePasswordSubmit para usar el nuevo reset y manejar mejor el método de pago
   const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -2437,6 +2442,16 @@ export default function ShoppingCart() {
           const orderData = await response.json();
           console.log("Datos de orden para ticket:", orderData);
 
+          // Determinar el método de pago correcto
+          let metodoPago = "QR";
+          if (tempOrderData.isSplitPayment) {
+            metodoPago = `QR + ${
+              tempOrderData.cashAmount
+                ? "EFECTIVO"
+                : secondPaymentMethod.toUpperCase()
+            }`;
+          }
+
           const ticketData = {
             ...orderData,
             items: orderData.detalles.map((detalle: any) => ({
@@ -2451,49 +2466,38 @@ export default function ShoppingCart() {
               subtotal: Number(detalle.subtotal || 0),
             })),
             vendedor: orderData.vendedor?.nombre || user?.nombre,
-            metodoPago: tempOrderData.isSplitPayment ? "QR + EFECTIVO" : "QR",
+            metodoPago,
             total: Number(orderData.total || 0),
           };
 
-          // En handlePasswordSubmit, dentro del bloque if (result)
           // Primero mostrar el toast de éxito
           toast.success("Orden completada manualmente");
 
           // Esperar un momento antes de cerrar los diálogos
           await new Promise((resolve) => setTimeout(resolve, 500));
 
-          // Reiniciar estados y cerrar diálogos
-          resetQRStates();
-
-          // Limpiar estados adicionales si es pago mixto
-          if (tempOrderData.isSplitPayment) {
-            setSplitPaymentDialogOpen(false);
-            setCashAmount("");
-            setSecondPaymentMethod("tarjeta");
-          }
-
-          // Limpiar el carrito actual
-          const newScreens = [...screens];
-          newScreens[activeScreen] = {
-            id: activeScreen,
-            items: [],
-          };
-          setScreens(newScreens);
+          // Reiniciar todos los estados
+          resetAllPaymentStates();
 
           // Imprimir el ticket después de limpiar los estados
           await handleTicketPrinting(ticketData);
+
+          // Devolver el foco al input de búsqueda
+          setTimeout(() => {
+            searchInputRef.current?.focus();
+          }, 100);
         } catch (error) {
           console.error("Error al imprimir ticket:", error);
           toast.error("Error al imprimir el ticket");
-          resetQRStates();
+          resetAllPaymentStates();
         }
       } else {
-        resetQRStates();
+        resetAllPaymentStates();
       }
     } catch (error) {
       console.error("Error al procesar pago manual:", error);
       toast.error("Error al procesar el pago manual");
-      resetQRStates();
+      resetAllPaymentStates();
     } finally {
       setIsProcessingManualPayment(false);
     }
