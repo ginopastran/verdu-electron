@@ -666,58 +666,53 @@ export default function ShoppingCart() {
     }, 100);
   };
 
-  // Función para limpiar completamente todos los estados
-  const resetAllPaymentStates = () => {
-    // Reset QR states
-    setQrData(null);
-    setPaymentStatus("PENDIENTE");
-    setIsProcessingPayment(false);
-    setSelectedPaymentMethod(null);
-    if (pollingInterval) {
-      clearInterval(pollingInterval);
-      setPollingInterval(null);
-    }
-    setPollingStartTime(null);
-    setRetryCount(0);
-
-    // Reset manual payment states
-    setIsPasswordDialogOpen(false);
-    setQrDialogOpen(false);
-    setManualPassword("");
-    setTempOrderData(null);
-
-    // Reset split payment states
-    setSplitPaymentDialogOpen(false);
-    setCashAmount("");
-    setSecondPaymentMethod("tarjeta");
-
-    // Reset cart
-    const newScreens = [...screens];
-    newScreens[activeScreen] = {
-      id: activeScreen,
-      items: [],
-    };
-    setScreens(newScreens);
-  };
-
-  // Modificar handlePayment para usar el nuevo reset
+  // Modificar la función handlePayment para manejar el método de pago QR
   const handlePayment = async (method: string) => {
     if (!user) {
-      toast.error("Debes iniciar sesión para realizar pagos");
+      toast.error("Debes iniciar sesión para realizar una orden");
       return;
     }
 
-    resetAllPaymentStates(); // Reset all states before starting new payment
+    console.log("🔄 handlePayment llamado con método:", method);
+
+    // Si es efectivo, siempre usar nuestra función especializada
+    if (method === "efectivo") {
+      console.log("🔄 Redirigiendo a handleCashPayment");
+      handleCashPayment();
+      return;
+    }
+
+    // Re-habilitar el flujo de Mercado Pago para QR, ahora con generación local de QR
+    if (method === "qr") {
+      console.log(
+        "🔄 Iniciando flujo de pago con QR de Mercado Pago (generación local)"
+      );
+      generateQRPayment();
+      return;
+    }
+
+    // Para otros métodos, continuar con el flujo normal
+    console.log("🔄 Estado actual:", {
+      isProcessingPayment,
+      selectedPaymentMethod,
+      roundedAmountDialogOpen,
+    });
+
+    // Prevenir procesamiento duplicado
+    if (isProcessingPayment || selectedPaymentMethod) {
+      console.log(
+        "⚠️ Procesamiento bloqueado - ya está procesando o hay método seleccionado"
+      );
+      return;
+    }
+
+    // Establecer el método seleccionado y marcar como procesando
     setSelectedPaymentMethod(method);
+    setIsProcessingPayment(true);
 
-    const currentScreen = screens[activeScreen];
-    if (!currentScreen.items.length) {
-      toast.error("No hay productos en el carrito");
-      return;
-    }
-
-    const total = calculateTotal();
-    await processPayment(method, total);
+    // Procesar directamente los métodos que no son efectivo
+    console.log("🔄 Procesando pago con:", method);
+    await processPayment(method, Number(calculateTotal().toFixed(2)));
   };
 
   // Función separada para procesar el pago
@@ -1410,7 +1405,7 @@ export default function ShoppingCart() {
   );
   const [paymentStatus, setPaymentStatus] = useState<string | null>(null);
 
-  // Actualizar la función generateQRPayment para ajustar el manejo de la respuesta
+  // Actualizar la función generateQRPayment para generar referencias únicas
   const generateQRPayment = async () => {
     if (!user) {
       toast.error("Debes iniciar sesión para realizar una orden");
@@ -1422,6 +1417,9 @@ export default function ShoppingCart() {
       console.log("⚠️ Ya hay un pago en proceso");
       return;
     }
+
+    // Limpiar completamente cualquier estado previo de QR
+    resetQRStates();
 
     setIsProcessingPayment(true);
     setSelectedPaymentMethod("qr");
@@ -1437,6 +1435,12 @@ export default function ShoppingCart() {
         costo: Number(item.costo),
       }));
 
+      // Generar una referencia única para este QR
+      const uniqueReference = `qr-${Date.now()}-${Math.random()
+        .toString(36)
+        .substring(2, 10)}`;
+      console.log("Referencia única para este QR:", uniqueReference);
+
       const orderData = {
         monto: Number(calculateTotal().toFixed(2)),
         descripcion: `Compra de ${orderItems.length} productos`,
@@ -1444,6 +1448,7 @@ export default function ShoppingCart() {
         sucursalId: user.sucursalId,
         externalPosId: import.meta.env.VITE_POS_ID, // El POS ID que ya está configurado
         items: orderItems,
+        uniqueReference: uniqueReference, // Agregar referencia única
       };
 
       console.log("🔄 Enviando solicitud para generar QR:", orderData);
@@ -1510,38 +1515,51 @@ export default function ShoppingCart() {
         qrImageUrl: qrImageDataUrl, // Usar la imagen generada localmente
         monto: orderData.monto,
         items: orderItems,
+        uniqueReference: uniqueReference, // Guardar la referencia única
       });
 
       toast.dismiss("qr-loading");
       setQrDialogOpen(true);
+      setPaymentStatus("PENDIENTE"); // Establecer explícitamente el estado como PENDIENTE
 
       // Iniciar el polling para verificar el estado del pago
-      startPaymentStatusPolling(data.orderId);
+      startPaymentStatusPolling(data.orderId, uniqueReference);
     } catch (error: any) {
       console.error("❌ Error al generar QR:", error);
       toast.dismiss("qr-loading");
       toast.error(`Error al generar QR: ${error.message}`);
-      setIsProcessingPayment(false);
-      setSelectedPaymentMethod(null);
+      resetQRStates(); // Importante: resetear estados en caso de error
     }
   };
 
-  // Agregar función para iniciar el polling del estado del pago
-  const startPaymentStatusPolling = (orderId: number) => {
+  // Agregar función para iniciar el polling del estado del pago con referencia única
+  const startPaymentStatusPolling = (orderId: number, reference: string) => {
     const POLLING_INTERVAL = 3000; // 3 segundos
     const MAX_POLLING_TIME = 10 * 60 * 1000; // 10 minutos
     const MAX_RETRIES = 3;
 
+    console.log(
+      `🔄 Iniciando polling para orden ${orderId} con referencia ${reference}`
+    );
     setPollingStartTime(Date.now());
     setRetryCount(0);
 
     const interval = setInterval(async () => {
       try {
+        // Verificar si la referencia sigue siendo válida
+        if (!qrData || qrData.uniqueReference !== reference) {
+          console.log("🛑 Referencia QR no coincide, deteniendo polling");
+          clearInterval(interval);
+          setPollingInterval(null);
+          return;
+        }
+
         // Verificar timeout
         if (
           pollingStartTime &&
           Date.now() - pollingStartTime > MAX_POLLING_TIME
         ) {
+          console.log("⏱️ Tiempo máximo excedido para polling");
           clearInterval(interval);
           setPollingInterval(null);
           toast.error("Tiempo de espera agotado. El código QR ha expirado.");
@@ -1551,7 +1569,9 @@ export default function ShoppingCart() {
           return;
         }
 
-        console.log("🔄 Verificando estado del pago...");
+        console.log(
+          `🔄 Verificando estado del pago para orden ${orderId} (ref: ${reference})`
+        );
         const response = await fetch(
           `${API_URL}/api/mercadopago/check-status?orderId=${orderId}`,
           { headers }
@@ -1562,11 +1582,19 @@ export default function ShoppingCart() {
         }
 
         const statusData = await response.json();
-        console.log("🔄 Estado actual del pago:", statusData);
+        console.log(
+          `🔄 Estado actual del pago: ${statusData.status}`,
+          statusData
+        );
         setRetryCount(0); // Resetear contador si la llamada fue exitosa
         setPaymentStatus(statusData.status);
 
         if (statusData.isCompleted || statusData.isCancelled) {
+          console.log(
+            `🛑 Pago ${
+              statusData.isCompleted ? "completado" : "cancelado"
+            }, deteniendo polling`
+          );
           clearInterval(interval);
           setPollingInterval(null);
 
@@ -1591,24 +1619,22 @@ export default function ShoppingCart() {
             });
 
             // Después mostrar mensaje y limpiar
-            toast.success("¡Pago completado! Cerrando en 2 segundos...");
+            toast.success("¡Pago completado!");
+
+            // Poner un pequeño retraso antes de cerrar el diálogo
             setTimeout(() => {
               setQrDialogOpen(false);
-              setScreens(
-                screens.map((screen, index) =>
-                  index === activeScreen ? { ...screen, items: [] } : screen
-                )
-              );
-              setIsProcessingPayment(false);
-              setSelectedPaymentMethod(null);
+              // Limpiar carrito
+              const newScreens = [...screens];
+              newScreens[activeScreen] = { id: activeScreen, items: [] };
+              setScreens(newScreens);
+              resetQRStates();
               searchInputRef.current?.focus();
-            }, 2000);
+            }, 1500);
           } else {
             console.log("❌ Pago cancelado o rechazado");
             toast.error("El pago ha sido cancelado o rechazado");
-            setQrDialogOpen(false);
-            setIsProcessingPayment(false);
-            setSelectedPaymentMethod(null);
+            resetQRStates();
           }
         }
       } catch (error: any) {
@@ -1621,9 +1647,7 @@ export default function ShoppingCart() {
           toast.error(
             "Error al verificar el estado del pago. Por favor, verifique manualmente."
           );
-          setQrDialogOpen(false);
-          setIsProcessingPayment(false);
-          setSelectedPaymentMethod(null);
+          resetQRStates();
         }
       }
     }, POLLING_INTERVAL);
@@ -1896,6 +1920,9 @@ export default function ShoppingCart() {
       return;
     }
 
+    // Limpiar completamente cualquier estado previo de QR
+    resetQRStates();
+
     setIsProcessingPayment(true);
 
     try {
@@ -1917,6 +1944,12 @@ export default function ShoppingCart() {
         qrAmount: qrAmount,
         originalItems: originalOrderItems,
       };
+
+      // Generar una referencia única para este QR mixto
+      const uniqueReference = `split-qr-${Date.now()}-${Math.random()
+        .toString(36)
+        .substring(2, 10)}`;
+      console.log("Referencia única para este QR mixto:", uniqueReference);
 
       localStorage.setItem(
         "splitPaymentInfo",
@@ -1956,6 +1989,7 @@ export default function ShoppingCart() {
         isSplitPayment: true,
         cashAmount: cashAmountValue,
         originalItems: originalOrderItems,
+        uniqueReference: uniqueReference, // Agregar referencia única
       };
 
       console.log(
@@ -2020,32 +2054,35 @@ export default function ShoppingCart() {
         items: originalOrderItems,
         isSplitPayment: true,
         cashAmount: cashAmountValue,
+        uniqueReference: uniqueReference, // Guardar la referencia única
       });
 
       toast.dismiss("qr-loading");
       setQrDialogOpen(true);
+      setPaymentStatus("PENDIENTE"); // Establecer explícitamente como PENDIENTE
 
       // Iniciar el polling para verificar el estado del pago
-      startSplitPaymentStatusPolling(data.orderId, cashAmountValue);
+      startSplitPaymentStatusPolling(
+        data.orderId,
+        cashAmountValue,
+        uniqueReference
+      );
     } catch (error: any) {
       console.error("❌ Error al generar QR para pago mixto:", error);
       toast.dismiss("qr-loading");
       toast.error(`Error al generar QR: ${error.message}`);
-      setIsProcessingPayment(false);
-      setSelectedPaymentMethod(null);
-      setCashAmount("");
-      setSecondPaymentMethod("tarjeta");
+      resetQRStates(); // Importante: resetear estados en caso de error
     }
   };
 
   // Función para verificar el estado del pago con QR en caso de pago mixto
   const startSplitPaymentStatusPolling = (
     orderId: number,
-    cashAmount: number
+    cashAmount: number,
+    reference: string
   ) => {
     console.log(
-      "🔄 Iniciando polling para verificar estado del pago mixto:",
-      orderId
+      `🔄 Iniciando polling para verificar estado del pago mixto: orden ${orderId}, ref: ${reference}`
     );
 
     setPaymentStatus("PENDIENTE");
@@ -2058,7 +2095,17 @@ export default function ShoppingCart() {
     // Crear intervalo de polling (cada 3 segundos)
     const interval = setInterval(async () => {
       try {
-        console.log("🔄 Verificando estado del pago mixto...");
+        // Verificar si la referencia sigue siendo válida
+        if (!qrData || qrData.uniqueReference !== reference) {
+          console.log("🛑 Referencia QR mixto no coincide, deteniendo polling");
+          clearInterval(interval);
+          setPollingInterval(null);
+          return;
+        }
+
+        console.log(
+          `🔄 Verificando estado del pago mixto para orden ${orderId} (ref: ${reference})`
+        );
         const response = await fetch(
           `${API_URL}/api/mercadopago/check-status?orderId=${orderId}`,
           {
@@ -2071,50 +2118,45 @@ export default function ShoppingCart() {
         }
 
         const statusData = await response.json();
-        console.log("🔄 Estado actual del pago mixto:", statusData);
+        console.log(
+          `🔄 Estado actual del pago mixto: ${statusData.status}`,
+          statusData
+        );
 
         setPaymentStatus(statusData.status);
 
         // Si el pago se completó o canceló, detener el polling
         if (statusData.isCompleted || statusData.isCancelled) {
+          console.log(
+            `🛑 Pago mixto ${
+              statusData.isCompleted ? "completado" : "cancelado"
+            }, deteniendo polling`
+          );
           clearInterval(interval);
           setPollingInterval(null);
 
           if (statusData.isCompleted) {
             console.log("✅ Pago mixto QR completado exitosamente");
 
-            // Set a timeout to automatically close the dialog after 5 seconds
-            toast.success("¡Pago completado! Cerrando en 2 segundos...");
+            // Procesar el pago primero
+            await finalizeSplitMPPayment(statusData, cashAmount);
+
+            // Mostrar mensaje de éxito
+            toast.success("¡Pago completado!");
+
+            // Cerrar diálogo después de un breve retraso
             setTimeout(() => {
               setQrDialogOpen(false);
-              // Clear cart items
-              setScreens(
-                screens.map((screen, index) =>
-                  index === activeScreen ? { ...screen, items: [] } : screen
-                )
-              );
-              console.log(
-                "✅ Diálogo cerrado automáticamente después del pago mixto"
-              );
-              setIsProcessingPayment(false);
-              setSelectedPaymentMethod(null);
-              setCashAmount("");
-              setSecondPaymentMethod("tarjeta");
-              // Return focus to search input
-              setTimeout(() => {
-                searchInputRef.current?.focus();
-              }, 100);
-            }, 2000);
-
-            finalizeSplitMPPayment(statusData, cashAmount);
+              const newScreens = [...screens];
+              newScreens[activeScreen] = { id: activeScreen, items: [] };
+              setScreens(newScreens);
+              resetQRStates();
+              searchInputRef.current?.focus();
+            }, 1500);
           } else {
             console.log("❌ Pago mixto QR cancelado o rechazado");
             toast.error("El pago ha sido cancelado o rechazado");
-            setQrDialogOpen(false);
-            setIsProcessingPayment(false);
-            setSelectedPaymentMethod(null);
-            setCashAmount("");
-            setSecondPaymentMethod("tarjeta");
+            resetQRStates();
           }
         }
       } catch (error: any) {
@@ -2131,11 +2173,7 @@ export default function ShoppingCart() {
         setPollingInterval(null);
         console.log("⏱️ Tiempo de espera agotado");
         toast.error("Tiempo de espera agotado. Intente nuevamente.");
-        setQrDialogOpen(false);
-        setIsProcessingPayment(false);
-        setSelectedPaymentMethod(null);
-        setCashAmount("");
-        setSecondPaymentMethod("tarjeta");
+        resetQRStates();
       }
     }, 5 * 60 * 1000);
   };
@@ -2234,24 +2272,36 @@ export default function ShoppingCart() {
         cashAmount,
       });
 
-      // Primero verificar el estado y tipo de la orden
-      const checkResponse = await fetch(`${API_URL}/api/ordenes/${orderId}`, {
-        headers: {
-          ...headers,
-          ...(appId && { "X-App-ID": appId }),
-        },
-      });
+      // Verificar estado de la orden antes de intentar completarla
+      const checkResponse = await fetch(
+        `${API_URL}/api/mercadopago/check-status?orderId=${orderId}`,
+        {
+          headers,
+        }
+      );
 
       if (!checkResponse.ok) {
-        throw new Error("Error al verificar la orden");
+        throw new Error("Error al verificar estado de la orden");
       }
 
-      const orderData = await checkResponse.json();
-      if (orderData.metodoPago !== "qr") {
-        throw new Error("La orden no es de tipo QR");
+      const statusData = await checkResponse.json();
+      console.log("Estado actual de la orden:", statusData);
+
+      if (statusData.isCompleted) {
+        toast.error("Esta orden ya ha sido completada");
+        return false;
       }
 
-      // Si la verificación es exitosa, proceder con la completación manual
+      if (statusData.isCancelled) {
+        toast.error("Esta orden ha sido cancelada");
+        return false;
+      }
+
+      if (statusData.status !== "PENDIENTE") {
+        toast.error("La orden no está en estado pendiente");
+        return false;
+      }
+
       const response = await fetch(
         `${API_URL}/api/mercadopago/manual-complete`,
         {
@@ -2260,11 +2310,7 @@ export default function ShoppingCart() {
             "Content-Type": "application/json",
             ...(appId && { "X-App-ID": appId }),
           },
-          body: JSON.stringify({
-            orderId,
-            isSplitPayment,
-            ...(cashAmount && { cashAmount }),
-          }),
+          body: JSON.stringify({ orderId }),
         }
       );
 
@@ -2275,12 +2321,11 @@ export default function ShoppingCart() {
 
       const result = await response.json();
       console.log("✅ Orden completada manualmente:", result);
-
-      // No mostrar toast aquí, se mostrará después
+      toast.success("Orden completada manualmente");
       return true;
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error al completar orden manualmente:", error);
-      toast.error(error.message || "Error al completar la orden manualmente");
+      toast.error("Error al completar la orden manualmente");
       return false;
     }
   };
@@ -2371,7 +2416,7 @@ export default function ShoppingCart() {
     cashAmount?: number;
   } | null>(null);
 
-  // Función para manejar el intento de pago manual
+  // Modificar la función handleManualPaymentAttempt
   const handleManualPaymentAttempt = (
     orderId: number,
     isSplitPayment: boolean = false,
@@ -2385,30 +2430,17 @@ export default function ShoppingCart() {
       return;
     }
 
+    console.log("🔑 Iniciando pago manual para orden:", {
+      orderId,
+      isSplitPayment,
+      cashAmount,
+    });
     setTempOrderData({ orderId, isSplitPayment, cashAmount });
     setManualPassword("");
     setIsPasswordDialogOpen(true);
   };
 
-  // Después de las funciones existentes y antes del return
-  const resetQRStates = () => {
-    setIsPasswordDialogOpen(false);
-    setQrDialogOpen(false);
-    setManualPassword("");
-    setTempOrderData(null);
-    setQrData(null);
-    setPaymentStatus("PENDIENTE");
-    setIsProcessingPayment(false);
-    setSelectedPaymentMethod(null);
-    if (pollingInterval) {
-      clearInterval(pollingInterval);
-      setPollingInterval(null);
-    }
-    setPollingStartTime(null);
-    setRetryCount(0);
-  };
-
-  // Modificar handlePasswordSubmit para usar el nuevo reset y manejar mejor el método de pago
+  // Modificar el handlePasswordSubmit para corregir el flujo
   const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -2419,8 +2451,12 @@ export default function ShoppingCart() {
 
       if (manualPassword !== MANUAL_QR_PASSWORD) {
         toast.error("Contraseña incorrecta");
+        setIsProcessingManualPayment(false);
         return;
       }
+
+      // Mostrar toast de éxito primero
+      toast.success("Validación correcta, procesando pago...");
 
       const result = await completarOrdenManualmente(
         tempOrderData.orderId,
@@ -2442,15 +2478,12 @@ export default function ShoppingCart() {
           const orderData = await response.json();
           console.log("Datos de orden para ticket:", orderData);
 
-          // Determinar el método de pago correcto
-          let metodoPago = "QR";
-          if (tempOrderData.isSplitPayment) {
-            metodoPago = `QR + ${
-              tempOrderData.cashAmount
-                ? "EFECTIVO"
-                : secondPaymentMethod.toUpperCase()
-            }`;
-          }
+          // Determinar correctamente el método de pago
+          const metodoPago = tempOrderData.isSplitPayment
+            ? "QR + EFECTIVO"
+            : "QR";
+
+          console.log("Método de pago determinado:", metodoPago);
 
           const ticketData = {
             ...orderData,
@@ -2466,41 +2499,80 @@ export default function ShoppingCart() {
               subtotal: Number(detalle.subtotal || 0),
             })),
             vendedor: orderData.vendedor?.nombre || user?.nombre,
-            metodoPago,
+            metodoPago: metodoPago,
             total: Number(orderData.total || 0),
           };
 
-          // Primero mostrar el toast de éxito
-          toast.success("Orden completada manualmente");
-
-          // Esperar un momento antes de cerrar los diálogos
-          await new Promise((resolve) => setTimeout(resolve, 500));
-
-          // Reiniciar todos los estados
-          resetAllPaymentStates();
-
-          // Imprimir el ticket después de limpiar los estados
+          // Imprimir ticket y mostrar toast de éxito antes de cerrar diálogos
           await handleTicketPrinting(ticketData);
+          toast.success("Pago completado exitosamente");
 
-          // Devolver el foco al input de búsqueda
+          // Generar nueva referencia única para evitar conflictos de estado
+          const newUniqueId = Date.now().toString();
+          console.log("Generando nueva referencia QR:", newUniqueId);
+
+          // Limpiar carrito inmediatamente
+          const newScreens = [...screens];
+          newScreens[activeScreen] = {
+            id: activeScreen,
+            items: [],
+          };
+          setScreens(newScreens);
+
+          // Cerrar diálogos y resetear estados después de un breve retraso
           setTimeout(() => {
-            searchInputRef.current?.focus();
-          }, 100);
+            resetQRStates();
+
+            // Limpiar estados adicionales si es pago mixto
+            if (tempOrderData?.isSplitPayment) {
+              setSplitPaymentDialogOpen(false);
+              setCashAmount("");
+              setSecondPaymentMethod("tarjeta");
+            }
+
+            // Devolver el foco al input de búsqueda
+            setTimeout(() => {
+              searchInputRef.current?.focus();
+            }, 100);
+          }, 1000);
         } catch (error) {
           console.error("Error al imprimir ticket:", error);
           toast.error("Error al imprimir el ticket");
-          resetAllPaymentStates();
+          resetQRStates();
         }
       } else {
-        resetAllPaymentStates();
+        resetQRStates();
       }
     } catch (error) {
       console.error("Error al procesar pago manual:", error);
       toast.error("Error al procesar el pago manual");
-      resetAllPaymentStates();
+      resetQRStates();
     } finally {
       setIsProcessingManualPayment(false);
     }
+  };
+
+  // Mejorar resetQRStates para ser más completo
+  const resetQRStates = () => {
+    console.log("🧹 Limpiando todos los estados QR");
+    setIsPasswordDialogOpen(false);
+    setQrDialogOpen(false);
+    setManualPassword("");
+    setTempOrderData(null);
+    setQrData(null);
+    setPaymentStatus(null); // Cambiar a null en lugar de "PENDIENTE"
+    setIsProcessingPayment(false);
+    setSelectedPaymentMethod(null);
+
+    // Importante: limpiar cualquier intervalo de polling
+    if (pollingInterval) {
+      console.log("🛑 Deteniendo intervalo de polling");
+      clearInterval(pollingInterval);
+      setPollingInterval(null);
+    }
+
+    setPollingStartTime(null);
+    setRetryCount(0);
   };
 
   console.log(user);
