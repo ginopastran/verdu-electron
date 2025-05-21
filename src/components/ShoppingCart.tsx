@@ -74,8 +74,14 @@ export default function ShoppingCart() {
 
   // Función para formatear fechas en zona horaria Argentina
   const formatFechaArgentina = (fecha: string | Date) => {
-    return new Date(fecha).toLocaleString("es-AR", {
-      timeZone: "America/Argentina/Buenos_Aires",
+    // Convertir la fecha a un objeto Date si es string
+    const fechaObj = typeof fecha === "string" ? new Date(fecha) : fecha;
+
+    // Ajustar 3 horas para compensar la diferencia con Argentina
+    const fechaArg = new Date(fechaObj.getTime() + 3 * 60 * 60 * 1000);
+
+    // Formatear la fecha sin especificar timeZone ya que ya está ajustada
+    return fechaArg.toLocaleString("es-AR", {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
@@ -893,42 +899,39 @@ export default function ShoppingCart() {
       return;
     }
 
-    // Activar estado de carga
     setIsClosing(true);
 
     try {
-      // Función para convertir fechas a ISO string (UTC)
-      const getUTCDate = (hours: number) => {
+      // Función para obtener fecha en UTC
+      const getUTCDate = (hoursArg: number) => {
         const date = new Date();
-        date.setHours(hours, 0, 0, 0);
+        // Ajustar a UTC
+        date.setUTCHours(hoursArg + 3, 0, 0, 0); // +3 para compensar la diferencia con Argentina
         return date.toISOString();
       };
 
       // Determinar la fecha de inicio según el periodo
       let startDate;
       if (period === "mañana") {
-        // 6 AM hora Argentina (equivale a 9 AM UTC)
-        startDate = getUTCDate(6);
+        startDate = getUTCDate(6); // 6 AM hora Argentina
       } else if (period === "tarde") {
-        // 12 PM hora Argentina (equivale a 15 PM UTC)
-        startDate = getUTCDate(12);
+        startDate = getUTCDate(12); // 12 PM hora Argentina
       } else {
-        // 0 AM hora Argentina (equivale a 3 AM UTC)
-        startDate = getUTCDate(0);
+        startDate = getUTCDate(0); // 0 AM hora Argentina
       }
 
-      console.log(
-        `🕒 Fecha inicio (${period}) hora local:`,
-        new Date(startDate).toLocaleString("es-AR")
-      );
       console.log(`🕒 Fecha inicio (${period}) UTC:`, startDate);
+      console.log(
+        `🕒 Fecha inicio (${period}) hora Argentina:`,
+        formatFechaArgentina(startDate)
+      );
 
-      // Preparar datos para el cierre - simplificado porque el backend ahora hace los cálculos
+      // Preparar datos para el cierre
       const closingData = {
         vendedorId: user.id,
         sucursalId: user.sucursalId,
         fechaInicio: startDate,
-        fechaCierre: new Date().toISOString(), // Fecha actual en UTC
+        fechaCierre: new Date().toISOString(),
         periodo: period,
       };
 
@@ -2380,12 +2383,7 @@ export default function ShoppingCart() {
       console.log("ISELIN II");
       console.log(`Vendedor: ${orderData.vendedor}`);
       console.log(
-        `Fecha: ${new Date(
-          orderData.createdAt || orderData.fecha
-        ).toLocaleString("es-AR", {
-          timeZone: "America/Argentina/Buenos_Aires",
-          hour12: false,
-        })}`
+        `Fecha: ${formatFechaArgentina(orderData.createdAt || orderData.fecha)}`
       );
       console.log("-----------------------------");
       console.log("PRODUCTO      CANT    PRECIO    TOTAL");
@@ -3437,13 +3435,7 @@ export default function ShoppingCart() {
                     {recentOrders.map((order) => (
                       <TableRow key={order.id}>
                         <TableCell>
-                          {new Date(order.fecha).toLocaleString("es-AR", {
-                            day: "2-digit",
-                            month: "2-digit",
-                            year: "2-digit",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
+                          {formatFechaArgentina(order.fecha)}
                         </TableCell>
                         <TableCell className="capitalize">
                           {order.metodoPago}
