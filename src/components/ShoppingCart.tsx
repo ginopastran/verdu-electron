@@ -1639,7 +1639,7 @@ export default function ShoppingCart() {
   };
 
   // Función para finalizar el pago después de que MP confirme
-  const finalizeMPPayment = async (paymentData: any) => {
+  const finalizeMPPayment = async (paymentData: any, skipPrinting = false) => {
     try {
       console.log("🔄 Finalizando pago con datos:", paymentData);
 
@@ -1690,8 +1690,13 @@ export default function ShoppingCart() {
             throw new Error("Error al crear la orden en base de datos");
           }
 
-          // Intentar imprimir el ticket sin mostrar toast de carga
-          await handleTicketPrinting(orderData);
+          // Solo imprimir el ticket si no se indica saltar la impresión
+          if (!skipPrinting) {
+            // Intentar imprimir el ticket sin mostrar toast de carga
+            await handleTicketPrinting(orderData);
+          } else {
+            console.log("🖨️ Impresión de ticket omitida (skipPrinting=true)");
+          }
         } catch (error: any) {
           console.error("❌ Error al procesar orden:", error);
           toast.error(`Error: ${error.message}`);
@@ -2103,7 +2108,7 @@ export default function ShoppingCart() {
             // Procesar el pago mixto primero
             await finalizeSplitMPPayment(statusData, cashAmount);
 
-            // Set a timeout to automatically close the dialog after 5 seconds
+            // Set a timeout to automatically close the dialog after 2 seconds
             toast.success("¡Pago completado! Cerrando en 2 segundos...");
             setTimeout(() => {
               setQrDialogOpen(false);
@@ -2125,8 +2130,6 @@ export default function ShoppingCart() {
                 searchInputRef.current?.focus();
               }, 100);
             }, 2000);
-
-            finalizeSplitMPPayment(statusData, cashAmount);
           } else {
             console.log("❌ Pago mixto QR cancelado o rechazado");
             toast.error("El pago ha sido cancelado o rechazado");
@@ -2325,7 +2328,7 @@ export default function ShoppingCart() {
           isCompleted: true,
           orderId: result.orderId, // Usar el orderId de la respuesta
           cartData,
-        });
+        }, true); // Pasar true para skipPrinting y evitar la impresión duplicada
       }
 
       // Toast de reinicio del carrito
