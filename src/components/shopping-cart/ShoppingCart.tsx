@@ -1,22 +1,22 @@
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { useProductSearch } from "./shopping-cart/hooks";
-import { ProductSearch } from "./shopping-cart/product-list";
-import { PaymentDialog, SplitPaymentDialog } from "./shopping-cart/dialogs";
+import { useProductSearch } from "./hooks";
+import { ProductSearch } from "./product-list";
+import { PaymentDialog, SplitPaymentDialog } from "./dialogs";
 import {
   CartProvider,
   PaymentProvider,
   BusinessProvider,
   WeightProvider,
-} from "./shopping-cart/contexts";
+} from "./contexts";
 import {
   CartHeader,
   CartFooter,
   ProductQuantityInput,
   QRPayment,
-} from "./shopping-cart/components";
-import { CartList } from "./shopping-cart/product-list";
-import { AvailableProduct } from "./shopping-cart/types";
+} from "./components";
+import { CartList } from "./product-list";
+import { AvailableProduct } from "./types";
 
 export default function ShoppingCart() {
   const { user } = useAuth();

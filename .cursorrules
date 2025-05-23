@@ -1,0 +1,73 @@
+# Reglas de Cursor para el proyecto verdu-electron
+
+# Estructura de carpetas
+src/
+  components/
+    shopping-cart/
+      dialogs/        # Diálogos y modales
+      product-list/   # Componentes relacionados con la lista de productos
+      payment/        # Servicios y hooks de pago
+      hooks/          # Hooks personalizados
+      types.ts        # Tipos compartidos
+      index.ts        # Exportaciones públicas
+      ShoppingCart.tsx # Componente principal
+
+# Convenciones de nombres
+- Usar PascalCase para componentes
+- Usar camelCase para hooks, funciones y variables
+- Usar kebab-case para nombres de archivos
+- Usar SCREAMING_SNAKE_CASE para constantes
+
+# Estructura de componentes
+- Un componente por archivo
+- Exportar componentes como named exports
+- Mantener componentes pequeños y enfocados
+- Extraer lógica compleja a hooks personalizados
+
+# Hooks personalizados
+- Prefijo "use" para todos los hooks
+- Un hook por archivo
+- Exportar hooks como named exports
+- Documentar parámetros y retorno
+
+# Tipos
+- Interfaces para props de componentes
+- Types para uniones y tipos complejos
+- Exportar tipos desde types.ts
+
+# Estilos
+- Usar Tailwind CSS para estilos
+- Mantener clases ordenadas por categoría
+- Extraer clases comunes a variables
+
+# Importaciones
+- Importaciones absolutas desde @/
+- Agrupar importaciones por tipo
+- Orden: React, externos, internos, tipos
+
+# Manejo de estado
+- useState para estado local simple
+- useReducer para estado complejo
+- Context para estado global
+- Hooks personalizados para lógica reutilizable
+
+# Manejo de efectos
+- useEffect para efectos secundarios
+- Cleanup functions para suscripciones
+- Dependencias explícitas en array
+
+# Manejo de errores
+- try/catch para operaciones asíncronas
+- Error boundaries para errores de renderizado
+- Logging consistente de errores
+
+# Testing
+- Tests unitarios para hooks
+- Tests de integración para componentes
+- Snapshots para UI
+
+# Performance
+- useMemo para cálculos costosos
+- useCallback para callbacks estables
+- React.memo para componentes puros
+- Lazy loading para código dividido 
