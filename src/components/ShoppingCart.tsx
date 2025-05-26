@@ -173,12 +173,13 @@ export default function ShoppingCart() {
 
   const weight = useScaleWeight();
 
-  // Cargar información del negocio con businessId 1
+  // Cargar información del negocio con businessId desde env
   useEffect(() => {
     const fetchBusinessInfo = async () => {
       try {
         console.log("🏢 Iniciando carga de información del negocio");
-        const response = await fetch(`${API_URL}/api/business/1`, {
+        const businessId = import.meta.env.VITE_BUSINESS_ID;
+        const response = await fetch(`${API_URL}/api/business/${businessId}`, {
           headers,
         });
 
@@ -2324,11 +2325,14 @@ export default function ShoppingCart() {
           ),
         };
 
-        await finalizeMPPayment({
-          isCompleted: true,
-          orderId: result.orderId, // Usar el orderId de la respuesta
-          cartData,
-        }, true); // Pasar true para skipPrinting y evitar la impresión duplicada
+        await finalizeMPPayment(
+          {
+            isCompleted: true,
+            orderId: result.orderId, // Usar el orderId de la respuesta
+            cartData,
+          },
+          true
+        ); // Pasar true para skipPrinting y evitar la impresión duplicada
       }
 
       // Toast de reinicio del carrito
