@@ -1,3 +1,17 @@
+# Cambios Pendientes para Implementar en ShoppingCartRefactored
+
+## 1. Fix error doble impresión
+
+**Descripción**: Corrección del problema de impresión duplicada de tickets.
+**Archivos Afectados**:
+
+- ShoppingCart.tsx
+
+**Código Original**:
+
+**Cambios Realizados**:
+
+```typescript
 import { useState, useEffect, useRef } from "react";
 import {
   Trash2,
@@ -3914,3 +3928,12 @@ export default function ShoppingCart() {
     </div>
   );
 }
+```
+
+# Instrucciones para Implementación
+
+1. Para cada sección, revisar el código original en la rama sin refactorizar
+2. Copiar los cambios relevantes en las secciones correspondientes
+3. Adaptar los cambios al nuevo sistema refactorizado
+4. Probar cada cambio individualmente antes de continuar con el siguiente
+5. Documentar cualquier conflicto o problema encontrado durante la implementación

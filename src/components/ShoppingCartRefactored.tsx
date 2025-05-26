@@ -9,7 +9,17 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Receipt, Wallet, CreditCard, QrCode } from "lucide-react";
+import {
+  Receipt,
+  Wallet,
+  CreditCard,
+  QrCode,
+  Sun,
+  Moon,
+  Calendar,
+  History,
+  Store,
+} from "lucide-react";
 import {
   Table,
   TableHeader,
@@ -23,7 +33,9 @@ import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCartState } from "@/hooks/useCartState";
 import { usePaymentProcessing } from "@/hooks/usePaymentProcessing";
+import { useScaleWeight } from "@/hooks/useScaleWeight";
 import { AvailableProduct } from "@/hooks/useProductSearch";
+import { UserMenu } from "@/components/user-menu";
 
 import {
   AddProductDialog,
@@ -33,16 +45,37 @@ import {
   HeaderActions,
   ProductSearch,
   PaymentDialog,
+  ManualQrDialog,
 } from "./shopping-cart";
 
 // Importar las imágenes como recursos desde assets
 import iselinLogo from "../assets/iselin-logo.png";
 import andextechLogo from "../assets/andextech-black.png";
 
+interface Product {
+  id: number;
+  cartId: string;
+  name: string;
+  quantity: number;
+  unit: string;
+  pricePerUnit: number;
+  subtotal: number;
+  costo: number;
+}
+
 export default function ShoppingCartRefactored() {
   const { user, logout } = useAuth();
   const API_URL = import.meta.env.VITE_API_URL;
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Estados para búsqueda y productos
+  const [searchQuery, setSearchQuery] = useState("");
+  const [availableProducts, setAvailableProducts] = useState<
+    AvailableProduct[]
+  >([]);
+  const [showResults, setShowResults] = useState(false);
+  const [searchResults, setSearchResults] = useState<AvailableProduct[]>([]);
+  const [selectedIndex, setSelectedIndex] = useState(-1);
 
   // Estados para diálogos y UI
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -59,6 +92,32 @@ export default function ShoppingCartRefactored() {
 
   // Estado para información del negocio
   const [businessInfo, setBusinessInfo] = useState<any>(null);
+
+  // Estados para cierre de caja
+  const [closingDialogOpen, setClosingDialogOpen] = useState(false);
+  const [closeResultDialogOpen, setCloseResultDialogOpen] = useState(false);
+  const [closeResultData, setCloseResultData] = useState<any>(null);
+  const [isClosing, setIsClosing] = useState(false);
+
+  // Estados para código de barras
+  const [lastInputTime, setLastInputTime] = useState<number>(0);
+  const [barcodeBuffer, setBarcodeBuffer] = useState<string>("");
+
+  // Estados para peso manual/automático
+  const [useManualWeight, setUseManualWeight] = useState(false);
+  const weight = useScaleWeight();
+
+  // Estados para pantallas múltiples
+  const [activeScreen, setActiveScreen] = useState(0);
+  const [screens, setScreens] = useState<{ id: number; items: Product[] }[]>([
+    { id: 0, items: [] },
+  ]);
+  const [deleteScreenDialogOpen, setDeleteScreenDialogOpen] = useState(false);
+  const [screenToDelete, setScreenToDelete] = useState<number | null>(null);
+
+  // Protección contra adiciones duplicadas
+  const [isAddingToCart, setIsAddingToCart] = useState(false);
+  const lastAddRequestRef = useRef<string>("");
 
   // Agregar estados para QR
   const [qrDialogOpen, setQrDialogOpen] = useState(false);
@@ -371,12 +430,9 @@ export default function ShoppingCartRefactored() {
     setIsLoadingOrders(true);
 
     try {
-      // Usar el endpoint específico para órdenes del vendedor
       const response = await fetch(
         `${API_URL}/api/ordenes/vendedor/${user.id}?limit=5`,
-        {
-          headers,
-        }
+        { headers }
       );
 
       if (!response.ok) {
@@ -397,18 +453,15 @@ export default function ShoppingCartRefactored() {
   // Función para reimprimir un ticket
   const handleReprintTicket = async (order: any) => {
     if (isPrinting) return;
-
     setIsPrinting(true);
 
     try {
       const { ipcRenderer } = window.require("electron");
-
+      console.log("Reimprimiendo ticket para orden:", order);
       toast.info("Reimprimiendo ticket...", {
         duration: 3000,
         description: "Enviando datos a la impresora",
       });
-
-      console.log("Reimprimiendo ticket para orden:", order);
 
       const result = await ipcRenderer.invoke("print-ticket", order);
 
@@ -423,6 +476,147 @@ export default function ShoppingCartRefactored() {
     } finally {
       setIsPrinting(false);
     }
+  };
+
+  // Función para formatear fechas en zona horaria Argentina
+  const formatFechaArgentina = (fecha: string | Date) => {
+    const fechaObj = typeof fecha === "string" ? new Date(fecha) : fecha;
+    const fechaArg = new Date(fechaObj.getTime() + 3 * 60 * 60 * 1000);
+    return fechaArg.toLocaleString("es-AR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+  };
+
+  // Función para manejar cierre de caja
+  const handleClosing = async (period: string) => {
+    if (!user) {
+      toast.error("Debes iniciar sesión para realizar el cierre");
+      return;
+    }
+
+    if (!user.permisos?.cierreDeCajaEnabled) {
+      toast.error("No tienes permiso para realizar cierres de caja");
+      setClosingDialogOpen(false);
+      return;
+    }
+
+    setIsClosing(true);
+
+    try {
+      const getUTCDate = (hoursArg: number) => {
+        const date = new Date();
+        date.setUTCHours(hoursArg + 3, 0, 0, 0);
+        return date.toISOString();
+      };
+
+      let startDate;
+      if (period === "mañana") {
+        startDate = getUTCDate(6);
+      } else if (period === "tarde") {
+        startDate = getUTCDate(12);
+      } else {
+        startDate = getUTCDate(0);
+      }
+
+      const closingData = {
+        vendedorId: user.id,
+        sucursalId: user.sucursalId,
+        fechaInicio: startDate,
+        fechaCierre: new Date().toISOString(),
+        periodo: period,
+      };
+
+      const cierreResponse = await fetch(`${API_URL}/api/cierres`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(closingData),
+      });
+
+      const responseData = await cierreResponse.json();
+
+      if (!cierreResponse.ok) {
+        if (responseData.error === "ERROR_CIERRE_MAÑANA_REQUERIDO") {
+          toast.error(
+            "No puedes realizar un cierre de tarde sin haber realizado el cierre de mañana del día actual.",
+            {
+              duration: 5000,
+              description: "Primero debes realizar el cierre de mañana",
+            }
+          );
+        } else {
+          throw new Error(
+            responseData.message || "Error al registrar el cierre"
+          );
+        }
+        return;
+      }
+
+      const cierreData = await responseData;
+      console.log("✅ Datos de cierre recibidos:", cierreData);
+
+      try {
+        const { ipcRenderer } = window.require("electron");
+        const result = await ipcRenderer.invoke("print-closing", cierreData);
+
+        if (result.success && !result.printerError) {
+          toast.success("Ticket de cierre impreso correctamente");
+        }
+
+        toast.success(`Cierre de ${period} realizado correctamente`);
+        setClosingDialogOpen(false);
+      } catch (printError: any) {
+        console.error("Error al imprimir cierre:", printError);
+        toast.success(`Cierre de ${period} realizado correctamente`);
+        setClosingDialogOpen(false);
+      }
+    } catch (error: any) {
+      toast.error(`Error: ${error.message || "Error al realizar el cierre"}`);
+    } finally {
+      setIsClosing(false);
+    }
+  };
+
+  // Función para manejar búsqueda con código de barras
+  const handleSearchInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const currentTime = Date.now();
+    const value = e.target.value;
+    setSearchQuery(value);
+
+    if (currentTime - lastInputTime < 50) {
+      setBarcodeBuffer((prev) => prev + value.slice(-1));
+    } else {
+      setBarcodeBuffer(value);
+    }
+
+    setLastInputTime(currentTime);
+
+    if (/^\d{8,13}$/.test(value)) {
+      const product = availableProducts.find((p) => p.codigoBarras === value);
+      if (product) {
+        handleProductSelect(product);
+      }
+    }
+  };
+
+  // Función para confirmar eliminación de pantalla
+  const confirmDeleteScreen = () => {
+    if (screenToDelete === null) return;
+
+    const newScreens = screens.filter((screen) => screen.id !== screenToDelete);
+    setScreens(newScreens);
+
+    if (activeScreen === screenToDelete) {
+      setActiveScreen(0);
+    }
+
+    setDeleteScreenDialogOpen(false);
+    setScreenToDelete(null);
+    toast.success("Pantalla eliminada correctamente");
   };
 
   // Asignar las funciones de control de diálogos al procesador de pagos
@@ -476,13 +670,31 @@ export default function ShoppingCartRefactored() {
             />
           </div>
 
-          <div className="ml-auto flex items-center">
-            <HeaderActions
-              userName={user?.nombre || ""}
-              userEmail={user?.email || ""}
-              canCloseCashDesk={user?.permisos?.cierreDeCajaEnabled || false}
-              onOpenOrders={handleOrdersDialog}
-              onOpenClosing={handleClosingDialog}
+          <div className="w-full flex justify-end items-center gap-4">
+            {/* Botón de Órdenes recientes */}
+            <Button
+              className="bg-emerald-gradient text-white hover:text-white text-base [&_svg]:size-6"
+              onClick={() => {
+                setOrdersDialogOpen(true);
+                loadRecentOrders();
+              }}
+            >
+              <History />
+              Órdenes
+            </Button>
+
+            {user?.permisos?.cierreDeCajaEnabled && (
+              <Button
+                className="bg-emerald-gradient text-white hover:text-white text-base [&_svg]:size-6"
+                onClick={() => setClosingDialogOpen(true)}
+              >
+                <Store />
+                Cierre de caja
+              </Button>
+            )}
+
+            <UserMenu
+              user={{ nombre: user?.nombre || "", email: user?.email || "" }}
             />
           </div>
         </div>
@@ -732,22 +944,13 @@ export default function ShoppingCartRefactored() {
                 <TableBody>
                   {recentOrders.map((order) => (
                     <TableRow key={order.id}>
-                      <TableCell>
-                        {new Date(order.fecha).toLocaleString("es-AR", {
-                          day: "2-digit",
-                          month: "2-digit",
-                          year: "2-digit",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </TableCell>
+                      <TableCell>{formatFechaArgentina(order.fecha)}</TableCell>
                       <TableCell className="capitalize">
                         {order.metodoPago}
                       </TableCell>
                       <TableCell className="text-right font-medium">
                         ${Number(order.total).toLocaleString()}
                       </TableCell>
-
                       <TableCell className="text-center">
                         <Button
                           variant="ghost"
@@ -789,6 +992,201 @@ export default function ShoppingCartRefactored() {
               )}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Diálogo de cierre de caja */}
+      <Dialog
+        open={closingDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setClosingDialogOpen(false);
+            setTimeout(() => {
+              searchInputRef.current?.focus();
+            }, 100);
+          } else {
+            setClosingDialogOpen(open);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Seleccionar período de cierre</DialogTitle>
+            <DialogDescription>
+              Presiona el número correspondiente al período o haz clic en el
+              botón
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-3 gap-4">
+            <Button
+              onClick={() => handleClosing("mañana")}
+              className="h-32 flex flex-col items-center justify-center space-y-2 [&_svg]:size-8"
+              variant="outline"
+              disabled={isClosing}
+            >
+              {isClosing ? (
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" />
+              ) : (
+                <Sun />
+              )}
+              <span className="text-base">Mañana (1)</span>
+            </Button>
+            <Button
+              onClick={() => handleClosing("tarde")}
+              className="h-32 flex flex-col items-center justify-center space-y-2 [&_svg]:size-8"
+              variant="outline"
+              disabled={isClosing}
+            >
+              {isClosing ? (
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" />
+              ) : (
+                <Moon />
+              )}
+              <span className="text-base">Tarde (2)</span>
+            </Button>
+            <Button
+              onClick={() => handleClosing("todo")}
+              className="h-32 flex flex-col items-center justify-center space-y-2 [&_svg]:size-8"
+              variant="outline"
+              disabled={isClosing}
+            >
+              {isClosing ? (
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" />
+              ) : (
+                <Calendar />
+              )}
+              <span className="text-base">Todo el día (3)</span>
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Diálogo de resultado de cierre */}
+      <Dialog
+        open={closeResultDialogOpen}
+        onOpenChange={setCloseResultDialogOpen}
+      >
+        <DialogContent className="sm:max-w-[700px]">
+          <DialogHeader>
+            <DialogTitle>Resultado del Cierre de Caja</DialogTitle>
+            <DialogDescription>
+              Resumen de ventas del período seleccionado
+            </DialogDescription>
+          </DialogHeader>
+
+          {closeResultData && (
+            <div className="space-y-4 max-h-[70vh] overflow-y-auto">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <h3 className="text-sm font-medium">Período</h3>
+                  <p className="text-xl font-bold">
+                    {closeResultData.periodo.toUpperCase()}
+                  </p>
+                </div>
+                <div>
+                  <h3 className="text-sm font-medium">Fecha</h3>
+                  <p>
+                    {formatFechaArgentina(closeResultData.fechaInicio)} -{" "}
+                    {formatFechaArgentina(closeResultData.fechaCierre)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="rounded-lg border p-4">
+                <h3 className="text-lg font-semibold mb-2">Resumen General</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-muted-foreground">
+                      Total Ventas
+                    </p>
+                    <p className="text-2xl font-bold text-emerald-600">
+                      ${Number(closeResultData.totalVentas).toLocaleString()}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">
+                      Cantidad de Ventas
+                    </p>
+                    <p className="text-2xl font-bold">
+                      {closeResultData.cantidadVentas}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {closeResultData.ventasPorMetodo && (
+                <div className="rounded-lg border p-4">
+                  <h3 className="text-lg font-semibold mb-2">
+                    Ventas por Método de Pago
+                  </h3>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Método</TableHead>
+                        <TableHead className="text-right">Monto</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {Object.entries(closeResultData.ventasPorMetodo).map(
+                        ([metodo, monto]: [string, any]) => (
+                          <TableRow key={metodo}>
+                            <TableCell className="font-medium capitalize">
+                              {metodo}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              ${Number(monto).toLocaleString()}
+                            </TableCell>
+                          </TableRow>
+                        )
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+
+              {closeResultData.ventasPorVendedor && (
+                <div className="rounded-lg border p-4">
+                  <h3 className="text-lg font-semibold mb-2">
+                    Desglose por Vendedor
+                  </h3>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Vendedor</TableHead>
+                        <TableHead>Email</TableHead>
+                        <TableHead className="text-right">Total</TableHead>
+                        <TableHead className="text-right">Ventas</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {closeResultData.ventasPorVendedor.map(
+                        (vendedor: any) => (
+                          <TableRow key={vendedor.id}>
+                            <TableCell className="font-medium">
+                              {vendedor.nombre}
+                            </TableCell>
+                            <TableCell>{vendedor.email}</TableCell>
+                            <TableCell className="text-right">
+                              ${Number(vendedor.totalVentas).toLocaleString()}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {vendedor.cantidadVentas}
+                            </TableCell>
+                          </TableRow>
+                        )
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+
+              <DialogFooter>
+                <Button onClick={() => setCloseResultDialogOpen(false)}>
+                  Cerrar
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 
@@ -903,6 +1301,24 @@ export default function ShoppingCartRefactored() {
                   <p className="text-sm text-muted-foreground">
                     No cierres esta ventana hasta que el pago sea completado
                   </p>
+
+                  {/* Botón para completar manualmente */}
+                  {paymentProcessor.paymentStatus === "PENDIENTE" && (
+                    <Button
+                      variant="outline"
+                      className="w-full mt-4 bg-emerald-50 border-emerald-200 hover:bg-emerald-100 hover:text-emerald-700"
+                      onClick={() =>
+                        paymentProcessor.completarOrdenManualmente(
+                          paymentProcessor.qrData.orderId,
+                          paymentProcessor.qrData.isSplitPayment,
+                          paymentProcessor.qrData.cashAmount
+                        )
+                      }
+                    >
+                      <Receipt className="h-4 w-4 mr-2" />
+                      Completar manualmente
+                    </Button>
+                  )}
                 </div>
               </div>
             ) : (
@@ -924,6 +1340,22 @@ export default function ShoppingCartRefactored() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Diálogo de contraseña para QR manual */}
+      <ManualQrDialog
+        open={paymentProcessor.manualQrPasswordDialogOpen}
+        onOpenChange={(open: boolean) => {
+          if (!open) {
+            paymentProcessor.setManualQrPasswordDialogOpen(false);
+            paymentProcessor.setManualQrPassword("");
+          }
+        }}
+        password={paymentProcessor.manualQrPassword}
+        onPasswordChange={(value: string) =>
+          paymentProcessor.setManualQrPassword(value)
+        }
+        onSubmit={paymentProcessor.handleManualQrPasswordSubmit}
+      />
 
       {/* Diálogo de pago mixto */}
       <Dialog

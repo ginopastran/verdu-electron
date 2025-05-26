@@ -18,6 +18,13 @@ interface PaymentState {
   qrDialogOpen?: boolean;
 }
 
+// Nuevas interfaces para el sistema de QR manual
+interface ManualQrDetails {
+  orderId: number;
+  isSplitPayment: boolean;
+  cashAmount?: number;
+}
+
 export function usePaymentProcessing({
   user,
   API_URL,
@@ -48,6 +55,15 @@ export function usePaymentProcessing({
   const [cashAmount, setCashAmount] = useState<string>("");
   const [secondPaymentMethod, setSecondPaymentMethod] =
     useState<string>("tarjeta");
+
+  // Nuevos estados para mejoras en el sistema
+  const [retryCount, setRetryCount] = useState(0);
+  const [pollingStartTime, setPollingStartTime] = useState<number | null>(null);
+  const [manualQrPasswordDialogOpen, setManualQrPasswordDialogOpen] =
+    useState(false);
+  const [manualQrPassword, setManualQrPassword] = useState("");
+  const [manualQrOrderDetails, setManualQrOrderDetails] =
+    useState<ManualQrDetails | null>(null);
 
   // Referencias para controles externos
   // (estas se establecerán desde el componente principal)
@@ -348,34 +364,32 @@ export function usePaymentProcessing({
 
   // Verificar el estado del pago
   const startPaymentStatusPolling = (orderId: number) => {
-    console.log(
-      "🔄 Iniciando polling para verificar estado del pago:",
-      orderId
-    );
-    setPaymentStatus("PENDIENTE");
+    const POLLING_INTERVAL = 3000;
+    const MAX_POLLING_TIME = 10 * 60 * 1000;
+    const MAX_RETRIES = 3;
 
-    // Limpiar intervalo existente
-    cleanupPolling();
+    setPollingStartTime(Date.now());
+    setRetryCount(0);
 
-    // Crear nuevo intervalo
     const interval = setInterval(async () => {
-      // Verificar si el diálogo está cerrado
-      if (!qrDialogOpenRef) {
-        console.log("⚠️ Diálogo QR cerrado, deteniendo polling");
-        cleanupPolling();
-        return;
-      }
-
       try {
+        if (
+          pollingStartTime &&
+          Date.now() - pollingStartTime > MAX_POLLING_TIME
+        ) {
+          cleanupPolling();
+          toast.error("Tiempo de espera agotado. El código QR ha expirado.");
+          if (setQrDialogOpenRef) {
+            setQrDialogOpenRef(false);
+          }
+          resetPaymentState();
+          return;
+        }
+
         console.log("🔄 Verificando estado del pago...");
         const response = await fetch(
           `${API_URL}/api/mercadopago/check-status?orderId=${orderId}`,
-          {
-            headers: {
-              "Content-Type": "application/json",
-              ...(appId && { "X-App-ID": appId }),
-            },
-          }
+          { headers }
         );
 
         if (!response.ok) {
@@ -383,61 +397,58 @@ export function usePaymentProcessing({
         }
 
         const statusData = await response.json();
-        console.log("🔄 Estado actual del pago:", statusData);
-
+        setRetryCount(0);
         setPaymentStatus(statusData.status);
 
-        // Si el pago se completó o canceló
         if (statusData.isCompleted || statusData.isCancelled) {
-          console.log("🛑 Pago completado o cancelado, deteniendo polling");
           cleanupPolling();
 
           if (statusData.isCompleted) {
-            console.log("✅ Pago completado exitosamente");
-            toast.success("¡Pago completado! Cerrando en 5 segundos...");
+            const cartData = {
+              items: qrData.items,
+              total: qrData.monto,
+            };
 
-            // Cerrar automáticamente después de 5 segundos
+            await finalizeMPPayment({
+              ...statusData,
+              cartData,
+            });
+
+            toast.success("¡Pago completado! Cerrando en 2 segundos...");
             setTimeout(() => {
               if (setQrDialogOpenRef) {
                 setQrDialogOpenRef(false);
               }
-              // Limpiar carrito
+              resetPaymentState();
               clearCart();
-              setIsProcessingPayment(false);
-              setSelectedPaymentMethod(null);
-            }, 5000);
-
-            finalizeMPPayment(statusData);
+            }, 2000);
           } else {
             console.log("❌ Pago cancelado o rechazado");
             toast.error("El pago ha sido cancelado o rechazado");
             if (setQrDialogOpenRef) {
               setQrDialogOpenRef(false);
             }
-            setIsProcessingPayment(false);
-            setSelectedPaymentMethod(null);
+            resetPaymentState();
           }
         }
       } catch (error: any) {
         console.error("❌ Error al verificar estado:", error);
+        setRetryCount((prev) => prev + 1);
+
+        if (retryCount >= MAX_RETRIES) {
+          cleanupPolling();
+          toast.error(
+            "Error al verificar el estado del pago. Por favor, verifique manualmente."
+          );
+          if (setQrDialogOpenRef) {
+            setQrDialogOpenRef(false);
+          }
+          resetPaymentState();
+        }
       }
-    }, 3000);
+    }, POLLING_INTERVAL);
 
     setPollingInterval(interval);
-
-    // Timeout después de 5 minutos
-    setTimeout(() => {
-      if (pollingInterval) {
-        console.log("⏱️ Tiempo de espera agotado");
-        cleanupPolling();
-        toast.error("Tiempo de espera agotado. Intente nuevamente.");
-        if (setQrDialogOpenRef) {
-          setQrDialogOpenRef(false);
-        }
-        setIsProcessingPayment(false);
-        setSelectedPaymentMethod(null);
-      }
-    }, 5 * 60 * 1000);
   };
 
   // Cancelar el pago con QR
@@ -466,10 +477,12 @@ export function usePaymentProcessing({
   };
 
   // Función para finalizar el pago después de que MP confirme
-  const finalizeMPPayment = async (paymentData: any) => {
+  const finalizeMPPayment = async (
+    paymentData: any,
+    skipPrinting: boolean = false
+  ) => {
     try {
       console.log("🔄 Finalizando pago con datos:", paymentData);
-      console.log("🔄 Estado de qrData:", qrData);
 
       if (!user) {
         toast.error("Se perdió la sesión. Por favor inicia sesión nuevamente.");
@@ -480,60 +493,23 @@ export function usePaymentProcessing({
         return;
       }
 
-      // Imprimir ticket solo si el pago fue completado
-      if (paymentData.isCompleted) {
+      if (paymentData.isCompleted && paymentData.cartData) {
         try {
           console.log("💰 Pago completado, preparando para crear orden en BD");
 
-          // Primero intentar usar los datos capturados en statusData
-          let ticketItems = paymentData.ticketItems;
-          let ticketMonto = paymentData.ticketMonto;
+          const orderItems = paymentData.cartData.items.map((item: any) => ({
+            productoId: item.id,
+            cantidad: item.quantity,
+            subtotal: Number(item.subtotal.toFixed(2)),
+            precioHistorico: item.pricePerUnit,
+            costo: Number(item.costo.toFixed(2)),
+            nombre: item.name,
+          }));
 
-          // Si no hay datos capturados, intentar usar qrData como respaldo
-          if (!ticketItems && qrData && qrData.items) {
-            console.log("⚠️ Usando datos de respaldo de qrData");
-            ticketItems = qrData.items;
-            ticketMonto = qrData.monto;
-          }
-
-          // Verificar que tenemos los datos necesarios
-          if (!ticketItems || ticketItems.length === 0) {
-            console.error(
-              "❌ No se encontraron datos de items para el ticket",
-              {
-                ticketItems,
-                ticketMonto,
-                paymentData,
-                qrData,
-              }
-            );
-
-            // Como último recurso, crear un item genérico para imprimir al menos el total
-            console.log("⚠️ Creando item genérico para el ticket");
-            ticketItems = [
-              {
-                nombre: "Pago con QR",
-                cantidad: 1,
-                subtotal: paymentData.total || 0,
-                precioHistorico: paymentData.total || 0,
-                costo: 0,
-              },
-            ];
-            ticketMonto = paymentData.total || 0;
-          }
-
-          // Crear los datos para la orden en BD
           const orderData = {
             metodoPago: "qr",
-            total: paymentData.total || ticketMonto,
-            items: ticketItems.map((item: any) => ({
-              productoId: item.productoId || item.id || 0,
-              cantidad: item.cantidad || item.quantity || 1,
-              subtotal: Number((item.subtotal || 0).toFixed(2)),
-              precioHistorico: item.precioHistorico || item.pricePerUnit || 0,
-              costo: Number((item.costo || 0).toFixed(2)),
-              nombre: item.nombre || item.name || "Producto",
-            })),
+            total: paymentData.cartData.total,
+            items: orderItems,
             vendedorId: user.id,
             sucursalId: user.sucursalId,
             vendedor: user.nombre,
@@ -543,73 +519,33 @@ export function usePaymentProcessing({
 
           console.log("💾 Guardando orden en BD:", orderData);
 
-          // Crear la orden en la BD
           const orderResponse = await fetch(`${API_URL}/api/ordenes`, {
             method: "POST",
-            headers,
+            headers: {
+              "Content-Type": "application/json",
+              ...(appId && { "X-App-ID": appId }),
+            },
             body: JSON.stringify(orderData),
           });
 
           if (!orderResponse.ok) {
-            console.error(
-              "❌ Error al crear la orden en BD:",
-              await orderResponse.text()
-            );
             throw new Error("Error al crear la orden en base de datos");
           }
 
-          console.log("✅ Orden creada correctamente en BD");
-
-          // Ahora imprimir el ticket
-          console.log(
-            "🖨️ Imprimiendo ticket con datos:",
-            JSON.stringify(orderData)
-          );
-
-          const { ipcRenderer } = window.require("electron");
-          toast.loading("Imprimiendo ticket...", { id: "print-ticket" });
-
-          try {
-            const result = await ipcRenderer.invoke("print-ticket", orderData);
-            console.log("🖨️ Resultado de impresión:", result);
-
-            toast.dismiss("print-ticket");
-            if (result.success) {
-              toast.success("Ticket impreso correctamente");
-            } else {
-              console.error("❌ Error al imprimir:", result.message);
-              toast.error(`Error al imprimir: ${result.message}`);
-            }
-          } catch (innerError: any) {
-            console.error("❌ Error en invoke print-ticket:", innerError);
-            toast.dismiss("print-ticket");
-            toast.error(`Error al invocar impresión: ${innerError.message}`);
+          // Solo imprimir el ticket si no se indica saltar la impresión
+          if (!skipPrinting) {
+            await handleTicketPrinting(orderData);
+          } else {
+            console.log("🖨️ Impresión de ticket omitida (skipPrinting=true)");
           }
-
-          // Esperar un poco antes de continuar para asegurar que la impresión se complete
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-        } catch (printError: any) {
-          console.error("❌ Error general al procesar/imprimir:", printError);
-          toast.error(`Error: ${printError.message}`);
+        } catch (error: any) {
+          console.error("❌ Error al procesar orden:", error);
+          toast.error(`Error: ${error.message}`);
         }
-      } else {
-        console.log(
-          "⚠️ El pago no está marcado como completado, no se creará orden ni imprimirá ticket"
-        );
       }
-
-      // Limpiar carrito y estados
-      clearCart();
-      resetPaymentState();
-      toast.success("Pago completado exitosamente");
     } catch (error: any) {
       console.error("❌ Error al finalizar pago:", error);
       toast.error(`Error al finalizar el pago: ${error.message}`);
-      // Limpiar estados
-      if (setQrDialogOpenRef) {
-        setQrDialogOpenRef(false);
-      }
-      resetPaymentState();
     }
   };
 
@@ -649,6 +585,8 @@ export function usePaymentProcessing({
     setPaymentStatus(null);
     setCashAmount("");
     setSecondPaymentMethod("tarjeta");
+    setRetryCount(0);
+    setPollingStartTime(null);
     cleanupPolling();
   };
 
@@ -766,6 +704,263 @@ export function usePaymentProcessing({
     }
   };
 
+  // Función para completar orden manualmente
+  const completarOrdenManualmente = async (
+    orderId: number,
+    isSplitPayment: boolean = false,
+    cashAmount?: number
+  ) => {
+    setManualQrOrderDetails({ orderId, isSplitPayment, cashAmount });
+    setManualQrPasswordDialogOpen(true);
+  };
+
+  // Función para manejar el envío de contraseña QR manual
+  const handleManualQrPasswordSubmit = async () => {
+    if (!manualQrOrderDetails) return;
+
+    const { orderId, isSplitPayment, cashAmount } = manualQrOrderDetails;
+    const enteredPassword = manualQrPassword;
+    setManualQrPassword("");
+
+    if (enteredPassword !== import.meta.env.VITE_MANUAL_QR_PASSWORD) {
+      toast.error("Contraseña incorrecta");
+      return;
+    }
+
+    setManualQrPasswordDialogOpen(false);
+
+    try {
+      console.log("🔄 Intentando completar orden manualmente con contraseña:", {
+        orderId,
+        isSplitPayment,
+        cashAmount,
+      });
+      const processingToastId = toast.loading("Procesando orden manual...");
+
+      const response = await fetch(
+        `${API_URL}/api/mercadopago/manual-complete`,
+        {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ orderId }),
+        }
+      );
+
+      if (!response.ok) {
+        const error = await response.json();
+        toast.dismiss(processingToastId);
+        throw new Error(error.message || "Error al completar la orden");
+      }
+
+      const result = await response.json();
+      console.log("✅ Orden completada manualmente:", result);
+      toast.dismiss(processingToastId);
+
+      if (isSplitPayment && typeof cashAmount === "number") {
+        await finalizeSplitMPPayment(
+          {
+            isCompleted: true,
+            orderId: result.orderId,
+          },
+          cashAmount
+        );
+      } else {
+        const cartData = {
+          items: qrData.items,
+          total: qrData.monto,
+        };
+
+        await finalizeMPPayment(
+          {
+            isCompleted: true,
+            orderId: result.orderId,
+            cartData,
+          },
+          true
+        );
+      }
+
+      toast.success("Orden completada. Reiniciando carrito...");
+
+      setTimeout(() => {
+        if (pollingInterval) {
+          clearInterval(pollingInterval);
+          setPollingInterval(null);
+        }
+
+        if (setQrDialogOpenRef) {
+          setQrDialogOpenRef(false);
+        }
+        resetPaymentState();
+        clearCart();
+      }, 2000);
+    } catch (error: any) {
+      console.error("❌ Error al completar manualmente:", error);
+      toast.error(`Error al completar la orden manualmente: ${error.message}`);
+    } finally {
+      setManualQrOrderDetails(null);
+    }
+  };
+
+  // Función para formatear fechas en zona horaria Argentina
+  const formatFechaArgentina = (fecha: string | Date) => {
+    const fechaObj = typeof fecha === "string" ? new Date(fecha) : fecha;
+    const fechaArg = new Date(fechaObj.getTime() + 3 * 60 * 60 * 1000);
+    return fechaArg.toLocaleString("es-AR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+  };
+
+  // Función para manejar la impresión de tickets
+  const handleTicketPrinting = async (orderData: any) => {
+    try {
+      console.log("\n====== SIMULACIÓN DEL TICKET ======");
+      console.log("ISELIN II");
+      console.log(`Vendedor: ${orderData.vendedor}`);
+      console.log(
+        `Fecha: ${formatFechaArgentina(orderData.createdAt || orderData.fecha)}`
+      );
+      console.log("-----------------------------");
+      console.log("PRODUCTO      CANT    PRECIO    TOTAL");
+      console.log("-----------------------------");
+
+      const items = orderData.items || orderData.detalles || [];
+      if (items && items.length > 0) {
+        items.forEach((item: any) => {
+          const nombre = (item.nombre || item.producto?.nombre || "").padEnd(
+            12
+          );
+          const cantidad = (item.cantidad || 0).toString().padStart(8);
+          const precio = `$${Number(
+            item.precioHistorico || item.precio || 0
+          ).toFixed(2)}`.padStart(8);
+          const subtotal = `$${Number(item.subtotal || 0).toFixed(2)}`.padStart(
+            8
+          );
+          console.log(`${nombre} ${cantidad} ${precio} ${subtotal}`);
+        });
+      } else {
+        console.log("❌ No hay items en la orden");
+      }
+
+      console.log("-----------------------------");
+      console.log(`TOTAL: $${Number(orderData.total).toFixed(2)}`);
+
+      if (orderData.pagos && Array.isArray(orderData.pagos)) {
+        console.log("\nMÉTODOS DE PAGO:");
+        orderData.pagos.forEach((pago: any) => {
+          console.log(
+            `${pago.metodoPago.toUpperCase()}: $${Number(pago.monto).toFixed(
+              2
+            )}`
+          );
+        });
+      } else {
+        console.log(`\nMétodo de pago: ${orderData.metodoPago?.toUpperCase()}`);
+      }
+
+      console.log("\n¡Gracias por su compra!");
+      console.log("==============================\n");
+
+      const { ipcRenderer } = window.require("electron");
+      const result = await ipcRenderer.invoke("print-ticket", orderData);
+
+      if (result.success) {
+        toast.success("Ticket impreso correctamente");
+      }
+      return result.success;
+    } catch (error: any) {
+      console.error("❌ Error al imprimir:", error);
+      return false;
+    }
+  };
+
+  // Función para finalizar el pago mixto después de que QR sea confirmado
+  const finalizeSplitMPPayment = async (
+    paymentData: any,
+    cashAmount: number
+  ) => {
+    try {
+      console.log("🔄 Finalizando pago mixto con datos:", paymentData);
+
+      if (!user) {
+        toast.error(
+          "Sesión no disponible. Por favor inicia sesión nuevamente."
+        );
+        return;
+      }
+
+      if (paymentData.isCompleted) {
+        try {
+          const orderItems = qrData.items.map((item: any) => ({
+            productoId: item.id,
+            cantidad: item.quantity,
+            subtotal: Number(item.subtotal.toFixed(2)),
+            precioHistorico: item.pricePerUnit,
+            costo: Number(item.costo.toFixed(2)),
+            nombre: item.name,
+          }));
+
+          const totalAmount = qrData.monto + cashAmount;
+
+          const orderData = {
+            total: totalAmount,
+            items: orderItems,
+            vendedorId: user.id,
+            sucursalId: user.sucursalId,
+            vendedor: user.nombre,
+            createdAt: new Date().toISOString(),
+            pagos: [
+              {
+                metodoPago: "efectivo",
+                monto: cashAmount,
+              },
+              {
+                metodoPago: "qr",
+                monto: qrData.monto,
+                referencia: paymentData.orderId?.toString() || "unknown",
+              },
+            ],
+          };
+
+          console.log("💾 Guardando orden mixta en BD:", orderData);
+
+          const orderResponse = await fetch(`${API_URL}/api/ordenes`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(appId && { "X-App-ID": appId }),
+            },
+            body: JSON.stringify(orderData),
+          });
+
+          if (!orderResponse.ok) {
+            throw new Error("Error al crear la orden");
+          }
+
+          await handleTicketPrinting(orderData);
+        } catch (error: any) {
+          console.error("❌ Error al procesar orden mixta:", error);
+          toast.error(`Error: ${error.message}`);
+        }
+      }
+    } catch (error: any) {
+      console.error("❌ Error al finalizar pago mixto:", error);
+      toast.error(`Error al procesar el pago mixto: ${error.message}`);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      cleanupPolling();
+    };
+  }, []);
+
   return {
     // Estados
     isProcessingPayment,
@@ -778,6 +973,8 @@ export function usePaymentProcessing({
     roundedAmount,
     roundedAmountDialogOpen,
     applyingDiscount,
+    manualQrPasswordDialogOpen,
+    manualQrPassword,
 
     // Métodos
     processPayment,
@@ -788,11 +985,16 @@ export function usePaymentProcessing({
     processSplitPayment,
     resetPaymentState,
     cleanupPolling,
+    completarOrdenManualmente,
+    handleManualQrPasswordSubmit,
+    handleTicketPrinting,
 
     // Setters
     setCashAmount,
     setSecondPaymentMethod,
     setRoundedAmountDialogOpen,
+    setManualQrPasswordDialogOpen,
+    setManualQrPassword,
 
     // Setters para funciones externas
     set setQrDialogOpen(fn: ((open: boolean) => void) | undefined) {

@@ -1,7 +1,8 @@
-export * from "./AddProductDialog";
-export * from "./CartItem";
-export * from "./CartSummary";
-export * from "./CartTabs";
-export * from "./HeaderActions";
-export * from "./ProductSearch";
-export * from "./dialogs/PaymentDialog";
+export { AddProductDialog } from "./AddProductDialog";
+export { CartItem } from "./CartItem";
+export { CartSummary } from "./CartSummary";
+export { CartTabs } from "./CartTabs";
+export { HeaderActions } from "./HeaderActions";
+export { ProductSearch } from "./ProductSearch";
+export { PaymentDialog } from "./dialogs/PaymentDialog";
+export { ManualQrDialog } from "./dialogs/ManualQrDialog";
