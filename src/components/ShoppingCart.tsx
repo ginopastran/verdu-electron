@@ -696,11 +696,125 @@ export default function ShoppingCart() {
       return;
     }
 
-    // Re-habilitar el flujo de Mercado Pago para QR, ahora con generación local de QR
+    // Para QR: verificar si MP está habilitado
     if (method === "qr") {
-      console.log(
-        "🔄 Iniciando flujo de pago con QR de Mercado Pago (generación local)"
-      );
+      console.log("🔄 Verificando configuración de Mercado Pago...");
+      console.log("🔄 businessInfo:", businessInfo);
+      console.log("🔄 mpEnabled:", businessInfo?.mpEnabled);
+
+      // Si MP está deshabilitado, procesar como transferencia directamente
+      if (businessInfo?.mpEnabled === false) {
+        console.log(
+          "🔄 MP deshabilitado - procesando como transferencia directa"
+        );
+
+        // Prevenir procesamiento duplicado
+        if (isProcessingPayment || selectedPaymentMethod) {
+          console.log("⚠️ Procesamiento bloqueado - ya está procesando");
+          return;
+        }
+
+        // Establecer estado de procesamiento
+        setSelectedPaymentMethod("qr");
+        setIsProcessingPayment(true);
+
+        // Preparar datos de la orden
+        const currentScreen = screens[activeScreen];
+        const orderItems = currentScreen.items.map((item) => ({
+          productoId: item.id,
+          cantidad: item.quantity,
+          subtotal: Number(item.subtotal.toFixed(2)),
+          precioHistorico: item.pricePerUnit,
+          costo: Number(item.costo),
+          nombre: item.name,
+        }));
+
+        const orderData = {
+          metodoPago: "qr",
+          total: Number(calculateTotal().toFixed(2)),
+          items: orderItems,
+          vendedorId: user.id,
+          sucursalId: user.sucursalId,
+          vendedor: user.nombre,
+          estado: "COMPLETADA",
+          createdAt: new Date().toISOString(),
+        };
+
+        try {
+          // No cerrar el diálogo inmediatamente, mantenerlo abierto durante el procesamiento
+          toast.loading("Procesando orden...", { id: "processing-order" });
+
+          // Crear la orden
+          const orderResponse = await fetch(`${API_URL}/api/ordenes`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(appId && { "X-App-ID": appId }),
+            },
+            body: JSON.stringify(orderData),
+          });
+
+          if (!orderResponse.ok) {
+            throw new Error("Error al crear la orden");
+          }
+
+          toast.dismiss("processing-order");
+          toast.loading("Imprimiendo ticket...", { id: "printing-ticket" });
+
+          // Imprimir ticket usando Electron IPC
+          try {
+            const { ipcRenderer } = window.require("electron");
+            console.log("Enviando datos para impresión:", orderData);
+
+            const result = await ipcRenderer.invoke("print-ticket", orderData);
+            console.log("Resultado de impresión:", result);
+
+            if (result.success) {
+              toast.dismiss("printing-ticket");
+              toast.success("Ticket impreso correctamente");
+            } else {
+              throw new Error(
+                result.message || "Error desconocido al imprimir"
+              );
+            }
+          } catch (printError: any) {
+            console.error("Error detallado al imprimir:", printError);
+            toast.dismiss("printing-ticket");
+            toast.error(`Error al imprimir el ticket: ${printError.message}`);
+          }
+
+          // Cerrar diálogo solo después de completar todo exitosamente
+          setPaymentDialogOpen(false);
+
+          // Limpiar estados
+          setScreens(
+            screens.map((screen, index) =>
+              index === activeScreen ? { ...screen, items: [] } : screen
+            )
+          );
+          setSelectedPaymentMethod(null);
+          setIsProcessingPayment(false);
+
+          toast.success("Orden completada exitosamente");
+          // Devolver el foco al input de búsqueda
+          setTimeout(() => {
+            searchInputRef.current?.focus();
+          }, 100);
+        } catch (error: any) {
+          console.error("Error:", error);
+          toast.dismiss("processing-order");
+          toast.dismiss("printing-ticket");
+          toast.error(`Error al procesar la orden: ${error.message}`);
+          // Cerrar diálogo también en caso de error
+          setPaymentDialogOpen(false);
+          setSelectedPaymentMethod(null);
+          setIsProcessingPayment(false);
+        }
+        return;
+      }
+
+      // Si MP está habilitado, usar el flujo normal de QR
+      console.log("🔄 MP habilitado - iniciando flujo de QR con Mercado Pago");
       generateQRPayment();
       return;
     }
@@ -763,6 +877,9 @@ export default function ShoppingCart() {
     };
 
     try {
+      // No cerrar el diálogo inmediatamente, mantenerlo abierto durante el procesamiento
+      toast.loading("Procesando orden...", { id: "processing-order" });
+
       // Crear la orden
       const orderResponse = await fetch(`${API_URL}/api/ordenes`, {
         method: "POST",
@@ -777,45 +894,33 @@ export default function ShoppingCart() {
         throw new Error("Error al crear la orden");
       }
 
+      toast.dismiss("processing-order");
+      toast.loading("Imprimiendo ticket...", { id: "printing-ticket" });
+
       // Imprimir ticket usando Electron IPC
       try {
         const { ipcRenderer } = window.require("electron");
         console.log("Enviando datos para impresión:", orderData);
-        toast.info("Imprimiendo ticket...", {
-          duration: 3000,
-          description: "Enviando datos a la impresora",
-        });
 
         const result = await ipcRenderer.invoke("print-ticket", orderData);
         console.log("Resultado de impresión:", result);
 
         if (result.success) {
+          toast.dismiss("printing-ticket");
           toast.success("Ticket impreso correctamente");
-          console.log(
-            "Detalles de impresión:",
-            result.details || "No hay detalles adicionales"
-          );
-
-          // Mostrar si se imprimió el logo
-          if (result.logoStatus) {
-            console.log("Estado del logo:", result.logoStatus);
-            if (result.logoStatus === "success") {
-              console.log("✅ Logo impreso correctamente");
-            } else {
-              console.log("❌ Error al imprimir logo:", result.logoError);
-            }
-          }
         } else {
           throw new Error(result.message || "Error desconocido al imprimir");
         }
       } catch (printError: any) {
         console.error("Error detallado al imprimir:", printError);
+        toast.dismiss("printing-ticket");
         toast.error(`Error al imprimir el ticket: ${printError.message}`);
       }
 
-      // Limpiar todos los estados relacionados con el pago
+      // Cerrar diálogo solo después de completar todo exitosamente
       setPaymentDialogOpen(false);
-      setRoundedAmountDialogOpen(false);
+
+      // Limpiar estados
       setScreens(
         screens.map((screen, index) =>
           index === activeScreen ? { ...screen, items: [] } : screen
@@ -833,6 +938,8 @@ export default function ShoppingCart() {
       }, 100);
     } catch (error) {
       console.error("Error:", error);
+      toast.dismiss("processing-order");
+      toast.dismiss("printing-ticket");
       toast.error("Error al procesar la orden");
 
       // También limpiar estados en caso de error
@@ -1835,6 +1942,9 @@ export default function ShoppingCart() {
     };
 
     try {
+      // No cerrar el diálogo inmediatamente, mantenerlo abierto durante el procesamiento
+      toast.loading("Procesando orden...", { id: "processing-order" });
+
       // Crear la orden
       const orderResponse = await fetch(`${API_URL}/api/ordenes`, {
         method: "POST",
@@ -1849,30 +1959,33 @@ export default function ShoppingCart() {
         throw new Error("Error al crear la orden");
       }
 
+      toast.dismiss("processing-order");
+      toast.loading("Imprimiendo ticket...", { id: "printing-ticket" });
+
       // Imprimir ticket usando Electron IPC
       try {
         const { ipcRenderer } = window.require("electron");
         console.log("Enviando datos para impresión:", orderData);
-        toast.info("Imprimiendo ticket...", {
-          duration: 3000,
-          description: "Enviando datos a la impresora",
-        });
 
         const result = await ipcRenderer.invoke("print-ticket", orderData);
         console.log("Resultado de impresión:", result);
 
         if (result.success) {
+          toast.dismiss("printing-ticket");
           toast.success("Ticket impreso correctamente");
         } else {
           throw new Error(result.message || "Error desconocido al imprimir");
         }
       } catch (printError: any) {
         console.error("Error detallado al imprimir:", printError);
+        toast.dismiss("printing-ticket");
         toast.error(`Error al imprimir el ticket: ${printError.message}`);
       }
 
-      // Limpiar todos los estados relacionados con el pago
-      setSplitPaymentDialogOpen(false);
+      // Cerrar diálogo solo después de completar todo exitosamente
+      setPaymentDialogOpen(false);
+
+      // Limpiar estados
       setScreens(
         screens.map((screen, index) =>
           index === activeScreen ? { ...screen, items: [] } : screen
@@ -1890,6 +2003,8 @@ export default function ShoppingCart() {
       }, 100);
     } catch (error) {
       console.error("Error:", error);
+      toast.dismiss("processing-order");
+      toast.dismiss("printing-ticket");
       toast.error("Error al procesar la orden");
 
       // También limpiar estados en caso de error
