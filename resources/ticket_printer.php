@@ -205,7 +205,7 @@ try {
     // Encabezado
     $printer->setEmphasis(true);
     $printer->setTextSize(1, 1);
-    $printer->text("Iselín II\n");
+    $printer->text("Hacienda del Oeste\n");
     $printer->setEmphasis(false);
     $printer->setTextSize(1, 1);
     $printer->text("Vendedor: " . $orderData['vendedor'] . "\n");
