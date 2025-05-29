@@ -88,14 +88,14 @@ body {
   }
 
   .bg-emerald-gradient {
-    @apply relative bg-gradient-to-r from-emerald-600 to-emerald-800;
+    @apply relative bg-gradient-to-br from-[#0A3A2B] to-[#1F5444];
     z-index: 1;
   }
 
   .bg-emerald-gradient::after {
     content: "";
     @apply absolute inset-0 rounded-md;
-    background: linear-gradient(to right, #065f46, #059669);
+    background: linear-gradient(to bottom right, #1f5444, #0a3a2b);
     opacity: 0;
     z-index: -1;
     transition: opacity 0.3s ease-in-out;
@@ -124,6 +124,6 @@ body {
   }
 
   .text-emerald-gradient {
-    @apply bg-gradient-to-r from-emerald-600 to-emerald-800 bg-clip-text text-transparent;
+    @apply bg-gradient-to-br from-[#0A3A2B] to-[#1F5444] bg-clip-text text-transparent;
   }
 }

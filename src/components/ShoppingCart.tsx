@@ -2573,11 +2573,11 @@ export default function ShoppingCart() {
       {/* Background logos */}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
         <div className="relative w-full h-full flex flex-col items-center justify-center gap-10">
-          <img
+          {/* <img
             src={iselinLogo}
             alt="Iselin Logo"
             className="w-[540px] opacity-[.07] select-none"
-          />
+          /> */}
           <img
             src={andextechLogo}
             alt="Andextech Logo"
