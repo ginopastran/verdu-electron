@@ -1419,7 +1419,7 @@ export default function ShoppingCart() {
 
     try {
       const response = await fetch(
-        `${API_URL}/api/ordenes/vendedor/${user.id}?limit=5`,
+        `${API_URL}/api/ordenes/vendedor/${user.id}?limit=15`,
         {
           headers,
         }
@@ -3529,84 +3529,135 @@ export default function ShoppingCart() {
 
         {/* Diálogo de órdenes recientes */}
         <Dialog open={ordersDialogOpen} onOpenChange={setOrdersDialogOpen}>
-          <DialogContent className="sm:max-w-3xl">
-            <DialogHeader>
-              <DialogTitle className="text-xl">Órdenes recientes</DialogTitle>
-              <DialogDescription>
-                Últimas 5 órdenes realizadas por {user?.nombre}
+          <DialogContent className="sm:max-w-4xl">
+            <DialogHeader className="border-b border-emerald-100 pb-4">
+              <DialogTitle className="text-2xl font-bold bg-emerald-gradient bg-clip-text text-transparent">
+                Órdenes recientes
+              </DialogTitle>
+              <DialogDescription className="text-lg">
+                Últimas 15 órdenes realizadas por{" "}
+                <span className="font-semibold text-emerald-700">
+                  {user?.nombre}
+                </span>
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-4 max-h-[60vh] overflow-y-auto py-2">
+            <div className="space-y-4 max-h-[65vh] overflow-y-auto py-4 scrollbar-thin scrollbar-thumb-emerald-200 scrollbar-track-gray-100">
               {isLoadingOrders ? (
                 <div className="flex justify-center items-center h-40">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+                  <div className="animate-spin rounded-full h-12 w-12 border-4 border-emerald-200 border-t-emerald-600"></div>
+                  <p className="ml-4 text-emerald-700 font-medium">
+                    Cargando órdenes...
+                  </p>
                 </div>
               ) : recentOrders.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  No se encontraron órdenes recientes
+                <div className="text-center py-12">
+                  <div className="text-emerald-300 mb-4">
+                    <Receipt className="h-16 w-16 mx-auto" />
+                  </div>
+                  <p className="text-lg text-gray-500">
+                    No se encontraron órdenes recientes
+                  </p>
                 </div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Fecha</TableHead>
-                      <TableHead>Método de pago</TableHead>
-                      <TableHead className="text-right">Total</TableHead>
-                      <TableHead className="text-center">Acciones</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {recentOrders.map((order) => (
-                      <TableRow key={order.id}>
-                        <TableCell>
-                          {formatFechaArgentina(order.fecha)}
-                        </TableCell>
-                        <TableCell className="capitalize">
-                          {order.metodoPago}
-                        </TableCell>
-                        <TableCell className="text-right font-medium">
-                          ${Number(order.total).toLocaleString()}
-                        </TableCell>
-
-                        <TableCell className="text-center">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleReprintTicket(order)}
-                            disabled={isPrinting}
-                            className="hover:bg-blue-50 hover:text-blue-600"
-                          >
-                            {isPrinting ? (
-                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
-                            ) : (
-                              <Receipt className="h-4 w-4 mr-1" />
-                            )}
-                            Reimprimir
-                          </Button>
-                        </TableCell>
+                <div className="rounded-lg border border-emerald-100 overflow-hidden">
+                  <Table>
+                    <TableHeader className="bg-emerald-50">
+                      <TableRow>
+                        <TableHead className="font-semibold text-emerald-800">
+                          Fecha
+                        </TableHead>
+                        <TableHead className="font-semibold text-emerald-800">
+                          Método de pago
+                        </TableHead>
+                        <TableHead className="text-right font-semibold text-emerald-800">
+                          Total
+                        </TableHead>
+                        <TableHead className="text-center font-semibold text-emerald-800">
+                          Acciones
+                        </TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {recentOrders.map((order, index) => (
+                        <TableRow
+                          key={order.id}
+                          className={`hover:bg-emerald-25 transition-colors ${
+                            index % 2 === 0 ? "bg-white" : "bg-gray-50/50"
+                          }`}
+                        >
+                          <TableCell className="py-4">
+                            <div className="font-medium text-gray-900">
+                              {formatFechaArgentina(order.fecha)}
+                            </div>
+                          </TableCell>
+                          <TableCell className="py-4">
+                            <span
+                              className={`capitalize px-3 py-1 rounded-full text-sm font-medium ${
+                                order.metodoPago === "efectivo"
+                                  ? "bg-green-100 text-green-800"
+                                  : order.metodoPago === "tarjeta"
+                                  ? "bg-blue-100 text-blue-800"
+                                  : order.metodoPago === "qr"
+                                  ? "bg-purple-100 text-purple-800"
+                                  : "bg-gray-100 text-gray-800"
+                              }`}
+                            >
+                              {order.metodoPago}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-right font-semibold text-lg py-4">
+                            <span className="text-emerald-700">
+                              ${Number(order.total).toLocaleString()}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-center py-4">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleReprintTicket(order)}
+                              disabled={isPrinting}
+                              className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 hover:text-emerald-800 border border-emerald-200 transition-all duration-200"
+                            >
+                              {isPrinting ? (
+                                <div className="animate-spin rounded-full h-4 w-4 border-2 border-emerald-200 border-t-emerald-600"></div>
+                              ) : (
+                                <Receipt className="h-4 w-4 mr-2" />
+                              )}
+                              {isPrinting ? "Imprimiendo..." : "Reimprimir"}
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               )}
             </div>
 
-            <DialogFooter>
+            <DialogFooter className="border-t border-emerald-100 pt-4">
               <Button
                 variant="outline"
                 onClick={() => setOrdersDialogOpen(false)}
+                className="border-emerald-200 text-emerald-700 hover:bg-emerald-50"
               >
                 Cerrar
               </Button>
-              <Button onClick={loadRecentOrders} disabled={isLoadingOrders}>
+              <Button
+                onClick={loadRecentOrders}
+                disabled={isLoadingOrders}
+                className="bg-emerald-gradient text-white hover:opacity-90 transition-opacity"
+              >
                 {isLoadingOrders ? (
                   <div className="flex items-center gap-2">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
                     <span>Cargando...</span>
                   </div>
                 ) : (
-                  "Actualizar"
+                  <>
+                    <Receipt className="h-4 w-4 mr-2" />
+                    Actualizar
+                  </>
                 )}
               </Button>
             </DialogFooter>
