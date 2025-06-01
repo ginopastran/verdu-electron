@@ -922,6 +922,7 @@ export default function ShoppingCart() {
 
       // Cerrar diálogo solo después de completar todo exitosamente
       setPaymentDialogOpen(false);
+      setRoundedAmountDialogOpen(false);
 
       // Limpiar estados
       setScreens(
@@ -933,6 +934,7 @@ export default function ShoppingCart() {
       setIsProcessingPayment(false);
       setOriginalAmount(0);
       setRoundedAmount(0);
+      setApplyingDiscount(false);
 
       toast.success("Orden completada exitosamente");
       // Devolver el foco al input de búsqueda
@@ -952,6 +954,7 @@ export default function ShoppingCart() {
       setIsProcessingPayment(false);
       setOriginalAmount(0);
       setRoundedAmount(0);
+      setApplyingDiscount(false);
     }
   };
 
@@ -1987,6 +1990,7 @@ export default function ShoppingCart() {
 
       // Cerrar diálogo solo después de completar todo exitosamente
       setPaymentDialogOpen(false);
+      setRoundedAmountDialogOpen(false);
 
       // Limpiar estados
       setScreens(
@@ -3531,7 +3535,7 @@ export default function ShoppingCart() {
         <Dialog open={ordersDialogOpen} onOpenChange={setOrdersDialogOpen}>
           <DialogContent className="sm:max-w-4xl">
             <DialogHeader className="border-b border-emerald-100 pb-4">
-              <DialogTitle className="text-2xl font-bold bg-emerald-gradient bg-clip-text text-transparent">
+              <DialogTitle className="text-2xl font-bold text-emerald-gradient">
                 Órdenes recientes
               </DialogTitle>
               <DialogDescription className="text-lg">
