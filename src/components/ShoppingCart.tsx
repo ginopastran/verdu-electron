@@ -255,7 +255,7 @@ export default function ShoppingCart() {
   useEffect(() => {
     const fetchProducts = async () => {
       try {
-        const response = await fetch(`${API_URL}/api/productos`, {
+        const response = await fetch(`${API_URL}/api/productos/all`, {
           headers,
         });
         if (!response.ok) {
@@ -263,7 +263,10 @@ export default function ShoppingCart() {
         }
         const data = await response.json();
 
-        const transformedProducts = data.map((p: any) => ({
+        // Manejar la nueva estructura de respuesta { productos: [], pagination: {} }
+        const productos = data.productos || data;
+
+        const transformedProducts = productos.map((p: any) => ({
           id: p.id,
           name: p.nombre,
           pricePerUnit: p.precio,

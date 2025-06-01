@@ -40,7 +40,7 @@ function createWindow() {
   const mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
-    title: "VerduSoft",
+    title: "AndexMarket",
     icon: iconPath,
     webPreferences: {
       nodeIntegration: true,

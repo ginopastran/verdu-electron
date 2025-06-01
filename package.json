@@ -1,6 +1,6 @@
 {
   "name": "verdu-electron",
-  "version": "2.1.1",
+  "version": "2.2.0",
   "description": "Sistema de punto de venta para verdulería",
   "author": "AndexTech",
   "main": "dist-electron/main.js",
@@ -90,8 +90,8 @@
     "wait-on": "^8.0.2"
   },
   "build": {
-    "appId": "com.verdu.app",
-    "productName": "VerduSoft",
+    "appId": "com.andexmarket.app",
+    "productName": "AndexMarket",
     "directories": {
       "output": "release",
       "buildResources": "resources"
