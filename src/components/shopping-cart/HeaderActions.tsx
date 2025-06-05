@@ -1,44 +1,42 @@
 import { Button } from "@/components/ui/button";
-import { UserMenu } from "@/components/user-menu";
 import { History, Store } from "lucide-react";
+import { UserMenu } from "@/components/user-menu";
 
 interface HeaderActionsProps {
-  userName: string;
-  userEmail: string;
-  canCloseCashDesk: boolean;
-  onOpenOrders: () => void;
-  onOpenClosing: () => void;
+  onOrdersClick: () => void;
+  onClosingClick: () => void;
+  user: any;
+  userMenuUser: { nombre: string; email: string };
 }
 
-export function HeaderActions({
-  userName,
-  userEmail,
-  canCloseCashDesk,
-  onOpenOrders,
-  onOpenClosing,
-}: HeaderActionsProps) {
+export const HeaderActions = ({
+  onOrdersClick,
+  onClosingClick,
+  user,
+  userMenuUser,
+}: HeaderActionsProps) => {
   return (
-    <div className="flex items-center gap-2">
+    <div className="w-full flex justify-end items-center gap-4">
       {/* Botón de Órdenes recientes */}
       <Button
         className="bg-emerald-gradient text-white hover:text-white text-base [&_svg]:size-6"
-        onClick={onOpenOrders}
+        onClick={onOrdersClick}
       >
         <History />
         Órdenes
       </Button>
 
-      {canCloseCashDesk && (
+      {user?.permisos?.cierreDeCajaEnabled && (
         <Button
           className="bg-emerald-gradient text-white hover:text-white text-base [&_svg]:size-6"
-          onClick={onOpenClosing}
+          onClick={onClosingClick}
         >
           <Store />
           Cierre de caja
         </Button>
       )}
 
-      <UserMenu user={{ nombre: userName, email: userEmail }} />
+      <UserMenu user={userMenuUser} />
     </div>
   );
-}
+};
