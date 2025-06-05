@@ -173,12 +173,13 @@ export default function ShoppingCart() {
 
   const weight = useScaleWeight();
 
-  // Cargar información del negocio con businessId 1
+  // Cargar información del negocio con businessId desde env
   useEffect(() => {
     const fetchBusinessInfo = async () => {
       try {
         console.log("🏢 Iniciando carga de información del negocio");
-        const response = await fetch(`${API_URL}/api/business/1`, {
+        const businessId = import.meta.env.VITE_BUSINESS_ID;
+        const response = await fetch(`${API_URL}/api/business/${businessId}`, {
           headers,
         });
 
@@ -254,7 +255,7 @@ export default function ShoppingCart() {
   useEffect(() => {
     const fetchProducts = async () => {
       try {
-        const response = await fetch(`${API_URL}/api/productos`, {
+        const response = await fetch(`${API_URL}/api/productos/all`, {
           headers,
         });
         if (!response.ok) {
@@ -262,7 +263,10 @@ export default function ShoppingCart() {
         }
         const data = await response.json();
 
-        const transformedProducts = data.map((p: any) => ({
+        // Manejar la nueva estructura de respuesta { productos: [], pagination: {} }
+        const productos = data.productos || data;
+
+        const transformedProducts = productos.map((p: any) => ({
           id: p.id,
           name: p.nombre,
           pricePerUnit: p.precio,
@@ -695,11 +699,125 @@ export default function ShoppingCart() {
       return;
     }
 
-    // Re-habilitar el flujo de Mercado Pago para QR, ahora con generación local de QR
+    // Para QR: verificar si MP está habilitado
     if (method === "qr") {
-      console.log(
-        "🔄 Iniciando flujo de pago con QR de Mercado Pago (generación local)"
-      );
+      console.log("🔄 Verificando configuración de Mercado Pago...");
+      console.log("🔄 businessInfo:", businessInfo);
+      console.log("🔄 mpEnabled:", businessInfo?.mpEnabled);
+
+      // Si MP está deshabilitado, procesar como transferencia directamente
+      if (businessInfo?.mpEnabled === false) {
+        console.log(
+          "🔄 MP deshabilitado - procesando como transferencia directa"
+        );
+
+        // Prevenir procesamiento duplicado
+        if (isProcessingPayment || selectedPaymentMethod) {
+          console.log("⚠️ Procesamiento bloqueado - ya está procesando");
+          return;
+        }
+
+        // Establecer estado de procesamiento
+        setSelectedPaymentMethod("qr");
+        setIsProcessingPayment(true);
+
+        // Preparar datos de la orden
+        const currentScreen = screens[activeScreen];
+        const orderItems = currentScreen.items.map((item) => ({
+          productoId: item.id,
+          cantidad: item.quantity,
+          subtotal: Number(item.subtotal.toFixed(2)),
+          precioHistorico: item.pricePerUnit,
+          costo: Number(item.costo),
+          nombre: item.name,
+        }));
+
+        const orderData = {
+          metodoPago: "qr",
+          total: Number(calculateTotal().toFixed(2)),
+          items: orderItems,
+          vendedorId: user.id,
+          sucursalId: user.sucursalId,
+          vendedor: user.nombre,
+          estado: "COMPLETADA",
+          createdAt: new Date().toISOString(),
+        };
+
+        try {
+          // No cerrar el diálogo inmediatamente, mantenerlo abierto durante el procesamiento
+          toast.loading("Procesando orden...", { id: "processing-order" });
+
+          // Crear la orden
+          const orderResponse = await fetch(`${API_URL}/api/ordenes`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(appId && { "X-App-ID": appId }),
+            },
+            body: JSON.stringify(orderData),
+          });
+
+          if (!orderResponse.ok) {
+            throw new Error("Error al crear la orden");
+          }
+
+          toast.dismiss("processing-order");
+          toast.loading("Imprimiendo ticket...", { id: "printing-ticket" });
+
+          // Imprimir ticket usando Electron IPC
+          try {
+            const { ipcRenderer } = window.require("electron");
+            console.log("Enviando datos para impresión:", orderData);
+
+            const result = await ipcRenderer.invoke("print-ticket", orderData);
+            console.log("Resultado de impresión:", result);
+
+            if (result.success) {
+              toast.dismiss("printing-ticket");
+              toast.success("Ticket impreso correctamente");
+            } else {
+              throw new Error(
+                result.message || "Error desconocido al imprimir"
+              );
+            }
+          } catch (printError: any) {
+            console.error("Error detallado al imprimir:", printError);
+            toast.dismiss("printing-ticket");
+            toast.error(`Error al imprimir el ticket: ${printError.message}`);
+          }
+
+          // Cerrar diálogo solo después de completar todo exitosamente
+          setPaymentDialogOpen(false);
+
+          // Limpiar estados
+          setScreens(
+            screens.map((screen, index) =>
+              index === activeScreen ? { ...screen, items: [] } : screen
+            )
+          );
+          setSelectedPaymentMethod(null);
+          setIsProcessingPayment(false);
+
+          toast.success("Orden completada exitosamente");
+          // Devolver el foco al input de búsqueda
+          setTimeout(() => {
+            searchInputRef.current?.focus();
+          }, 100);
+        } catch (error: any) {
+          console.error("Error:", error);
+          toast.dismiss("processing-order");
+          toast.dismiss("printing-ticket");
+          toast.error(`Error al procesar la orden: ${error.message}`);
+          // Cerrar diálogo también en caso de error
+          setPaymentDialogOpen(false);
+          setSelectedPaymentMethod(null);
+          setIsProcessingPayment(false);
+        }
+        return;
+      }
+
+      // Si MP está habilitado, usar el flujo normal de QR
+      console.log("🔄 MP habilitado - iniciando flujo de QR con Mercado Pago");
       generateQRPayment();
       return;
     }
@@ -762,6 +880,9 @@ export default function ShoppingCart() {
     };
 
     try {
+      // No cerrar el diálogo inmediatamente, mantenerlo abierto durante el procesamiento
+      toast.loading("Procesando orden...", { id: "processing-order" });
+
       // Crear la orden
       const orderResponse = await fetch(`${API_URL}/api/ordenes`, {
         method: "POST",
@@ -776,45 +897,34 @@ export default function ShoppingCart() {
         throw new Error("Error al crear la orden");
       }
 
+      toast.dismiss("processing-order");
+      toast.loading("Imprimiendo ticket...", { id: "printing-ticket" });
+
       // Imprimir ticket usando Electron IPC
       try {
         const { ipcRenderer } = window.require("electron");
         console.log("Enviando datos para impresión:", orderData);
-        toast.info("Imprimiendo ticket...", {
-          duration: 3000,
-          description: "Enviando datos a la impresora",
-        });
 
         const result = await ipcRenderer.invoke("print-ticket", orderData);
         console.log("Resultado de impresión:", result);
 
         if (result.success) {
+          toast.dismiss("printing-ticket");
           toast.success("Ticket impreso correctamente");
-          console.log(
-            "Detalles de impresión:",
-            result.details || "No hay detalles adicionales"
-          );
-
-          // Mostrar si se imprimió el logo
-          if (result.logoStatus) {
-            console.log("Estado del logo:", result.logoStatus);
-            if (result.logoStatus === "success") {
-              console.log("✅ Logo impreso correctamente");
-            } else {
-              console.log("❌ Error al imprimir logo:", result.logoError);
-            }
-          }
         } else {
           throw new Error(result.message || "Error desconocido al imprimir");
         }
       } catch (printError: any) {
         console.error("Error detallado al imprimir:", printError);
+        toast.dismiss("printing-ticket");
         toast.error(`Error al imprimir el ticket: ${printError.message}`);
       }
 
-      // Limpiar todos los estados relacionados con el pago
+      // Cerrar diálogo solo después de completar todo exitosamente
       setPaymentDialogOpen(false);
       setRoundedAmountDialogOpen(false);
+
+      // Limpiar estados
       setScreens(
         screens.map((screen, index) =>
           index === activeScreen ? { ...screen, items: [] } : screen
@@ -824,6 +934,7 @@ export default function ShoppingCart() {
       setIsProcessingPayment(false);
       setOriginalAmount(0);
       setRoundedAmount(0);
+      setApplyingDiscount(false);
 
       toast.success("Orden completada exitosamente");
       // Devolver el foco al input de búsqueda
@@ -832,6 +943,8 @@ export default function ShoppingCart() {
       }, 100);
     } catch (error) {
       console.error("Error:", error);
+      toast.dismiss("processing-order");
+      toast.dismiss("printing-ticket");
       toast.error("Error al procesar la orden");
 
       // También limpiar estados en caso de error
@@ -841,6 +954,7 @@ export default function ShoppingCart() {
       setIsProcessingPayment(false);
       setOriginalAmount(0);
       setRoundedAmount(0);
+      setApplyingDiscount(false);
     }
   };
 
@@ -1308,7 +1422,7 @@ export default function ShoppingCart() {
 
     try {
       const response = await fetch(
-        `${API_URL}/api/ordenes/vendedor/${user.id}?limit=5`,
+        `${API_URL}/api/ordenes/vendedor/${user.id}?limit=15`,
         {
           headers,
         }
@@ -1834,6 +1948,9 @@ export default function ShoppingCart() {
     };
 
     try {
+      // No cerrar el diálogo inmediatamente, mantenerlo abierto durante el procesamiento
+      toast.loading("Procesando orden...", { id: "processing-order" });
+
       // Crear la orden
       const orderResponse = await fetch(`${API_URL}/api/ordenes`, {
         method: "POST",
@@ -1848,30 +1965,34 @@ export default function ShoppingCart() {
         throw new Error("Error al crear la orden");
       }
 
+      toast.dismiss("processing-order");
+      toast.loading("Imprimiendo ticket...", { id: "printing-ticket" });
+
       // Imprimir ticket usando Electron IPC
       try {
         const { ipcRenderer } = window.require("electron");
         console.log("Enviando datos para impresión:", orderData);
-        toast.info("Imprimiendo ticket...", {
-          duration: 3000,
-          description: "Enviando datos a la impresora",
-        });
 
         const result = await ipcRenderer.invoke("print-ticket", orderData);
         console.log("Resultado de impresión:", result);
 
         if (result.success) {
+          toast.dismiss("printing-ticket");
           toast.success("Ticket impreso correctamente");
         } else {
           throw new Error(result.message || "Error desconocido al imprimir");
         }
       } catch (printError: any) {
         console.error("Error detallado al imprimir:", printError);
+        toast.dismiss("printing-ticket");
         toast.error(`Error al imprimir el ticket: ${printError.message}`);
       }
 
-      // Limpiar todos los estados relacionados con el pago
-      setSplitPaymentDialogOpen(false);
+      // Cerrar diálogo solo después de completar todo exitosamente
+      setPaymentDialogOpen(false);
+      setRoundedAmountDialogOpen(false);
+
+      // Limpiar estados
       setScreens(
         screens.map((screen, index) =>
           index === activeScreen ? { ...screen, items: [] } : screen
@@ -1889,6 +2010,8 @@ export default function ShoppingCart() {
       }, 100);
     } catch (error) {
       console.error("Error:", error);
+      toast.dismiss("processing-order");
+      toast.dismiss("printing-ticket");
       toast.error("Error al procesar la orden");
 
       // También limpiar estados en caso de error
@@ -3410,84 +3533,135 @@ export default function ShoppingCart() {
 
         {/* Diálogo de órdenes recientes */}
         <Dialog open={ordersDialogOpen} onOpenChange={setOrdersDialogOpen}>
-          <DialogContent className="sm:max-w-3xl">
-            <DialogHeader>
-              <DialogTitle className="text-xl">Órdenes recientes</DialogTitle>
-              <DialogDescription>
-                Últimas 5 órdenes realizadas por {user?.nombre}
+          <DialogContent className="sm:max-w-4xl">
+            <DialogHeader className="border-b border-emerald-100 pb-4">
+              <DialogTitle className="text-2xl font-bold text-emerald-gradient">
+                Órdenes recientes
+              </DialogTitle>
+              <DialogDescription className="text-lg">
+                Últimas 15 órdenes realizadas por{" "}
+                <span className="font-semibold text-emerald-700">
+                  {user?.nombre}
+                </span>
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-4 max-h-[60vh] overflow-y-auto py-2">
+            <div className="space-y-4 max-h-[65vh] overflow-y-auto py-4 scrollbar-thin scrollbar-thumb-emerald-200 scrollbar-track-gray-100">
               {isLoadingOrders ? (
                 <div className="flex justify-center items-center h-40">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+                  <div className="animate-spin rounded-full h-12 w-12 border-4 border-emerald-200 border-t-emerald-600"></div>
+                  <p className="ml-4 text-emerald-700 font-medium">
+                    Cargando órdenes...
+                  </p>
                 </div>
               ) : recentOrders.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  No se encontraron órdenes recientes
+                <div className="text-center py-12">
+                  <div className="text-emerald-300 mb-4">
+                    <Receipt className="h-16 w-16 mx-auto" />
+                  </div>
+                  <p className="text-lg text-gray-500">
+                    No se encontraron órdenes recientes
+                  </p>
                 </div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Fecha</TableHead>
-                      <TableHead>Método de pago</TableHead>
-                      <TableHead className="text-right">Total</TableHead>
-                      <TableHead className="text-center">Acciones</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {recentOrders.map((order) => (
-                      <TableRow key={order.id}>
-                        <TableCell>
-                          {formatFechaArgentina(order.fecha)}
-                        </TableCell>
-                        <TableCell className="capitalize">
-                          {order.metodoPago}
-                        </TableCell>
-                        <TableCell className="text-right font-medium">
-                          ${Number(order.total).toLocaleString()}
-                        </TableCell>
-
-                        <TableCell className="text-center">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleReprintTicket(order)}
-                            disabled={isPrinting}
-                            className="hover:bg-blue-50 hover:text-blue-600"
-                          >
-                            {isPrinting ? (
-                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
-                            ) : (
-                              <Receipt className="h-4 w-4 mr-1" />
-                            )}
-                            Reimprimir
-                          </Button>
-                        </TableCell>
+                <div className="rounded-lg border border-emerald-100 overflow-hidden">
+                  <Table>
+                    <TableHeader className="bg-emerald-50">
+                      <TableRow>
+                        <TableHead className="font-semibold text-emerald-800">
+                          Fecha
+                        </TableHead>
+                        <TableHead className="font-semibold text-emerald-800">
+                          Método de pago
+                        </TableHead>
+                        <TableHead className="text-right font-semibold text-emerald-800">
+                          Total
+                        </TableHead>
+                        <TableHead className="text-center font-semibold text-emerald-800">
+                          Acciones
+                        </TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {recentOrders.map((order, index) => (
+                        <TableRow
+                          key={order.id}
+                          className={`hover:bg-emerald-25 transition-colors ${
+                            index % 2 === 0 ? "bg-white" : "bg-gray-50/50"
+                          }`}
+                        >
+                          <TableCell className="py-4">
+                            <div className="font-medium text-gray-900">
+                              {formatFechaArgentina(order.fecha)}
+                            </div>
+                          </TableCell>
+                          <TableCell className="py-4">
+                            <span
+                              className={`capitalize px-3 py-1 rounded-full text-sm font-medium ${
+                                order.metodoPago === "efectivo"
+                                  ? "bg-green-100 text-green-800"
+                                  : order.metodoPago === "tarjeta"
+                                  ? "bg-blue-100 text-blue-800"
+                                  : order.metodoPago === "qr"
+                                  ? "bg-purple-100 text-purple-800"
+                                  : "bg-gray-100 text-gray-800"
+                              }`}
+                            >
+                              {order.metodoPago}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-right font-semibold text-lg py-4">
+                            <span className="text-emerald-700">
+                              ${Number(order.total).toLocaleString()}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-center py-4">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleReprintTicket(order)}
+                              disabled={isPrinting}
+                              className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 hover:text-emerald-800 border border-emerald-200 transition-all duration-200"
+                            >
+                              {isPrinting ? (
+                                <div className="animate-spin rounded-full h-4 w-4 border-2 border-emerald-200 border-t-emerald-600"></div>
+                              ) : (
+                                <Receipt className="h-4 w-4 mr-2" />
+                              )}
+                              {isPrinting ? "Imprimiendo..." : "Reimprimir"}
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               )}
             </div>
 
-            <DialogFooter>
+            <DialogFooter className="border-t border-emerald-100 pt-4">
               <Button
                 variant="outline"
                 onClick={() => setOrdersDialogOpen(false)}
+                className="border-emerald-200 text-emerald-700 hover:bg-emerald-50"
               >
                 Cerrar
               </Button>
-              <Button onClick={loadRecentOrders} disabled={isLoadingOrders}>
+              <Button
+                onClick={loadRecentOrders}
+                disabled={isLoadingOrders}
+                className="bg-emerald-gradient text-white hover:opacity-90 transition-opacity"
+              >
                 {isLoadingOrders ? (
                   <div className="flex items-center gap-2">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
                     <span>Cargando...</span>
                   </div>
                 ) : (
-                  "Actualizar"
+                  <>
+                    <Receipt className="h-4 w-4 mr-2" />
+                    Actualizar
+                  </>
                 )}
               </Button>
             </DialogFooter>

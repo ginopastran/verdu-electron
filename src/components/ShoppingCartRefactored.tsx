@@ -1,25 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import {
-  Receipt,
-  Wallet,
-  CreditCard,
-  QrCode,
-  Sun,
-  Moon,
-  Calendar,
-  History,
-  Store,
-} from "lucide-react";
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableHeader,
@@ -28,29 +10,57 @@ import {
   TableBody,
   TableCell,
 } from "@/components/ui/table";
-import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Sun,
+  Moon,
+  Calendar,
+  History,
+  Store,
+  Wallet,
+  QrCode,
+  Receipt,
+  CreditCard,
+} from "lucide-react";
 
+// Hooks
 import { useAuth } from "@/contexts/AuthContext";
 import { useCartState } from "@/hooks/useCartState";
 import { usePaymentProcessing } from "@/hooks/usePaymentProcessing";
 import { useScaleWeight } from "@/hooks/useScaleWeight";
 import { AvailableProduct } from "@/hooks/useProductSearch";
-import { UserMenu } from "@/components/user-menu";
 
+// Componentes
+import { UserMenu } from "@/components/user-menu";
 import {
   AddProductDialog,
   CartItem,
   CartSummary,
   CartTabs,
-  HeaderActions,
   ProductSearch,
   PaymentDialog,
   ManualQrDialog,
 } from "./shopping-cart";
 
+// Componentes de diálogo
+import { CashPaymentDialog, CancelDialog } from "./shopping-cart/dialogs";
+
 // Importar las imágenes como recursos desde assets
 import iselinLogo from "../assets/iselin-logo.png";
 import andextechLogo from "../assets/andextech-black.png";
+
+// Importar el nuevo componente de diálogo de órdenes recientes
+import { RecentOrdersDialog } from "./RecentOrdersDialog";
+
+// Tipos
+// Eliminada la importación duplicada de History
 
 interface Product {
   id: number;
@@ -86,9 +96,6 @@ export default function ShoppingCartRefactored() {
 
   // Estados para el diálogo de órdenes recientes
   const [ordersDialogOpen, setOrdersDialogOpen] = useState(false);
-  const [recentOrders, setRecentOrders] = useState<any[]>([]);
-  const [isLoadingOrders, setIsLoadingOrders] = useState(false);
-  const [isPrinting, setIsPrinting] = useState(false);
 
   // Estado para información del negocio
   const [businessInfo, setBusinessInfo] = useState<any>(null);
@@ -123,6 +130,12 @@ export default function ShoppingCartRefactored() {
   const [qrDialogOpen, setQrDialogOpen] = useState(false);
   const [splitPaymentDialogOpen, setSplitPaymentDialogOpen] = useState(false);
 
+  // Estados de procesamiento de pago (manejados en este componente)
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<
+    string | null
+  >(null);
+
   // Utilizar los hooks
   const cartState = useCartState();
 
@@ -142,6 +155,9 @@ export default function ShoppingCartRefactored() {
     appId,
     clearCart: cartState.clearCart,
     calculateTotal: cartState.calculateTotal,
+    setPaymentDialogOpen: setPaymentDialogOpen,
+    setQrDialogOpen: setQrDialogOpen,
+    setSplitPaymentDialogOpen: setSplitPaymentDialogOpen,
   });
 
   // Cargar información del negocio
@@ -149,12 +165,15 @@ export default function ShoppingCartRefactored() {
     const fetchBusinessInfo = async () => {
       try {
         console.log("🏢 Iniciando carga de información del negocio");
-        const response = await fetch(`${API_URL}/api/business/1`, {
-          headers: {
-            "Content-Type": "application/json",
-            ...(appId && { "X-App-ID": appId }),
-          },
-        });
+        const response = await fetch(
+          `${API_URL}/api/business/${import.meta.env.VITE_BUSINESS_ID}`,
+          {
+            headers: {
+              "Content-Type": "application/json",
+              ...(appId && { "X-App-ID": appId }),
+            },
+          }
+        );
 
         if (!response.ok) {
           console.error(
@@ -187,6 +206,11 @@ export default function ShoppingCartRefactored() {
     fetchBusinessInfo();
   }, [API_URL, appId]);
 
+  // Cargar productos al montar el componente
+  useEffect(() => {
+    fetchProducts();
+  }, [API_URL, appId]);
+
   // Comportamiento para las teclas globales
   useEffect(() => {
     const handleGlobalKeyPress = (e: KeyboardEvent) => {
@@ -199,6 +223,10 @@ export default function ShoppingCartRefactored() {
 
       // Para el diálogo de pago
       if (paymentDialogOpen) {
+        // Si ya se está procesando o hay un método seleccionado, ignorar teclas
+        if (isProcessingPayment || selectedPaymentMethod) {
+          return;
+        }
         switch (e.key) {
           case "1":
             e.preventDefault();
@@ -254,12 +282,38 @@ export default function ShoppingCartRefactored() {
     paymentProcessor.selectedPaymentMethod,
   ]);
 
-  // Limpiar intervalos al desmontar
+  // Limpiar intervalos al desmontar o cuando cambia el estado del diálogo QR
   useEffect(() => {
+    if (!qrDialogOpen) {
+      paymentProcessor.cleanupPolling();
+    }
     return () => {
       paymentProcessor.cleanupPolling();
     };
-  }, []);
+  }, [qrDialogOpen]);
+
+  // Fetch products from API
+  const fetchProducts = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/productos/all`, {
+        headers: {
+          "Content-Type": "application/json",
+          ...(appId && { "X-App-ID": appId }),
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error("Error al cargar productos");
+      }
+
+      const data = await response.json();
+      console.log("✅ Productos cargados:", data);
+      setAvailableProducts(data);
+    } catch (error) {
+      console.error("Error al cargar productos:", error);
+      toast.error("Error al cargar los productos");
+    }
+  };
 
   // Handler para seleccionar un producto
   const handleProductSelect = (product: AvailableProduct) => {
@@ -322,55 +376,166 @@ export default function ShoppingCartRefactored() {
   };
 
   // Handler para seleccionar método de pago
-  const handlePayment = (method: string) => {
+  const handlePayment = async (method: string) => {
     if (!user) {
       toast.error("Debes iniciar sesión para realizar una orden");
       return;
     }
 
-    // Si es efectivo, manejar con el sistema de redondeo
-    if (method === "efectivo") {
-      paymentProcessor.handleCashPayment(businessInfo);
-      setPaymentDialogOpen(false);
+    console.log("🔄 handlePayment llamado con método:", method);
+
+    // Prevenir procesamiento duplicado usando estado local antes de cualquier acción
+    if (isProcessingPayment) {
+      console.log("⚠️ Procesamiento bloqueado - ya está procesando");
       return;
     }
+
+    // Si es efectivo, manejar con el sistema de redondeo. Pasa el control.
+    if (method === "efectivo") {
+      console.log("💰 Seleccionando efectivo - businessInfo:", businessInfo);
+      setIsProcessingPayment(true); // Marcar como procesando antes de pasar el control
+      setSelectedPaymentMethod("efectivo");
+      paymentProcessor.handleCashPayment(businessInfo); // Este hook abrirá su propio diálogo
+      setPaymentDialogOpen(false); // Cerrar este diálogo inmediatamente
+      return;
+    }
+
+    // Si es pago dividido, preparar pago mixto. Pasa el control.
+    if (method === "split") {
+      console.log("🔄 Iniciando pago mixto desde ShoppingCartRefactored");
+      paymentProcessor.handleSplitPayment(); // Este hook abrirá el diálogo de Pago Mixto y manejará su estado
+
+      // Cerrar el diálogo principal después de un pequeño delay para asegurar que el split dialog se abre
+      setTimeout(() => {
+        setPaymentDialogOpen(false);
+      }, 100);
+      return;
+    }
+
+    // Marcar como procesando y establecer método seleccionado localmente SOLO para los flujos manejados aquí
+    setIsProcessingPayment(true);
+    setSelectedPaymentMethod(method);
 
     // Si es QR, generar el QR
     if (method === "qr") {
-      paymentProcessor.generateQRPayment(cartState.getCurrentItems());
-      setPaymentDialogOpen(false);
-      return;
-    }
+      console.log("🔄 Verificando configuración de Mercado Pago...");
+      console.log("🔄 businessInfo:", businessInfo);
+      console.log("🔄 mpEnabled:", businessInfo?.mpEnabled);
 
-    // Si es pago dividido, preparar pago mixto
-    if (method === "split") {
-      paymentProcessor.handleSplitPayment();
-      setPaymentDialogOpen(false);
+      // Si MP está deshabilitado, procesar como transferencia directamente
+      if (businessInfo?.mpEnabled === false) {
+        console.log(
+          "🔄 MP deshabilitado - procesando como transferencia directa"
+        );
+
+        // Preparar datos de la orden
+        const currentItems = cartState.getCurrentItems();
+        const orderItems = currentItems.map((item) => ({
+          productoId: item.id,
+          cantidad: item.quantity,
+          subtotal: Number(item.subtotal.toFixed(2)),
+          precioHistorico: item.pricePerUnit,
+          costo: Number(item.costo),
+          nombre: item.name,
+        }));
+
+        const orderData = {
+          metodoPago: "qr",
+          total: Number(cartState.calculateTotal().toFixed(2)),
+          items: orderItems,
+          vendedorId: user.id,
+          sucursalId: user.sucursalId,
+          vendedor: user.nombre,
+          estado: "COMPLETADA", // Añadir estado COMPLETADA
+          createdAt: new Date().toISOString(),
+        };
+
+        try {
+          // Mostrar toast de carga ANTES de la llamada a la API
+          const processingToastId = toast.loading("Procesando orden...");
+
+          // Crear la orden
+          const orderResponse = await fetch(`${API_URL}/api/ordenes`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(appId && { "X-App-ID": appId }),
+            },
+            body: JSON.stringify(orderData),
+          });
+
+          if (!orderResponse.ok) {
+            // Intentar leer el error del cuerpo de la respuesta
+            const errorData = await orderResponse.json().catch(() => ({}));
+            console.error("❌ Error al crear la orden API:", errorData);
+            throw new Error(errorData.message || "Error al crear la orden");
+          }
+
+          // Ocultar toast de carga y mostrar toast de impresión
+          toast.dismiss(processingToastId);
+
+          // Mostrar toast de carga para la impresión ANTES de imprimir
+          const printingToastId = toast.loading("Imprimiendo ticket...");
+
+          // Imprimir ticket usando la función reutilizable LOCAL
+          await handleTicketPrinting(orderData);
+
+          // Cerrar el toast de carga de impresión
+          toast.dismiss(printingToastId);
+
+          // handleTicketPrinting ya muestra toast de éxito o error si falla. No necesitamos uno adicional aquí.
+
+          // Limpiar carrito y estados locales
+          cartState.clearCart();
+          setIsProcessingPayment(false);
+          setSelectedPaymentMethod(null);
+
+          // Cerrar el diálogo de pago principal LOCAL
+          setPaymentDialogOpen(false);
+
+          toast.success("Orden completada exitosamente");
+        } catch (error: any) {
+          console.error("❌ Error en flujo QR/MP deshabilitado:", error);
+          toast.error(`Error al procesar la orden: ${error.message}`);
+          // Limpiar estados locales también en caso de error
+          setIsProcessingPayment(false);
+          setSelectedPaymentMethod(null);
+          setPaymentDialogOpen(false); // Cerrar el diálogo de pago principal también en caso de error
+        }
+
+        return;
+      }
+
+      // Si MP está habilitado, generar el QR. Pasa el control.
+      paymentProcessor.generateQRPayment(cartState.getCurrentItems()); // Este hook abrirá el diálogo QR y manejará su estado
+      setPaymentDialogOpen(false); // Cerrar este diálogo inmediatamente
       return;
     }
 
     // Para otros métodos (tarjeta), procesar directamente
-    if (
-      paymentProcessor.isProcessingPayment ||
-      paymentProcessor.selectedPaymentMethod
-    ) {
-      return;
-    }
-
-    paymentProcessor.processPayment(
+    // Llamar al procesador de pagos para el flujo general
+    await paymentProcessor.processPayment(
       method,
       Number(cartState.calculateTotal().toFixed(2)),
       cartState.getCurrentItems()
     );
-    setPaymentDialogOpen(false);
+
+    // El procesador de pagos limpia sus propios estados y cierra el diálogo principal (si se le pasó la setter)
+    // en caso de éxito o error en su flujo interno. No necesitamos limpiar los estados LOCALES aquí
+    // ni cerrar el diálogo, ya que eso lo hace el hook si se le pasó setPaymentDialogOpen.
   };
 
   // Confirmar pago redondeado en efectivo
   const confirmRoundedPayment = () => {
-    if (paymentProcessor.isProcessingPayment) {
+    // Usar estado local para prevenir duplicación
+    if (isProcessingPayment) {
       return;
     }
+    // Marcar como procesando localmente antes de llamar al hook
+    setIsProcessingPayment(true);
 
+    // Llamar al procesador de pagos. El hook gestionará su propio estado interno
+    // y al finalizar, llamará a setPaymentDialogOpen(false) y reseteará sus estados.
     paymentProcessor.processPayment(
       "efectivo",
       paymentProcessor.roundedAmount,
@@ -407,74 +572,6 @@ export default function ShoppingCartRefactored() {
       if (result) {
         toast.success("Pantalla eliminada correctamente");
       }
-    }
-  };
-
-  // Manejadores de diálogos
-  const handleClosingDialog = () => {
-    // Por implementar
-  };
-
-  // Funciones para manejar órdenes recientes
-  const handleOrdersDialog = () => {
-    setOrdersDialogOpen(true);
-    loadRecentOrders();
-  };
-
-  const loadRecentOrders = async () => {
-    if (!user) {
-      toast.error("Debes iniciar sesión para ver órdenes");
-      return;
-    }
-
-    setIsLoadingOrders(true);
-
-    try {
-      const response = await fetch(
-        `${API_URL}/api/ordenes/vendedor/${user.id}?limit=5`,
-        { headers }
-      );
-
-      if (!response.ok) {
-        throw new Error("Error al cargar órdenes recientes");
-      }
-
-      const data = await response.json();
-      console.log("Órdenes recientes cargadas:", data);
-      setRecentOrders(data);
-    } catch (error) {
-      console.error("Error al cargar órdenes:", error);
-      toast.error("Error al cargar las órdenes recientes");
-    } finally {
-      setIsLoadingOrders(false);
-    }
-  };
-
-  // Función para reimprimir un ticket
-  const handleReprintTicket = async (order: any) => {
-    if (isPrinting) return;
-    setIsPrinting(true);
-
-    try {
-      const { ipcRenderer } = window.require("electron");
-      console.log("Reimprimiendo ticket para orden:", order);
-      toast.info("Reimprimiendo ticket...", {
-        duration: 3000,
-        description: "Enviando datos a la impresora",
-      });
-
-      const result = await ipcRenderer.invoke("print-ticket", order);
-
-      if (result.success) {
-        toast.success("Ticket reimpreso correctamente");
-      } else {
-        throw new Error(result.message || "Error desconocido al reimprimir");
-      }
-    } catch (error: any) {
-      console.error("Error al reimprimir ticket:", error);
-      toast.error(`Error al reimprimir: ${error.message}`);
-    } finally {
-      setIsPrinting(false);
     }
   };
 
@@ -523,6 +620,12 @@ export default function ShoppingCartRefactored() {
         startDate = getUTCDate(0);
       }
 
+      console.log(`🕒 Fecha inicio (${period}) UTC:`, startDate);
+      console.log(
+        `🕒 Fecha inicio (${period}) hora Argentina:`,
+        formatFechaArgentina(startDate)
+      );
+
       const closingData = {
         vendedorId: user.id,
         sucursalId: user.sucursalId,
@@ -530,6 +633,8 @@ export default function ShoppingCartRefactored() {
         fechaCierre: new Date().toISOString(),
         periodo: period,
       };
+
+      console.log("🔄 Enviando solicitud de cierre con datos:", closingData);
 
       const cierreResponse = await fetch(`${API_URL}/api/cierres`, {
         method: "POST",
@@ -561,6 +666,70 @@ export default function ShoppingCartRefactored() {
 
       try {
         const { ipcRenderer } = window.require("electron");
+
+        // ====== SIMULACIÓN DEL TICKET DE CIERRE ======
+        console.log("\n====== SIMULACIÓN DEL TICKET DE CIERRE ======");
+        console.log("ISELIN II");
+        console.log(`CIERRE DE CAJA - ${period.toUpperCase()}`);
+        console.log(`Vendedor: ${user.nombre}`);
+        console.log(
+          `Fecha inicio: ${formatFechaArgentina(cierreData.fechaInicio)}`
+        );
+        console.log(
+          `Fecha cierre: ${formatFechaArgentina(cierreData.fechaCierre)}`
+        );
+        console.log("-------------------------------------");
+        console.log("VENTAS POR MÉTODO DE PAGO:");
+
+        // Mostrar ventas por método de pago
+        if (cierreData.ventasPorMetodo) {
+          Object.entries(cierreData.ventasPorMetodo).forEach(
+            ([metodo, total]) => {
+              console.log(
+                `${metodo.toUpperCase()}: $${Number(total).toLocaleString()}`
+              );
+            }
+          );
+        }
+
+        console.log("-------------------------------------");
+        console.log("VENTAS POR VENDEDOR:");
+
+        // Mostrar ventas por vendedor
+        if (
+          cierreData.ventasPorVendedor &&
+          Array.isArray(cierreData.ventasPorVendedor)
+        ) {
+          cierreData.ventasPorVendedor.forEach((vendedor: any) => {
+            console.log(
+              `${vendedor.nombre}: $${Number(
+                vendedor.totalVentas
+              ).toLocaleString()} (${vendedor.cantidadVentas} ventas)`
+            );
+
+            // Mostrar métodos de pago por vendedor si existen
+            if (vendedor.metodosPago) {
+              Object.entries(vendedor.metodosPago).forEach(
+                ([metodo, total]) => {
+                  console.log(
+                    `  ${metodo.toUpperCase()}: $${Number(
+                      total
+                    ).toLocaleString()}`
+                  );
+                }
+              );
+            }
+          });
+        }
+
+        console.log("-------------------------------------");
+        console.log(
+          `TOTAL GENERAL: $${Number(
+            cierreData.totalVentas
+          ).toLocaleString()} (${cierreData.cantidadVentas} ventas)`
+        );
+        console.log("=====================================\n");
+
         const result = await ipcRenderer.invoke("print-closing", cierreData);
 
         if (result.success && !result.printerError) {
@@ -619,21 +788,86 @@ export default function ShoppingCartRefactored() {
     toast.success("Pantalla eliminada correctamente");
   };
 
-  // Asignar las funciones de control de diálogos al procesador de pagos
-  // Muy importante: esto debe estar antes de limpiar el poll de QR en el useEffect
-  paymentProcessor.setQrDialogOpen = setQrDialogOpen;
-  paymentProcessor.setSplitPaymentDialogOpen = setSplitPaymentDialogOpen;
-  paymentProcessor.qrDialogOpen = qrDialogOpen; // Añadir acceso al estado actual del diálogo
+  // Función para manejar la impresión de tickets (necesaria para RecentOrdersDialog)
+  const handleTicketPrinting = async (orderData: any) => {
+    try {
+      // Simular el ticket antes de imprimir
+      console.log("\n====== SIMULACIÓN DEL TICKET ======");
+      console.log("ISELIN II");
+      console.log(`Vendedor: ${orderData.vendedor}`);
+      console.log(
+        `Fecha: ${formatFechaArgentina(orderData.createdAt || orderData.fecha)}`
+      );
+      console.log("-----------------------------");
+      console.log("PRODUCTO      CANT    PRECIO    TOTAL");
+      console.log("-----------------------------");
 
-  // Limpiar intervalos al desmontar o cuando cambia el estado del diálogo QR
-  useEffect(() => {
-    if (!qrDialogOpen) {
-      paymentProcessor.cleanupPolling();
+      // Mostrar productos
+      const items = orderData.items || orderData.detalles || [];
+      if (items && items.length > 0) {
+        items.forEach((item: any) => {
+          const nombre = (item.nombre || item.producto?.nombre || "").padEnd(
+            12
+          );
+          const cantidad = (item.cantidad || 0).toString().padStart(8);
+          const precio = `$${Number(
+            item.precioHistorico || item.precio || 0
+          ).toFixed(2)}`.padStart(8);
+          const subtotal = `$${Number(item.subtotal || 0).toFixed(2)}`.padStart(
+            8
+          );
+          console.log(`${nombre} ${cantidad} ${precio} ${subtotal}`);
+        });
+      } else {
+        console.log("❌ No hay items en la orden");
+      }
+
+      console.log("-----------------------------");
+      console.log(`TOTAL: $${Number(orderData.total).toFixed(2)}`);
+
+      // Mostrar método(s) de pago
+      if (orderData.pagos && Array.isArray(orderData.pagos)) {
+        console.log("\nMÉTODOS DE PAGO:");
+        orderData.pagos.forEach((pago: any) => {
+          console.log(
+            `${pago.metodoPago.toUpperCase()}: $${Number(pago.monto).toFixed(
+              2
+            )}`
+          );
+        });
+      } else {
+        console.log(`\nMétodo de pago: ${orderData.metodoPago?.toUpperCase()}`);
+      }
+
+      console.log("\n¡Gracias por su compra!");
+      console.log("==============================\n");
+
+      // Intentar imprimir
+      const { ipcRenderer } = window.require("electron");
+      const result = await ipcRenderer.invoke("print-ticket", orderData);
+
+      if (result.success) {
+        toast.success("Ticket impreso correctamente");
+      }
+      // Si hay error, solo lo logueamos pero no mostramos toast
+      else {
+        console.error(
+          "❌ Error al imprimir (IPC invoke returned false):",
+          result.message
+        );
+        toast.error(
+          `Error al imprimir el ticket: ${result.message || "Desconocido"}`
+        );
+      }
+      return result.success;
+    } catch (error: any) {
+      console.error("❌ Error al imprimir:", error);
+      toast.error(
+        `Error al imprimir el ticket: ${error.message || "Desconocido"}`
+      );
+      return false;
     }
-    return () => {
-      paymentProcessor.cleanupPolling();
-    };
-  }, [qrDialogOpen]);
+  };
 
   return (
     <div className="min-h-screen bg-white-cream h-screen relative overflow-hidden">
@@ -674,10 +908,7 @@ export default function ShoppingCartRefactored() {
             {/* Botón de Órdenes recientes */}
             <Button
               className="bg-emerald-gradient text-white hover:text-white text-base [&_svg]:size-6"
-              onClick={() => {
-                setOrdersDialogOpen(true);
-                loadRecentOrders();
-              }}
+              onClick={() => setOrdersDialogOpen(true)}
             >
               <History />
               Órdenes
@@ -726,274 +957,61 @@ export default function ShoppingCartRefactored() {
         onAddToCart={handleAddToCart}
       />
 
-      <Dialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>¿Cancelar orden?</DialogTitle>
-            <DialogDescription>
-              ¿Estás seguro de que deseas cancelar la orden? Se eliminarán todos
-              los productos del carrito.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="flex space-x-2 justify-end">
-            <Button
-              variant="outline"
-              onClick={() => setCancelDialogOpen(false)}
-            >
-              No, mantener productos
-            </Button>
-            <Button className="bg-cancel-gradient" onClick={handleCancelCart}>
-              Sí, cancelar orden
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <CancelDialog
+        open={cancelDialogOpen}
+        onOpenChange={setCancelDialogOpen}
+        onConfirm={handleCancelCart}
+        isLoading={isProcessingPayment}
+      />
 
       <PaymentDialog
         isOpen={paymentDialogOpen}
         onClose={() => {
           setPaymentDialogOpen(false);
           paymentProcessor.resetPaymentState();
+          // También resetear los estados locales del componente
+          setIsProcessingPayment(false);
+          setSelectedPaymentMethod(null);
           setTimeout(() => searchInputRef.current?.focus(), 100);
         }}
         onSelectPayment={handlePayment}
-        isProcessingPayment={paymentProcessor.isProcessingPayment}
-        selectedPaymentMethod={paymentProcessor.selectedPaymentMethod}
+        isProcessingPayment={isProcessingPayment}
+        selectedPaymentMethod={selectedPaymentMethod}
       />
 
-      <Dialog
+      <CashPaymentDialog
         open={paymentProcessor.roundedAmountDialogOpen}
         onOpenChange={(open) => {
           if (!open) {
             paymentProcessor.setRoundedAmountDialogOpen(false);
             paymentProcessor.resetPaymentState();
+            // También resetear los estados locales del componente
+            setIsProcessingPayment(false);
+            setSelectedPaymentMethod(null);
             setTimeout(() => searchInputRef.current?.focus(), 100);
           }
         }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="text-2xl">
-              {paymentProcessor.applyingDiscount
-                ? "Efectivo con descuento"
-                : businessInfo?.sistemaPago === "redondeo"
-                ? "Redondeo de pago en efectivo"
-                : "Confirmar pago en efectivo"}
-            </DialogTitle>
-            <DialogDescription className="text-lg">
-              {paymentProcessor.applyingDiscount
-                ? `Se aplicará un descuento del ${businessInfo?.descuentoEfectivo}% por pago en efectivo.`
-                : businessInfo?.sistemaPago === "redondeo"
-                ? "El sistema de redondeo ha ajustado el monto para facilitar el pago en efectivo."
-                : "Por favor confirma el pago en efectivo."}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-4">
-            {paymentProcessor.applyingDiscount ||
-            (businessInfo?.sistemaPago === "redondeo" &&
-              paymentProcessor.originalAmount !==
-                paymentProcessor.roundedAmount) ? (
-              <>
-                <div className="flex justify-between items-center">
-                  <span className="text-base text-muted-foreground">
-                    Monto original:
-                  </span>
-                  <span className="text-xl">
-                    ${paymentProcessor.originalAmount.toLocaleString()}
-                  </span>
-                </div>
-
-                {paymentProcessor.applyingDiscount && (
-                  <div className="flex justify-between items-center">
-                    <span className="text-base text-muted-foreground">
-                      Con descuento ({businessInfo?.descuentoEfectivo}%):
-                    </span>
-                    <span className="text-xl text-blue-600">
-                      $
-                      {(
-                        paymentProcessor.originalAmount -
-                        (paymentProcessor.originalAmount *
-                          Number(businessInfo?.descuentoEfectivo)) /
-                          100
-                      ).toLocaleString()}
-                    </span>
-                  </div>
-                )}
-
-                <div className="flex justify-between items-center">
-                  <span className="text-lg font-medium">Monto a cobrar:</span>
-                  <span className="text-3xl font-bold text-emerald-600">
-                    ${paymentProcessor.roundedAmount.toLocaleString()}
-                  </span>
-                </div>
-
-                <div className="flex justify-between items-center">
-                  <span className="text-base text-muted-foreground">
-                    {paymentProcessor.applyingDiscount
-                      ? "Ahorro total:"
-                      : "Descuento del redondeo:"}
-                  </span>
-                  <span className="text-lg text-emerald-700">
-                    $
-                    {(
-                      paymentProcessor.originalAmount -
-                      paymentProcessor.roundedAmount
-                    ).toLocaleString()}
-                    {paymentProcessor.applyingDiscount &&
-                      businessInfo?.sistemaPago === "redondeo" && (
-                        <span className="ml-1 text-sm">
-                          (descuento + redondeo)
-                        </span>
-                      )}
-                  </span>
-                </div>
-              </>
-            ) : (
-              <div className="flex justify-between items-center">
-                <span className="text-lg font-medium">Monto a cobrar:</span>
-                <span className="text-3xl font-bold text-emerald-600">
-                  ${paymentProcessor.originalAmount.toLocaleString()}
-                </span>
-              </div>
-            )}
-          </div>
-
-          <DialogFooter className="flex space-x-2 justify-end">
-            <Button
-              variant="outline"
-              onClick={() => {
-                paymentProcessor.setRoundedAmountDialogOpen(false);
-                paymentProcessor.resetPaymentState();
-              }}
-              tabIndex={3}
-              className="text-base py-5 px-4"
-            >
-              Cancelar
-            </Button>
-
-            {!paymentProcessor.applyingDiscount &&
-              businessInfo?.descuentoEfectivo && (
-                <Button
-                  variant="outline"
-                  className="bg-blue-50 border-blue-200 hover:bg-blue-100 hover:text-blue-700 text-base py-5 px-4"
-                  onClick={() => {
-                    // Cerrar el diálogo actual
-                    paymentProcessor.setRoundedAmountDialogOpen(false);
-                    // Pequeña pausa para asegurar que se cierre primero
-                    setTimeout(() => {
-                      // Volver a abrir con descuento
-                      paymentProcessor.handleCashPayment(businessInfo, true);
-                    }, 100);
-                  }}
-                  tabIndex={2}
-                >
-                  Aplicar D (F5)
-                </Button>
-              )}
-
-            <Button
-              className="bg-emerald-gradient text-lg py-5 px-6"
-              onClick={confirmRoundedPayment}
-              disabled={paymentProcessor.isProcessingPayment}
-              autoFocus
-              tabIndex={1}
-            >
-              {paymentProcessor.isProcessingPayment ? (
-                <div className="flex items-center gap-2">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  <span>Procesando...</span>
-                </div>
-              ) : (
-                "Confirmar pago"
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Agregar el diálogo de órdenes recientes */}
-      <Dialog open={ordersDialogOpen} onOpenChange={setOrdersDialogOpen}>
-        <DialogContent className="sm:max-w-3xl">
-          <DialogHeader>
-            <DialogTitle className="text-xl">Órdenes recientes</DialogTitle>
-            <DialogDescription>
-              Últimas 5 órdenes realizadas por {user?.nombre}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 max-h-[60vh] overflow-y-auto py-2">
-            {isLoadingOrders ? (
-              <div className="flex justify-center items-center h-40">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-              </div>
-            ) : recentOrders.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                No se encontraron órdenes recientes
-              </div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Fecha</TableHead>
-                    <TableHead>Método de pago</TableHead>
-                    <TableHead className="text-right">Total</TableHead>
-                    <TableHead className="text-center">Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {recentOrders.map((order) => (
-                    <TableRow key={order.id}>
-                      <TableCell>{formatFechaArgentina(order.fecha)}</TableCell>
-                      <TableCell className="capitalize">
-                        {order.metodoPago}
-                      </TableCell>
-                      <TableCell className="text-right font-medium">
-                        ${Number(order.total).toLocaleString()}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleReprintTicket(order)}
-                          disabled={isPrinting}
-                          className="hover:bg-blue-50 hover:text-blue-600"
-                        >
-                          {isPrinting ? (
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
-                          ) : (
-                            <Receipt className="h-4 w-4 mr-1" />
-                          )}
-                          Reimprimir
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </div>
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setOrdersDialogOpen(false)}
-            >
-              Cerrar
-            </Button>
-            <Button onClick={loadRecentOrders} disabled={isLoadingOrders}>
-              {isLoadingOrders ? (
-                <div className="flex items-center gap-2">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  <span>Cargando...</span>
-                </div>
-              ) : (
-                "Actualizar"
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        isProcessingPayment={isProcessingPayment}
+        applyingDiscount={paymentProcessor.applyingDiscount}
+        businessInfo={businessInfo}
+        originalAmount={paymentProcessor.originalAmount}
+        roundedAmount={paymentProcessor.roundedAmount}
+        onApplyDiscount={() => {
+          if (!businessInfo) return;
+          paymentProcessor.setRoundedAmountDialogOpen(false);
+          setTimeout(() => {
+            paymentProcessor.handleCashPayment(businessInfo, true);
+          }, 100);
+        }}
+        onConfirm={confirmRoundedPayment}
+        onCancel={() => {
+          paymentProcessor.setRoundedAmountDialogOpen(false);
+          paymentProcessor.resetPaymentState();
+          // También resetear los estados locales del componente
+          setIsProcessingPayment(false);
+          setSelectedPaymentMethod(null);
+        }}
+      />
 
       {/* Diálogo de cierre de caja */}
       <Dialog
@@ -1197,9 +1215,9 @@ export default function ShoppingCartRefactored() {
           console.log("🔄 QR Dialog onOpenChange:", open);
           if (!open) {
             console.log("🔄 Cerrando diálogo QR, cancelando pago");
+            setQrDialogOpen(false);
             paymentProcessor.cancelQRPayment();
           }
-          setQrDialogOpen(open);
         }}
       >
         <DialogContent className="sm:max-w-md">
@@ -1392,7 +1410,8 @@ export default function ShoppingCartRefactored() {
                 );
                 paymentProcessor.processSplitPayment(
                   cartState.getCurrentItems(),
-                  cartState.calculateTotal()
+                  cartState.calculateTotal(),
+                  businessInfo
                 );
               }
             }
@@ -1530,7 +1549,8 @@ export default function ShoppingCartRefactored() {
               onClick={() =>
                 paymentProcessor.processSplitPayment(
                   cartState.getCurrentItems(),
-                  cartState.calculateTotal()
+                  cartState.calculateTotal(),
+                  businessInfo
                 )
               }
               disabled={
@@ -1555,6 +1575,16 @@ export default function ShoppingCartRefactored() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Nuevo Diálogo de Órdenes Recientes */}
+      <RecentOrdersDialog
+        isOpen={ordersDialogOpen}
+        onClose={() => setOrdersDialogOpen(false)}
+        API_URL={API_URL}
+        appId={appId}
+        formatFechaArgentina={formatFechaArgentina}
+        handleTicketPrinting={handleTicketPrinting}
+      />
     </div>
   );
 }

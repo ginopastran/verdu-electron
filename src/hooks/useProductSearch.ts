@@ -47,7 +47,10 @@ export function useProductSearch() {
         }
         const data = await response.json();
 
-        const transformedProducts = data.map((p: any) => ({
+        // Asumiendo que la respuesta es un objeto con una propiedad 'productos' o 'data'
+        const productsArray = data.productos || data.data || [];
+
+        const transformedProducts = productsArray.map((p: any) => ({
           id: p.id,
           name: p.nombre,
           pricePerUnit: p.precio,
