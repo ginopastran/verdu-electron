@@ -761,15 +761,25 @@ export default function ShoppingCart() {
             throw new Error("Error al crear la orden");
           }
 
+          // Obtener la respuesta con el idReal de la orden creada
+          const createdOrder = await orderResponse.json();
+          console.log("Orden creada en API:", createdOrder);
+
+          // Agregar el idReal a los datos de impresión
+          const orderDataForPrinting = {
+            ...orderData,
+            idReal: createdOrder.idReal || createdOrder.id
+          };
+
           toast.dismiss("processing-order");
           toast.loading("Imprimiendo ticket...", { id: "printing-ticket" });
 
           // Imprimir ticket usando Electron IPC
           try {
             const { ipcRenderer } = window.require("electron");
-            console.log("Enviando datos para impresión:", orderData);
+            console.log("Enviando datos para impresión:", orderDataForPrinting);
 
-            const result = await ipcRenderer.invoke("print-ticket", orderData);
+            const result = await ipcRenderer.invoke("print-ticket", orderDataForPrinting);
             console.log("Resultado de impresión:", result);
 
             if (result.success) {
@@ -897,15 +907,25 @@ export default function ShoppingCart() {
         throw new Error("Error al crear la orden");
       }
 
+      // Obtener la respuesta con el idReal de la orden creada
+      const createdOrder = await orderResponse.json();
+      console.log("Orden creada en API:", createdOrder);
+
+      // Agregar el idReal a los datos de impresión
+      const orderDataForPrinting = {
+        ...orderData,
+        idReal: createdOrder.idReal || createdOrder.id
+      };
+
       toast.dismiss("processing-order");
       toast.loading("Imprimiendo ticket...", { id: "printing-ticket" });
 
       // Imprimir ticket usando Electron IPC
       try {
         const { ipcRenderer } = window.require("electron");
-        console.log("Enviando datos para impresión:", orderData);
+        console.log("Enviando datos para impresión:", orderDataForPrinting);
 
-        const result = await ipcRenderer.invoke("print-ticket", orderData);
+        const result = await ipcRenderer.invoke("print-ticket", orderDataForPrinting);
         console.log("Resultado de impresión:", result);
 
         if (result.success) {
@@ -1804,10 +1824,20 @@ export default function ShoppingCart() {
             throw new Error("Error al crear la orden en base de datos");
           }
 
+          // Obtener la respuesta con el idReal de la orden creada
+          const createdOrder = await orderResponse.json();
+          console.log("Orden QR creada en API:", createdOrder);
+
+          // Agregar el idReal a los datos de impresión
+          const orderDataForPrinting = {
+            ...orderData,
+            idReal: createdOrder.idReal || createdOrder.id
+          };
+
           // Solo imprimir el ticket si no se indica saltar la impresión
           if (!skipPrinting) {
             // Intentar imprimir el ticket sin mostrar toast de carga
-            await handleTicketPrinting(orderData);
+            await handleTicketPrinting(orderDataForPrinting);
           } else {
             console.log("🖨️ Impresión de ticket omitida (skipPrinting=true)");
           }
@@ -1965,15 +1995,25 @@ export default function ShoppingCart() {
         throw new Error("Error al crear la orden");
       }
 
+      // Obtener la respuesta con el idReal de la orden creada
+      const createdOrder = await orderResponse.json();
+      console.log("Orden mixta creada en API:", createdOrder);
+
+      // Agregar el idReal a los datos de impresión
+      const orderDataForPrinting = {
+        ...orderData,
+        idReal: createdOrder.idReal || createdOrder.id
+      };
+
       toast.dismiss("processing-order");
       toast.loading("Imprimiendo ticket...", { id: "printing-ticket" });
 
       // Imprimir ticket usando Electron IPC
       try {
         const { ipcRenderer } = window.require("electron");
-        console.log("Enviando datos para impresión:", orderData);
+        console.log("Enviando datos para impresión:", orderDataForPrinting);
 
-        const result = await ipcRenderer.invoke("print-ticket", orderData);
+        const result = await ipcRenderer.invoke("print-ticket", orderDataForPrinting);
         console.log("Resultado de impresión:", result);
 
         if (result.success) {
@@ -2354,7 +2394,18 @@ export default function ShoppingCart() {
             throw new Error("Error al crear la orden");
           }
 
+          // Obtener la respuesta con el idReal de la orden creada
+          const createdOrder = await orderResponse.json();
+          console.log("Orden mixta creada en API:", createdOrder);
+
+          // Agregar el idReal a los datos de impresi�n
+          const orderDataForPrinting = {
+            ...orderData,
+            idReal: createdOrder.idReal || createdOrder.id
+          };
+
           // Intentar imprimir el ticket sin mostrar toast de carga
+          await handleTicketPrinting(orderDataForPrinting);
           await handleTicketPrinting(orderData);
         } catch (error: any) {
           console.error("❌ Error al procesar orden mixta:", error);
