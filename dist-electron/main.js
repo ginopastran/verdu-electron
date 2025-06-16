@@ -5,6 +5,8 @@ import { exec } from "child_process";
 import * as fsPromises from "fs/promises";
 import os from "os";
 import * as fs from "fs";
+const Store = require("electron-store");
+const { autoUpdater } = require("electron-updater");
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 // APP_ID fijo para toda la aplicación
@@ -12,6 +14,84 @@ const APP_ID = "b2fa850b9a1782595da81d0699892e93a3f29f9d5b0fd74ef4ede03f05658942
 // Hacer disponible el APP_ID para el proceso de renderizado
 process.env.VITE_APP_ID = APP_ID;
 console.log("App ID:", APP_ID);
+// Inicializar electron-store
+const store = new Store();
+// Configurar IPC handlers para electron-store
+ipcMain.handle("store-get", (_, key) => {
+    return store.get(key);
+});
+ipcMain.handle("store-set", (_, key, value) => {
+    store.set(key, value);
+    return true;
+});
+ipcMain.handle("store-delete", (_, key) => {
+    store.delete(key);
+    return true;
+});
+ipcMain.handle("store-has", (_, key) => {
+    return store.has(key);
+});
+// Configuración del auto-updater
+autoUpdater.logger = require("electron-log");
+autoUpdater.logger.transports.file.level = "info";
+autoUpdater.autoDownload = false; // No descargar automáticamente
+autoUpdater.autoInstallOnAppQuit = false; // No instalar automáticamente al cerrar
+// Eventos del auto-updater
+autoUpdater.on("checking-for-update", () => {
+    console.log("Verificando actualizaciones...");
+});
+autoUpdater.on("update-available", (info) => {
+    console.log("Actualización disponible.");
+    console.log("Versión:", info.version);
+});
+autoUpdater.on("update-not-available", (info) => {
+    console.log("Actualización no disponible.");
+});
+autoUpdater.on("error", (err) => {
+    console.log("Error en auto-updater. " + err);
+});
+autoUpdater.on("download-progress", (progressObj) => {
+    let log_message = "Velocidad de descarga: " + progressObj.bytesPerSecond;
+    log_message = log_message + " - Descargado " + progressObj.percent + "%";
+    log_message =
+        log_message +
+            " (" +
+            progressObj.transferred +
+            "/" +
+            progressObj.total +
+            ")";
+    console.log(log_message);
+});
+autoUpdater.on("update-downloaded", (info) => {
+    console.log("Actualización descargada");
+    autoUpdater.quitAndInstall();
+});
+// IPC handlers para el auto-updater
+ipcMain.handle("check-for-updates", async () => {
+    try {
+        const result = await autoUpdater.checkForUpdates();
+        return result
+            ? { available: true, info: result.updateInfo }
+            : { available: false };
+    }
+    catch (error) {
+        console.error("Error al verificar actualizaciones:", error);
+        return { error: error.message };
+    }
+});
+ipcMain.handle("download-update", async () => {
+    try {
+        await autoUpdater.downloadUpdate();
+        return { success: true };
+    }
+    catch (error) {
+        console.error("Error al descargar actualización:", error);
+        return { error: error.message };
+    }
+});
+ipcMain.handle("install-update", () => {
+    autoUpdater.quitAndInstall();
+});
 // Agregar un manejador IPC para mostrar el APP_ID
 ipcMain.handle("show-app-id", () => {
     dialog.showMessageBox({
@@ -33,9 +113,10 @@ function createWindow() {
         icon: iconPath,
         webPreferences: {
             nodeIntegration: true,
-            contextIsolation: false,
+            contextIsolation: true,
             devTools: true,
             webSecurity: false,
+            preload: path.join(__dirname, "preload.js"),
         },
     });
     if (process.env.NODE_ENV === "development") {
@@ -62,6 +143,12 @@ function createWindow() {
 }
 app.whenReady().then(() => {
     createWindow();
+    // Verificar actualizaciones después de 3 segundos en producción
+    if (process.env.NODE_ENV !== "development") {
+        setTimeout(() => {
+            autoUpdater.checkForUpdatesAndNotify();
+        }, 3000);
+    }
     // Copiar logo al iniciar la aplicación (en producción)
     if (process.env.NODE_ENV !== "development") {
         const logoSourcePath = path.join(app.getAppPath(), "public", "logo.png");

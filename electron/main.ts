@@ -53,20 +53,20 @@ autoUpdater.on("checking-for-update", () => {
   console.log("Verificando actualizaciones...");
 });
 
-autoUpdater.on("update-available", (info) => {
+autoUpdater.on("update-available", (info: any) => {
   console.log("Actualización disponible.");
   console.log("Versión:", info.version);
 });
 
-autoUpdater.on("update-not-available", (info) => {
+autoUpdater.on("update-not-available", (info: any) => {
   console.log("Actualización no disponible.");
 });
 
-autoUpdater.on("error", (err) => {
+autoUpdater.on("error", (err: any) => {
   console.log("Error en auto-updater. " + err);
 });
 
-autoUpdater.on("download-progress", (progressObj) => {
+autoUpdater.on("download-progress", (progressObj: any) => {
   let log_message = "Velocidad de descarga: " + progressObj.bytesPerSecond;
   log_message = log_message + " - Descargado " + progressObj.percent + "%";
   log_message =
@@ -79,7 +79,7 @@ autoUpdater.on("download-progress", (progressObj) => {
   console.log(log_message);
 });
 
-autoUpdater.on("update-downloaded", (info) => {
+autoUpdater.on("update-downloaded", (info: any) => {
   console.log("Actualización descargada");
   autoUpdater.quitAndInstall();
 });
@@ -93,7 +93,7 @@ ipcMain.handle("check-for-updates", async () => {
       : { available: false };
   } catch (error) {
     console.error("Error al verificar actualizaciones:", error);
-    return { error: error.message };
+    return { error: (error as Error).message };
   }
 });
 
@@ -103,7 +103,7 @@ ipcMain.handle("download-update", async () => {
     return { success: true };
   } catch (error) {
     console.error("Error al descargar actualización:", error);
-    return { error: error.message };
+    return { error: (error as Error).message };
   }
 });
 

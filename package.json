@@ -1,13 +1,13 @@
 {
-  "name": "verdu-electron",
-  "version": "2.0.1",
-  "description": "Sistema de punto de venta para verdulería",
+  "name": "andex-market",
+  "version": "3.0.0",
+  "description": "Sistema de punto de venta AndexMarket",
   "author": "AndexTech",
   "main": "dist-electron/main.js",
   "type": "module",
   "scripts": {
     "dev": "tsc -p electron/tsconfig.json && cross-env NODE_ENV=development concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
-    "pre-build": "copy public\\logo.png resources\\logo.png",
+    "pre-build": "copy public\\andextech-logo.png resources\\logo.png",
     "build": "npm run pre-build && npm run build:vite && npm run build:electron && electron-builder",
     "build:vite": "tsc && vite build",
     "build:electron": "tsc -p electron/tsconfig.json",
@@ -94,8 +94,8 @@
     "wait-on": "^8.0.2"
   },
   "build": {
-    "appId": "com.verdu.app",
-    "productName": "VerduSoft",
+    "appId": "com.andextech.andexmarket",
+    "productName": "AndexMarket",
     "directories": {
       "output": "release",
       "buildResources": "resources"
@@ -114,11 +114,11 @@
         ]
       },
       {
-        "from": "public/logo.png",
+        "from": "public/andextech-logo.png",
         "to": "resources/logo.png"
       },
       {
-        "from": "public/logo.png",
+        "from": "public/andextech-logo.png",
         "to": "logo.png"
       }
     ],
@@ -137,11 +137,8 @@
     "publish": {
       "provider": "github",
       "owner": "ginopastran",
-      "repo": "verdu-electron",
+      "repo": "andex-market",
       "private": false
-    },
-    "autoUpdater": {
-      "updaterCacheDirName": "verdu-electron-updater"
     }
   }
 }
