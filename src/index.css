@@ -88,7 +88,7 @@ body {
   }
 
   .bg-emerald-gradient {
-    @apply relative bg-gradient-to-br from-[#1f0a3a] to-[#4e1f54];
+    @apply relative bg-gradient-to-br from-[#0A3A2B] to-[#1F5444];
     z-index: 1;
   }
 
