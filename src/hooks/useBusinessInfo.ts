@@ -1,21 +1,25 @@
 import { useState, useEffect } from "react";
+import { useBusiness } from "@/contexts/BusinessContext";
 
 export const useBusinessInfo = (API_URL: string, appId: string | null) => {
   const [businessInfo, setBusinessInfo] = useState<any>(null);
+  const { businessId } = useBusiness();
 
   useEffect(() => {
     const fetchBusinessInfo = async () => {
+      if (!businessId) {
+        console.log("⚠️ No hay businessId configurado");
+        return;
+      }
+
       try {
         console.log("🏢 Iniciando carga de información del negocio");
-        const response = await fetch(
-          `${API_URL}/api/business/${import.meta.env.VITE_BUSINESS_ID}`,
-          {
-            headers: {
-              "Content-Type": "application/json",
-              ...(appId && { "X-App-ID": appId }),
-            },
-          }
-        );
+        const response = await fetch(`${API_URL}/api/business/${businessId}`, {
+          headers: {
+            "Content-Type": "application/json",
+            ...(appId && { "X-App-ID": appId }),
+          },
+        });
 
         if (!response.ok) {
           console.error(
@@ -46,7 +50,7 @@ export const useBusinessInfo = (API_URL: string, appId: string | null) => {
 
     // Ejecutar la carga de información
     fetchBusinessInfo();
-  }, [API_URL, appId]);
+  }, [API_URL, appId, businessId]);
 
   return businessInfo;
 };

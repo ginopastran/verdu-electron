@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { useBusiness } from "@/contexts/BusinessContext";
 import { UserMenu } from "@/components/user-menu";
 import { cn } from "@/lib/utils";
 import { useScaleWeight } from "@/hooks/useScaleWeight";
@@ -70,6 +71,7 @@ interface AvailableProduct {
 
 export default function ShoppingCart() {
   const { user, refreshUserData, logout } = useAuth();
+  const { businessId } = useBusiness();
   const API_URL = import.meta.env.VITE_API_URL;
 
   // Función para formatear fechas en zona horaria Argentina
@@ -178,7 +180,6 @@ export default function ShoppingCart() {
     const fetchBusinessInfo = async () => {
       try {
         console.log("🏢 Iniciando carga de información del negocio");
-        const businessId = import.meta.env.VITE_BUSINESS_ID;
         const response = await fetch(`${API_URL}/api/business/${businessId}`, {
           headers,
         });

@@ -12,7 +12,9 @@
     "build:vite": "tsc && vite build",
     "build:electron": "tsc -p electron/tsconfig.json",
     "preview": "vite preview",
-    "dist": "npm run build"
+    "dist": "npm run build",
+    "release": "npm run build && electron-builder --publish always",
+    "release:draft": "npm run build && electron-builder --publish onTagOrDraft"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -47,6 +49,8 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.0.0",
     "date-fns": "^3.6.0",
+    "electron-store": "^10.1.0",
+    "electron-updater": "^6.6.2",
     "embla-carousel-react": "^8.5.2",
     "input-otp": "^1.4.2",
     "lucide-react": "^0.474.0",
@@ -129,6 +133,15 @@
       "createDesktopShortcut": true,
       "runAfterFinish": true,
       "perMachine": true
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "ginopastran",
+      "repo": "verdu-electron",
+      "private": false
+    },
+    "autoUpdater": {
+      "updaterCacheDirName": "verdu-electron-updater"
     }
   }
 }

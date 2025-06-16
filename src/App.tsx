@@ -5,13 +5,17 @@ import {
   Navigate,
 } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
+import { BusinessProvider } from "./contexts/BusinessContext";
 import { OfflineModeProvider } from "./contexts/OfflineModeContext";
 import { Toaster } from "sonner";
 import { useAuth } from "./contexts/AuthContext";
-import Login from "./pages/Login";
+import AdminLogin from "./pages/AdminLogin";
+import UserLogin from "./pages/UserLogin";
 import ShoppingCart from "./components/ShoppingCart";
 import ShoppingCartRefactored from "./components/ShoppingCartRefactored";
 import AdminMessage from "./components/AdminMessage";
+import AppRouter from "./components/AppRouter";
+import UpdateNotification from "./components/UpdateNotification";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -21,7 +25,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   }
 
   if (!user) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/user-login" replace />;
   }
 
   // Redirigir administradores al mensaje de acceso no permitido
@@ -34,34 +38,38 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   return (
-    <Router>
-      <AuthProvider>
-        <OfflineModeProvider>
-          <Toaster richColors position="top-center" theme="light" />
-          <Routes>
-            <Route path="/" element={<Login />} />
-            <Route path="/admin-message" element={<AdminMessage />} />
-            <Route
-              path="/cart"
-              element={
-                <ProtectedRoute>
-                  {/* <ShoppingCart /> */}
-                  <ShoppingCartRefactored />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/cart-refactored"
-              element={
-                <ProtectedRoute>
-                  <ShoppingCartRefactored />
-                </ProtectedRoute>
-              }
-            />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </OfflineModeProvider>
-      </AuthProvider>
-    </Router>
+    <BusinessProvider>
+      <Router>
+        <AuthProvider>
+          <OfflineModeProvider>
+            <Toaster richColors position="top-center" theme="light" />
+            <UpdateNotification />
+            <Routes>
+              <Route path="/" element={<AppRouter />} />
+              <Route path="/admin-login" element={<AdminLogin />} />
+              <Route path="/user-login" element={<UserLogin />} />
+              <Route path="/admin-message" element={<AdminMessage />} />
+              <Route
+                path="/cart"
+                element={
+                  <ProtectedRoute>
+                    <ShoppingCartRefactored />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/cart-refactored"
+                element={
+                  <ProtectedRoute>
+                    <ShoppingCartRefactored />
+                  </ProtectedRoute>
+                }
+              />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </OfflineModeProvider>
+        </AuthProvider>
+      </Router>
+    </BusinessProvider>
   );
 }
