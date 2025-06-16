@@ -5,7 +5,11 @@ import { exec } from "child_process";
 import * as fsPromises from "fs/promises";
 import os from "os";
 import * as fs from "fs";
-const Store = require("electron-store");
+// ES Module dynamic imports para compatibilidad
+import { createRequire } from "module";
+const require = createRequire(import.meta.url);
+// electron-store es ES Module, usamos import dinámico
+let Store;
 const { autoUpdater } = require("electron-updater");
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -14,8 +18,8 @@ const APP_ID = "b2fa850b9a1782595da81d0699892e93a3f29f9d5b0fd74ef4ede03f05658942
 // Hacer disponible el APP_ID para el proceso de renderizado
 process.env.VITE_APP_ID = APP_ID;
 console.log("App ID:", APP_ID);
-// Inicializar electron-store
-const store = new Store();
+// Inicializar electron-store (será inicializado dinámicamente)
+let store;
 // Configurar IPC handlers para electron-store
 ipcMain.handle("store-get", (_, key) => {
     return store.get(key);
@@ -31,9 +35,8 @@ ipcMain.handle("store-delete", (_, key) => {
 ipcMain.handle("store-has", (_, key) => {
     return store.has(key);
 });
-// Configuración del auto-updater
-autoUpdater.logger = require("electron-log");
-autoUpdater.logger.transports.file.level = "info";
+// Configuración del auto-updater (log será configurado dinámicamente)
+// autoUpdater.logger.transports.file.level = "info"; // Comentado porque console no tiene transports
 autoUpdater.autoDownload = false; // No descargar automáticamente
 autoUpdater.autoInstallOnAppQuit = false; // No instalar automáticamente al cerrar
 // Eventos del auto-updater
@@ -102,6 +105,14 @@ ipcMain.handle("show-app-id", () => {
     });
     return APP_ID;
 });
+// Función para inicializar electron-store dinámicamente
+async function initializeStore() {
+    const { default: ElectronStore } = await import("electron-store");
+    Store = ElectronStore;
+    store = new Store();
+    // Configurar el logger del auto-updater con console simple
+    autoUpdater.logger = console;
+}
 function createWindow() {
     const iconPath = path.join(__dirname, process.env.NODE_ENV === "development"
         ? "../../public/icon.png"
@@ -141,7 +152,9 @@ function createWindow() {
         });
     }
 }
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+    // Inicializar electron-store antes de crear la ventana
+    await initializeStore();
     createWindow();
     // Verificar actualizaciones después de 3 segundos en producción
     if (process.env.NODE_ENV !== "development") {

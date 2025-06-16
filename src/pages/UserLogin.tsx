@@ -341,61 +341,69 @@ export default function UserLoginPage() {
         )}
 
         {/* Password Dialog */}
-        <Dialog open={passwordDialogOpen} onOpenChange={setPasswordDialogOpen}>
-          <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle>
-                Iniciar sesión como {selectedVendor?.nombre}
-              </DialogTitle>
-            </DialogHeader>
-            <Form {...form}>
-              <form
-                onSubmit={form.handleSubmit(onSubmitPassword)}
-                className="space-y-4"
-              >
-                <FormField
-                  control={form.control}
-                  name="password"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Contraseña</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="password"
-                          placeholder="Ingresa tu contraseña"
-                          {...field}
-                          disabled={isLoading}
-                          autoFocus
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <DialogFooter>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setPasswordDialogOpen(false)}
-                    disabled={isLoading}
-                  >
-                    Cancelar
-                  </Button>
-                  <Button type="submit" disabled={isLoading}>
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Iniciando...
-                      </>
-                    ) : (
-                      "Iniciar sesión"
+        {selectedVendor && (
+          <Dialog
+            open={passwordDialogOpen}
+            onOpenChange={setPasswordDialogOpen}
+          >
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle className="text-emerald-gradient text-2xl font-bold">
+                  Contraseña para {selectedVendor.nombre}
+                </DialogTitle>
+              </DialogHeader>
+
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmitPassword)}>
+                  <FormField
+                    control={form.control}
+                    name="password"
+                    render={({ field }) => (
+                      <FormItem className="mt-4">
+                        <FormLabel>Contraseña</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="password"
+                            placeholder="Ingresa tu contraseña"
+                            autoFocus
+                            {...field}
+                            disabled={isLoading}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
                     )}
-                  </Button>
-                </DialogFooter>
-              </form>
-            </Form>
-          </DialogContent>
-        </Dialog>
+                  />
+
+                  <DialogFooter className="mt-6">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setPasswordDialogOpen(false)}
+                      disabled={isLoading}
+                    >
+                      Cancelar
+                    </Button>
+                    <Button
+                      type="submit"
+                      className="bg-emerald-gradient"
+                      disabled={isLoading}
+                    >
+                      {isLoading ? (
+                        <div className="flex items-center gap-2">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <span>Iniciando sesión...</span>
+                        </div>
+                      ) : (
+                        "Iniciar Sesión"
+                      )}
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </Form>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
     </div>
   );
@@ -410,37 +418,35 @@ function VendorCard({
   index: number;
   onClick: () => void;
 }) {
-  const displayName = vendor.nombre || "Sin nombre";
+  // Get first letter of name for the avatar
+  const firstLetter = vendor.nombre.charAt(0).toUpperCase();
 
   return (
-    <Card className="group relative overflow-hidden border-2 border-gray-200 bg-white transition-all duration-200 hover:border-emerald-400 hover:shadow-lg cursor-pointer">
-      <div
-        className="flex h-32 flex-col items-center justify-center p-4 text-center"
+    <div className="flex flex-col items-center">
+      <button
         onClick={onClick}
+        className="transition-transform duration-200 hover:scale-105 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 relative"
       >
-        {/* Avatar */}
-        <div className="mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-xl font-bold text-emerald-600 transition-colors group-hover:bg-emerald-200">
+        <div className="flex h-36 w-36 items-center justify-center rounded-lg shadow-lg md:h-40 md:w-40 bg-emerald-gradient">
           {vendor.avatar ? (
             <img
               src={vendor.avatar}
-              alt={displayName}
-              className="h-full w-full rounded-full object-cover"
+              alt={vendor.nombre}
+              className="h-full w-full rounded-lg object-cover"
             />
           ) : (
-            displayName.charAt(0).toUpperCase()
+            <span className="text-5xl font-bold text-white">{firstLetter}</span>
           )}
         </div>
-
-        {/* Name */}
-        <p className="text-sm font-medium text-gray-900 group-hover:text-emerald-600">
-          {displayName}
-        </p>
-
-        {/* Index Badge */}
-        <div className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-gray-100 text-xs font-bold text-gray-600 transition-colors group-hover:bg-emerald-100 group-hover:text-emerald-600">
-          {index}
-        </div>
-      </div>
-    </Card>
+        {index <= 9 && (
+          <div className="absolute top-4 left-4 bg-black/40 text-white w-6 h-6 flex items-center justify-center rounded-full text-base font-bold  transform -translate-x-2 -translate-y-2 z-10">
+            {index}
+          </div>
+        )}
+      </button>
+      <p className="mt-2 text-center text-lg font-bold text-emerald-gradient">
+        {vendor.nombre}
+      </p>
+    </div>
   );
 }

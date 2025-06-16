@@ -154,7 +154,7 @@ export default function AdminLogin() {
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100">
             <UserCog className="h-6 w-6 text-emerald-600" />
           </div>
-          <CardTitle className="text-2xl font-bold text-gray-900">
+          <CardTitle className="text-2xl font-bold text-gray-900 text-emerald-gradient">
             Configuración Inicial
           </CardTitle>
           <CardDescription className="text-gray-600">
@@ -196,7 +196,11 @@ export default function AdminLogin() {
               />
             </div>
 
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button
+              type="submit"
+              className="w-full bg-emerald-gradient"
+              disabled={loading}
+            >
               {loading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
