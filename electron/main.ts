@@ -216,10 +216,36 @@ app.whenReady().then(async () => {
 
   // Verificar actualizaciones después de 3 segundos en producción
   if (process.env.NODE_ENV !== "development") {
+    // Habilitar logging detallado
+    autoUpdater.logger = console;
+    autoUpdater.logger.transports.file.level = "info";
+
+    console.log("=== AUTO-UPDATER DEBUG ===");
+    console.log("NODE_ENV:", process.env.NODE_ENV);
+    console.log("App Version:", app.getVersion());
+    console.log("Platform:", process.platform);
+    console.log(
+      "Repository URL will be:",
+      `https://api.github.com/repos/ginopastran/verdu-electron/releases`
+    );
+
     setTimeout(() => {
-      console.log("Iniciando verificación de actualizaciones...");
-      autoUpdater.checkForUpdates();
+      console.log("🔄 Iniciando verificación de actualizaciones...");
+      autoUpdater
+        .checkForUpdates()
+        .then((result: any) => {
+          console.log("✅ Check result:", result);
+        })
+        .catch((error: any) => {
+          console.error("❌ Check error:", error);
+        });
     }, 3000);
+
+    // También chequear cada 10 minutos
+    setInterval(() => {
+      console.log("🔄 Verificación periódica de actualizaciones...");
+      autoUpdater.checkForUpdates();
+    }, 10 * 60 * 1000); // 10 minutos
   }
 
   // Copiar logo al iniciar la aplicación (en producción)

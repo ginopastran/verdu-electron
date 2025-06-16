@@ -1,6 +1,6 @@
 {
   "name": "andex-market",
-  "version": "3.0.3",
+  "version": "3.0.4",
   "description": "Sistema de punto de venta AndexMarket",
   "author": "AndexTech",
   "main": "dist-electron/main.js",
@@ -123,22 +123,35 @@
       }
     ],
     "win": {
-      "target": "nsis",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
       "icon": "build/icon.ico",
-      "requestedExecutionLevel": "requireAdministrator"
+      "requestedExecutionLevel": "requireAdministrator",
+      "publisherName": "AndexTech",
+      "verifyUpdateCodeSignature": false
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "runAfterFinish": true,
-      "perMachine": true
+      "perMachine": true,
+      "deleteAppDataOnUninstall": false
     },
-    "publish": {
-      "provider": "github",
-      "owner": "ginopastran",
-      "repo": "verdu-electron",
-      "private": false
-    }
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "ginopastran",
+        "repo": "verdu-electron",
+        "private": false,
+        "releaseType": "release"
+      }
+    ]
   }
 }
