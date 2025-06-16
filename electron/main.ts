@@ -60,6 +60,24 @@ autoUpdater.on("checking-for-update", () => {
 autoUpdater.on("update-available", (info: any) => {
   console.log("Actualización disponible.");
   console.log("Versión:", info.version);
+
+  // Mostrar diálogo de actualización
+  dialog
+    .showMessageBox({
+      type: "info",
+      title: "Actualización disponible",
+      message: `Nueva versión ${info.version} disponible`,
+      detail: "¿Deseas descargar e instalar la actualización ahora?",
+      buttons: ["Descargar", "Más tarde"],
+      defaultId: 0,
+      cancelId: 1,
+    })
+    .then((response) => {
+      if (response.response === 0) {
+        // Descargar actualización
+        autoUpdater.downloadUpdate();
+      }
+    });
 });
 
 autoUpdater.on("update-not-available", (info: any) => {
@@ -199,7 +217,8 @@ app.whenReady().then(async () => {
   // Verificar actualizaciones después de 3 segundos en producción
   if (process.env.NODE_ENV !== "development") {
     setTimeout(() => {
-      autoUpdater.checkForUpdatesAndNotify();
+      console.log("Iniciando verificación de actualizaciones...");
+      autoUpdater.checkForUpdates();
     }, 3000);
   }
 
