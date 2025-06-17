@@ -41,7 +41,9 @@ export const useAutoUpdater = () => {
 
       if (result.error) {
         console.error("Error al verificar actualizaciones:", result.error);
-        toast.error("Error al verificar actualizaciones");
+        if (result.error !== "Ya se está verificando actualizaciones") {
+          toast.error("Error al verificar actualizaciones");
+        }
         return;
       }
 
@@ -62,7 +64,13 @@ export const useAutoUpdater = () => {
         });
       } else {
         console.log("No hay actualizaciones disponibles");
-        toast.info("La aplicación está actualizada");
+        // Solo mostrar toast si no hay mensaje específico
+        if (
+          !result.info?.message ||
+          result.info.message.includes("actualizaciones disponibles")
+        ) {
+          toast.info("La aplicación está actualizada");
+        }
       }
     } catch (error) {
       console.error("Error al verificar actualizaciones:", error);
@@ -81,7 +89,8 @@ export const useAutoUpdater = () => {
 
       if (result.error) {
         console.error("Error al descargar actualización:", result.error);
-        toast.error("Error al descargar la actualización");
+        toast.error(`Error al descargar la actualización: ${result.error}`);
+        setDownloading(false);
         return;
       }
 

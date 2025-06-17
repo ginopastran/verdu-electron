@@ -106,25 +106,70 @@ autoUpdater.on("update-downloaded", (info: any) => {
   autoUpdater.quitAndInstall();
 });
 
+// Estado global para el auto-updater
+let updateCheckResult: any = null;
+let currentlyChecking = false;
+
 // IPC handlers para el auto-updater
 ipcMain.handle("check-for-updates", async () => {
+  if (currentlyChecking) {
+    return { error: "Ya se está verificando actualizaciones" };
+  }
+
   try {
+    currentlyChecking = true;
+    console.log("🔍 Iniciando verificación de actualizaciones...");
+    console.log("📦 Versión actual:", app.getVersion());
+
     const result = await autoUpdater.checkForUpdates();
-    return result
-      ? { available: true, info: result.updateInfo }
-      : { available: false };
+    updateCheckResult = result;
+
+    if (result && result.updateInfo) {
+      const currentVersion = app.getVersion();
+      const availableVersion = result.updateInfo.version;
+
+      console.log("📋 Versión disponible:", availableVersion);
+      console.log("📋 Versión actual:", currentVersion);
+
+      // Comparar versiones para asegurar que hay una actualización real
+      if (availableVersion !== currentVersion) {
+        console.log("✅ Nueva versión encontrada");
+        return { available: true, info: result.updateInfo };
+      } else {
+        console.log("ℹ️ Ya tienes la última versión");
+        return {
+          available: false,
+          info: { message: "Ya tienes la última versión" },
+        };
+      }
+    } else {
+      console.log("ℹ️ No hay actualizaciones disponibles");
+      return {
+        available: false,
+        info: { message: "No hay actualizaciones disponibles" },
+      };
+    }
   } catch (error) {
-    console.error("Error al verificar actualizaciones:", error);
+    console.error("❌ Error al verificar actualizaciones:", error);
+    updateCheckResult = null;
     return { error: (error as Error).message };
+  } finally {
+    currentlyChecking = false;
   }
 });
 
 ipcMain.handle("download-update", async () => {
+  if (!updateCheckResult) {
+    return { error: "Please check update first" };
+  }
+
   try {
+    console.log("📥 Iniciando descarga de actualización...");
     await autoUpdater.downloadUpdate();
+    console.log("✅ Descarga completada");
     return { success: true };
   } catch (error) {
-    console.error("Error al descargar actualización:", error);
+    console.error("❌ Error al descargar actualización:", error);
     return { error: (error as Error).message };
   }
 });
