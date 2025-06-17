@@ -131,7 +131,10 @@ export default function ShoppingCartRefactored() {
 
   // Utilizar los hooks personalizados
   const cartState = useCartState();
-  const businessInfo = useBusinessInfo(API_URL, getAppId());
+  const { businessInfo, loading: businessInfoLoading } = useBusinessInfo(
+    API_URL,
+    getAppId()
+  );
   const { availableProducts } = useProducts(API_URL, getAppId());
   const closing = useClosing(user, API_URL, getAppId());
   const { handleTicketPrinting, formatFechaArgentina } = useTicketPrinting();
@@ -508,6 +511,22 @@ export default function ShoppingCartRefactored() {
       paymentProcessor.cleanupPolling();
     };
   }, [qrDialogOpen]);
+
+  // Mostrar loading mientras se carga la información del negocio
+  if (businessInfoLoading) {
+    return (
+      <BackgroundLayout>
+        <div className="flex items-center justify-center h-full">
+          <div className="flex flex-col items-center gap-4">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
+            <p className="text-gray-600">
+              Cargando configuración del negocio...
+            </p>
+          </div>
+        </div>
+      </BackgroundLayout>
+    );
+  }
 
   return (
     <BackgroundLayout>
