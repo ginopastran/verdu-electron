@@ -173,7 +173,7 @@ function createWindow() {
       contextIsolation: true,
       devTools: true,
       webSecurity: false,
-      preload: path.join(__dirname, "preload.js"),
+      preload: path.join(__dirname, "preload.cjs"),
     },
   });
 

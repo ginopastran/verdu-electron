@@ -2,16 +2,17 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 // Exponer funciones de electron-store al renderer
 contextBridge.exposeInMainWorld("electronStore", {
-  get: (key) => ipcRenderer.invoke("store-get", key),
-  set: (key, value) => ipcRenderer.invoke("store-set", key, value),
-  delete: (key) => ipcRenderer.invoke("store-delete", key),
-  has: (key) => ipcRenderer.invoke("store-has", key),
+  get: (key: string) => ipcRenderer.invoke("store-get", key),
+  set: (key: string, value: any) => ipcRenderer.invoke("store-set", key, value),
+  delete: (key: string) => ipcRenderer.invoke("store-delete", key),
+  has: (key: string) => ipcRenderer.invoke("store-has", key),
 });
 
 // También exponer otras funciones existentes si las hay
 contextBridge.exposeInMainWorld("electron", {
   ipcRenderer: {
-    invoke: (channel, ...args) => ipcRenderer.invoke(channel, ...args),
+    invoke: (channel: string, ...args: any[]) =>
+      ipcRenderer.invoke(channel, ...args),
   },
   process: {
     argv: process.argv,
