@@ -41,18 +41,8 @@ try {
         file_put_contents('php://stderr', "Conexión exitosa a la impresora\n");
     } catch (Exception $e) {
         // Error específico de la impresora - reportarlo pero no interrumpir el proceso
-        file_put_contents('php://stderr', "Error con la impresora: " . $e->getMessage() . "\n");
-        
-        // Proporcionar detalles del error en la salida
-        if (strpos($e->getMessage(), "Failed to open printer") !== false) {
-            file_put_contents('php://stderr', "La impresora '" . $nombre_impresora . "' no está disponible o no existe\n");
-            throw new Exception("La impresora '" . $nombre_impresora . "' no está disponible o no existe");
-        } else if (strpos($e->getMessage(), "Access denied") !== false) {
-            file_put_contents('php://stderr', "Acceso denegado a la impresora. Ejecute como administrador\n");
-            throw new Exception("Acceso denegado a la impresora");
-        } else {
-            throw new Exception("Error al conectar con la impresora: " . $e->getMessage());
-        }
+        file_put_contents('php://stderr', "Error: " . $e->getMessage() . "\n");
+        exit(1);
     }
 
     $printer = new Printer($connector);

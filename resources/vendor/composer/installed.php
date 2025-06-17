@@ -3,7 +3,7 @@
         'name' => 'abelp/resources',
         'pretty_version' => 'dev-main',
         'version' => 'dev-main',
-        'reference' => '40bfe014b52e038f9c5e04c1c1bf26a09021f550',
+        'reference' => '0faa04ab31ba1a553c082ebfda11395492c70e6b',
         'type' => 'library',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
@@ -13,7 +13,7 @@
         'abelp/resources' => array(
             'pretty_version' => 'dev-main',
             'version' => 'dev-main',
-            'reference' => '40bfe014b52e038f9c5e04c1c1bf26a09021f550',
+            'reference' => '0faa04ab31ba1a553c082ebfda11395492c70e6b',
             'type' => 'library',
             'install_path' => __DIR__ . '/../../',
             'aliases' => array(),
