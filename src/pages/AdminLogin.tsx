@@ -126,7 +126,7 @@ export default function AdminLogin() {
         businessName: businessName,
       };
 
-      setAdminData(adminData);
+      await setAdminData(adminData);
 
       toast.success("Configuración guardada", {
         description: `Negocio: ${businessName}`,

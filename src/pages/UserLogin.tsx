@@ -321,8 +321,8 @@ export default function UserLoginPage() {
   };
 
   // Handle reconfigure business
-  const handleReconfigure = () => {
-    clearAdminData();
+  const handleReconfigure = async () => {
+    await clearAdminData();
     // Esto hará que la app redirija al AdminLogin automáticamente
   };
 

@@ -4,13 +4,13 @@ import { useBusiness } from "@/contexts/BusinessContext";
 // Función helper para persistencia
 const getStorageKey = (businessId: number) => `businessInfo_${businessId}`;
 
-const saveBusinessInfo = (businessId: number, businessInfo: any) => {
+const saveBusinessInfo = async (businessId: number, businessInfo: any) => {
   try {
     const key = getStorageKey(businessId);
 
     if (typeof window !== "undefined" && window.electronStore) {
       console.log("💾 Guardando businessInfo en electronStore:", key);
-      window.electronStore.set(key, businessInfo);
+      await window.electronStore.set(key, businessInfo);
     } else {
       console.log("💾 Guardando businessInfo en localStorage:", key);
       localStorage.setItem(key, JSON.stringify(businessInfo));
@@ -19,16 +19,27 @@ const saveBusinessInfo = (businessId: number, businessInfo: any) => {
     console.log("✅ BusinessInfo guardado:", businessInfo);
   } catch (error) {
     console.error("❌ Error al guardar businessInfo:", error);
+    // Fallback a localStorage en caso de error
+    try {
+      console.log("🔄 Fallback: Guardando en localStorage");
+      localStorage.setItem(
+        getStorageKey(businessId),
+        JSON.stringify(businessInfo)
+      );
+    } catch (fallbackError) {
+      console.error("❌ Error también en localStorage:", fallbackError);
+    }
   }
 };
 
-const loadBusinessInfo = (businessId: number): any | null => {
+const loadBusinessInfo = async (businessId: number): Promise<any | null> => {
   try {
     const key = getStorageKey(businessId);
 
     if (typeof window !== "undefined" && window.electronStore) {
       console.log("📂 Cargando businessInfo desde electronStore:", key);
-      const stored = window.electronStore.get(key);
+      const stored = await window.electronStore.get(key);
+      console.log("📋 Resultado de electronStore.get:", stored);
       if (stored) {
         console.log("✅ BusinessInfo encontrado en electronStore:", stored);
         return stored;
@@ -47,6 +58,21 @@ const loadBusinessInfo = (businessId: number): any | null => {
     return null;
   } catch (error) {
     console.error("❌ Error al cargar businessInfo:", error);
+    // Fallback a localStorage en caso de error
+    try {
+      console.log("🔄 Fallback: Cargando desde localStorage");
+      const stored = localStorage.getItem(getStorageKey(businessId));
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        console.log(
+          "✅ BusinessInfo encontrado en localStorage (fallback):",
+          parsed
+        );
+        return parsed;
+      }
+    } catch (fallbackError) {
+      console.error("❌ Error también en localStorage:", fallbackError);
+    }
     return null;
   }
 };
@@ -67,7 +93,7 @@ export const useBusinessInfo = (API_URL: string, appId: string | null) => {
       console.log("🏢 Iniciando carga de información del negocio...");
 
       // Primero intentar cargar desde storage local
-      const cachedBusinessInfo = loadBusinessInfo(businessId);
+      const cachedBusinessInfo = await loadBusinessInfo(businessId);
       if (cachedBusinessInfo) {
         console.log("🚀 Usando businessInfo desde cache:", cachedBusinessInfo);
         setBusinessInfo(cachedBusinessInfo);
@@ -110,7 +136,7 @@ export const useBusinessInfo = (API_URL: string, appId: string | null) => {
         }
 
         // Guardar en storage local
-        saveBusinessInfo(businessId, data);
+        await saveBusinessInfo(businessId, data);
 
         // Actualizar estado
         setBusinessInfo(data);

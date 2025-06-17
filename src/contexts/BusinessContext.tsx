@@ -30,8 +30,8 @@ interface BusinessContextType {
   adminData: AdminData | null;
   businessId: number | null;
   loading: boolean;
-  setAdminData: (data: AdminData) => void;
-  clearAdminData: () => void;
+  setAdminData: (data: AdminData) => Promise<void>;
+  clearAdminData: () => Promise<void>;
   hasAdminConfigured: () => boolean;
 }
 
@@ -39,8 +39,8 @@ const BusinessContext = createContext<BusinessContextType>({
   adminData: null,
   businessId: null,
   loading: true,
-  setAdminData: () => {},
-  clearAdminData: () => {},
+  setAdminData: async () => {},
+  clearAdminData: async () => {},
   hasAdminConfigured: () => false,
 });
 
@@ -60,24 +60,52 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
         // Verificar si estamos en Electron
         if (typeof window !== "undefined" && window.electronStore) {
           console.log("📱 Usando electronStore...");
-          const storedAdmin = window.electronStore.get("adminData");
-          if (storedAdmin && isMounted) {
-            console.log(
-              "✅ Datos admin encontrados en electronStore:",
-              storedAdmin
-            );
+          try {
+            const storedAdmin = await window.electronStore.get("adminData");
+            console.log("📋 Resultado de electronStore.get:", storedAdmin);
 
-            // Verificar que los datos son válidos
-            if (storedAdmin.businessId && storedAdmin.businessId > 0) {
-              setAdminDataState(storedAdmin);
-              setBusinessId(storedAdmin.businessId);
-              console.log("✅ Datos admin válidos cargados");
-            } else {
-              console.log("⚠️ Datos admin inválidos, limpiando...");
-              window.electronStore.delete("adminData");
+            if (storedAdmin && isMounted) {
+              console.log(
+                "✅ Datos admin encontrados en electronStore:",
+                storedAdmin
+              );
+
+              // Verificar que los datos son válidos
+              if (storedAdmin.businessId && storedAdmin.businessId > 0) {
+                setAdminDataState(storedAdmin);
+                setBusinessId(storedAdmin.businessId);
+                console.log("✅ Datos admin válidos cargados");
+              } else {
+                console.log("⚠️ Datos admin inválidos, limpiando...");
+                await window.electronStore.delete("adminData");
+              }
+            } else if (isMounted) {
+              console.log("ℹ️ No hay datos admin en electronStore");
             }
-          } else if (isMounted) {
-            console.log("ℹ️ No hay datos admin en electronStore");
+          } catch (error) {
+            console.error("❌ Error al acceder a electronStore:", error);
+            // Fallback a localStorage en caso de error
+            console.log("🔄 Fallback a localStorage...");
+            const storedAdmin = localStorage.getItem("adminData");
+            if (storedAdmin && isMounted) {
+              console.log("✅ Datos admin encontrados en localStorage");
+              const parsed = JSON.parse(storedAdmin);
+              console.log("📋 Datos parseados:", parsed);
+
+              // Verificar que los datos son válidos
+              if (parsed.businessId && parsed.businessId > 0) {
+                setAdminDataState(parsed);
+                setBusinessId(parsed.businessId);
+                console.log(
+                  "✅ Datos admin válidos cargados desde localStorage"
+                );
+              } else {
+                console.log(
+                  "⚠️ Datos admin inválidos, limpiando localStorage..."
+                );
+                localStorage.removeItem("adminData");
+              }
+            }
           }
         } else {
           console.log("🌐 Usando localStorage (desarrollo)...");
@@ -121,33 +149,51 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const setAdminData = (data: AdminData) => {
+  const setAdminData = async (data: AdminData) => {
     setAdminDataState(data);
     setBusinessId(data.businessId);
 
     try {
       if (window.electronStore) {
-        window.electronStore.set("adminData", data);
+        await window.electronStore.set("adminData", data);
+        console.log("✅ Datos admin guardados en electronStore");
       } else {
         localStorage.setItem("adminData", JSON.stringify(data));
+        console.log("✅ Datos admin guardados en localStorage");
       }
     } catch (error) {
-      console.error("Error al guardar datos del admin:", error);
+      console.error("❌ Error al guardar datos del admin:", error);
+      // Fallback a localStorage en caso de error con electronStore
+      try {
+        localStorage.setItem("adminData", JSON.stringify(data));
+        console.log("✅ Fallback: Datos admin guardados en localStorage");
+      } catch (fallbackError) {
+        console.error("❌ Error también en localStorage:", fallbackError);
+      }
     }
   };
 
-  const clearAdminData = () => {
+  const clearAdminData = async () => {
     setAdminDataState(null);
     setBusinessId(null);
 
     try {
       if (window.electronStore) {
-        window.electronStore.delete("adminData");
+        await window.electronStore.delete("adminData");
+        console.log("✅ Datos admin eliminados de electronStore");
       } else {
         localStorage.removeItem("adminData");
+        console.log("✅ Datos admin eliminados de localStorage");
       }
     } catch (error) {
-      console.error("Error al limpiar datos del admin:", error);
+      console.error("❌ Error al limpiar datos del admin:", error);
+      // Fallback a localStorage en caso de error
+      try {
+        localStorage.removeItem("adminData");
+        console.log("✅ Fallback: Datos admin eliminados de localStorage");
+      } catch (fallbackError) {
+        console.error("❌ Error también en localStorage:", fallbackError);
+      }
     }
   };
 
