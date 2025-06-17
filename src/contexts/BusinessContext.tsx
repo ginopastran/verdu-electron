@@ -50,33 +50,76 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadAdminData();
-  }, []);
+    console.log("🚀 BusinessContext useEffect ejecutándose");
+    let isMounted = true;
 
-  const loadAdminData = () => {
-    try {
-      // Verificar si estamos en Electron
-      if (window.electronStore) {
-        const storedAdmin = window.electronStore.get("adminData");
-        if (storedAdmin) {
-          setAdminDataState(storedAdmin);
-          setBusinessId(storedAdmin.businessId);
+    const loadData = async () => {
+      try {
+        console.log("🔄 BusinessContext: Iniciando carga de datos admin...");
+
+        // Verificar si estamos en Electron
+        if (typeof window !== "undefined" && window.electronStore) {
+          console.log("📱 Usando electronStore...");
+          const storedAdmin = window.electronStore.get("adminData");
+          if (storedAdmin && isMounted) {
+            console.log(
+              "✅ Datos admin encontrados en electronStore:",
+              storedAdmin
+            );
+
+            // Verificar que los datos son válidos
+            if (storedAdmin.businessId && storedAdmin.businessId > 0) {
+              setAdminDataState(storedAdmin);
+              setBusinessId(storedAdmin.businessId);
+              console.log("✅ Datos admin válidos cargados");
+            } else {
+              console.log("⚠️ Datos admin inválidos, limpiando...");
+              window.electronStore.delete("adminData");
+            }
+          } else if (isMounted) {
+            console.log("ℹ️ No hay datos admin en electronStore");
+          }
+        } else {
+          console.log("🌐 Usando localStorage (desarrollo)...");
+          // Fallback a localStorage para desarrollo
+          const storedAdmin = localStorage.getItem("adminData");
+          if (storedAdmin && isMounted) {
+            console.log("✅ Datos admin encontrados en localStorage");
+            const parsed = JSON.parse(storedAdmin);
+            console.log("📋 Datos parseados:", parsed);
+
+            // Verificar que los datos son válidos
+            if (parsed.businessId && parsed.businessId > 0) {
+              setAdminDataState(parsed);
+              setBusinessId(parsed.businessId);
+              console.log("✅ Datos admin válidos cargados");
+            } else {
+              console.log(
+                "⚠️ Datos admin inválidos, limpiando localStorage..."
+              );
+              localStorage.removeItem("adminData");
+            }
+          } else if (isMounted) {
+            console.log("ℹ️ No hay datos admin en localStorage");
+          }
         }
-      } else {
-        // Fallback a localStorage para desarrollo
-        const storedAdmin = localStorage.getItem("adminData");
-        if (storedAdmin) {
-          const parsed = JSON.parse(storedAdmin);
-          setAdminDataState(parsed);
-          setBusinessId(parsed.businessId);
+      } catch (error) {
+        console.error("❌ Error al cargar datos del admin:", error);
+      } finally {
+        if (isMounted) {
+          console.log("✅ BusinessContext: Finalizando loading");
+          setLoading(false);
         }
       }
-    } catch (error) {
-      console.error("Error al cargar datos del admin:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
+
+    loadData();
+
+    return () => {
+      console.log("🧹 BusinessContext cleanup");
+      isMounted = false;
+    };
+  }, []);
 
   const setAdminData = (data: AdminData) => {
     setAdminDataState(data);
@@ -109,7 +152,14 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
   };
 
   const hasAdminConfigured = () => {
-    return adminData !== null && businessId !== null;
+    const isConfigured =
+      adminData !== null && businessId !== null && businessId > 0;
+    console.log("🔍 hasAdminConfigured:", {
+      adminData: !!adminData,
+      businessId,
+      isConfigured,
+    });
+    return isConfigured;
   };
 
   return (

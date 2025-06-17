@@ -240,7 +240,7 @@ export default function ShoppingCartRefactored() {
     // Si es efectivo, manejar con el sistema de redondeo. Pasa el control.
     if (method === "efectivo") {
       console.log("💰 Seleccionando efectivo - businessInfo:", businessInfo);
-      setIsProcessingPayment(true);
+      // NO establecer isProcessingPayment aquí, solo cuando se confirme el pago
       setSelectedPaymentMethod("efectivo");
       paymentProcessor.handleCashPayment(businessInfo);
       setPaymentDialogOpen(false);
@@ -369,18 +369,61 @@ export default function ShoppingCartRefactored() {
   };
 
   // Confirmar pago redondeado en efectivo
-  const confirmRoundedPayment = () => {
+  const confirmRoundedPayment = async () => {
+    console.log("🔄 =========================");
+    console.log("🔄 REFACTORED: Iniciando confirmRoundedPayment");
+    console.log("🔄 Estado actual detallado:", {
+      isProcessingPayment,
+      selectedPaymentMethod,
+      roundedAmount: paymentProcessor.roundedAmount,
+      originalAmount: paymentProcessor.originalAmount,
+      user: user?.id,
+      roundedAmountDialogOpen: paymentProcessor.roundedAmountDialogOpen,
+    });
+
     if (isProcessingPayment) {
+      console.log("⚠️ Ya hay un pago en proceso, ignorando solicitud");
       return;
     }
+
+    if (!user) {
+      console.log("⚠️ Usuario no está logueado");
+      toast.error("Debes iniciar sesión para realizar una orden");
+      return;
+    }
+
+    if (paymentProcessor.roundedAmount <= 0) {
+      console.log(
+        "⚠️ Monto redondeado es 0 o negativo:",
+        paymentProcessor.roundedAmount
+      );
+      toast.error("Error: Monto inválido");
+      return;
+    }
+
+    console.log(
+      "✅ Validaciones pasadas, procesando pago con monto:",
+      paymentProcessor.roundedAmount
+    );
+
     setIsProcessingPayment(true);
 
-    paymentProcessor.processPayment(
-      "efectivo",
-      paymentProcessor.roundedAmount,
-      cartState.getCurrentItems()
-    );
-    paymentProcessor.setRoundedAmountDialogOpen(false);
+    try {
+      console.log("🔄 Llamando a paymentProcessor.processPayment");
+      await paymentProcessor.processPayment(
+        "efectivo",
+        paymentProcessor.roundedAmount,
+        cartState.getCurrentItems()
+      );
+      console.log("🔄 processPayment llamado exitosamente");
+      // NO cerrar el diálogo aquí - se cerrará en processPayment después del éxito
+    } catch (error) {
+      console.error("❌ Error al procesar pago:", error);
+      toast.error("Error al procesar el pago");
+      setIsProcessingPayment(false);
+      paymentProcessor.setRoundedAmountDialogOpen(false);
+    }
+    console.log("🔄 =========================");
   };
 
   // Manejadores para pantallas múltiples
@@ -554,6 +597,7 @@ export default function ShoppingCartRefactored() {
           }
         }}
         isProcessingPayment={isProcessingPayment}
+        isLoading={isProcessingPayment}
         applyingDiscount={paymentProcessor.applyingDiscount}
         businessInfo={businessInfo}
         originalAmount={paymentProcessor.originalAmount}

@@ -131,10 +131,40 @@ ipcMain.handle("check-for-updates", async () => {
       console.log("📋 Versión disponible:", availableVersion);
       console.log("📋 Versión actual:", currentVersion);
 
-      // Comparar versiones para asegurar que hay una actualización real
-      if (availableVersion !== currentVersion) {
-        console.log("✅ Nueva versión encontrada");
+      // Función para comparar versiones semánticamente
+      const compareVersions = (available: string, current: string): number => {
+        const parseVersion = (v: string) =>
+          v.split(".").map((n) => parseInt(n) || 0);
+        const availableParts = parseVersion(available);
+        const currentParts = parseVersion(current);
+
+        for (
+          let i = 0;
+          i < Math.max(availableParts.length, currentParts.length);
+          i++
+        ) {
+          const a = availableParts[i] || 0;
+          const c = currentParts[i] || 0;
+          if (a > c) return 1; // available es mayor
+          if (a < c) return -1; // current es mayor
+        }
+        return 0; // son iguales
+      };
+
+      const versionComparison = compareVersions(
+        availableVersion,
+        currentVersion
+      );
+
+      if (versionComparison > 0) {
+        console.log("✅ Nueva versión encontrada (más reciente)");
         return { available: true, info: result.updateInfo };
+      } else if (versionComparison < 0) {
+        console.log("ℹ️ Tienes una versión más nueva que la disponible");
+        return {
+          available: false,
+          info: { message: "Tienes una versión más nueva que la disponible" },
+        };
       } else {
         console.log("ℹ️ Ya tienes la última versión");
         return {
@@ -275,14 +305,14 @@ app.whenReady().then(async () => {
     );
 
     setTimeout(() => {
-      console.log("🔄 Iniciando verificación de actualizaciones...");
+      console.log("🔄 Iniciando verificación automática de actualizaciones...");
       autoUpdater
         .checkForUpdates()
         .then((result: any) => {
-          console.log("✅ Check result:", result);
+          console.log("✅ Verificación automática completada:", result);
         })
         .catch((error: any) => {
-          console.error("❌ Check error:", error);
+          console.error("❌ Error en verificación automática:", error);
         });
     }, 3000);
 

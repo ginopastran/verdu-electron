@@ -29,6 +29,11 @@ export const useAutoUpdater = () => {
   const [downloaded, setDownloaded] = useState(false);
   const [checking, setChecking] = useState(false);
 
+  // Debug: Log cuando cambia el estado checking
+  useEffect(() => {
+    console.log("🔍 Estado checking cambiado a:", checking);
+  }, [checking]);
+
   const checkForUpdates = useCallback(async () => {
     if (!window.autoUpdater) {
       console.log("Auto-updater no disponible (probablemente en desarrollo)");
@@ -37,7 +42,20 @@ export const useAutoUpdater = () => {
 
     try {
       setChecking(true);
-      const result = await window.autoUpdater.checkForUpdates();
+      console.log("📞 Llamando a checkForUpdates...");
+
+      // Timeout de 30 segundos para evitar que se cuelgue
+      const timeoutPromise = new Promise<any>((_, reject) =>
+        setTimeout(
+          () => reject(new Error("Timeout verificando actualizaciones")),
+          30000
+        )
+      );
+
+      const updatePromise = window.autoUpdater.checkForUpdates();
+      const result = await Promise.race([updatePromise, timeoutPromise]);
+
+      console.log("📋 Resultado de checkForUpdates:", result);
 
       if (result.error) {
         console.error("Error al verificar actualizaciones:", result.error);
@@ -69,14 +87,20 @@ export const useAutoUpdater = () => {
           !result.info?.message ||
           result.info.message.includes("actualizaciones disponibles")
         ) {
-          toast.info("La aplicación está actualizada");
+          // No mostrar toast automático para evitar spam
+          console.log("✅ Aplicación actualizada");
         }
       }
     } catch (error) {
       console.error("Error al verificar actualizaciones:", error);
-      toast.error("Error al verificar actualizaciones");
+      if (error instanceof Error && error.message.includes("Timeout")) {
+        toast.error("Tiempo de espera agotado verificando actualizaciones");
+      } else {
+        toast.error("Error al verificar actualizaciones");
+      }
     } finally {
       setChecking(false);
+      console.log("🏁 Verificación de actualizaciones completada");
     }
   }, []);
 
@@ -127,14 +151,43 @@ export const useAutoUpdater = () => {
     }, 1000);
   }, [downloaded]);
 
+  const cancelUpdate = useCallback(() => {
+    setUpdateAvailable(false);
+    setUpdateInfo(null);
+    setDownloading(false);
+    setDownloaded(false);
+    toast.info("Actualización cancelada");
+  }, []);
+
+  // Safety: Limpiar estado checking si se queda colgado
+  useEffect(() => {
+    if (checking) {
+      const safetyTimer = setTimeout(() => {
+        console.log(
+          "⚠️ SAFETY: Limpiando estado checking después de 45 segundos"
+        );
+        setChecking(false);
+      }, 45000); // 45 segundos de seguridad
+
+      return () => clearTimeout(safetyTimer);
+    }
+  }, [checking]);
+
   // Verificar actualizaciones automáticamente al cargar
   useEffect(() => {
-    // Verificar después de 5 segundos de cargar la app
-    const timer = setTimeout(() => {
-      checkForUpdates();
-    }, 5000);
+    // Verificar después de 5 segundos de cargar la app, solo en producción
+    if (window.autoUpdater) {
+      const timer = setTimeout(() => {
+        console.log(
+          "🔍 Iniciando verificación automática de actualizaciones..."
+        );
+        checkForUpdates();
+      }, 5000);
 
-    return () => clearTimeout(timer);
+      return () => clearTimeout(timer);
+    } else {
+      console.log("⚠️ Auto-updater no disponible en desarrollo");
+    }
   }, [checkForUpdates]);
 
   return {
@@ -146,5 +199,6 @@ export const useAutoUpdater = () => {
     checkForUpdates,
     downloadUpdate,
     installUpdate,
+    cancelUpdate,
   };
 };

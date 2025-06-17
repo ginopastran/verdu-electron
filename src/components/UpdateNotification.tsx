@@ -20,6 +20,7 @@ export default function UpdateNotification() {
     checkForUpdates,
     downloadUpdate,
     installUpdate,
+    cancelUpdate,
   } = useAutoUpdater();
 
   // No mostrar nada si no hay actualizaciones disponibles
@@ -89,7 +90,7 @@ export default function UpdateNotification() {
             <>
               <Button
                 variant="outline"
-                onClick={() => window.location.reload()}
+                onClick={cancelUpdate}
                 className="text-emerald-600 border-emerald-300 hover:bg-emerald-100"
               >
                 Más tarde

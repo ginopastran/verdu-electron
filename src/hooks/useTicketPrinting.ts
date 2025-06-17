@@ -68,23 +68,29 @@ export const useTicketPrinting = () => {
       console.log("==============================\n");
 
       // Intentar imprimir
-      const { ipcRenderer } = window.require("electron");
-      const result = await ipcRenderer.invoke("print-ticket", orderData);
+      if (typeof window !== "undefined" && window.require) {
+        const { ipcRenderer } = window.require("electron");
+        const result = await ipcRenderer.invoke("print-ticket", orderData);
 
-      if (result.success) {
-        toast.success("Ticket impreso correctamente");
+        if (result.success) {
+          toast.success("Ticket impreso correctamente");
+        }
+        // Si hay error, solo lo logueamos pero no mostramos toast
+        else {
+          console.error(
+            "❌ Error al imprimir (IPC invoke returned false):",
+            result.message
+          );
+          toast.error(
+            `Error al imprimir el ticket: ${result.message || "Desconocido"}`
+          );
+        }
+        return result.success;
+      } else {
+        console.log("🌐 Modo desarrollo: ticket simulado en consola");
+        toast.success("Ticket simulado (modo desarrollo)");
+        return true;
       }
-      // Si hay error, solo lo logueamos pero no mostramos toast
-      else {
-        console.error(
-          "❌ Error al imprimir (IPC invoke returned false):",
-          result.message
-        );
-        toast.error(
-          `Error al imprimir el ticket: ${result.message || "Desconocido"}`
-        );
-      }
-      return result.success;
     } catch (error: any) {
       console.error("❌ Error al imprimir:", error);
       toast.error(

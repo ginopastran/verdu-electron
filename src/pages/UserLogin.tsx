@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Navigate } from "react-router-dom";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -46,10 +46,24 @@ interface Vendor {
 }
 
 export default function UserLoginPage() {
+  console.log("🚀 UserLogin: Componente montándose...");
+
   const { updateUser } = useAuth();
   const { businessId, adminData, clearAdminData } = useBusiness();
   const { isOnline } = useOfflineMode();
   const { saveOfflineCredentials } = useOfflineAuth();
+
+  console.log("📊 UserLogin state:", {
+    businessId,
+    adminData: !!adminData,
+    isOnline,
+  });
+
+  // SAFETY: Si businessId está undefined pero tenemos adminData,
+  // extraer businessId del adminData
+  const effectiveBusinessId = businessId || adminData?.businessId;
+  console.log("🔧 Usando businessId:", effectiveBusinessId);
+
   const [redirectTo, setRedirectTo] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [loadingVendors, setLoadingVendors] = useState(true);
@@ -65,12 +79,89 @@ export default function UserLoginPage() {
     },
   });
 
+  // Fetch vendors from API
+  const fetchVendors = useCallback(async () => {
+    console.log("🔄 UserLogin: Iniciando carga de vendors...");
+    console.log(
+      "📊 businessId:",
+      businessId,
+      "effectiveBusinessId:",
+      effectiveBusinessId,
+      "isOnline:",
+      isOnline
+    );
+
+    try {
+      setLoadingVendors(true);
+
+      if (!isOnline) {
+        console.log("❌ Sin conexión a internet");
+        toast.error("No hay conexión a internet");
+        setLoadingVendors(false);
+        return;
+      }
+
+      if (!effectiveBusinessId) {
+        console.log("❌ No hay businessId configurado");
+        toast.error("No se ha configurado el negocio");
+        setLoadingVendors(false);
+        return;
+      }
+
+      const API_URL = import.meta.env.VITE_API_URL;
+      const appId = import.meta.env.VITE_APP_ID;
+
+      console.log(
+        "🌐 Haciendo petición a API...",
+        `${API_URL}/api/usuarios/vendedores?businessId=${effectiveBusinessId}`
+      );
+
+      const response = await fetch(
+        `${API_URL}/api/usuarios/vendedores?businessId=${effectiveBusinessId}`,
+        {
+          headers: {
+            "Content-Type": "application/json",
+            "X-App-ID": appId,
+          },
+        }
+      );
+
+      console.log(
+        "📡 Respuesta recibida:",
+        response.status,
+        response.statusText
+      );
+
+      if (!response.ok) {
+        throw new Error("Error al obtener vendedores");
+      }
+
+      const data = await response.json();
+      console.log("✅ Vendors cargados:", data.length, "vendors");
+      setVendors(data);
+    } catch (error) {
+      console.error("❌ Error fetching vendors:", error);
+      toast.error("Error al cargar vendedores", {
+        description: "Por favor, intenta nuevamente más tarde.",
+      });
+    } finally {
+      console.log("✅ fetchVendors terminado, setLoadingVendors(false)");
+      setLoadingVendors(false);
+    }
+  }, [businessId, effectiveBusinessId, isOnline]);
+
   // Fetch vendors on component mount
   useEffect(() => {
-    if (businessId) {
+    console.log(
+      "🔄 UserLogin useEffect triggered - effectiveBusinessId:",
+      effectiveBusinessId
+    );
+    if (effectiveBusinessId) {
       fetchVendors();
+    } else {
+      console.log("⏳ Esperando businessId...");
     }
-  }, [businessId]);
+  }, [effectiveBusinessId, isOnline, fetchVendors]);
 
   // Add keyboard event listener
   useEffect(() => {
@@ -96,52 +187,6 @@ export default function UserLoginPage() {
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [vendors]);
-
-  // Fetch vendors from API
-  const fetchVendors = async () => {
-    try {
-      setLoadingVendors(true);
-
-      if (!isOnline) {
-        toast.error("No hay conexión a internet");
-        setLoadingVendors(false);
-        return;
-      }
-
-      if (!businessId) {
-        toast.error("No se ha configurado el negocio");
-        setLoadingVendors(false);
-        return;
-      }
-
-      const API_URL = import.meta.env.VITE_API_URL;
-      const appId = import.meta.env.VITE_APP_ID;
-
-      const response = await fetch(
-        `${API_URL}/api/usuarios/vendedores?businessId=${businessId}`,
-        {
-          headers: {
-            "Content-Type": "application/json",
-            "X-App-ID": appId,
-          },
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error("Error al obtener vendedores");
-      }
-
-      const data = await response.json();
-      setVendors(data);
-    } catch (error) {
-      console.error("Error fetching vendors:", error);
-      toast.error("Error al cargar vendedores", {
-        description: "Por favor, intenta nuevamente más tarde.",
-      });
-    } finally {
-      setLoadingVendors(false);
-    }
-  };
 
   // Select a vendor and open password dialog
   const handleVendorSelect = (vendor: Vendor) => {

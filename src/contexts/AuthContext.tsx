@@ -39,12 +39,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Intentar recuperar el usuario del localStorage al cargar
-    const storedUser = localStorage.getItem("user");
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
+    console.log("🔄 AuthContext: Iniciando carga de usuario...");
+    try {
+      // Intentar recuperar el usuario del localStorage al cargar
+      const storedUser = localStorage.getItem("user");
+      if (storedUser) {
+        console.log("✅ Usuario encontrado en localStorage");
+        setUser(JSON.parse(storedUser));
+      } else {
+        console.log("ℹ️ No hay usuario en localStorage");
+      }
+    } catch (error) {
+      console.error("❌ Error al cargar usuario:", error);
+    } finally {
+      console.log("✅ AuthContext: Finalizando loading");
+      setLoading(false);
     }
-    setLoading(false);
+
+    // Safety timeout para AuthContext también
+    const safetyTimeout = setTimeout(() => {
+      console.log("⚠️ SAFETY: AuthContext timeout - forzando fin de loading");
+      setLoading(false);
+    }, 8000);
+
+    return () => clearTimeout(safetyTimeout);
   }, []);
 
   const updateUser = (newUser: User | null) => {

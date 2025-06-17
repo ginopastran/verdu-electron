@@ -38,6 +38,13 @@ export function usePaymentProcessing({
   setQrDialogOpen,
   setSplitPaymentDialogOpen,
 }: PaymentOptions) {
+  // Helper para llamadas a Electron IPC
+  const getElectronAPI = () => {
+    if (typeof window !== "undefined" && window.require) {
+      return window.require("electron");
+    }
+    return null;
+  };
   // Estado para QR
   const [qrData, setQrData] = useState<any>(null);
   const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(
@@ -122,11 +129,30 @@ export function usePaymentProcessing({
     finalTotal: number,
     items: Product[]
   ) => {
+    console.log("🎯 PAYMENT PROCESSOR: processPayment iniciado");
+    console.log("🎯 Parámetros:", {
+      method,
+      finalTotal,
+      itemsCount: items.length,
+      user: user?.id,
+      isProcessingPayment,
+    });
+
     if (!user) {
+      console.log("❌ PAYMENT PROCESSOR: Usuario no logueado");
       toast.error("Debes iniciar sesión para realizar una orden");
       resetPaymentState();
       return;
     }
+
+    if (isProcessingPayment) {
+      console.log("❌ PAYMENT PROCESSOR: Ya hay un pago en proceso");
+      return;
+    }
+
+    console.log(
+      "✅ PAYMENT PROCESSOR: Validaciones pasadas, iniciando procesamiento"
+    );
 
     setIsProcessingPayment(true);
 
@@ -175,10 +201,19 @@ export function usePaymentProcessing({
         toast.error("Error al imprimir el ticket.");
       }
 
+      // Primero mostrar el toast de éxito
+      toast.success("Orden completada exitosamente");
+
+      // Esperar un poco para que el usuario vea el éxito antes de cerrar
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+
       // Limpiar carrito y estados
       clearCart();
       resetPaymentState();
-      toast.success("Orden completada exitosamente");
+
+      // Cerrar el diálogo del efectivo si está abierto
+      setRoundedAmountDialogOpen(false);
+
       // Cerrar el diálogo de pago principal
       if (setPaymentDialogOpen) {
         setPaymentDialogOpen(false);
@@ -186,7 +221,13 @@ export function usePaymentProcessing({
     } catch (error) {
       console.error("Error:", error);
       toast.error("Error al procesar la orden");
+
+      // En caso de error, también cerrar los diálogos y resetear estados
+      setRoundedAmountDialogOpen(false);
       resetPaymentState();
+      if (setPaymentDialogOpen) {
+        setPaymentDialogOpen(false);
+      }
     }
   };
 
@@ -712,20 +753,26 @@ export function usePaymentProcessing({
 
       // Imprimir ticket usando Electron IPC
       try {
-        const { ipcRenderer } = window.require("electron");
-        console.log("Enviando datos para impresión:", orderData);
-        toast.info("Imprimiendo ticket...", {
-          duration: 3000,
-          description: "Enviando datos a la impresora",
-        });
+        const electronAPI = getElectronAPI();
+        if (electronAPI) {
+          const { ipcRenderer } = electronAPI;
+          console.log("Enviando datos para impresión:", orderData);
+          toast.info("Imprimiendo ticket...", {
+            duration: 3000,
+            description: "Enviando datos a la impresora",
+          });
 
-        const result = await ipcRenderer.invoke("print-ticket", orderData);
-        console.log("Resultado de impresión:", result);
+          const result = await ipcRenderer.invoke("print-ticket", orderData);
+          console.log("Resultado de impresión:", result);
 
-        if (result.success) {
-          toast.success("Ticket impreso correctamente");
+          if (result.success) {
+            toast.success("Ticket impreso correctamente");
+          } else {
+            throw new Error(result.message || "Error desconocido al imprimir");
+          }
         } else {
-          throw new Error(result.message || "Error desconocido al imprimir");
+          console.log("🌐 Modo desarrollo: simulando impresión");
+          toast.success("Ticket simulado (modo desarrollo)");
         }
       } catch (printError: any) {
         console.error("Error detallado al imprimir:", printError);
@@ -1196,23 +1243,30 @@ export function usePaymentProcessing({
       console.log("==============================");
 
       // Intentar imprimir
-      const { ipcRenderer } = window.require("electron");
-      console.log("Enviando datos para impresión:", orderData);
-      // No mostrar toast de carga aquí, se hará antes de llamar a esta función
+      const electronAPI = getElectronAPI();
+      if (electronAPI) {
+        const { ipcRenderer } = electronAPI;
+        console.log("Enviando datos para impresión:", orderData);
+        // No mostrar toast de carga aquí, se hará antes de llamar a esta función
 
-      const result = await ipcRenderer.invoke("print-ticket", orderData);
-      console.log("Resultado de impresión:", result);
+        const result = await ipcRenderer.invoke("print-ticket", orderData);
+        console.log("Resultado de impresión:", result);
 
-      if (result.success) {
-        toast.success("Ticket impreso correctamente");
-        return true;
+        if (result.success) {
+          toast.success("Ticket impreso correctamente");
+          return true;
+        } else {
+          // No mostrar toast de error aquí, se manejará en la función que llama
+          console.error(
+            "❌ Error al imprimir (IPC invoke returned false):",
+            result.message
+          );
+          return false;
+        }
       } else {
-        // No mostrar toast de error aquí, se manejará en la función que llama
-        console.error(
-          "❌ Error al imprimir (IPC invoke returned false):",
-          result.message
-        );
-        return false;
+        console.log("🌐 Modo desarrollo: simulando impresión de ticket");
+        toast.success("Ticket simulado (modo desarrollo)");
+        return true;
       }
     } catch (error: any) {
       console.error("❌ Error al imprimir (catch):", error);

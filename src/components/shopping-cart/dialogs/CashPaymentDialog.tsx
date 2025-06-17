@@ -141,7 +141,16 @@ export function CashPaymentDialog({
 
           <Button
             className="bg-emerald-gradient text-lg py-5 px-6"
-            onClick={onConfirm}
+            onClick={() => {
+              console.log("🔘 CASH DIALOG: Botón 'Confirmar pago' clickeado");
+              console.log("🔘 CASH DIALOG: Estado del botón:", {
+                disabled: isLoading,
+                originalAmount,
+                roundedAmount,
+                applyingDiscount,
+              });
+              onConfirm();
+            }}
             disabled={isLoading}
             autoFocus
             tabIndex={1}

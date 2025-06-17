@@ -9,6 +9,14 @@ export const useClosing = (
   const [isClosing, setIsClosing] = useState(false);
   const [closingDialogOpen, setClosingDialogOpen] = useState(false);
 
+  // Helper para llamadas a Electron IPC
+  const getElectronAPI = () => {
+    if (typeof window !== "undefined" && window.require) {
+      return window.require("electron");
+    }
+    return null;
+  };
+
   const formatFechaArgentina = (fecha: string | Date) => {
     const fechaObj = typeof fecha === "string" ? new Date(fecha) : fecha;
     const fechaArg = new Date(fechaObj.getTime() + 3 * 60 * 60 * 1000);
@@ -102,7 +110,7 @@ export const useClosing = (
       console.log("✅ Datos de cierre recibidos:", cierreData);
 
       try {
-        const { ipcRenderer } = window.require("electron");
+        const electronAPI = getElectronAPI();
 
         // ====== SIMULACIÓN DEL TICKET DE CIERRE ======
         console.log("\n====== SIMULACIÓN DEL TICKET DE CIERRE ======");
@@ -167,10 +175,16 @@ export const useClosing = (
         );
         console.log("=====================================\n");
 
-        const result = await ipcRenderer.invoke("print-closing", cierreData);
+        if (electronAPI) {
+          const { ipcRenderer } = electronAPI;
+          const result = await ipcRenderer.invoke("print-closing", cierreData);
 
-        if (result.success && !result.printerError) {
-          toast.success("Ticket de cierre impreso correctamente");
+          if (result.success && !result.printerError) {
+            toast.success("Ticket de cierre impreso correctamente");
+          }
+        } else {
+          console.log("🌐 Modo desarrollo: simulando impresión de cierre");
+          toast.success("Cierre simulado (modo desarrollo)");
         }
 
         toast.success(`Cierre de ${period} realizado correctamente`);

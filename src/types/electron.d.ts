@@ -5,6 +5,7 @@ declare global {
         argv: string[];
       };
     };
+    require?: (module: string) => any;
   }
 }
 
