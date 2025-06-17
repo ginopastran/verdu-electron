@@ -63,13 +63,6 @@ export default function UpdateNotification() {
       </CardHeader>
 
       <CardContent>
-        {updateInfo?.releaseNotes && !downloading && !downloaded && (
-          <div className="mb-3 p-2 bg-white/60 rounded text-sm text-emerald-700">
-            <strong>Novedades:</strong>
-            <p className="mt-1 text-xs">{updateInfo.releaseNotes}</p>
-          </div>
-        )}
-
         <div className="flex gap-2">
           {downloaded ? (
             <>
