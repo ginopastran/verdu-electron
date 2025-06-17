@@ -49,6 +49,7 @@ try {
         $connector = new WindowsPrintConnector($nombre_impresora);
         
         // Si llegamos aquí, la conexión fue exitosa
+        file_put_contents('php://stderr', "✓ Conexión exitosa a la impresora para cierre\n");
         $printer = new Printer($connector);
 
         // Logo (opcional)

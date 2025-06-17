@@ -337,6 +337,36 @@ app.on("window-all-closed", () => {
 });
 ipcMain.handle("print-ticket", async (_, orderData) => {
     try {
+        // Primero verificar si la impresora está disponible usando la API nativa de Electron
+        let mainWindow = BrowserWindow.getAllWindows()[0];
+        if (!mainWindow) {
+            throw new Error("No hay ventana principal disponible");
+        }
+        console.log("🔍 Verificando impresoras disponibles...");
+        try {
+            const availablePrinters = await mainWindow.webContents.getPrintersAsync();
+            console.log("📋 Impresoras disponibles:", availablePrinters.map((p) => p.name));
+            const targetPrinter = "TP806L";
+            const printerFound = availablePrinters.some((printer) => printer.name === targetPrinter && printer.status === 0 // 0 = idle/ready
+            );
+            if (!printerFound) {
+                console.log(`❌ Impresora '${targetPrinter}' no encontrada o no disponible`);
+                return {
+                    success: false,
+                    printerError: `Impresora '${targetPrinter}' no está conectada o no está disponible`,
+                    message: "Error de impresión: Impresora no disponible",
+                };
+            }
+            console.log(`✅ Impresora '${targetPrinter}' encontrada y disponible`);
+        }
+        catch (printerCheckError) {
+            console.error("❌ Error al verificar impresoras:", printerCheckError);
+            return {
+                success: false,
+                printerError: "No se pudo verificar el estado de las impresoras",
+                message: "Error de impresión: Sistema de impresión no disponible",
+            };
+        }
         const tempDir = os.tmpdir();
         const tempDataPath = path.join(tempDir, `order-data-${Date.now()}.json`);
         // Guardar datos de la orden en archivo temporal
@@ -469,8 +499,9 @@ ipcMain.handle("print-ticket", async (_, orderData) => {
                             if (printerError.includes("Failed to open printer") ||
                                 printerError.includes("No se encontró") ||
                                 printerError.includes("TP806L") ||
-                                printerError.includes("Access denied")) {
-                                console.log("Error específico de impresora detectado:", printerError);
+                                printerError.includes("Access denied") ||
+                                printerError.includes("Error al conectar con la impresora")) {
+                                console.log("❌ Error específico de impresora detectado:", printerError);
                             }
                             else {
                                 // Si no es error de impresora, es error general
@@ -514,8 +545,71 @@ ipcMain.handle("toggle-devtools", () => {
         win.webContents.toggleDevTools();
     }
 });
+// Agregar un nuevo manejador IPC para obtener lista de impresoras
+ipcMain.handle("get-available-printers", async () => {
+    try {
+        let mainWindow = BrowserWindow.getAllWindows()[0];
+        if (!mainWindow) {
+            throw new Error("No hay ventana principal disponible");
+        }
+        console.log("🔍 Obteniendo lista completa de impresoras...");
+        const availablePrinters = await mainWindow.webContents.getPrintersAsync();
+        const printerInfo = availablePrinters.map((printer) => ({
+            name: printer.name,
+            displayName: printer.displayName,
+            description: printer.description,
+            status: printer.status,
+            isDefault: printer.isDefault,
+            statusText: printer.status === 0
+                ? "Disponible"
+                : printer.status === 1
+                    ? "Imprimiendo"
+                    : printer.status === 2
+                        ? "Error"
+                        : printer.status === 3
+                            ? "No disponible"
+                            : "Estado desconocido",
+        }));
+        console.log("📋 Información detallada de impresoras:", printerInfo);
+        return printerInfo;
+    }
+    catch (error) {
+        console.error("❌ Error al obtener impresoras:", error);
+        throw error;
+    }
+});
 ipcMain.handle("print-closing", async (_, closingData) => {
     try {
+        // Primero verificar si la impresora está disponible usando la API nativa de Electron
+        let mainWindow = BrowserWindow.getAllWindows()[0];
+        if (!mainWindow) {
+            throw new Error("No hay ventana principal disponible");
+        }
+        console.log("🔍 Verificando impresoras disponibles para cierre...");
+        try {
+            const availablePrinters = await mainWindow.webContents.getPrintersAsync();
+            console.log("📋 Impresoras disponibles:", availablePrinters.map((p) => p.name));
+            const targetPrinter = "TP806L";
+            const printerFound = availablePrinters.some((printer) => printer.name === targetPrinter && printer.status === 0 // 0 = idle/ready
+            );
+            if (!printerFound) {
+                console.log(`❌ Impresora '${targetPrinter}' no encontrada o no disponible para cierre`);
+                return {
+                    success: false,
+                    printerError: `Impresora '${targetPrinter}' no está conectada o no está disponible`,
+                    message: "Error de impresión: Impresora no disponible",
+                };
+            }
+            console.log(`✅ Impresora '${targetPrinter}' encontrada y disponible para cierre`);
+        }
+        catch (printerCheckError) {
+            console.error("❌ Error al verificar impresoras para cierre:", printerCheckError);
+            return {
+                success: false,
+                printerError: "No se pudo verificar el estado de las impresoras",
+                message: "Error de impresión: Sistema de impresión no disponible",
+            };
+        }
         const tempDir = os.tmpdir();
         const tempDataPath = path.join(tempDir, `closing-data-${Date.now()}.json`);
         // Guardar una copia de los datos recibidos para análisis

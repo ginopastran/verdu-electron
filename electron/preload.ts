@@ -30,3 +30,12 @@ contextBridge.exposeInMainWorld("autoUpdater", {
 contextBridge.exposeInMainWorld("pesoReader", {
   readPeso: () => ipcRenderer.invoke("read-peso"),
 });
+
+// Exponer funciones específicas para impresión
+contextBridge.exposeInMainWorld("printer", {
+  printTicket: (orderData: any) =>
+    ipcRenderer.invoke("print-ticket", orderData),
+  printClosing: (closingData: any) =>
+    ipcRenderer.invoke("print-closing", closingData),
+  getAvailablePrinters: () => ipcRenderer.invoke("get-available-printers"),
+});

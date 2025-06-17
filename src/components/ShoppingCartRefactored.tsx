@@ -333,11 +333,15 @@ export default function ShoppingCartRefactored() {
           // Mostrar toast de carga para la impresión
           const printingToastId = toast.loading("Imprimiendo ticket...");
 
-          // Imprimir ticket
-          await handleTicketPrinting(orderData);
-
-          // Cerrar el toast de carga de impresión
-          toast.dismiss(printingToastId);
+          try {
+            // Imprimir ticket
+            await handleTicketPrinting(orderData);
+          } catch (printError) {
+            console.error("Error en impresión:", printError);
+          } finally {
+            // Cerrar el toast de carga de impresión SIEMPRE
+            toast.dismiss(printingToastId);
+          }
 
           // Limpiar carrito y estados locales
           cartState.clearCart();
@@ -352,6 +356,10 @@ export default function ShoppingCartRefactored() {
           setIsProcessingPayment(false);
           setSelectedPaymentMethod(null);
           setPaymentDialogOpen(false);
+
+          // Asegurar que cualquier toast de carga se cierre
+          toast.dismiss("processing-order");
+          toast.dismiss("printing-ticket");
         }
 
         return;

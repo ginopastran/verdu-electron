@@ -1,6 +1,16 @@
 import { useState } from "react";
 import { toast } from "sonner";
 
+// Declaración de tipos para window
+declare global {
+  interface Window {
+    printer?: {
+      printTicket: (orderData: any) => Promise<any>;
+      printClosing: (closingData: any) => Promise<any>;
+    };
+  }
+}
+
 export const useClosing = (
   user: any,
   API_URL: string,
@@ -9,12 +19,17 @@ export const useClosing = (
   const [isClosing, setIsClosing] = useState(false);
   const [closingDialogOpen, setClosingDialogOpen] = useState(false);
 
-  // Helper para llamadas a Electron IPC
-  const getElectronAPI = () => {
-    if (typeof window !== "undefined" && (window as any).electronAPI) {
-      return (window as any).electronAPI;
+  // Helper para acceder a la API de impresión
+  const getPrinterAPI = () => {
+    try {
+      if (typeof window !== "undefined" && window.printer) {
+        return window.printer;
+      }
+      return null;
+    } catch (error) {
+      console.error("❌ Error al acceder a la impresora:", error);
+      return null;
     }
-    return null;
   };
 
   const formatFechaArgentina = (fecha: string | Date) => {
@@ -110,8 +125,6 @@ export const useClosing = (
       console.log("✅ Datos de cierre recibidos:", cierreData);
 
       try {
-        const electronAPI = getElectronAPI();
-
         // ====== SIMULACIÓN DEL TICKET DE CIERRE ======
         console.log("\n====== SIMULACIÓN DEL TICKET DE CIERRE ======");
         console.log("ISELIN II");
@@ -175,23 +188,53 @@ export const useClosing = (
         );
         console.log("=====================================\n");
 
-        if (electronAPI) {
-          const { ipcRenderer } = electronAPI;
-          const result = await ipcRenderer.invoke("print-closing", cierreData);
+        // Intentar imprimir - usar window.printer API específica
+        try {
+          if (typeof window !== "undefined" && window.printer?.printClosing) {
+            console.log(
+              "📄 Enviando datos para impresión de cierre:",
+              cierreData
+            );
+            const result = await window.printer.printClosing(cierreData);
+            console.log("📄 Resultado de impresión de cierre:", result);
 
-          if (result.success && !result.printerError) {
-            toast.success("Ticket de cierre impreso correctamente");
-          } else if (result.printerError) {
-            // Error específico de la impresora TP806L - mostrar toast de error pero no fallar
-            console.error("❌ Error de impresora TP806L:", result.printerError);
-            toast.error(`Error de impresión: ${result.printerError}`, {
-              description:
-                "El cierre se completó correctamente pero no se pudo imprimir el ticket",
-            });
+            if (result.success && !result.printerError) {
+              toast.success("Ticket de cierre impreso correctamente");
+            } else if (result.printerError) {
+              // Error específico de la impresora TP806L - mostrar toast de error pero no fallar
+              console.error(
+                "❌ Error de impresora TP806L:",
+                result.printerError
+              );
+              toast.error(`Error de impresión: ${result.printerError}`, {
+                description:
+                  "El cierre se completó correctamente pero no se pudo imprimir el ticket",
+              });
+            } else {
+              // Error general - mostrar toast de error
+              console.error(
+                "❌ Error general al imprimir cierre:",
+                result.message
+              );
+              toast.error(
+                `Error al imprimir el ticket de cierre: ${
+                  result.message || "Desconocido"
+                }`
+              );
+            }
+          } else {
+            throw new Error("API de Electron no disponible");
           }
-        } else {
-          console.log("🌐 Modo desarrollo: simulando impresión de cierre");
-          toast.success("Cierre simulado (modo desarrollo)");
+        } catch (electronError: any) {
+          // Si no se puede acceder a Electron, mostrar error específico
+          console.error(
+            "❌ Error al acceder a Electron para cierre:",
+            electronError
+          );
+          toast.error("Error de conexión con la impresora", {
+            description:
+              "No se pudo conectar con el sistema de impresión para el cierre",
+          });
         }
 
         toast.success(`Cierre de ${period} realizado correctamente`);

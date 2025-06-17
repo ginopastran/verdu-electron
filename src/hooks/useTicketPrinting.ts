@@ -1,5 +1,16 @@
 import { toast } from "sonner";
 
+// Declaración de tipos para window
+declare global {
+  interface Window {
+    electron?: {
+      ipcRenderer: {
+        invoke: (channel: string, ...args: any[]) => Promise<any>;
+      };
+    };
+  }
+}
+
 export const useTicketPrinting = () => {
   const formatFechaArgentina = (fecha: string | Date) => {
     const fechaObj = typeof fecha === "string" ? new Date(fecha) : fecha;
@@ -67,34 +78,45 @@ export const useTicketPrinting = () => {
       console.log("\n¡Gracias por su compra!");
       console.log("==============================\n");
 
-      // Intentar imprimir
-      if (typeof window !== "undefined" && window.require) {
-        const { ipcRenderer } = window.require("electron");
-        const result = await ipcRenderer.invoke("print-ticket", orderData);
-
-        if (result.success) {
-          toast.success("Ticket impreso correctamente");
-        } else if (result.printerError) {
-          // Error específico de la impresora TP806L - mostrar toast de error pero no fallar
-          console.error("❌ Error de impresora TP806L:", result.printerError);
-          toast.error(`Error de impresión: ${result.printerError}`, {
-            description:
-              "La venta se completó correctamente pero no se pudo imprimir el ticket",
-          });
-        } else {
-          // Error general - mostrar toast de error
-          console.error("❌ Error general al imprimir:", result.message);
-          toast.error(
-            `Error al imprimir el ticket: ${result.message || "Desconocido"}`
+      // Intentar imprimir - usar window.electron.ipcRenderer que ya funciona
+      try {
+        if (typeof window !== "undefined" && window.electron?.ipcRenderer) {
+          console.log("📄 Enviando datos para impresión:", orderData);
+          const result = await window.electron.ipcRenderer.invoke(
+            "print-ticket",
+            orderData
           );
+          console.log("📄 Resultado de impresión:", result);
+
+          if (result.success && !result.printerError) {
+            toast.success("Ticket impreso correctamente");
+          } else if (result.printerError) {
+            // Error específico de la impresora TP806L - mostrar toast de error pero no fallar
+            console.error("❌ Error de impresora TP806L:", result.printerError);
+            toast.error(`Error de impresión: ${result.printerError}`, {
+              description:
+                "La venta se completó correctamente pero no se pudo imprimir el ticket",
+            });
+          } else {
+            // Error general - mostrar toast de error
+            console.error("❌ Error general al imprimir:", result.message);
+            toast.error(
+              `Error al imprimir el ticket: ${result.message || "Desconocido"}`
+            );
+          }
+        } else {
+          throw new Error("API de Electron no disponible");
         }
 
         // Siempre retornar true para no cortar el proceso de venta
         // Solo la impresión falló, la venta está completa
         return true;
-      } else {
-        console.log("🌐 Modo desarrollo: ticket simulado en consola");
-        toast.success("Ticket simulado (modo desarrollo)");
+      } catch (electronError: any) {
+        // Si no se puede acceder a Electron, mostrar error específico
+        console.error("❌ Error al acceder a Electron:", electronError);
+        toast.error("Error de conexión con la impresora", {
+          description: "No se pudo conectar con el sistema de impresión",
+        });
         return true;
       }
     } catch (error: any) {
