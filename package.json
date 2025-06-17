@@ -1,6 +1,6 @@
 {
   "name": "andex-market",
-  "version": "3.2.2",
+  "version": "3.2.3",
   "description": "Sistema de punto de venta AndexMarket",
   "author": "AndexTech",
   "main": "dist-electron/main.js",
@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "tsc -p electron/tsconfig.json && cross-env NODE_ENV=development concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
     "pre-build": "copy public\\andextech-logo.png resources\\logo.png",
-    "build": "npm run pre-build && npm run build:vite && npm run build:electron && electron-builder",
+    "build": "npm run pre-buildc && npm run build:vite && npm run build:electron && electron-builder",
     "build:vite": "tsc && vite build",
     "build:electron": "tsc -p electron/tsconfig.json && tsc -p electron/tsconfig.preload.json && move dist-electron\\preload.js dist-electron\\preload.cjs",
     "preview": "vite preview",

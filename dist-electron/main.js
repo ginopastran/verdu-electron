@@ -458,16 +458,41 @@ ipcMain.handle("print-ticket", async (_, orderData) => {
                 try {
                     // Limpiar archivo temporal
                     await fsPromises.unlink(tempDataPath);
-                    if (error) {
-                        console.error("Error al ejecutar PHP:", error);
-                        console.error("Salida de error:", stderr);
-                        reject(new Error(`Error al imprimir: ${stderr || error.message}`));
+                    let printerError = null;
+                    // Verificar si hay errores específicos de la impresora TP806L
+                    if (stderr && stderr.includes("Error: ")) {
+                        // Extraer el mensaje de error específico del PHP
+                        const errorMatch = stderr.match(/Error: (.*?)(\n|$)/);
+                        if (errorMatch && errorMatch[1]) {
+                            printerError = errorMatch[1];
+                            // Verificar si es un error específico de la impresora
+                            if (printerError.includes("Failed to open printer") ||
+                                printerError.includes("No se encontró") ||
+                                printerError.includes("TP806L") ||
+                                printerError.includes("Access denied")) {
+                                console.log("Error específico de impresora detectado:", printerError);
+                            }
+                            else {
+                                // Si no es error de impresora, es error general
+                                reject(new Error(`Error al imprimir: ${printerError}`));
+                                return;
+                            }
+                        }
+                    }
+                    // Verificar también errores generales del comando
+                    if (error && !printerError) {
+                        // Solo rechazar si no es un error de impresora específico
+                        reject(new Error(`Error al ejecutar script de impresión: ${stderr || error.message}`));
                         return;
                     }
                     console.log("Salida del script PHP:", stdout);
+                    // Resolver con información sobre el estado de la impresión
                     resolve({
-                        success: true,
-                        message: "Ticket impreso correctamente",
+                        success: !printerError, // Éxito solo si no hay error de impresora
+                        printerError,
+                        message: printerError
+                            ? `Error de impresión: ${printerError}`
+                            : "Ticket impreso correctamente",
                     });
                 }
                 catch (err) {

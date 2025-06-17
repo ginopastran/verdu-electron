@@ -11,8 +11,8 @@ export const useClosing = (
 
   // Helper para llamadas a Electron IPC
   const getElectronAPI = () => {
-    if (typeof window !== "undefined" && window.require) {
-      return window.require("electron");
+    if (typeof window !== "undefined" && (window as any).electronAPI) {
+      return (window as any).electronAPI;
     }
     return null;
   };
