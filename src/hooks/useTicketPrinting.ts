@@ -74,18 +74,24 @@ export const useTicketPrinting = () => {
 
         if (result.success) {
           toast.success("Ticket impreso correctamente");
-        }
-        // Si hay error, solo lo logueamos pero no mostramos toast
-        else {
-          console.error(
-            "❌ Error al imprimir (IPC invoke returned false):",
-            result.message
-          );
+        } else if (result.printerError) {
+          // Error específico de la impresora TP806L - mostrar toast de error pero no fallar
+          console.error("❌ Error de impresora TP806L:", result.printerError);
+          toast.error(`Error de impresión: ${result.printerError}`, {
+            description:
+              "La venta se completó correctamente pero no se pudo imprimir el ticket",
+          });
+        } else {
+          // Error general - mostrar toast de error
+          console.error("❌ Error general al imprimir:", result.message);
           toast.error(
             `Error al imprimir el ticket: ${result.message || "Desconocido"}`
           );
         }
-        return result.success;
+
+        // Siempre retornar true para no cortar el proceso de venta
+        // Solo la impresión falló, la venta está completa
+        return true;
       } else {
         console.log("🌐 Modo desarrollo: ticket simulado en consola");
         toast.success("Ticket simulado (modo desarrollo)");
@@ -94,9 +100,14 @@ export const useTicketPrinting = () => {
     } catch (error: any) {
       console.error("❌ Error al imprimir:", error);
       toast.error(
-        `Error al imprimir el ticket: ${error.message || "Desconocido"}`
+        `Error al imprimir el ticket: ${error.message || "Desconocido"}`,
+        {
+          description:
+            "La venta se completó correctamente pero no se pudo imprimir el ticket",
+        }
       );
-      return false;
+      // Retornar true para no cortar el proceso de venta
+      return true;
     }
   };
 

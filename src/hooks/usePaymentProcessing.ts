@@ -1247,22 +1247,30 @@ export function usePaymentProcessing({
       if (electronAPI) {
         const { ipcRenderer } = electronAPI;
         console.log("Enviando datos para impresión:", orderData);
-        // No mostrar toast de carga aquí, se hará antes de llamar a esta función
 
         const result = await ipcRenderer.invoke("print-ticket", orderData);
         console.log("Resultado de impresión:", result);
 
         if (result.success) {
           toast.success("Ticket impreso correctamente");
-          return true;
+        } else if (result.printerError) {
+          // Error específico de la impresora TP806L - mostrar toast de error pero no fallar
+          console.error("❌ Error de impresora TP806L:", result.printerError);
+          toast.error(`Error de impresión: ${result.printerError}`, {
+            description:
+              "La venta se completó correctamente pero no se pudo imprimir el ticket",
+          });
         } else {
-          // No mostrar toast de error aquí, se manejará en la función que llama
-          console.error(
-            "❌ Error al imprimir (IPC invoke returned false):",
-            result.message
+          // Error general - mostrar toast de error
+          console.error("❌ Error general al imprimir:", result.message);
+          toast.error(
+            `Error al imprimir el ticket: ${result.message || "Desconocido"}`
           );
-          return false;
         }
+
+        // Siempre retornar true para no cortar el proceso de venta
+        // Solo la impresión falló, la venta está completa
+        return true;
       } else {
         console.log("🌐 Modo desarrollo: simulando impresión de ticket");
         toast.success("Ticket simulado (modo desarrollo)");
@@ -1270,8 +1278,15 @@ export function usePaymentProcessing({
       }
     } catch (error: any) {
       console.error("❌ Error al imprimir (catch):", error);
-      // No mostrar toast de error aquí, se manejará en la función que llama
-      return false;
+      toast.error(
+        `Error al imprimir el ticket: ${error.message || "Desconocido"}`,
+        {
+          description:
+            "La venta se completó correctamente pero no se pudo imprimir el ticket",
+        }
+      );
+      // Retornar true para no cortar el proceso de venta
+      return true;
     }
   };
 

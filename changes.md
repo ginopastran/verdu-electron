@@ -818,12 +818,26 @@ export default function ShoppingCart() {
               console.log("❌ Error al imprimir logo:", result.logoError);
             }
           }
+        } else if (result.printerError) {
+          // Error específico de la impresora TP806L - mostrar toast de error pero no fallar
+          console.error("❌ Error de impresora TP806L:", result.printerError);
+          toast.error(`Error de impresión: ${result.printerError}`, {
+            description:
+              "La venta se completó correctamente pero no se pudo imprimir el ticket",
+          });
         } else {
-          throw new Error(result.message || "Error desconocido al imprimir");
+          // Error general - mostrar toast de error
+          console.error("❌ Error general al imprimir:", result.message);
+          toast.error(
+            `Error al imprimir el ticket: ${result.message || "Desconocido"}`
+          );
         }
       } catch (printError: any) {
         console.error("Error detallado al imprimir:", printError);
-        toast.error(`Error al imprimir el ticket: ${printError.message}`);
+        toast.error(`Error al imprimir el ticket: ${printError.message}`, {
+          description:
+            "La venta se completó correctamente pero no se pudo imprimir el ticket",
+        });
       }
 
       // Limpiar todos los estados relacionados con el pago
@@ -1881,7 +1895,10 @@ export default function ShoppingCart() {
         }
       } catch (printError: any) {
         console.error("Error detallado al imprimir:", printError);
-        toast.error(`Error al imprimir el ticket: ${printError.message}`);
+        toast.error(`Error al imprimir el ticket: ${printError.message}`, {
+          description:
+            "La venta se completó correctamente pero no se pudo imprimir el ticket",
+        });
       }
 
       // Limpiar todos los estados relacionados con el pago

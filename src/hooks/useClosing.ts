@@ -181,6 +181,13 @@ export const useClosing = (
 
           if (result.success && !result.printerError) {
             toast.success("Ticket de cierre impreso correctamente");
+          } else if (result.printerError) {
+            // Error específico de la impresora TP806L - mostrar toast de error pero no fallar
+            console.error("❌ Error de impresora TP806L:", result.printerError);
+            toast.error(`Error de impresión: ${result.printerError}`, {
+              description:
+                "El cierre se completó correctamente pero no se pudo imprimir el ticket",
+            });
           }
         } else {
           console.log("🌐 Modo desarrollo: simulando impresión de cierre");
