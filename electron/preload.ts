@@ -25,3 +25,8 @@ contextBridge.exposeInMainWorld("autoUpdater", {
   downloadUpdate: () => ipcRenderer.invoke("download-update"),
   installUpdate: () => ipcRenderer.invoke("install-update"),
 });
+
+// Exponer función para leer peso
+contextBridge.exposeInMainWorld("pesoReader", {
+  readPeso: () => ipcRenderer.invoke("read-peso"),
+});

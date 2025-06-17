@@ -47,6 +47,42 @@ ipcMain.handle("store-has", (_, key) => {
   return store.has(key);
 });
 
+// IPC handler para leer el peso desde el archivo
+ipcMain.handle("read-peso", async () => {
+  const pesoPath = "C:\\Peso\\peso.json";
+
+  try {
+    console.log("📏 Leyendo peso desde:", pesoPath);
+
+    // Verificar si el archivo existe
+    if (!fs.existsSync(pesoPath)) {
+      console.log("⚠️ Archivo de peso no encontrado:", pesoPath);
+      return { error: "Archivo no encontrado", peso: 0 };
+    }
+
+    // Leer el archivo
+    const data = await fsPromises.readFile(pesoPath, "utf8");
+
+    // Limpiar BOM y espacios extra antes del parsing
+    const cleanData = data.replace(/^\uFEFF/, "").trim();
+    console.log("📋 Datos leídos del archivo:", cleanData);
+
+    if (!cleanData) {
+      console.log("⚠️ Archivo de peso está vacío");
+      return { error: "Archivo vacío", peso: 0 };
+    }
+
+    // Parsear el JSON
+    const weightData = JSON.parse(cleanData);
+    console.log("✅ Peso parseado exitosamente:", weightData);
+
+    return { success: true, peso: weightData.peso || 0 };
+  } catch (error) {
+    console.error("❌ Error al leer archivo de peso:", error);
+    return { error: (error as Error).message, peso: 0 };
+  }
+});
+
 // Configuración del auto-updater (log será configurado dinámicamente)
 // autoUpdater.logger.transports.file.level = "info"; // Comentado porque console no tiene transports
 autoUpdater.autoDownload = false; // No descargar automáticamente
