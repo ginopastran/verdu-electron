@@ -45,6 +45,7 @@ try {
     
     // Debug de la estructura de datos
     file_put_contents('php://stderr', "🔍 ESTRUCTURA DE DATOS PROCESADA:\n");
+    file_put_contents('php://stderr', "- ID: " . ($orderData['idReal'] ?? 'NO DEFINIDO') . "\n");
     file_put_contents('php://stderr', "- Total: " . ($orderData['total'] ?? 'N/A') . "\n");
     file_put_contents('php://stderr', "- Vendedor: " . ($orderData['vendedor'] ?? 'N/A') . "\n");
     file_put_contents('php://stderr', "- Fecha: " . ($orderData['createdAt'] ?? $orderData['fecha'] ?? 'N/A') . "\n");
@@ -254,6 +255,19 @@ try {
     $printer->text("Vendedor: " . ($orderData['vendedor'] ?? 'N/A') . "\n");
     date_default_timezone_set('America/Argentina/Buenos_Aires');
     $printer->text(date("Y-m-d H:i:s") . "\n");
+    
+    // Añadir ID real de la orden si está disponible
+    if (isset($orderData['idReal']) && !empty($orderData['idReal'])) {
+        $printer->text("Orden #" . $orderData['idReal'] . "\n");
+        file_put_contents('php://stderr', "✅ ID Real de la orden encontrado: " . $orderData['idReal'] . "\n");
+    } elseif (isset($orderData['id']) && !empty($orderData['id'])) {
+        $printer->text("Orden #" . $orderData['id'] . "\n");
+        file_put_contents('php://stderr', "⚠️ Usando ID regular de la orden: " . $orderData['id'] . "\n");
+    } else {
+        file_put_contents('php://stderr', "❌ No se encontró ID de orden (idReal o id)\n");
+        file_put_contents('php://stderr', "🔍 Claves disponibles: " . json_encode(array_keys($orderData)) . "\n");
+    }
+    
     $printer->text("-----------------------------\n");
 
     // Detalles de productos
@@ -294,19 +308,7 @@ try {
     $printer->setJustification(Printer::JUSTIFY_CENTER);
     $printer->text("\n¡Gracias por su compra!\n");
 
-    // Información adicional del ticket
-    $printer->text("\n");
-    if (isset($orderData['sucursalId'])) {
-        $printer->text("ID Sucursal: " . $orderData['sucursalId'] . "\n");
-    }
-    if (isset($orderData['vendedorId'])) {
-        $printer->text("ID Vendedor: " . $orderData['vendedorId'] . "\n");
-    }
-    
-    // Información de la transacción si está disponible
-    if (isset($orderData['transactionId'])) {
-        $printer->text("ID Transacción: " . $orderData['transactionId'] . "\n");
-    }
+    // Información adicional del ticket (IDs removidos según solicitud)
     
     $printer->feed(3);
     $printer->cut();

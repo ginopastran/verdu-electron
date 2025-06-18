@@ -424,46 +424,102 @@ try {
     $printer->text("\n");
     $printer->setJustification(Printer::JUSTIFY_LEFT);
     $printer->text("INFORMACIÓN DEL SISTEMA:\n");
-    $printer->text("-----------------------------\n");
+    $printer->text("=============================\n");
     
     // Información de la aplicación
     if (isset($closingData['appVersion'])) {
-        $printer->text("Versión App: " . $closingData['appVersion'] . "\n");
+        $printer->text("🔧 Versión App: " . $closingData['appVersion'] . "\n");
     }
     if (isset($closingData['sucursalId'])) {
-        $printer->text("ID Sucursal: " . $closingData['sucursalId'] . "\n");
+        $printer->text("🏪 ID Sucursal: " . $closingData['sucursalId'] . "\n");
     }
     if (isset($closingData['adminId'])) {
-        $printer->text("ID Admin: " . $closingData['adminId'] . "\n");
+        $printer->text("👤 ID Admin: " . $closingData['adminId'] . "\n");
     }
     
-    // Resumen estadístico mejorado
+    // Información adicional del cierre
+    if (isset($closingData['businessName'])) {
+        $printer->text("🏢 Negocio: " . $closingData['businessName'] . "\n");
+    }
+    if (isset($closingData['terminal'])) {
+        $printer->text("🖥️ Terminal: " . $closingData['terminal'] . "\n");
+    }
+   
+    
+    // Análisis de rendimiento avanzado
+    $printer->text("\nANÁLISIS DE RENDIMIENTO:\n");
+    $printer->text("=============================\n");
+    
     $totalTransacciones = $closingData['cantidadVentas'];
     if ($totalTransacciones > 0) {
         $promedioVenta = $closingData['totalVentas'] / $totalTransacciones;
-        $printer->text("Promedio por venta: $" . number_format($promedioVenta, 2) . "\n");
+        $printer->text("📊 Promedio por venta: $" . number_format($promedioVenta, 2) . "\n");
+        
+        // Clasificar el promedio
+        if ($promedioVenta > 1000) {
+            $printer->text("⭐ Ticket promedio ALTO\n");
+        } elseif ($promedioVenta > 500) {
+            $printer->text("✅ Ticket promedio MEDIO\n");
+        } else {
+            $printer->text("📈 Ticket promedio BAJO\n");
+        }
     }
     
-    // Distribución porcentual de métodos de pago
-    if (!empty($metodosPago) && $closingData['totalVentas'] > 0) {
-        $printer->text("\nDISTRIBUCIÓN PORCENTUAL:\n");
+    // Top productos si está disponible
+    if (isset($closingData['topProductos']) && is_array($closingData['topProductos'])) {
+        $printer->text("\n🏆 TOP 3 PRODUCTOS:\n");
         $printer->text("-----------------------------\n");
+        
+        $counter = 1;
+        foreach (array_slice($closingData['topProductos'], 0, 3) as $producto) {
+            $nombre = substr($producto['nombre'], 0, 20);
+            $cantidad = $producto['cantidad'];
+            $total = number_format($producto['total'], 2);
+            $printer->text($counter . ". " . $nombre . "\n");
+            $printer->text("   Cant: " . $cantidad . " | $" . $total . "\n");
+            $counter++;
+        }
+    }
+    
+    // Distribución porcentual mejorada de métodos de pago
+    if (!empty($metodosPago) && $closingData['totalVentas'] > 0) {
+        $printer->text("\n💳 DISTRIBUCIÓN DE PAGOS:\n");
+        $printer->text("=============================\n");
         foreach ($metodosOrdenados as $metodo => $monto) {
             if ($monto > 0) {
                 $porcentaje = ($monto / $closingData['totalVentas']) * 100;
-                $nombreFormateado = ucfirst($metodo);
-                $printer->text(str_pad($nombreFormateado, 15));
-                $printer->text(str_pad(number_format($porcentaje, 1) . "%", 17, " ", STR_PAD_LEFT) . "\n");
+                $emoji = $metodo === 'efectivo' ? '💵' : ($metodo === 'tarjeta' ? '💳' : '📱');
+                $nombreFormateado = strtoupper($metodo);
+                $printer->text($emoji . " " . $nombreFormateado . ": " . number_format($porcentaje, 1) . "%\n");
+                $printer->text("   Total: $" . number_format($monto, 2) . "\n");
             }
         }
     }
     
-    // Información de rendimiento del día
+    // Comparación con objetivos si está disponible
+    if (isset($closingData['objetivoDiario']) && $closingData['objetivoDiario'] > 0) {
+        $printer->text("\n🎯 OBJETIVO DIARIO:\n");
+        $printer->text("=============================\n");
+        $cumplimiento = ($closingData['totalVentas'] / $closingData['objetivoDiario']) * 100;
+        $diferencia = $closingData['totalVentas'] - $closingData['objetivoDiario'];
+        
+        $printer->text("Meta: $" . number_format($closingData['objetivoDiario'], 2) . "\n");
+        $printer->text("Logrado: $" . number_format($closingData['totalVentas'], 2) . "\n");
+        $printer->text("Cumplimiento: " . number_format($cumplimiento, 1) . "%\n");
+        
+        if ($diferencia >= 0) {
+            $printer->text("✅ Superó la meta en $" . number_format($diferencia, 2) . "\n");
+        } else {
+            $printer->text("❌ Faltó $" . number_format(abs($diferencia), 2) . "\n");
+        }
+    }
+    
+    // Información de rendimiento temporal mejorada
     if (isset($closingData['horaInicio']) && isset($closingData['horaFin'])) {
-        $printer->text("\nRENDIMIENTO:\n");
-        $printer->text("-----------------------------\n");
-        $printer->text("Hora inicio: " . $closingData['horaInicio'] . "\n");
-        $printer->text("Hora fin: " . $closingData['horaFin'] . "\n");
+        $printer->text("\n⏰ RENDIMIENTO TEMPORAL:\n");
+        $printer->text("=============================\n");
+        $printer->text("🕐 Inicio: " . $closingData['horaInicio'] . "\n");
+        $printer->text("🕔 Fin: " . $closingData['horaFin'] . "\n");
         
         // Calcular tiempo trabajado
         $inicio = strtotime($closingData['horaInicio']);
@@ -472,13 +528,41 @@ try {
             $tiempoTrabajado = $fin - $inicio;
             $horas = floor($tiempoTrabajado / 3600);
             $minutos = floor(($tiempoTrabajado % 3600) / 60);
-            $printer->text("Tiempo trabajado: " . $horas . "h " . $minutos . "m\n");
+            $printer->text("⏱️ Tiempo trabajado: " . $horas . "h " . $minutos . "m\n");
             
             if ($horas > 0 && $totalTransacciones > 0) {
                 $ventasPorHora = $totalTransacciones / $horas;
-                $printer->text("Ventas por hora: " . number_format($ventasPorHora, 1) . "\n");
+                $facturacionPorHora = $closingData['totalVentas'] / $horas;
+                $printer->text("📊 Ventas/hora: " . number_format($ventasPorHora, 1) . "\n");
+                $printer->text("💰 Facturación/hora: $" . number_format($facturacionPorHora, 2) . "\n");
+                
+                // Evaluar productividad
+                if ($ventasPorHora > 10) {
+                    $printer->text("⚡ Productividad ALTA\n");
+                } elseif ($ventasPorHora > 5) {
+                    $printer->text("✅ Productividad MEDIA\n");
+                } else {
+                    $printer->text("📈 Productividad BAJA\n");
+                }
             }
         }
+    }
+    
+    // Comparación con días anteriores si está disponible
+    if (isset($closingData['comparacionAnterior'])) {
+        $printer->text("\n📈 COMPARACIÓN:\n");
+        $printer->text("=============================\n");
+        
+        $diferencia = $closingData['totalVentas'] - $closingData['comparacionAnterior']['total'];
+        $porcentajeCambio = ($closingData['comparacionAnterior']['total'] > 0) ? 
+            round(($diferencia / $closingData['comparacionAnterior']['total']) * 100, 1) : 0;
+        
+        $arrow = $diferencia >= 0 ? '📈' : '📉';
+        $signo = $diferencia >= 0 ? '+' : '';
+        
+        $printer->text($arrow . " vs día anterior:\n");
+        $printer->text("   " . $signo . "$" . number_format($diferencia, 2) . "\n");
+        $printer->text("   Variación: " . $signo . $porcentajeCambio . "%\n");
     }
 
     // Pie de página
