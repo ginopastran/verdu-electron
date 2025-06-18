@@ -1,5 +1,12 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
+console.log("🔧 Preload script iniciado correctamente");
+console.log("🔧 Proceso de preload - Entorno:", process.versions);
+console.log(
+  "🔧 Proceso de preload - Node integración disponible:",
+  process.versions.node
+);
+
 // Exponer funciones de electron-store al renderer
 contextBridge.exposeInMainWorld("electronStore", {
   get: (key: string) => ipcRenderer.invoke("store-get", key),
@@ -38,4 +45,12 @@ contextBridge.exposeInMainWorld("printer", {
   printClosing: (closingData: any) =>
     ipcRenderer.invoke("print-closing", closingData),
   getAvailablePrinters: () => ipcRenderer.invoke("get-available-printers"),
+});
+
+console.log("🔧 Preload script - APIs expuestas exitosamente:", {
+  electronStore: "disponible",
+  electron: "disponible",
+  autoUpdater: "disponible",
+  pesoReader: "disponible",
+  printer: "disponible",
 });

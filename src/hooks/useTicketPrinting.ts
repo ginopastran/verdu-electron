@@ -8,6 +8,10 @@ declare global {
         invoke: (channel: string, ...args: any[]) => Promise<any>;
       };
     };
+    printer?: {
+      printTicket: (orderData: any) => Promise<any>;
+      printClosing: (closingData: any) => Promise<any>;
+    };
   }
 }
 
@@ -27,6 +31,18 @@ export const useTicketPrinting = () => {
 
   const handleTicketPrinting = async (orderData: any) => {
     try {
+      // DEBUG: Verificar APIs disponibles al inicio
+      console.log("🔍 Verificación inicial de APIs:");
+      console.log("- window existe:", typeof window !== "undefined");
+      console.log("- window.electron:", typeof window.electron);
+      console.log("- window.printer:", typeof window.printer);
+      console.log(
+        "- window.electronStore:",
+        typeof (window as any).electronStore
+      );
+      console.log("- window.autoUpdater:", typeof (window as any).autoUpdater);
+      console.log("- window.pesoReader:", typeof (window as any).pesoReader);
+
       // Simular el ticket antes de imprimir
       console.log("\n====== SIMULACIÓN DEL TICKET ======");
       console.log("ISELIN II");
@@ -78,34 +94,60 @@ export const useTicketPrinting = () => {
       console.log("\n¡Gracias por su compra!");
       console.log("==============================\n");
 
-      // Intentar imprimir - usar window.electron.ipcRenderer que ya funciona
+      // Intentar imprimir - probar múltiples métodos de acceso a la API
       try {
-        if (typeof window !== "undefined" && window.electron?.ipcRenderer) {
-          console.log("📄 Enviando datos para impresión:", orderData);
-          const result = await window.electron.ipcRenderer.invoke(
+        let result;
+        let apiUsed = "";
+
+        // Método 1: Usar window.printer (API específica para impresión)
+        if (typeof window !== "undefined" && window.printer?.printTicket) {
+          console.log("🖨️ Usando window.printer.printTicket");
+          apiUsed = "window.printer";
+          result = await window.printer.printTicket(orderData);
+        }
+        // Método 2: Usar window.electron.ipcRenderer (API general)
+        else if (
+          typeof window !== "undefined" &&
+          window.electron?.ipcRenderer
+        ) {
+          console.log("📡 Usando window.electron.ipcRenderer");
+          apiUsed = "window.electron";
+          result = await window.electron.ipcRenderer.invoke(
             "print-ticket",
             orderData
           );
-          console.log("📄 Resultado de impresión:", result);
+        }
+        // Si ninguna API está disponible
+        else {
+          // Verificar qué APIs están disponibles para debug
+          console.log("🔍 Debug - APIs disponibles:", {
+            electron: typeof window.electron,
+            printer: typeof window.printer,
+            electronStore: typeof (window as any).electronStore,
+            autoUpdater: typeof (window as any).autoUpdater,
+          });
+          throw new Error(
+            "API de Electron no disponible - ninguna API de impresión encontrada"
+          );
+        }
 
-          if (result.success && !result.printerError) {
-            toast.success("Ticket impreso correctamente");
-          } else if (result.printerError) {
-            // Error específico de la impresora TP806L - mostrar toast de error pero no fallar
-            console.error("❌ Error de impresora TP806L:", result.printerError);
-            toast.error(`Error de impresión: ${result.printerError}`, {
-              description:
-                "La venta se completó correctamente pero no se pudo imprimir el ticket",
-            });
-          } else {
-            // Error general - mostrar toast de error
-            console.error("❌ Error general al imprimir:", result.message);
-            toast.error(
-              `Error al imprimir el ticket: ${result.message || "Desconocido"}`
-            );
-          }
+        console.log(`📄 Resultado de impresión (${apiUsed}):`, result);
+
+        if (result && result.success && !result.printerError) {
+          toast.success("Ticket impreso correctamente");
+        } else if (result && result.printerError) {
+          // Error específico de la impresora TP806L - mostrar toast de error pero no fallar
+          console.error("❌ Error de impresora TP806L:", result.printerError);
+          toast.error(`Error de impresión: ${result.printerError}`, {
+            description:
+              "La venta se completó correctamente pero no se pudo imprimir el ticket",
+          });
         } else {
-          throw new Error("API de Electron no disponible");
+          // Error general - mostrar toast de error
+          console.error("❌ Error general al imprimir:", result?.message);
+          toast.error(
+            `Error al imprimir el ticket: ${result?.message || "Desconocido"}`
+          );
         }
 
         // Siempre retornar true para no cortar el proceso de venta
@@ -114,8 +156,26 @@ export const useTicketPrinting = () => {
       } catch (electronError: any) {
         // Si no se puede acceder a Electron, mostrar error específico
         console.error("❌ Error al acceder a Electron:", electronError);
+
+        // Mostrar información de debug para ayudar a diagnosticar
+        console.log("🔍 Debug detallado - Estado del preload:");
+        console.log("- window existe:", typeof window !== "undefined");
+        console.log("- window.electron:", typeof window.electron);
+        console.log("- window.printer:", typeof window.printer);
+        console.log(
+          "- window.electronStore:",
+          typeof (window as any).electronStore
+        );
+        console.log(
+          "- Todas las propiedades de window:",
+          Object.keys(window).filter(
+            (key) => key.includes("electron") || key.includes("printer")
+          )
+        );
+
         toast.error("Error de conexión con la impresora", {
-          description: "No se pudo conectar con el sistema de impresión",
+          description:
+            "El sistema de impresión no está disponible. Verifica que la aplicación se esté ejecutando correctamente.",
         });
         return true;
       }

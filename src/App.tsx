@@ -11,11 +11,12 @@ import { Toaster } from "sonner";
 import { useAuth } from "./contexts/AuthContext";
 import AdminLogin from "./pages/AdminLogin";
 import UserLogin from "./pages/UserLogin";
-import ShoppingCart from "./components/ShoppingCart";
+// import ShoppingCart from "./components/ShoppingCart";
 import ShoppingCartRefactored from "./components/ShoppingCartRefactored";
 import AdminMessage from "./components/AdminMessage";
 import AppRouter from "./components/AppRouter";
 import UpdateNotification from "./components/UpdateNotification";
+import { ElectronDebug } from "./components/ElectronDebug";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -44,6 +45,7 @@ export default function App() {
           <OfflineModeProvider>
             <Toaster richColors position="top-center" theme="light" />
             <UpdateNotification />
+            <ElectronDebug />
             <Routes>
               <Route path="/" element={<AppRouter />} />
               <Route path="/admin-login" element={<AdminLogin />} />
