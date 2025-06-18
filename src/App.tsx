@@ -45,7 +45,6 @@ export default function App() {
           <OfflineModeProvider>
             <Toaster richColors position="top-center" theme="light" />
             <UpdateNotification />
-            <ElectronDebug />
             <Routes>
               <Route path="/" element={<AppRouter />} />
               <Route path="/admin-login" element={<AdminLogin />} />

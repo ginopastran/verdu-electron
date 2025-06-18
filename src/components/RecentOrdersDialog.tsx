@@ -20,6 +20,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { Receipt } from "lucide-react";
 import { cn } from "@/lib/utils"; // Importar cn
+import { getBusinessName } from "@/utils/businessHelpers";
 
 interface RecentOrdersDialogProps {
   isOpen: boolean;
@@ -119,7 +120,12 @@ export function RecentOrdersDialog({
     if (isPrinting) return;
     setIsPrinting(true);
     try {
-      await handleTicketPrinting(order);
+      // Añadir businessName si no lo tiene
+      const enrichedOrder = {
+        ...order,
+        businessName: order.businessName || (await getBusinessName()),
+      };
+      await handleTicketPrinting(enrichedOrder);
     } catch (error) {
       console.error("Error al reimprimir desde diálogo:", error);
     } finally {

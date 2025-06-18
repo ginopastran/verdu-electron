@@ -41,6 +41,7 @@ import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useClosing } from "@/hooks/useClosing";
 import { useTicketPrinting } from "@/hooks/useTicketPrinting";
 import { AvailableProduct } from "@/hooks/useProductSearch";
+import { getBusinessName } from "@/utils/businessHelpers";
 
 // Componentes
 import {
@@ -296,6 +297,7 @@ export default function ShoppingCartRefactored() {
           vendedorId: user.id,
           sucursalId: user.sucursalId,
           vendedor: user.nombre,
+          businessName: await getBusinessName(),
           estado: "COMPLETADA",
           createdAt: new Date().toISOString(),
         };

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import QRCode from "qrcode";
 import { Product } from "./useCartState";
+import { getBusinessName, getAdminData } from "@/utils/businessHelpers";
 
 // Declaración de tipos para window
 declare global {
@@ -590,6 +591,7 @@ export function usePaymentProcessing({
             vendedorId: user.id,
             sucursalId: user.sucursalId,
             vendedor: user.nombre,
+            businessName: await getBusinessName(),
             createdAt: new Date().toISOString(),
             referencia: paymentData.orderId?.toString() || "unknown",
           };
@@ -751,6 +753,7 @@ export function usePaymentProcessing({
         vendedorId: user.id,
         sucursalId: user.sucursalId,
         vendedor: user.nombre,
+        businessName: await getBusinessName(),
         createdAt: new Date().toISOString(),
         // Array de pagos con los dos métodos
         pagos: [
@@ -877,6 +880,7 @@ export function usePaymentProcessing({
         vendedorId: user.id,
         sucursalId: user.sucursalId,
         vendedor: user.nombre,
+        businessName: await getBusinessName(),
         estado: "COMPLETADA",
         createdAt: new Date().toISOString(),
         // Array de pagos con los dos métodos
@@ -1373,6 +1377,7 @@ export function usePaymentProcessing({
             vendedorId: user.id,
             sucursalId: user.sucursalId,
             vendedor: user.nombre,
+            businessName: await getBusinessName(),
             createdAt: new Date().toISOString(),
             pagos: [
               {

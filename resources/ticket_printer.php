@@ -16,19 +16,43 @@ use Mike42\Escpos\EscposImage;
 use Mike42\Escpos\PrintConnectors\WindowsPrintConnector;
 
 try {
-    // Agregar logs
-    file_put_contents('php://stderr', "Iniciando proceso de impresión...\n");
+    // Debug avanzado del proceso de impresión
+    file_put_contents('php://stderr', "====== INICIO DEBUG IMPRESIÓN TICKET ======\n");
+    file_put_contents('php://stderr', "🚀 Iniciando proceso de impresión...\n");
+    file_put_contents('php://stderr', "📅 Timestamp: " . date('Y-m-d H:i:s') . "\n");
+    file_put_contents('php://stderr', "🔧 PHP Version: " . phpversion() . "\n");
+    file_put_contents('php://stderr', "💾 Memory Limit: " . ini_get('memory_limit') . "\n");
+    file_put_contents('php://stderr', "⚙️ NODE_ENV: " . (getenv('NODE_ENV') ?: 'not_set') . "\n");
     
     $orderDataPath = $argv[1];
+    file_put_contents('php://stderr', "📁 Ruta del archivo de datos: " . $orderDataPath . "\n");
+    
     if (!file_exists($orderDataPath)) {
         throw new Exception("Archivo de datos no encontrado: " . $orderDataPath);
     }
     
-    file_put_contents('php://stderr', "Leyendo datos de orden...\n");
-    $orderData = json_decode(file_get_contents($orderDataPath), true);
+    $fileSize = filesize($orderDataPath);
+    file_put_contents('php://stderr', "📊 Tamaño del archivo: " . $fileSize . " bytes\n");
+    
+    file_put_contents('php://stderr', "📖 Leyendo datos de orden...\n");
+    $rawData = file_get_contents($orderDataPath);
+    file_put_contents('php://stderr', "📋 Datos RAW recibidos: " . substr($rawData, 0, 200) . "...\n");
+    
+    $orderData = json_decode($rawData, true);
     if (json_last_error() !== JSON_ERROR_NONE) {
         throw new Exception("Error al decodificar JSON: " . json_last_error_msg());
     }
+    
+    // Debug de la estructura de datos
+    file_put_contents('php://stderr', "🔍 ESTRUCTURA DE DATOS PROCESADA:\n");
+    file_put_contents('php://stderr', "- Total: " . ($orderData['total'] ?? 'N/A') . "\n");
+    file_put_contents('php://stderr', "- Vendedor: " . ($orderData['vendedor'] ?? 'N/A') . "\n");
+    file_put_contents('php://stderr', "- Fecha: " . ($orderData['createdAt'] ?? $orderData['fecha'] ?? 'N/A') . "\n");
+    file_put_contents('php://stderr', "- Business Name: " . ($orderData['businessName'] ?? 'NO DEFINIDO') . "\n");
+    file_put_contents('php://stderr', "- Sucursal: " . ($orderData['sucursal'] ?? 'NO DEFINIDO') . "\n");
+    file_put_contents('php://stderr', "- Cantidad de items: " . (isset($orderData['items']) ? count($orderData['items']) : 'N/A') . "\n");
+    file_put_contents('php://stderr', "- Método de pago: " . ($orderData['metodoPago'] ?? 'N/A') . "\n");
+    file_put_contents('php://stderr', "- Pagos múltiples: " . (isset($orderData['pagos']) ? 'SÍ (' . count($orderData['pagos']) . ')' : 'NO') . "\n");
 
     $nombre_impresora = "TP806L";
     file_put_contents('php://stderr', "Conectando a impresora: " . $nombre_impresora . "\n");
@@ -207,13 +231,27 @@ try {
         file_put_contents('php://stderr', "Traza: " . $e->getTraceAsString() . "\n");
     }
 
-    // Encabezado
+    // Encabezado dinámico con nombre del business
     $printer->setEmphasis(true);
-    $printer->setTextSize(1, 1);
-    $printer->text("Iselín II\n");
+    $printer->setTextSize(2, 2);
+    
+    // Determinar el nombre del business de manera dinámica
+    $businessName = "Verdulería"; // Valor por defecto
+    if (isset($orderData['businessName']) && !empty($orderData['businessName'])) {
+        $businessName = $orderData['businessName'];
+        file_put_contents('php://stderr', "✅ Usando nombre del business desde orderData: " . $businessName . "\n");
+    } elseif (isset($orderData['sucursal']) && !empty($orderData['sucursal'])) {
+        $businessName = $orderData['sucursal'];
+        file_put_contents('php://stderr', "✅ Usando nombre de sucursal: " . $businessName . "\n");
+    } else {
+        file_put_contents('php://stderr', "⚠️ Usando nombre por defecto: " . $businessName . "\n");
+        file_put_contents('php://stderr', "🔍 Datos disponibles en orderData: " . json_encode(array_keys($orderData)) . "\n");
+    }
+    
+    $printer->text(strtoupper($businessName) . "\n");
     $printer->setEmphasis(false);
     $printer->setTextSize(1, 1);
-    $printer->text("Vendedor: " . $orderData['vendedor'] . "\n");
+    $printer->text("Vendedor: " . ($orderData['vendedor'] ?? 'N/A') . "\n");
     date_default_timezone_set('America/Argentina/Buenos_Aires');
     $printer->text(date("Y-m-d H:i:s") . "\n");
     $printer->text("-----------------------------\n");
@@ -256,11 +294,32 @@ try {
     $printer->setJustification(Printer::JUSTIFY_CENTER);
     $printer->text("\n¡Gracias por su compra!\n");
 
+    // Información adicional del ticket
+    $printer->text("\n");
+    if (isset($orderData['sucursalId'])) {
+        $printer->text("ID Sucursal: " . $orderData['sucursalId'] . "\n");
+    }
+    if (isset($orderData['vendedorId'])) {
+        $printer->text("ID Vendedor: " . $orderData['vendedorId'] . "\n");
+    }
+    
+    // Información de la transacción si está disponible
+    if (isset($orderData['transactionId'])) {
+        $printer->text("ID Transacción: " . $orderData['transactionId'] . "\n");
+    }
+    
     $printer->feed(3);
     $printer->cut();
     $printer->pulse();
     $printer->close();
-    file_put_contents('php://stderr', "Impresión completada exitosamente\n");
+    
+    // Debug final
+    file_put_contents('php://stderr', "✅ Impresión completada exitosamente\n");
+    file_put_contents('php://stderr', "📊 ESTADÍSTICAS FINALES:\n");
+    file_put_contents('php://stderr', "- Items procesados: " . (isset($orderData['items']) ? count($orderData['items']) : 0) . "\n");
+    file_put_contents('php://stderr', "- Total impreso: $" . number_format($orderData['total'], 2) . "\n");
+    file_put_contents('php://stderr', "- Business mostrado: " . $businessName . "\n");
+    file_put_contents('php://stderr', "====== FIN DEBUG IMPRESIÓN TICKET ======\n");
 
 } catch (Exception $e) {
     file_put_contents('php://stderr', "Error: " . $e->getMessage() . "\n");

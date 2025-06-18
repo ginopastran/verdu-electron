@@ -420,16 +420,88 @@ try {
         }
     }
 
+    // Información adicional del sistema
+    $printer->text("\n");
+    $printer->setJustification(Printer::JUSTIFY_LEFT);
+    $printer->text("INFORMACIÓN DEL SISTEMA:\n");
+    $printer->text("-----------------------------\n");
+    
+    // Información de la aplicación
+    if (isset($closingData['appVersion'])) {
+        $printer->text("Versión App: " . $closingData['appVersion'] . "\n");
+    }
+    if (isset($closingData['sucursalId'])) {
+        $printer->text("ID Sucursal: " . $closingData['sucursalId'] . "\n");
+    }
+    if (isset($closingData['adminId'])) {
+        $printer->text("ID Admin: " . $closingData['adminId'] . "\n");
+    }
+    
+    // Resumen estadístico mejorado
+    $totalTransacciones = $closingData['cantidadVentas'];
+    if ($totalTransacciones > 0) {
+        $promedioVenta = $closingData['totalVentas'] / $totalTransacciones;
+        $printer->text("Promedio por venta: $" . number_format($promedioVenta, 2) . "\n");
+    }
+    
+    // Distribución porcentual de métodos de pago
+    if (!empty($metodosPago) && $closingData['totalVentas'] > 0) {
+        $printer->text("\nDISTRIBUCIÓN PORCENTUAL:\n");
+        $printer->text("-----------------------------\n");
+        foreach ($metodosOrdenados as $metodo => $monto) {
+            if ($monto > 0) {
+                $porcentaje = ($monto / $closingData['totalVentas']) * 100;
+                $nombreFormateado = ucfirst($metodo);
+                $printer->text(str_pad($nombreFormateado, 15));
+                $printer->text(str_pad(number_format($porcentaje, 1) . "%", 17, " ", STR_PAD_LEFT) . "\n");
+            }
+        }
+    }
+    
+    // Información de rendimiento del día
+    if (isset($closingData['horaInicio']) && isset($closingData['horaFin'])) {
+        $printer->text("\nRENDIMIENTO:\n");
+        $printer->text("-----------------------------\n");
+        $printer->text("Hora inicio: " . $closingData['horaInicio'] . "\n");
+        $printer->text("Hora fin: " . $closingData['horaFin'] . "\n");
+        
+        // Calcular tiempo trabajado
+        $inicio = strtotime($closingData['horaInicio']);
+        $fin = strtotime($closingData['horaFin']);
+        if ($fin > $inicio) {
+            $tiempoTrabajado = $fin - $inicio;
+            $horas = floor($tiempoTrabajado / 3600);
+            $minutos = floor(($tiempoTrabajado % 3600) / 60);
+            $printer->text("Tiempo trabajado: " . $horas . "h " . $minutos . "m\n");
+            
+            if ($horas > 0 && $totalTransacciones > 0) {
+                $ventasPorHora = $totalTransacciones / $horas;
+                $printer->text("Ventas por hora: " . number_format($ventasPorHora, 1) . "\n");
+            }
+        }
+    }
+
     // Pie de página
     $printer->setJustification(Printer::JUSTIFY_CENTER);
-    $printer->text("\n\n" . date("d/m/Y H:i:s") . "\n");
+    $printer->text("\n============================\n");
+    $printer->text(date("d/m/Y H:i:s") . "\n");
+    $printer->text("Sistema AndexMarket v3.2.5\n");
     $printer->text("Gracias por su trabajo\n");
+    $printer->text("============================\n");
 
     $printer->feed(3);
     $printer->cut();
     $printer->close();
     
-    file_put_contents('php://stderr', "Cierre impreso correctamente\n");
+    // Debug final mejorado
+    file_put_contents('php://stderr', "✅ Cierre impreso correctamente\n");
+    file_put_contents('php://stderr', "📊 RESUMEN FINAL DEL CIERRE:\n");
+    file_put_contents('php://stderr', "- Período: " . $closingData['periodo'] . "\n");
+    file_put_contents('php://stderr', "- Total ventas: $" . number_format($closingData['totalVentas'], 2) . "\n");
+    file_put_contents('php://stderr', "- Cantidad ventas: " . $closingData['cantidadVentas'] . "\n");
+    file_put_contents('php://stderr', "- Vendedores procesados: " . (isset($closingData['ventasPorVendedor']) ? count($closingData['ventasPorVendedor']) : 0) . "\n");
+    file_put_contents('php://stderr', "- Métodos de pago con valores: " . count(array_filter($metodosPago, function($monto) { return $monto > 0; })) . "\n");
+    file_put_contents('php://stderr', "====== FIN DEBUG CIERRE ======\n");
     echo "Cierre impreso correctamente";
 
 } catch (Exception $e) {
