@@ -6,7 +6,7 @@
   "main": "dist-electron/main.js",
   "type": "module",
   "scripts": {
-    "dev": "tsc -p electron/tsconfig.json && cross-env NODE_ENV=development concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
+    "dev": "npm run build:electron && cross-env NODE_ENV=development concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
     "pre-build": "copy public\\andextech-logo.png resources\\logo.png",
     "build": "npm run pre-build && npm run build:vite && npm run build:electron && electron-builder",
     "build:vite": "tsc && vite build",
