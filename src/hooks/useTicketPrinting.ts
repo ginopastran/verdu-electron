@@ -45,11 +45,39 @@ export const useTicketPrinting = () => {
 
       // Simular el ticket antes de imprimir
       console.log("\n====== SIMULACIÓN DEL TICKET ======");
-      console.log("ISELIN II");
+
+      // Determinar el nombre del business de manera dinámica
+      let businessName = "Verdulería"; // Valor por defecto
+      if (orderData.businessName && orderData.businessName.trim() !== "") {
+        businessName = orderData.businessName;
+        console.log(`✅ Usando nombre del business: ${businessName}`);
+      } else if (orderData.sucursal && orderData.sucursal.trim() !== "") {
+        businessName = orderData.sucursal;
+        console.log(`✅ Usando nombre de sucursal: ${businessName}`);
+      } else {
+        console.log(`⚠️ Usando nombre por defecto: ${businessName}`);
+      }
+
+      console.log(businessName.toUpperCase());
       console.log(`Vendedor: ${orderData.vendedor}`);
       console.log(
         `Fecha: ${formatFechaArgentina(orderData.createdAt || orderData.fecha)}`
       );
+
+      // Mostrar ID de la orden si está disponible
+      if (orderData.idReal && orderData.idReal !== "") {
+        console.log(`Orden #${orderData.idReal}`);
+        console.log(`✅ ID Real encontrado: ${orderData.idReal}`);
+      } else if (orderData.id && orderData.id !== "") {
+        console.log(`Orden #${orderData.id}`);
+        console.log(`⚠️ Usando ID regular: ${orderData.id}`);
+      } else {
+        console.log(`❌ No se encontró ID de orden`);
+        console.log(
+          `🔍 Claves disponibles: ${Object.keys(orderData).join(", ")}`
+        );
+      }
+
       console.log("-----------------------------");
       console.log("PRODUCTO      CANT    PRECIO    TOTAL");
       console.log("-----------------------------");

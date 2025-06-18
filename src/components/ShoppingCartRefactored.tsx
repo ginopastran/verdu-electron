@@ -329,6 +329,17 @@ export default function ShoppingCartRefactored() {
             throw new Error(errorData.message || "Error al crear la orden");
           }
 
+          // Capturar la respuesta para obtener el ID real de la orden
+          const orderResult = await orderResponse.json();
+          console.log("📋 Respuesta del API (Shopping Cart):", orderResult);
+
+          // Añadir el idReal a los datos de la orden para impresión
+          const enrichedOrderData = {
+            ...orderData,
+            idReal: orderResult.idReal || orderResult.id || null,
+            id: orderResult.id || null,
+          };
+
           // Ocultar toast de carga y mostrar toast de impresión
           toast.dismiss(processingToastId);
 
@@ -337,7 +348,7 @@ export default function ShoppingCartRefactored() {
 
           try {
             // Imprimir ticket
-            await handleTicketPrinting(orderData);
+            await handleTicketPrinting(enrichedOrderData);
           } catch (printError) {
             console.error("Error en impresión:", printError);
           } finally {

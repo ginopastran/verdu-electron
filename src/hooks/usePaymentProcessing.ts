@@ -208,12 +208,25 @@ export function usePaymentProcessing({
         throw new Error("Error al crear la orden");
       }
 
+      // Capturar la respuesta para obtener el ID real de la orden
+      const orderResult = await orderResponse.json();
+      console.log("📋 Respuesta del API al crear orden:", orderResult);
+
+      // Añadir el idReal a los datos de la orden para impresión
+      const enrichedOrderData = {
+        ...orderData,
+        idReal: orderResult.idReal || orderResult.id || null,
+        id: orderResult.id || null,
+      };
+
+      console.log("✅ Datos enriquecidos para impresión:", enrichedOrderData);
+
       // Mostrar toast de carga para la impresión ANTES de imprimir
       const printingToastId = toast.loading("Imprimiendo ticket...");
 
       try {
         // Imprimir ticket usando Electron IPC
-        const printSuccess = await handleTicketPrinting(orderData);
+        const printSuccess = await handleTicketPrinting(enrichedOrderData);
 
         // Cerrar el toast de carga de impresión
         toast.dismiss(printingToastId);
@@ -611,9 +624,20 @@ export function usePaymentProcessing({
             throw new Error("Error al crear la orden en base de datos");
           }
 
+          // Capturar la respuesta para obtener el ID real de la orden
+          const orderResult = await orderResponse.json();
+          console.log("📋 Respuesta del API (QR):", orderResult);
+
+          // Añadir el idReal a los datos de la orden para impresión
+          const enrichedOrderData = {
+            ...orderData,
+            idReal: orderResult.idReal || orderResult.id || null,
+            id: orderResult.id || null,
+          };
+
           // Solo imprimir el ticket si no se indica saltar la impresión
           if (!skipPrinting) {
-            await handleTicketPrinting(orderData);
+            await handleTicketPrinting(enrichedOrderData);
           } else {
             console.log("🖨️ Impresión de ticket omitida (skipPrinting=true)");
           }
@@ -919,11 +943,22 @@ export function usePaymentProcessing({
         // Ocultar toast de carga y mostrar toast de impresión
         toast.dismiss(processingToastId);
 
+        // Capturar la respuesta para obtener el ID real de la orden
+        const orderResult = await orderResponse.json();
+        console.log("📋 Respuesta del API (Split Payment):", orderResult);
+
+        // Añadir el idReal a los datos de la orden para impresión
+        const enrichedOrderData = {
+          ...orderData,
+          idReal: orderResult.idReal || orderResult.id || null,
+          id: orderResult.id || null,
+        };
+
         // Mostrar toast de carga para la impresión ANTES de imprimir
         const printingToastId = toast.loading("Imprimiendo ticket...");
 
         // Imprimir ticket
-        await handleTicketPrinting(orderData);
+        await handleTicketPrinting(enrichedOrderData);
 
         // Cerrar el toast de carga de impresión
         toast.dismiss(printingToastId);
@@ -1407,7 +1442,18 @@ export function usePaymentProcessing({
             throw new Error("Error al crear la orden");
           }
 
-          await handleTicketPrinting(orderData);
+          // Capturar la respuesta para obtener el ID real de la orden
+          const orderResult = await orderResponse.json();
+          console.log("📋 Respuesta del API (Split MP Payment):", orderResult);
+
+          // Añadir el idReal a los datos de la orden para impresión
+          const enrichedOrderData = {
+            ...orderData,
+            idReal: orderResult.idReal || orderResult.id || null,
+            id: orderResult.id || null,
+          };
+
+          await handleTicketPrinting(enrichedOrderData);
         } catch (error: any) {
           console.error("❌ Error al procesar orden mixta:", error);
           toast.error(`Error: ${error.message}`);

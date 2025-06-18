@@ -43,552 +43,429 @@ try {
     }
     
     $nombre_impresora = "TP806L";
-    file_put_contents('php://stderr', "Conectando a impresora: " . $nombre_impresora . "\n");
+    
     try {
+        // Intentar conectar a la impresora - esto fallará si no existe
         $connector = new WindowsPrintConnector($nombre_impresora);
-        file_put_contents('php://stderr', "✓ Conexión exitosa a la impresora para cierre\n");
-    } catch (Exception $e) {
-        file_put_contents('php://stderr', "Error: " . $e->getMessage() . "\n");
-        exit(1);
-    }
-    $printer = new Printer($connector);
+        
+        // Si llegamos aquí, la conexión fue exitosa
+        $printer = new Printer($connector);
 
-    // Logo (opcional)
-    try {
-        file_put_contents('php://stderr', "==== DEPURACIÓN AVANZADA LOGO - CIERRE ====\n");
-        
-        // Lista de posibles rutas para el logo
-        $possibleLogoPaths = [
-            __DIR__ . "/logo.png",
-            __DIR__ . "/../resources/logo.png",
-            __DIR__ . "/../logo.png",
-            __DIR__ . "/../public/logo.png",
-            __DIR__ . "/../../resources/logo.png",
-            __DIR__ . "/../../public/logo.png",
-            __DIR__ . "/../../logo.png"
-        ];
-        
-        file_put_contents('php://stderr', "Directorio actual: " . __DIR__ . "\n");
-        file_put_contents('php://stderr', "NODE_ENV: " . getenv('NODE_ENV') . "\n");
-        
-        // Probar cada ruta
-        $logoPath = null;
-        foreach ($possibleLogoPaths as $path) {
-            file_put_contents('php://stderr', "Probando ruta: " . $path . "\n");
-            if (file_exists($path)) {
-                file_put_contents('php://stderr', "✅ Existe\n");
-                
-                // Verificar si es legible
-                if (is_readable($path)) {
-                    file_put_contents('php://stderr', "✅ Es legible\n");
-                    $filesize = filesize($path);
-                    file_put_contents('php://stderr', "✅ Tamaño: " . $filesize . " bytes\n");
+        // Logo (opcional)
+        try {
+            file_put_contents('php://stderr', "==== DEPURACIÓN AVANZADA LOGO - CIERRE ====\n");
+            
+            // Lista de posibles rutas para el logo
+            $possibleLogoPaths = [
+                __DIR__ . "/logo.png",
+                __DIR__ . "/../resources/logo.png",
+                __DIR__ . "/../logo.png",
+                __DIR__ . "/../public/logo.png",
+                __DIR__ . "/../../resources/logo.png",
+                __DIR__ . "/../../public/logo.png",
+                __DIR__ . "/../../logo.png"
+            ];
+            
+            file_put_contents('php://stderr', "Directorio actual: " . __DIR__ . "\n");
+            file_put_contents('php://stderr', "NODE_ENV: " . getenv('NODE_ENV') . "\n");
+            
+            // Probar cada ruta
+            $logoPath = null;
+            foreach ($possibleLogoPaths as $path) {
+                file_put_contents('php://stderr', "Probando ruta: " . $path . "\n");
+                if (file_exists($path)) {
+                    file_put_contents('php://stderr', "✅ Existe\n");
                     
-                    if ($filesize > 0) {
-                        $logoPath = $path;
-                        file_put_contents('php://stderr', "✅ Logo encontrado en: " . $logoPath . "\n");
-                        break;
-                    } else {
-                        file_put_contents('php://stderr', "❌ Archivo de tamaño cero\n");
-                    }
-                } else {
-                    file_put_contents('php://stderr', "❌ No es legible\n");
-                }
-            } else {
-                file_put_contents('php://stderr', "❌ No existe\n");
-            }
-        }
-        
-        if (!$logoPath) {
-            file_put_contents('php://stderr', "❌ No se encontró ningún logo válido\n");
-        } else {
-            // Intentar cargar la imagen
-            try {
-                file_put_contents('php://stderr', "Intentando cargar imagen desde: " . $logoPath . "\n");
-                
-                // Verificar el tipo de imagen
-                $imageInfo = @getimagesize($logoPath);
-                if ($imageInfo === false) {
-                    file_put_contents('php://stderr', "❌ No es una imagen válida\n");
-                } else {
-                    file_put_contents('php://stderr', "✅ Información de imagen: " . print_r($imageInfo, true) . "\n");
-                    
-                    // Cargar la imagen dependiendo del tipo
-                    switch ($imageInfo[2]) {
-                        case IMAGETYPE_PNG:
-                            file_put_contents('php://stderr', "Es una imagen PNG\n");
-                            $originalImage = @imagecreatefrompng($logoPath);
+                    // Verificar si es legible
+                    if (is_readable($path)) {
+                        file_put_contents('php://stderr', "✅ Es legible\n");
+                        $filesize = filesize($path);
+                        file_put_contents('php://stderr', "✅ Tamaño: " . $filesize . " bytes\n");
+                        
+                        if ($filesize > 0) {
+                            $logoPath = $path;
+                            file_put_contents('php://stderr', "✅ Logo encontrado en: " . $logoPath . "\n");
                             break;
-                        case IMAGETYPE_JPEG:
-                            file_put_contents('php://stderr', "Es una imagen JPEG\n");
-                            $originalImage = @imagecreatefromjpeg($logoPath);
-                            break;
-                        default:
-                            file_put_contents('php://stderr', "Tipo de imagen no soportado\n");
-                            $originalImage = false;
-                    }
-                    
-                    if ($originalImage === false) {
-                        file_put_contents('php://stderr', "❌ Error al cargar la imagen: " . error_get_last()['message'] . "\n");
-                    } else {
-                        file_put_contents('php://stderr', "✅ Imagen cargada correctamente\n");
-                        
-                        $originalWidth = imagesx($originalImage);
-                        $originalHeight = imagesy($originalImage);
-                        file_put_contents('php://stderr', "Dimensiones: " . $originalWidth . "x" . $originalHeight . "\n");
-                        
-                        // Calcular el nuevo tamaño manteniendo la proporción
-                        $maxWidth = 556; // Ancho ajustado para mejor visualización
-                        $newWidth = $maxWidth;
-                        $newHeight = floor($originalHeight * ($maxWidth / $originalWidth));
-                        file_put_contents('php://stderr', "Nuevas dimensiones: " . $newWidth . "x" . $newHeight . "\n");
-                        
-                        // Crear nueva imagen redimensionada
-                        $newImage = imagecreatetruecolor($newWidth, $newHeight);
-                        if (!$newImage) {
-                            file_put_contents('php://stderr', "❌ Error al crear nueva imagen\n");
                         } else {
-                            // Preservar transparencia
-                            imagealphablending($newImage, false);
-                            imagesavealpha($newImage, true);
+                            file_put_contents('php://stderr', "❌ Archivo de tamaño cero\n");
+                        }
+                    } else {
+                        file_put_contents('php://stderr', "❌ No es legible\n");
+                    }
+                } else {
+                    file_put_contents('php://stderr', "❌ No existe\n");
+                }
+            }
+            
+            if (!$logoPath) {
+                file_put_contents('php://stderr', "❌ No se encontró ningún logo válido\n");
+            } else {
+                // Intentar cargar la imagen
+                try {
+                    file_put_contents('php://stderr', "Intentando cargar imagen desde: " . $logoPath . "\n");
+                    
+                    // Verificar el tipo de imagen
+                    $imageInfo = @getimagesize($logoPath);
+                    if ($imageInfo === false) {
+                        file_put_contents('php://stderr', "❌ No es una imagen válida\n");
+                    } else {
+                        file_put_contents('php://stderr', "✅ Información de imagen: " . print_r($imageInfo, true) . "\n");
+                        
+                        // Cargar la imagen dependiendo del tipo
+                        switch ($imageInfo[2]) {
+                            case IMAGETYPE_PNG:
+                                file_put_contents('php://stderr', "Es una imagen PNG\n");
+                                $originalImage = @imagecreatefrompng($logoPath);
+                                break;
+                            case IMAGETYPE_JPEG:
+                                file_put_contents('php://stderr', "Es una imagen JPEG\n");
+                                $originalImage = @imagecreatefromjpeg($logoPath);
+                                break;
+                            default:
+                                file_put_contents('php://stderr', "Tipo de imagen no soportado\n");
+                                $originalImage = false;
+                        }
+                        
+                        if ($originalImage === false) {
+                            file_put_contents('php://stderr', "❌ Error al cargar la imagen: " . error_get_last()['message'] . "\n");
+                        } else {
+                            file_put_contents('php://stderr', "✅ Imagen cargada correctamente\n");
                             
-                            // Redimensionar
-                            $result = imagecopyresampled(
-                                $newImage, $originalImage,
-                                0, 0, 0, 0,
-                                $newWidth, $newHeight,
-                                $originalWidth, $originalHeight
-                            );
+                            $originalWidth = imagesx($originalImage);
+                            $originalHeight = imagesy($originalImage);
+                            file_put_contents('php://stderr', "Dimensiones: " . $originalWidth . "x" . $originalHeight . "\n");
                             
-                            if (!$result) {
-                                file_put_contents('php://stderr', "❌ Error al redimensionar\n");
+                            // Calcular el nuevo tamaño manteniendo la proporción
+                            $maxWidth = 556; // Ancho ajustado para mejor visualización
+                            $newWidth = $maxWidth;
+                            $newHeight = floor($originalHeight * ($maxWidth / $originalWidth));
+                            file_put_contents('php://stderr', "Nuevas dimensiones: " . $newWidth . "x" . $newHeight . "\n");
+                            
+                            // Crear nueva imagen redimensionada
+                            $newImage = imagecreatetruecolor($newWidth, $newHeight);
+                            if (!$newImage) {
+                                file_put_contents('php://stderr', "❌ Error al crear nueva imagen\n");
                             } else {
-                                // Guardar temporalmente en directorio temporal del sistema
-                                $tempPath = sys_get_temp_dir() . "/temp_logo_closing_" . uniqid() . ".png";
-                                file_put_contents('php://stderr', "Guardando en directorio temporal: " . $tempPath . "\n");
-                                $saveResult = imagepng($newImage, $tempPath);
+                                // Preservar transparencia
+                                imagealphablending($newImage, false);
+                                imagesavealpha($newImage, true);
                                 
-                                if (!$saveResult) {
-                                    file_put_contents('php://stderr', "❌ Error al guardar imagen temporal: " . error_get_last()['message'] . "\n");
+                                // Redimensionar
+                                $result = imagecopyresampled(
+                                    $newImage, $originalImage,
+                                    0, 0, 0, 0,
+                                    $newWidth, $newHeight,
+                                    $originalWidth, $originalHeight
+                                );
+                                
+                                if (!$result) {
+                                    file_put_contents('php://stderr', "❌ Error al redimensionar\n");
                                 } else {
-                                    file_put_contents('php://stderr', "✅ Imagen guardada en: " . $tempPath . "\n");
-                                    file_put_contents('php://stderr', "Tamaño del archivo: " . filesize($tempPath) . " bytes\n");
+                                    // Guardar temporalmente en directorio temporal del sistema
+                                    $tempPath = sys_get_temp_dir() . "/temp_logo_closing_" . uniqid() . ".png";
+                                    file_put_contents('php://stderr', "Guardando en directorio temporal: " . $tempPath . "\n");
+                                    $saveResult = imagepng($newImage, $tempPath);
                                     
-                                    // Liberar memoria
-                                    imagedestroy($originalImage);
-                                    imagedestroy($newImage);
-                                    
-                                    // Cargar y enviar a la impresora
-                                    try {
-                                        file_put_contents('php://stderr', "Cargando para la impresora\n");
-                                        $logo = EscposImage::load($tempPath);
-                                        $printer->bitImage($logo);
-                                        unlink($tempPath);
-                                        file_put_contents('php://stderr', "✅ Logo enviado a la impresora\n");
-                                    } catch (Exception $e) {
-                                        file_put_contents('php://stderr', "❌ Error al imprimir logo: " . $e->getMessage() . "\n");
+                                    if (!$saveResult) {
+                                        file_put_contents('php://stderr', "❌ Error al guardar imagen temporal: " . error_get_last()['message'] . "\n");
+                                    } else {
+                                        file_put_contents('php://stderr', "✅ Imagen guardada en: " . $tempPath . "\n");
+                                        file_put_contents('php://stderr', "Tamaño del archivo: " . filesize($tempPath) . " bytes\n");
+                                        
+                                        // Liberar memoria
+                                        imagedestroy($originalImage);
+                                        imagedestroy($newImage);
+                                        
+                                        // Cargar y enviar a la impresora
+                                        try {
+                                            file_put_contents('php://stderr', "Cargando para la impresora\n");
+                                            $logo = EscposImage::load($tempPath);
+                                            $printer->bitImage($logo);
+                                            unlink($tempPath);
+                                            file_put_contents('php://stderr', "✅ Logo enviado a la impresora\n");
+                                        } catch (Exception $e) {
+                                            file_put_contents('php://stderr', "❌ Error al imprimir logo: " . $e->getMessage() . "\n");
+                                        }
                                     }
                                 }
                             }
                         }
                     }
+                } catch (Exception $e) {
+                    file_put_contents('php://stderr', "❌ Error procesando imagen: " . $e->getMessage() . "\n");
+                    file_put_contents('php://stderr', "Traza: " . $e->getTraceAsString() . "\n");
                 }
-            } catch (Exception $e) {
-                file_put_contents('php://stderr', "❌ Error procesando imagen: " . $e->getMessage() . "\n");
-                file_put_contents('php://stderr', "Traza: " . $e->getTraceAsString() . "\n");
             }
-        }
-        
-        file_put_contents('php://stderr', "==== FIN DEPURACIÓN AVANZADA LOGO ====\n");
-    } catch (Exception $e) {
-        file_put_contents('php://stderr', "❌ Error general: " . $e->getMessage() . "\n");
-        file_put_contents('php://stderr', "Traza: " . $e->getTraceAsString() . "\n");
-    }
-
-    // Encabezado
-    $printer->setJustification(Printer::JUSTIFY_CENTER);
-    $printer->setEmphasis(true);
-    $printer->setTextSize(2, 2);
-    $printer->text("\nCierre de Caja\n");
-    $printer->setTextSize(1, 1);
-    $printer->text("Periodo: " . strtoupper($closingData['periodo']) . "\n\n");
-    
-    // Detalles del periodo
-    $printer->setJustification(Printer::JUSTIFY_LEFT);
-    $printer->text("Fecha inicio: " . date("d/m/Y H:i", strtotime($closingData['fechaInicio'])) . "\n");
-    $printer->text("Fecha cierre: " . date("d/m/Y H:i", strtotime($closingData['fechaCierre'])) . "\n");
-    $printer->text("-----------------------------\n");
-
-    // Estructurar los datos de métodos de pago - Sección crítica
-    file_put_contents('php://stderr', "==== DESERIALIZACIÓN DE MÉTODOS DE PAGO ====\n");
-    
-    // Imprimir para verificar estructura
-    file_put_contents('php://stderr', "Estructura de closingData:\n" . print_r($closingData, true) . "\n");
-    
-    if (isset($closingData['ventasPorMetodo']) && isset($closingData['ventasPorMetodo']['ventasPorMetodo'])) {
-        // Nueva estructura API
-        $metodosPago = $closingData['ventasPorMetodo']['ventasPorMetodo'];
-        file_put_contents('php://stderr', "✅ Estructura API nueva detectada\n");
-        file_put_contents('php://stderr', "Métodos encontrados: " . json_encode($metodosPago) . "\n");
-        
-        // Verificar tipo y estructura
-        if (is_array($metodosPago)) {
-            file_put_contents('php://stderr', "✅ ventasPorMetodo es un array correcto\n");
-        } else {
-            file_put_contents('php://stderr', "❌ ventasPorMetodo NO es un array: " . gettype($metodosPago) . "\n");
             
-            // Intentar corregir si es un objeto o string
-            if (is_object($metodosPago)) {
-                file_put_contents('php://stderr', "Intentando convertir objeto a array...\n");
-                $metodosPago = (array)$metodosPago;
-            } else if (is_string($metodosPago)) {
-                file_put_contents('php://stderr', "Intentando parsear string JSON...\n");
-                $metodosPago = json_decode($metodosPago, true);
-            }
+            file_put_contents('php://stderr', "==== FIN DEPURACIÓN AVANZADA LOGO ====\n");
+        } catch (Exception $e) {
+            file_put_contents('php://stderr', "❌ Error general: " . $e->getMessage() . "\n");
+            file_put_contents('php://stderr', "Traza: " . $e->getTraceAsString() . "\n");
         }
-    } else {
-        // Estructura antigua o diferente
-        if (isset($closingData['ventasPorMetodo'])) {
-            if (is_array($closingData['ventasPorMetodo'])) {
-                $metodosPago = $closingData['ventasPorMetodo'];
-                file_put_contents('php://stderr', "⚠️ Usando estructura alternativa directa\n");
-            } else {
-                file_put_contents('php://stderr', "❌ ventasPorMetodo existe pero NO es un array: " . gettype($closingData['ventasPorMetodo']) . "\n");
-                $metodosPago = [];
-            }
-        } else {
-            file_put_contents('php://stderr', "❌ No se encontró ninguna estructura de ventasPorMetodo\n");
-            $metodosPago = [];
-        }
-    }
-    
-    // Intentar reconstruir del _debug si está disponible (último recurso)
-    if (empty($metodosPago) && isset($closingData['_debug']) && isset($closingData['_debug']['originalData'])) {
-        file_put_contents('php://stderr', "Intentando recuperar métodos de pago desde debug data...\n");
-        $debugData = $closingData['_debug']['originalData'];
-        if (isset($debugData['ventasPorMetodo'])) {
-            $metodosPago = $debugData['ventasPorMetodo'];
-            file_put_contents('php://stderr', "Datos recuperados de debug: " . json_encode($metodosPago) . "\n");
-        }
-    }
-    
-    file_put_contents('php://stderr', "Métodos de pago finales: " . json_encode($metodosPago) . "\n");
-    
-    // Asegurar que siempre existan los tres métodos de pago principales
-    $metodosCompletos = [
-        'efectivo' => isset($metodosPago['efectivo']) ? $metodosPago['efectivo'] : 0,
-        'tarjeta' => isset($metodosPago['tarjeta']) ? $metodosPago['tarjeta'] : 0,
-        'qr' => isset($metodosPago['qr']) ? $metodosPago['qr'] : 0
-    ];
 
-    // Agregar otros métodos que puedan existir pero no son estándar
-    foreach ($metodosPago as $metodo => $monto) {
-        if (!array_key_exists($metodo, $metodosCompletos)) {
-            $metodosCompletos[$metodo] = $monto;
-        }
-    }
-
-    // Usar la lista completa para los cálculos y visualización
-    $metodosPago = $metodosCompletos;
-
-    // Verificar suma de totales
-    $sumaPorMetodos = 0;
-    foreach ($metodosPago as $metodo => $monto) {
-        $sumaPorMetodos += $monto;
-        file_put_contents('php://stderr', "Método: $metodo - Monto: $monto\n");
-    }
-    file_put_contents('php://stderr', "Suma por métodos: $sumaPorMetodos\n");
-    file_put_contents('php://stderr', "Total general: {$closingData['totalVentas']}\n");
-
-    // Comprobar si hay discrepancia (solo para log)
-    $diferencia = $closingData['totalVentas'] - $sumaPorMetodos;
-    if (abs($diferencia) > 0.01) {
-        file_put_contents('php://stderr', "⚠️ ADVERTENCIA: Hay una diferencia de $diferencia entre la suma de métodos y el total general\n");
-    }
-
-    // Detalles por método de pago
-    $printer->text("VENTAS POR MÉTODO DE PAGO:\n");
-    $printer->text("-----------------------------\n");
-    
-    // Para depuración - mostrar lo que realmente hay después de procesamiento
-    file_put_contents('php://stderr', "MÉTODOS DE PAGO PARA IMPRESIÓN (después de procesamiento):\n");
-    foreach ($metodosPago as $metodo => $monto) {
-        file_put_contents('php://stderr', "  " . $metodo . ": " . $monto . "\n");
-    }
-    
-    // Forzar el orden QR, Tarjeta, Efectivo (solo los que tengan valor > 0)
-    $metodosOrdenados = array(
-        'qr'       => isset($metodosPago['qr']) ? $metodosPago['qr'] : 0,
-        'tarjeta'  => isset($metodosPago['tarjeta']) ? $metodosPago['tarjeta'] : 0,
-        'efectivo' => isset($metodosPago['efectivo']) ? $metodosPago['efectivo'] : 0
-    );
-    
-    // Imprimir métodos con valores positivos
-    foreach ($metodosOrdenados as $metodo => $monto) {
-        if ($monto > 0) {
-            $nombreFormateado = ucfirst($metodo); // Primera letra en mayúscula
-            $printer->text(str_pad($nombreFormateado, 15));
-            $printer->text(str_pad('$' . number_format($monto, 2), 17, " ", STR_PAD_LEFT) . "\n");
-            file_put_contents('php://stderr', "✓ Imprimiendo método: " . $metodo . " - $" . number_format($monto, 2) . "\n");
-        }
-    }
-    
-    // Imprimir otros métodos que no estén en la lista predefinida
-    foreach ($metodosPago as $metodo => $monto) {
-        if (!array_key_exists($metodo, $metodosOrdenados) && $monto > 0) {
-            $nombreFormateado = ucfirst($metodo);
-            $printer->text(str_pad($nombreFormateado, 15));
-            $printer->text(str_pad('$' . number_format($monto, 2), 17, " ", STR_PAD_LEFT) . "\n");
-            file_put_contents('php://stderr', "✓ Imprimiendo método adicional: " . $metodo . " - $" . number_format($monto, 2) . "\n");
-        }
-    }
-    
-    // NO mostrar línea de diferencia, simplemente ir al total
-
-    // Total general
-    $printer->text("-----------------------------\n");
-    $printer->setEmphasis(true);
-    $printer->text(str_pad("TOTAL: $" . number_format($closingData['totalVentas'], 2), 32, " ", STR_PAD_LEFT) . "\n");
-    $printer->text(str_pad("CANT. VENTAS: " . $closingData['cantidadVentas'], 32, " ", STR_PAD_LEFT) . "\n");
-    $printer->setEmphasis(false);
-    
-    // Ventas por vendedor (nuevo)
-    if (isset($closingData['ventasPorVendedor']) && is_array($closingData['ventasPorVendedor'])) {
-        file_put_contents('php://stderr', "=== DEPURACIÓN AVANZADA VENTAS POR VENDEDOR ===\n");
-        file_put_contents('php://stderr', "Estructura completa de ventasPorVendedor: " . json_encode($closingData['ventasPorVendedor']) . "\n");
-        
-        $printer->text("\n\n");
+        // Encabezado dinámico con nombre del business
         $printer->setJustification(Printer::JUSTIFY_CENTER);
         $printer->setEmphasis(true);
-        $printer->text("VENTAS POR VENDEDOR\n");
-        $printer->setEmphasis(false);
-        $printer->text("=============================\n\n");
-        $printer->setJustification(Printer::JUSTIFY_LEFT);
+        $printer->setTextSize(2, 2);
         
-        foreach ($closingData['ventasPorVendedor'] as $vendedor) {
-            // Añadir log para ver la estructura completa del vendedor
-            file_put_contents('php://stderr', "ESTRUCTURA COMPLETA DEL VENDEDOR: " . json_encode($vendedor) . "\n");
+        // Determinar el nombre del business de manera dinámica
+        $businessName = "Verdulería"; // Valor por defecto
+        if (isset($closingData['businessName']) && !empty($closingData['businessName'])) {
+            $businessName = $closingData['businessName'];
+            file_put_contents('php://stderr', "✅ Usando nombre del business desde closingData: " . $businessName . "\n");
+        } elseif (isset($closingData['sucursal']) && !empty($closingData['sucursal'])) {
+            $businessName = $closingData['sucursal'];
+            file_put_contents('php://stderr', "✅ Usando nombre de sucursal: " . $businessName . "\n");
+        } else {
+            file_put_contents('php://stderr', "⚠️ Usando nombre por defecto: " . $businessName . "\n");
+            file_put_contents('php://stderr', "🔍 Datos disponibles en closingData: " . json_encode(array_keys($closingData)) . "\n");
+        }
+        
+        $printer->text(strtoupper($businessName) . "\n");
+        $printer->text("Cierre de Caja\n");
+        $printer->setTextSize(1, 1);
+        $printer->text("Periodo: " . strtoupper($closingData['periodo']) . "\n\n");
+        
+        // Detalles del periodo
+        $printer->setJustification(Printer::JUSTIFY_LEFT);
+        $printer->text("Fecha inicio: " . date("d/m/Y H:i", strtotime($closingData['fechaInicio'])) . "\n");
+        $printer->text("Fecha cierre: " . date("d/m/Y H:i", strtotime($closingData['fechaCierre'])) . "\n");
+        $printer->text("-----------------------------\n");
+
+        // Estructurar los datos de métodos de pago - Sección crítica
+        file_put_contents('php://stderr', "==== DESERIALIZACIÓN DE MÉTODOS DE PAGO ====\n");
+        
+        // Imprimir para verificar estructura
+        file_put_contents('php://stderr', "Estructura de closingData:\n" . print_r($closingData, true) . "\n");
+        
+        if (isset($closingData['ventasPorMetodo']) && isset($closingData['ventasPorMetodo']['ventasPorMetodo'])) {
+            // Nueva estructura API
+            $metodosPago = $closingData['ventasPorMetodo']['ventasPorMetodo'];
+            file_put_contents('php://stderr', "✅ Estructura API nueva detectada\n");
+            file_put_contents('php://stderr', "Métodos encontrados: " . json_encode($metodosPago) . "\n");
             
-            $printer->setEmphasis(true);
-            $printer->text(strtoupper($vendedor['nombre']) . "\n");
-            $printer->setEmphasis(false);
-            $printer->text("Email: " . $vendedor['email'] . "\n");
-            
-            // Intentar acceder a los datos con diferentes formatos posibles
-            if (isset($vendedor['metodosPago'])) {
-                // Si existe metodosPago como objeto
-                file_put_contents('php://stderr', "USANDO metodosPago: " . json_encode($vendedor['metodosPago']) . "\n");
+            // Verificar tipo y estructura
+            if (is_array($metodosPago)) {
+                file_put_contents('php://stderr', "✅ ventasPorMetodo es un array correcto\n");
+            } else {
+                file_put_contents('php://stderr', "❌ ventasPorMetodo NO es un array: " . gettype($metodosPago) . "\n");
                 
-                // Si es un objeto JSON en string, decodificarlo
-                $metodosPago = $vendedor['metodosPago'];
-                if (is_string($metodosPago) && substr($metodosPago, 0, 1) === '{') {
+                // Intentar corregir si es un objeto o string
+                if (is_object($metodosPago)) {
+                    file_put_contents('php://stderr', "Intentando convertir objeto a array...\n");
+                    $metodosPago = (array)$metodosPago;
+                } else if (is_string($metodosPago)) {
+                    file_put_contents('php://stderr', "Intentando parsear string JSON...\n");
                     $metodosPago = json_decode($metodosPago, true);
                 }
-                
-                if (isset($metodosPago['qr'])) {
-                    $printer->text("QR: $" . number_format(floatval($metodosPago['qr']), 2) . "\n");
-                }
-                if (isset($metodosPago['tarjeta'])) {
-                    $printer->text("Tarjeta: $" . number_format(floatval($metodosPago['tarjeta']), 2) . "\n");
-                }
-                if (isset($metodosPago['efectivo'])) {
-                    $printer->text("Efectivo: $" . number_format(floatval($metodosPago['efectivo']), 2) . "\n");
+            }
+        } else {
+            // Estructura antigua o diferente
+            if (isset($closingData['ventasPorMetodo'])) {
+                if (is_array($closingData['ventasPorMetodo'])) {
+                    $metodosPago = $closingData['ventasPorMetodo'];
+                    file_put_contents('php://stderr', "⚠️ Usando estructura alternativa directa\n");
+                } else {
+                    file_put_contents('php://stderr', "❌ ventasPorMetodo existe pero NO es un array: " . gettype($closingData['ventasPorMetodo']) . "\n");
+                    $metodosPago = [];
                 }
             } else {
-                // Imprimir directamente de las propiedades del vendedor
-                file_put_contents('php://stderr', "USANDO PROPIEDADES DIRECTAS\n");
-                
-                // QR
-                if (isset($vendedor['qr'])) {
-                    $printer->text("QR: $" . number_format(floatval($vendedor['qr']), 2) . "\n");
-                }
-                
-                // Tarjeta
-                if (isset($vendedor['tarjeta'])) {
-                    $printer->text("Tarjeta: $" . number_format(floatval($vendedor['tarjeta']), 2) . "\n");
-                }
-                
-                // Efectivo
-                if (isset($vendedor['efectivo'])) {
-                    $printer->text("Efectivo: $" . number_format(floatval($vendedor['efectivo']), 2) . "\n");
-                }
+                file_put_contents('php://stderr', "❌ No se encontró ninguna estructura de ventasPorMetodo\n");
+                $metodosPago = [];
             }
-            
-            $printer->text("Total: $" . number_format($vendedor['totalVentas'], 2) . "\n");
-            $printer->text("Cantidad: " . $vendedor['cantidadVentas'] . "\n");
-            $printer->text("-----------------------------\n");
         }
-    }
-
-    // Información adicional del sistema
-    $printer->text("\n");
-    $printer->setJustification(Printer::JUSTIFY_LEFT);
-    $printer->text("INFORMACIÓN DEL SISTEMA:\n");
-    $printer->text("=============================\n");
-    
-    // Información de la aplicación
-    if (isset($closingData['appVersion'])) {
-        $printer->text("🔧 Versión App: " . $closingData['appVersion'] . "\n");
-    }
-    if (isset($closingData['sucursalId'])) {
-        $printer->text("🏪 ID Sucursal: " . $closingData['sucursalId'] . "\n");
-    }
-    if (isset($closingData['adminId'])) {
-        $printer->text("👤 ID Admin: " . $closingData['adminId'] . "\n");
-    }
-    
-    // Información adicional del cierre
-    if (isset($closingData['businessName'])) {
-        $printer->text("🏢 Negocio: " . $closingData['businessName'] . "\n");
-    }
-    if (isset($closingData['terminal'])) {
-        $printer->text("🖥️ Terminal: " . $closingData['terminal'] . "\n");
-    }
-   
-    
-    // Análisis de rendimiento avanzado
-    $printer->text("\nANÁLISIS DE RENDIMIENTO:\n");
-    $printer->text("=============================\n");
-    
-    $totalTransacciones = $closingData['cantidadVentas'];
-    if ($totalTransacciones > 0) {
-        $promedioVenta = $closingData['totalVentas'] / $totalTransacciones;
-        $printer->text("📊 Promedio por venta: $" . number_format($promedioVenta, 2) . "\n");
         
-        // Clasificar el promedio
-        if ($promedioVenta > 1000) {
-            $printer->text("⭐ Ticket promedio ALTO\n");
-        } elseif ($promedioVenta > 500) {
-            $printer->text("✅ Ticket promedio MEDIO\n");
-        } else {
-            $printer->text("📈 Ticket promedio BAJO\n");
+        // Intentar reconstruir del _debug si está disponible (último recurso)
+        if (empty($metodosPago) && isset($closingData['_debug']) && isset($closingData['_debug']['originalData'])) {
+            file_put_contents('php://stderr', "Intentando recuperar métodos de pago desde debug data...\n");
+            $debugData = $closingData['_debug']['originalData'];
+            if (isset($debugData['ventasPorMetodo'])) {
+                $metodosPago = $debugData['ventasPorMetodo'];
+                file_put_contents('php://stderr', "Datos recuperados de debug: " . json_encode($metodosPago) . "\n");
+            }
         }
-    }
-    
-    // Top productos si está disponible
-    if (isset($closingData['topProductos']) && is_array($closingData['topProductos'])) {
-        $printer->text("\n🏆 TOP 3 PRODUCTOS:\n");
+        
+        file_put_contents('php://stderr', "Métodos de pago finales: " . json_encode($metodosPago) . "\n");
+        
+        // Asegurar que siempre existan los tres métodos de pago principales
+        $metodosCompletos = [
+            'efectivo' => isset($metodosPago['efectivo']) ? $metodosPago['efectivo'] : 0,
+            'tarjeta' => isset($metodosPago['tarjeta']) ? $metodosPago['tarjeta'] : 0,
+            'qr' => isset($metodosPago['qr']) ? $metodosPago['qr'] : 0
+        ];
+
+        // Agregar otros métodos que puedan existir pero no son estándar
+        foreach ($metodosPago as $metodo => $monto) {
+            if (!array_key_exists($metodo, $metodosCompletos)) {
+                $metodosCompletos[$metodo] = $monto;
+            }
+        }
+
+        // Usar la lista completa para los cálculos y visualización
+        $metodosPago = $metodosCompletos;
+
+        // Verificar suma de totales
+        $sumaPorMetodos = 0;
+        foreach ($metodosPago as $metodo => $monto) {
+            $sumaPorMetodos += $monto;
+            file_put_contents('php://stderr', "Método: $metodo - Monto: $monto\n");
+        }
+        file_put_contents('php://stderr', "Suma por métodos: $sumaPorMetodos\n");
+        file_put_contents('php://stderr', "Total general: {$closingData['totalVentas']}\n");
+
+        // Comprobar si hay discrepancia (solo para log)
+        $diferencia = $closingData['totalVentas'] - $sumaPorMetodos;
+        if (abs($diferencia) > 0.01) {
+            file_put_contents('php://stderr', "⚠️ ADVERTENCIA: Hay una diferencia de $diferencia entre la suma de métodos y el total general\n");
+        }
+
+        // Detalles por método de pago
+        $printer->text("VENTAS POR MÉTODO DE PAGO:\n");
         $printer->text("-----------------------------\n");
         
-        $counter = 1;
-        foreach (array_slice($closingData['topProductos'], 0, 3) as $producto) {
-            $nombre = substr($producto['nombre'], 0, 20);
-            $cantidad = $producto['cantidad'];
-            $total = number_format($producto['total'], 2);
-            $printer->text($counter . ". " . $nombre . "\n");
-            $printer->text("   Cant: " . $cantidad . " | $" . $total . "\n");
-            $counter++;
+        // Para depuración - mostrar lo que realmente hay después de procesamiento
+        file_put_contents('php://stderr', "MÉTODOS DE PAGO PARA IMPRESIÓN (después de procesamiento):\n");
+        foreach ($metodosPago as $metodo => $monto) {
+            file_put_contents('php://stderr', "  " . $metodo . ": " . $monto . "\n");
         }
-    }
-    
-    // Distribución porcentual mejorada de métodos de pago
-    if (!empty($metodosPago) && $closingData['totalVentas'] > 0) {
-        $printer->text("\n💳 DISTRIBUCIÓN DE PAGOS:\n");
-        $printer->text("=============================\n");
+        
+        // Forzar el orden QR, Tarjeta, Efectivo (solo los que tengan valor > 0)
+        $metodosOrdenados = array(
+            'qr'       => isset($metodosPago['qr']) ? $metodosPago['qr'] : 0,
+            'tarjeta'  => isset($metodosPago['tarjeta']) ? $metodosPago['tarjeta'] : 0,
+            'efectivo' => isset($metodosPago['efectivo']) ? $metodosPago['efectivo'] : 0
+        );
+        
+        // Imprimir métodos con valores positivos
         foreach ($metodosOrdenados as $metodo => $monto) {
             if ($monto > 0) {
-                $porcentaje = ($monto / $closingData['totalVentas']) * 100;
-                $emoji = $metodo === 'efectivo' ? '💵' : ($metodo === 'tarjeta' ? '💳' : '📱');
-                $nombreFormateado = strtoupper($metodo);
-                $printer->text($emoji . " " . $nombreFormateado . ": " . number_format($porcentaje, 1) . "%\n");
-                $printer->text("   Total: $" . number_format($monto, 2) . "\n");
+                $nombreFormateado = ucfirst($metodo); // Primera letra en mayúscula
+                $printer->text(str_pad($nombreFormateado, 15));
+                $printer->text(str_pad('$' . number_format($monto, 2), 17, " ", STR_PAD_LEFT) . "\n");
+                file_put_contents('php://stderr', "✓ Imprimiendo método: " . $metodo . " - $" . number_format($monto, 2) . "\n");
             }
         }
-    }
-    
-    // Comparación con objetivos si está disponible
-    if (isset($closingData['objetivoDiario']) && $closingData['objetivoDiario'] > 0) {
-        $printer->text("\n🎯 OBJETIVO DIARIO:\n");
-        $printer->text("=============================\n");
-        $cumplimiento = ($closingData['totalVentas'] / $closingData['objetivoDiario']) * 100;
-        $diferencia = $closingData['totalVentas'] - $closingData['objetivoDiario'];
         
-        $printer->text("Meta: $" . number_format($closingData['objetivoDiario'], 2) . "\n");
-        $printer->text("Logrado: $" . number_format($closingData['totalVentas'], 2) . "\n");
-        $printer->text("Cumplimiento: " . number_format($cumplimiento, 1) . "%\n");
-        
-        if ($diferencia >= 0) {
-            $printer->text("✅ Superó la meta en $" . number_format($diferencia, 2) . "\n");
-        } else {
-            $printer->text("❌ Faltó $" . number_format(abs($diferencia), 2) . "\n");
+        // Imprimir otros métodos que no estén en la lista predefinida
+        foreach ($metodosPago as $metodo => $monto) {
+            if (!array_key_exists($metodo, $metodosOrdenados) && $monto > 0) {
+                $nombreFormateado = ucfirst($metodo);
+                $printer->text(str_pad($nombreFormateado, 15));
+                $printer->text(str_pad('$' . number_format($monto, 2), 17, " ", STR_PAD_LEFT) . "\n");
+                file_put_contents('php://stderr', "✓ Imprimiendo método adicional: " . $metodo . " - $" . number_format($monto, 2) . "\n");
+            }
         }
-    }
-    
-    // Información de rendimiento temporal mejorada
-    if (isset($closingData['horaInicio']) && isset($closingData['horaFin'])) {
-        $printer->text("\n⏰ RENDIMIENTO TEMPORAL:\n");
-        $printer->text("=============================\n");
-        $printer->text("🕐 Inicio: " . $closingData['horaInicio'] . "\n");
-        $printer->text("🕔 Fin: " . $closingData['horaFin'] . "\n");
         
-        // Calcular tiempo trabajado
-        $inicio = strtotime($closingData['horaInicio']);
-        $fin = strtotime($closingData['horaFin']);
-        if ($fin > $inicio) {
-            $tiempoTrabajado = $fin - $inicio;
-            $horas = floor($tiempoTrabajado / 3600);
-            $minutos = floor(($tiempoTrabajado % 3600) / 60);
-            $printer->text("⏱️ Tiempo trabajado: " . $horas . "h " . $minutos . "m\n");
+        // NO mostrar línea de diferencia, simplemente ir al total
+
+        // Total general
+        $printer->text("-----------------------------\n");
+        $printer->setEmphasis(true);
+        $printer->text(str_pad("TOTAL: $" . number_format($closingData['totalVentas'], 2), 32, " ", STR_PAD_LEFT) . "\n");
+        $printer->text(str_pad("CANT. VENTAS: " . $closingData['cantidadVentas'], 32, " ", STR_PAD_LEFT) . "\n");
+        $printer->setEmphasis(false);
+        
+        // Ventas por vendedor (nuevo)
+        if (isset($closingData['ventasPorVendedor']) && is_array($closingData['ventasPorVendedor'])) {
+            file_put_contents('php://stderr', "=== DEPURACIÓN AVANZADA VENTAS POR VENDEDOR ===\n");
+            file_put_contents('php://stderr', "Estructura completa de ventasPorVendedor: " . json_encode($closingData['ventasPorVendedor']) . "\n");
             
-            if ($horas > 0 && $totalTransacciones > 0) {
-                $ventasPorHora = $totalTransacciones / $horas;
-                $facturacionPorHora = $closingData['totalVentas'] / $horas;
-                $printer->text("📊 Ventas/hora: " . number_format($ventasPorHora, 1) . "\n");
-                $printer->text("💰 Facturación/hora: $" . number_format($facturacionPorHora, 2) . "\n");
+            $printer->text("\n\n");
+            $printer->setJustification(Printer::JUSTIFY_CENTER);
+            $printer->setEmphasis(true);
+            $printer->text("VENTAS POR VENDEDOR\n");
+            $printer->setEmphasis(false);
+            $printer->text("=============================\n\n");
+            $printer->setJustification(Printer::JUSTIFY_LEFT);
+            
+            foreach ($closingData['ventasPorVendedor'] as $vendedor) {
+                // Añadir log para ver la estructura completa del vendedor
+                file_put_contents('php://stderr', "ESTRUCTURA COMPLETA DEL VENDEDOR: " . json_encode($vendedor) . "\n");
                 
-                // Evaluar productividad
-                if ($ventasPorHora > 10) {
-                    $printer->text("⚡ Productividad ALTA\n");
-                } elseif ($ventasPorHora > 5) {
-                    $printer->text("✅ Productividad MEDIA\n");
+                $printer->setEmphasis(true);
+                $printer->text(strtoupper($vendedor['nombre']) . "\n");
+                $printer->setEmphasis(false);
+                $printer->text("Email: " . $vendedor['email'] . "\n");
+                
+                // Intentar acceder a los datos con diferentes formatos posibles
+                if (isset($vendedor['metodosPago'])) {
+                    // Si existe metodosPago como objeto
+                    file_put_contents('php://stderr', "USANDO metodosPago: " . json_encode($vendedor['metodosPago']) . "\n");
+                    
+                    // Si es un objeto JSON en string, decodificarlo
+                    $metodosPago = $vendedor['metodosPago'];
+                    if (is_string($metodosPago) && substr($metodosPago, 0, 1) === '{') {
+                        $metodosPago = json_decode($metodosPago, true);
+                    }
+                    
+                    if (isset($metodosPago['qr'])) {
+                        $printer->text("QR: $" . number_format(floatval($metodosPago['qr']), 2) . "\n");
+                    }
+                    if (isset($metodosPago['tarjeta'])) {
+                        $printer->text("Tarjeta: $" . number_format(floatval($metodosPago['tarjeta']), 2) . "\n");
+                    }
+                    if (isset($metodosPago['efectivo'])) {
+                        $printer->text("Efectivo: $" . number_format(floatval($metodosPago['efectivo']), 2) . "\n");
+                    }
                 } else {
-                    $printer->text("📈 Productividad BAJA\n");
+                    // Imprimir directamente de las propiedades del vendedor
+                    file_put_contents('php://stderr', "USANDO PROPIEDADES DIRECTAS\n");
+                    
+                    // QR
+                    if (isset($vendedor['qr'])) {
+                        $printer->text("QR: $" . number_format(floatval($vendedor['qr']), 2) . "\n");
+                    }
+                    
+                    // Tarjeta
+                    if (isset($vendedor['tarjeta'])) {
+                        $printer->text("Tarjeta: $" . number_format(floatval($vendedor['tarjeta']), 2) . "\n");
+                    }
+                    
+                    // Efectivo
+                    if (isset($vendedor['efectivo'])) {
+                        $printer->text("Efectivo: $" . number_format(floatval($vendedor['efectivo']), 2) . "\n");
+                    }
                 }
+                
+                $printer->text("Total: $" . number_format($vendedor['totalVentas'], 2) . "\n");
+                $printer->text("Cantidad: " . $vendedor['cantidadVentas'] . "\n");
+                $printer->text("-----------------------------\n");
             }
         }
+
+        // Pie de página
+        $printer->setJustification(Printer::JUSTIFY_CENTER);
+        $printer->text("\n\n" . date("d/m/Y H:i:s") . "\n");
+        $printer->text("Gracias por su trabajo\n");
+
+        $printer->feed(3);
+        $printer->cut();
+        $printer->close();
+        
+        file_put_contents('php://stderr', "✓ Ticket de cierre impreso correctamente\n");
+        echo "Cierre impreso correctamente";
+
+    } catch (Exception $printerError) {
+        // Error específico de la impresora - reportarlo pero no interrumpir el proceso
+        file_put_contents('php://stderr', "Error con la impresora: " . $printerError->getMessage() . "\n");
+        
+        // Proporcionar detalles del error en la salida
+        if (strpos($printerError->getMessage(), "Failed to open printer") !== false) {
+            file_put_contents('php://stderr', "La impresora '" . $nombre_impresora . "' no está disponible o no existe\n");
+        } else if (strpos($printerError->getMessage(), "Access denied") !== false) {
+            file_put_contents('php://stderr', "Acceso denegado a la impresora. Ejecute como administrador\n");
+        }
+        
+        echo "Cierre registrado pero no se pudo imprimir el ticket";
     }
+
+    // Cierre exitoso (aunque quizás sin impresión)
+    exit(0);
     
-    // Comparación con días anteriores si está disponible
-    if (isset($closingData['comparacionAnterior'])) {
-        $printer->text("\n📈 COMPARACIÓN:\n");
-        $printer->text("=============================\n");
-        
-        $diferencia = $closingData['totalVentas'] - $closingData['comparacionAnterior']['total'];
-        $porcentajeCambio = ($closingData['comparacionAnterior']['total'] > 0) ? 
-            round(($diferencia / $closingData['comparacionAnterior']['total']) * 100, 1) : 0;
-        
-        $arrow = $diferencia >= 0 ? '📈' : '📉';
-        $signo = $diferencia >= 0 ? '+' : '';
-        
-        $printer->text($arrow . " vs día anterior:\n");
-        $printer->text("   " . $signo . "$" . number_format($diferencia, 2) . "\n");
-        $printer->text("   Variación: " . $signo . $porcentajeCambio . "%\n");
-    }
-
-    // Pie de página
-    $printer->setJustification(Printer::JUSTIFY_CENTER);
-    $printer->text("\n============================\n");
-    $printer->text(date("d/m/Y H:i:s") . "\n");
-    $printer->text("Sistema AndexMarket v3.2.5\n");
-    $printer->text("Gracias por su trabajo\n");
-    $printer->text("============================\n");
-
-    $printer->feed(3);
-    $printer->cut();
-    $printer->close();
-    
-    // Debug final mejorado
-    file_put_contents('php://stderr', "✅ Cierre impreso correctamente\n");
-    file_put_contents('php://stderr', "📊 RESUMEN FINAL DEL CIERRE:\n");
-    file_put_contents('php://stderr', "- Período: " . $closingData['periodo'] . "\n");
-    file_put_contents('php://stderr', "- Total ventas: $" . number_format($closingData['totalVentas'], 2) . "\n");
-    file_put_contents('php://stderr', "- Cantidad ventas: " . $closingData['cantidadVentas'] . "\n");
-    file_put_contents('php://stderr', "- Vendedores procesados: " . (isset($closingData['ventasPorVendedor']) ? count($closingData['ventasPorVendedor']) : 0) . "\n");
-    file_put_contents('php://stderr', "- Métodos de pago con valores: " . count(array_filter($metodosPago, function($monto) { return $monto > 0; })) . "\n");
-    file_put_contents('php://stderr', "====== FIN DEBUG CIERRE ======\n");
-    echo "Cierre impreso correctamente";
-
 } catch (Exception $e) {
-    file_put_contents('php://stderr', "Error: " . $e->getMessage() . "\n");
+    // Error general no relacionado con la impresora
+    file_put_contents('php://stderr', "Error general: " . $e->getMessage() . "\n");
+    echo "Error: " . $e->getMessage();
     exit(1);
 } 
+?> 
