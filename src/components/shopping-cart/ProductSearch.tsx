@@ -57,7 +57,7 @@ export function ProductSearch({
           value={searchQuery}
           onChange={handleSearchInputChange}
           onKeyDown={handleKeyDown}
-          className="w-full rounded-lg" // Usar todo el ancho disponible en el sidebar
+          className="w-full rounded-lg text-black" // Usar todo el ancho disponible en el sidebar
           ref={inputRef}
         />
       </div>

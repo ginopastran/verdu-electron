@@ -60,6 +60,7 @@ import {
 
 // Componentes de diálogo
 import { CashPaymentDialog, CancelDialog } from "./shopping-cart/dialogs";
+import { ExactPaymentDialog } from "./shopping-cart/dialogs/ExactPaymentDialog";
 
 // Importar el nuevo componente de diálogo de órdenes recientes
 import { RecentOrdersDialog } from "./RecentOrdersDialog";
@@ -686,6 +687,62 @@ export default function ShoppingCartRefactored() {
         }}
       />
 
+      <ExactPaymentDialog
+        open={paymentProcessor.exactPaymentDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            console.log(
+              "🚪 REFACTORED: Cerrando ExactPaymentDialog - reseteando estados"
+            );
+            paymentProcessor.setExactPaymentDialogOpen(false);
+            paymentProcessor.resetPaymentState();
+            setIsProcessingPayment(false);
+            setSelectedPaymentMethod(null);
+            setTimeout(() => searchInputRef.current?.focus(), 100);
+          }
+        }}
+        totalAmount={paymentProcessor.roundedAmount}
+        isLoading={isProcessingPayment}
+        onConfirm={async (paidAmount: number, change: number) => {
+          console.log(
+            "💰 EXACT PAYMENT: Confirmando desde ShoppingCartRefactored",
+            {
+              paidAmount,
+              change,
+              totalAmount: paymentProcessor.roundedAmount,
+            }
+          );
+
+          setIsProcessingPayment(true);
+          try {
+            await paymentProcessor.confirmExactPayment(
+              paidAmount,
+              change,
+              cartState.getCurrentItems()
+            );
+
+            console.log("✅ EXACT PAYMENT: Pago procesado exitosamente");
+
+            // Limpiar estados locales después del procesamiento exitoso
+            setIsProcessingPayment(false);
+            setSelectedPaymentMethod(null);
+            setTimeout(() => searchInputRef.current?.focus(), 100);
+          } catch (error) {
+            console.error("❌ EXACT PAYMENT: Error al procesar:", error);
+            setIsProcessingPayment(false);
+          }
+        }}
+        onCancel={() => {
+          console.log(
+            "❌ REFACTORED: Cancelando ExactPaymentDialog - reseteando estados"
+          );
+          paymentProcessor.setExactPaymentDialogOpen(false);
+          paymentProcessor.resetPaymentState();
+          setIsProcessingPayment(false);
+          setSelectedPaymentMethod(null);
+        }}
+      />
+
       <ClosingDialog
         open={closing.closingDialogOpen}
         onOpenChange={closing.setClosingDialogOpen}
@@ -730,7 +787,6 @@ export default function ShoppingCartRefactored() {
         API_URL={API_URL}
         appId={getAppId()}
         formatFechaArgentina={formatFechaArgentina}
-        handleTicketPrinting={handleTicketPrinting}
       />
     </div>
   );

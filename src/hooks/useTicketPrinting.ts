@@ -1,4 +1,5 @@
 import { toast } from "sonner";
+import { getBusinessInfo } from "@/utils/businessHelpers";
 
 // Declaración de tipos para window
 declare global {
@@ -29,7 +30,11 @@ export const useTicketPrinting = () => {
     });
   };
 
-  const handleTicketPrinting = async (orderData: any) => {
+  const handleTicketPrinting = async (
+    orderData: any,
+    API_URL?: string,
+    appId?: string | null
+  ) => {
     try {
       // DEBUG: Verificar APIs disponibles al inicio
       console.log("🔍 Verificación inicial de APIs:");
@@ -42,6 +47,26 @@ export const useTicketPrinting = () => {
       );
       console.log("- window.autoUpdater:", typeof (window as any).autoUpdater);
       console.log("- window.pesoReader:", typeof (window as any).pesoReader);
+
+      // ✅ NUEVO: Obtener información del business para verificar doble impresión
+      let businessInfo = null;
+      let dobleImpresionEnabled = false;
+
+      if (API_URL && appId !== undefined) {
+        console.log(
+          "🏢 Obteniendo información del business para doble impresión..."
+        );
+        businessInfo = await getBusinessInfo(API_URL, appId);
+        dobleImpresionEnabled = businessInfo?.dobleImpresionEnabled === true;
+        console.log("📋 Business info obtenida:", {
+          businessInfo: !!businessInfo,
+          dobleImpresionEnabled,
+        });
+      } else {
+        console.log(
+          "⚠️ No se proporcionaron API_URL o appId, usando impresión simple"
+        );
+      }
 
       // Simular el ticket antes de imprimir
       console.log("\n====== SIMULACIÓN DEL TICKET ======");
@@ -122,8 +147,8 @@ export const useTicketPrinting = () => {
       console.log("\n¡Gracias por su compra!");
       console.log("==============================\n");
 
-      // Intentar imprimir - probar múltiples métodos de acceso a la API
-      try {
+      // ✅ NUEVO: Función auxiliar para realizar una impresión
+      const performSinglePrint = async (): Promise<any> => {
         let result;
         let apiUsed = "";
 
@@ -160,22 +185,88 @@ export const useTicketPrinting = () => {
         }
 
         console.log(`📄 Resultado de impresión (${apiUsed}):`, result);
+        return { result, apiUsed };
+      };
 
-        if (result && result.success && !result.printerError) {
-          toast.success("Ticket impreso correctamente");
-        } else if (result && result.printerError) {
-          // Error específico de la impresora TP806L - mostrar toast de error pero no fallar
-          console.error("❌ Error de impresora TP806L:", result.printerError);
-          toast.error(`Error de impresión: ${result.printerError}`, {
-            description:
-              "La venta se completó correctamente pero no se pudo imprimir el ticket",
-          });
-        } else {
-          // Error general - mostrar toast de error
-          console.error("❌ Error general al imprimir:", result?.message);
-          toast.error(
-            `Error al imprimir el ticket: ${result?.message || "Desconocido"}`
+      // ✅ NUEVO: Implementar lógica de doble impresión
+      try {
+        if (dobleImpresionEnabled) {
+          console.log(
+            "🖨️🖨️ DOBLE IMPRESIÓN HABILITADA - Imprimiendo 2 tickets"
           );
+
+          // Primera impresión
+          console.log("📄 Realizando primera impresión...");
+          const { result: result1, apiUsed } = await performSinglePrint();
+
+          if (result1 && result1.success && !result1.printerError) {
+            console.log("✅ Primera impresión exitosa");
+
+            // Esperar un momento entre impresiones para evitar conflictos
+            console.log(
+              "⏱️ Esperando 1 segundo antes de la segunda impresión..."
+            );
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+
+            // Segunda impresión
+            console.log("📄 Realizando segunda impresión...");
+            const { result: result2 } = await performSinglePrint();
+
+            if (result2 && result2.success && !result2.printerError) {
+              console.log("✅ Segunda impresión exitosa");
+              toast.success("Doble ticket impreso correctamente", {
+                description: "Se imprimieron 2 tickets como está configurado",
+              });
+            } else {
+              console.log(
+                "⚠️ Segunda impresión falló, pero la primera fue exitosa"
+              );
+              toast.warning("Primer ticket impreso, segundo falló", {
+                description:
+                  "Se imprimió solo un ticket debido a un error en la segunda impresión",
+              });
+            }
+          } else {
+            console.log("❌ Primera impresión falló");
+            if (result1 && result1.printerError) {
+              console.error(
+                "❌ Error de impresora TP806L:",
+                result1.printerError
+              );
+              toast.error(`Error de impresión: ${result1.printerError}`, {
+                description:
+                  "La venta se completó correctamente pero no se pudo imprimir el ticket",
+              });
+            } else {
+              console.error("❌ Error general al imprimir:", result1?.message);
+              toast.error(
+                `Error al imprimir el ticket: ${
+                  result1?.message || "Desconocido"
+                }`
+              );
+            }
+          }
+        } else {
+          // Impresión simple (comportamiento original)
+          console.log("🖨️ IMPRESIÓN SIMPLE - Imprimiendo 1 ticket");
+          const { result, apiUsed } = await performSinglePrint();
+
+          if (result && result.success && !result.printerError) {
+            toast.success("Ticket impreso correctamente");
+          } else if (result && result.printerError) {
+            // Error específico de la impresora TP806L - mostrar toast de error pero no fallar
+            console.error("❌ Error de impresora TP806L:", result.printerError);
+            toast.error(`Error de impresión: ${result.printerError}`, {
+              description:
+                "La venta se completó correctamente pero no se pudo imprimir el ticket",
+            });
+          } else {
+            // Error general - mostrar toast de error
+            console.error("❌ Error general al imprimir:", result?.message);
+            toast.error(
+              `Error al imprimir el ticket: ${result?.message || "Desconocido"}`
+            );
+          }
         }
 
         // Siempre retornar true para no cortar el proceso de venta

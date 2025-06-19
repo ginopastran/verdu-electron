@@ -1,23 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import QRCode from "qrcode";
 import { Product } from "./useCartState";
 import { getBusinessName, getAdminData } from "@/utils/businessHelpers";
+import { useTicketPrinting } from "@/hooks/useTicketPrinting";
 
-// Declaración de tipos para window
-declare global {
-  interface Window {
-    printer?: {
-      printTicket: (orderData: any) => Promise<any>;
-      printClosing: (closingData: any) => Promise<any>;
-    };
-    electron?: {
-      ipcRenderer: {
-        invoke: (channel: string, ...args: any[]) => Promise<any>;
-      };
-    };
-  }
-}
+// Tipos ya declarados en otros archivos
 
 interface PaymentOptions {
   user: any;
@@ -25,9 +13,9 @@ interface PaymentOptions {
   appId: string | null;
   clearCart: () => void;
   calculateTotal: () => number;
-  setPaymentDialogOpen?: (open: boolean) => void;
-  setQrDialogOpen?: (open: boolean) => void;
-  setSplitPaymentDialogOpen?: (open: boolean) => void;
+  setPaymentDialogOpen: (open: boolean) => void;
+  setQrDialogOpen: (open: boolean) => void;
+  setSplitPaymentDialogOpen: (open: boolean) => void;
 }
 
 // Declara la interface para las funciones y estados externos que se inyectarán
@@ -84,6 +72,11 @@ export function usePaymentProcessing({
   const [originalAmount, setOriginalAmount] = useState<number>(0);
   const [roundedAmount, setRoundedAmount] = useState<number>(0);
   const [applyingDiscount, setApplyingDiscount] = useState(false);
+
+  // Estados para el sistema de pago exacto
+  const [exactPaymentDialogOpen, setExactPaymentDialogOpen] = useState(false);
+  const [paidAmount, setPaidAmount] = useState<number>(0);
+  const [changeAmount, setChangeAmount] = useState<number>(0);
 
   // Estado para pago mixto
   const [cashAmount, setCashAmount] = useState<string>("");
@@ -276,7 +269,41 @@ export function usePaymentProcessing({
     }
   };
 
-  // Función para manejar un pago en efectivo con redondeo
+  // Función para confirmar pago exacto con vuelto
+  const confirmExactPayment = async (
+    paidAmount: number,
+    change: number,
+    items: Product[]
+  ) => {
+    console.log("💰 EXACT PAYMENT: Confirmando pago exacto:", {
+      paidAmount,
+      change,
+      totalAmount: roundedAmount,
+    });
+
+    setIsProcessingPayment(true);
+
+    try {
+      // Procesar el pago con el monto total original (no el pagado)
+      await processPayment("efectivo", roundedAmount, items);
+
+      // Cerrar el diálogo de pago exacto
+      setExactPaymentDialogOpen(false);
+
+      // Guardar información del vuelto para logs o futura referencia
+      setPaidAmount(paidAmount);
+      setChangeAmount(change);
+
+      console.log("✅ EXACT PAYMENT: Pago completado exitosamente");
+    } catch (error) {
+      console.error("❌ EXACT PAYMENT: Error al procesar pago:", error);
+      toast.error("Error al procesar el pago exacto");
+    } finally {
+      setIsProcessingPayment(false);
+    }
+  };
+
+  // Función para manejar un pago en efectivo con redondeo o pago exacto
   const handleCashPayment = (businessInfo: any, withDiscount = false) => {
     console.log(
       "🛒 EFECTIVO: Iniciando proceso de pago en efectivo",
@@ -289,7 +316,8 @@ export function usePaymentProcessing({
       descuentoEfectivo: businessInfo?.descuentoEfectivo,
     });
 
-    // Establecer el estado de descuento
+    // Establecer efectivo como método seleccionado
+    setSelectedPaymentMethod("efectivo");
     setApplyingDiscount(withDiscount);
 
     // Calcular los importes para cualquier caso
@@ -312,33 +340,44 @@ export function usePaymentProcessing({
       });
     }
 
-    // Para pagos en efectivo, siempre aplicar redondeo a múltiplos de 50
-    let roundedTotal = finalTotal;
-    // Aplicar redondeo en efectivo independientemente de la configuración sistemaPago
-    roundedTotal = roundToNearest50(finalTotal);
-    console.log("🧮 EFECTIVO: Cálculos de redondeo:", {
-      finalTotal,
-      roundedTotal,
-      diferencia: finalTotal - roundedTotal,
-      sistemaRedondeo: businessInfo?.sistemaPago,
-      redondeoAplicado: true,
-    });
+    // Decidir qué flujo usar según el sistemaPago
+    if (businessInfo?.sistemaPago === "pago-exacto") {
+      console.log("💰 EFECTIVO: Usando sistema de pago exacto con vuelto");
 
-    // Guardar los montos calculados en el estado
-    setOriginalAmount(originalTotal);
-    setRoundedAmount(roundedTotal);
+      // Guardar los montos para el sistema de pago exacto
+      setOriginalAmount(originalTotal);
+      setRoundedAmount(finalTotal); // En pago exacto, el monto final es el que hay que cobrar
 
-    console.log("💾 Valores guardados en estado:", {
-      originalAmount: originalTotal,
-      roundedAmount: roundedTotal,
-      diferencia: originalTotal - roundedTotal,
-    });
+      console.log("💾 Abriendo diálogo de pago exacto para total:", finalTotal);
 
-    // Establecer efectivo como método seleccionado
-    setSelectedPaymentMethod("efectivo");
+      // Abrir diálogo de pago exacto
+      setExactPaymentDialogOpen(true);
+    } else {
+      // Sistema de redondeo (por defecto)
+      console.log("🧮 EFECTIVO: Usando sistema de redondeo tradicional");
 
-    // Mostrar diálogo de redondeo o confirmación
-    setRoundedAmountDialogOpen(true);
+      let roundedTotal = roundToNearest50(finalTotal);
+      console.log("🧮 EFECTIVO: Cálculos de redondeo:", {
+        finalTotal,
+        roundedTotal,
+        diferencia: finalTotal - roundedTotal,
+        sistemaRedondeo: businessInfo?.sistemaPago,
+        redondeoAplicado: true,
+      });
+
+      // Guardar los montos calculados en el estado
+      setOriginalAmount(originalTotal);
+      setRoundedAmount(roundedTotal);
+
+      console.log("💾 Valores guardados en estado:", {
+        originalAmount: originalTotal,
+        roundedAmount: roundedTotal,
+        diferencia: originalTotal - roundedTotal,
+      });
+
+      // Mostrar diálogo de redondeo o confirmación
+      setRoundedAmountDialogOpen(true);
+    }
   };
 
   // Función para generar un pago QR
@@ -711,6 +750,10 @@ export function usePaymentProcessing({
     setApplyingDiscount(false);
     setManualQrPasswordDialogOpen(false);
     setManualQrPassword("");
+    // Nuevos estados para pago exacto
+    setExactPaymentDialogOpen(false);
+    setPaidAmount(0);
+    setChangeAmount(0);
     cleanupPolling();
   };
 
@@ -1277,7 +1320,7 @@ export function usePaymentProcessing({
   const handleTicketPrinting = async (orderData: any): Promise<boolean> => {
     try {
       console.log("====== SIMULACIÓN DEL TICKET ======");
-      console.log("ISELIN II");
+      console.log(`Negocio: ${orderData.businessName}`);
       console.log(`Vendedor: ${orderData.vendedor}`);
       console.log(
         `Fecha: ${formatFechaArgentina(orderData.createdAt || orderData.fecha)}`
@@ -1324,50 +1367,33 @@ export function usePaymentProcessing({
       console.log("¡Gracias por su compra!");
       console.log("==============================");
 
-      // Intentar imprimir - usar window.electron.ipcRenderer que ya funciona
+      // ✅ NUEVO: Usar el hook de impresión con soporte para doble impresión
+      const { handleTicketPrinting: printTicket } = useTicketPrinting();
+
+      // Obtener appId de forma simple para evitar conflictos de tipos
+      let appId: string | null = null;
       try {
-        if (typeof window !== "undefined" && window.electron?.ipcRenderer) {
-          console.log("📄 Enviando datos para impresión:", orderData);
-
-          const result = await window.electron.ipcRenderer.invoke(
-            "print-ticket",
-            orderData
+        if (
+          typeof window !== "undefined" &&
+          (window as any).electron?.process?.argv
+        ) {
+          const argv = (window as any).electron.process.argv as string[];
+          const appIdArg = argv.find((arg: string) =>
+            arg.startsWith("--app-id=")
           );
-          console.log("📄 Resultado de impresión:", result);
-
-          if (result.success && !result.printerError) {
-            toast.success("Ticket impreso correctamente");
-          } else if (result.printerError) {
-            // Error específico de la impresora TP806L - mostrar toast de error pero no fallar
-            console.error("❌ Error de impresora TP806L:", result.printerError);
-            toast.error(`Error de impresión: ${result.printerError}`, {
-              description:
-                "La venta se completó correctamente pero no se pudo imprimir el ticket",
-            });
-          } else {
-            // Error general - mostrar toast de error
-            console.error("❌ Error general al imprimir:", result.message);
-            toast.error(
-              `Error al imprimir el ticket: ${result.message || "Desconocido"}`
-            );
+          if (appIdArg) {
+            appId = appIdArg.split("=")[1];
           }
-        } else {
-          throw new Error("API de impresión no disponible");
         }
-
-        // Siempre retornar true para no cortar el proceso de venta
-        // Solo la impresión falló, la venta está completa
-        return true;
-      } catch (printerError: any) {
-        // Si no se puede acceder a la impresora, mostrar error específico
-        console.error("❌ Error al acceder a la impresora:", printerError);
-        toast.error("Error de conexión con la impresora", {
-          description: "No se pudo conectar con el sistema de impresión",
-        });
-        return true;
+      } catch (error) {
+        console.log("⚠️ No se pudo obtener appId, usando null");
+        appId = null;
       }
+
+      // Llamar a la función de impresión con los parámetros necesarios
+      return await printTicket(orderData, API_URL, appId);
     } catch (error: any) {
-      console.error("❌ Error al imprimir (catch):", error);
+      console.error("❌ Error al imprimir:", error);
       toast.error(
         `Error al imprimir el ticket: ${error.message || "Desconocido"}`,
         {
@@ -1487,6 +1513,10 @@ export function usePaymentProcessing({
     applyingDiscount,
     manualQrPasswordDialogOpen,
     manualQrPassword,
+    // Nuevos estados para pago exacto
+    exactPaymentDialogOpen,
+    paidAmount,
+    changeAmount,
 
     // Métodos
     processPayment,
@@ -1501,6 +1531,8 @@ export function usePaymentProcessing({
     completarOrdenManualmente,
     handleManualQrPasswordSubmit,
     handleTicketPrinting,
+    // Nueva función para pago exacto
+    confirmExactPayment,
 
     // Setters
     setCashAmount,
@@ -1508,5 +1540,9 @@ export function usePaymentProcessing({
     setRoundedAmountDialogOpen,
     setManualQrPasswordDialogOpen,
     setManualQrPassword,
+    // Nuevos setters para pago exacto
+    setExactPaymentDialogOpen,
+    setPaidAmount,
+    setChangeAmount,
   };
 }

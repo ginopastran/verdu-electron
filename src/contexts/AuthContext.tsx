@@ -75,9 +75,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
+    console.log("🚪 AuthContext: Iniciando logout...");
+
+    // Limpiar datos del usuario
     localStorage.removeItem("user");
     localStorage.removeItem("offlineCredentials");
     setUser(null);
+
+    // ✅ AGREGADO: Emitir evento personalizado para notificar logout a otros componentes
+    window.dispatchEvent(
+      new CustomEvent("userLogout", {
+        detail: {
+          timestamp: Date.now(),
+          reason: "manual_logout",
+        },
+      })
+    );
+
+    console.log("✅ AuthContext: Logout completado y evento emitido");
   };
 
   const refreshUserData = async () => {

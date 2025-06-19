@@ -48,3 +48,45 @@ export const getAdminData = async () => {
     return null;
   }
 };
+
+// Helper para obtener información completa del business desde la API
+export const getBusinessInfo = async (
+  API_URL: string,
+  appId: string | null
+): Promise<any> => {
+  try {
+    // Primero obtener businessId
+    const adminData = await getAdminData();
+    if (!adminData?.businessId) {
+      console.warn("⚠️ No se encontró businessId en adminData");
+      return null;
+    }
+
+    const businessId = adminData.businessId;
+    console.log("🏢 Obteniendo información del business ID:", businessId);
+
+    // Hacer llamada a la API
+    const response = await fetch(`${API_URL}/api/business/${businessId}`, {
+      headers: {
+        "Content-Type": "application/json",
+        ...(appId && { "X-App-ID": appId }),
+      },
+    });
+
+    if (!response.ok) {
+      console.error(
+        "❌ Error en la respuesta al obtener business info:",
+        response.status
+      );
+      return null;
+    }
+
+    const businessInfo = await response.json();
+    console.log("✅ Información del business obtenida:", businessInfo);
+
+    return businessInfo;
+  } catch (error) {
+    console.error("❌ Error al obtener información del business:", error);
+    return null;
+  }
+};
