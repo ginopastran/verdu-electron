@@ -2,13 +2,15 @@ import { Navigate } from "react-router-dom";
 import { useBusiness } from "@/contexts/BusinessContext";
 
 export default function AppRouter() {
-  const { hasAdminConfigured, loading } = useBusiness();
+  const { hasAdminConfigured, loading, adminData } = useBusiness();
 
   console.log(
     "🎯 AppRouter render - loading:",
     loading,
     "hasAdminConfigured:",
-    hasAdminConfigured()
+    hasAdminConfigured(),
+    "adminData:",
+    !!adminData
   );
 
   if (loading) {
@@ -26,18 +28,20 @@ export default function AppRouter() {
   // Si no hay admin configurado, redirigir a AdminLogin
   if (!hasAdminConfigured()) {
     console.log("🔄 Redirigiendo a /admin-login (no hay admin configurado)");
+    console.log("🔍 Estado de configuración:", {
+      adminData: !!adminData,
+      hasAdminConfigured: hasAdminConfigured(),
+    });
     return <Navigate to="/admin-login" replace />;
   }
 
   // Si hay admin configurado, redirigir a UserLogin
   console.log("🔄 Redirigiendo a /user-login (admin configurado)");
-
-  // DEBUG: Usar setTimeout para ver si la navegación está funcionando
-  setTimeout(() => {
-    console.log("🕐 Verificando que la navegación funcionó...");
-    console.log("🌐 URL actual:", window.location.href);
-    console.log("🌐 Pathname:", window.location.pathname);
-  }, 100);
+  console.log("🔍 Configuración válida:", {
+    adminData: !!adminData,
+    businessId: adminData?.businessId,
+    businessName: adminData?.businessName,
+  });
 
   return <Navigate to="/user-login" replace />;
 }

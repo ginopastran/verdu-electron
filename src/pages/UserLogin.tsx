@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -52,6 +52,7 @@ export default function UserLoginPage() {
   const { businessId, adminData, clearAdminData } = useBusiness();
   const { isOnline } = useOfflineMode();
   const { saveOfflineCredentials } = useOfflineAuth();
+  const navigate = useNavigate();
 
   console.log("📊 UserLogin state:", {
     businessId,
@@ -320,10 +321,73 @@ export default function UserLoginPage() {
     }
   };
 
-  // Handle reconfigure business
+  // ✅ MEJORADO: Handle reconfigure business con navegación robusta
   const handleReconfigure = async () => {
-    await clearAdminData();
-    // Esto hará que la app redirija al AdminLogin automáticamente
+    try {
+      console.log("🔄 Iniciando reconfiguración del negocio...");
+
+      // Mostrar feedback visual inmediato
+      toast.info("Reconfigurar negocio", {
+        description: "Limpiando configuración actual...",
+        duration: 2000,
+      });
+
+      // Limpiar datos del admin
+      await clearAdminData();
+      console.log("✅ Datos del admin limpiados");
+
+      // Limpiar cualquier estado de autenticación actual
+      updateUser(null);
+      console.log("✅ Usuario deslogueado");
+
+      // Limpiar cualquier cache/estado local adicional
+      if (typeof window !== "undefined") {
+        // Limpiar localStorage relacionado con autenticación
+        localStorage.removeItem("offlineCredentials");
+        console.log("✅ Cache offline limpiado");
+      }
+
+      // Usar navegación programática directa con fallback
+      console.log("🚀 Navegando a /admin-login");
+      navigate("/admin-login", { replace: true });
+
+      // Verificar navegación después de un tiempo
+      setTimeout(() => {
+        console.log("🔍 Verificando navegación...");
+        console.log("🌐 URL actual:", window.location.pathname);
+
+        if (window.location.pathname !== "/admin-login") {
+          console.log("⚠️ Navegación falló, intentando forzar...");
+          // Fallback usando window.location
+          window.location.href = "#/admin-login";
+
+          // Si aún falla, recargar completamente
+          setTimeout(() => {
+            if (window.location.pathname !== "/admin-login") {
+              console.log("🔄 Forzando recarga para limpiar estado...");
+              window.location.reload();
+            }
+          }, 1000);
+        } else {
+          toast.success("Configuración limpiada", {
+            description: "Redirigido al login de administrador",
+            duration: 3000,
+          });
+        }
+      }, 500);
+    } catch (error) {
+      console.error("❌ Error durante la reconfiguración:", error);
+      toast.error("Error al reconfigurar", {
+        description:
+          "No se pudo limpiar la configuración. Recargando aplicación...",
+        duration: 3000,
+      });
+
+      // Como último recurso, recargar la página para limpiar todo
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
+    }
   };
 
   // If user should be redirected, do it
@@ -342,7 +406,8 @@ export default function UserLoginPage() {
             variant="outline"
             size="sm"
             onClick={handleReconfigure}
-            className="flex items-center gap-2"
+            className="flex items-center gap-2 hover:bg-orange-50 hover:border-orange-300 hover:text-orange-700 transition-colors"
+            title="Limpiar configuración actual y volver al login de administrador"
           >
             <Settings className="h-4 w-4" />
             Reconfigurar
