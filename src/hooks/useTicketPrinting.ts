@@ -194,156 +194,80 @@ export const useTicketPrinting = () => {
       console.log("\n¡Gracias por su compra!");
       console.log("==============================\n");
 
-      // ✅ NUEVO: Función auxiliar para realizar una impresión
-      const performSinglePrint = async (): Promise<any> => {
-        let result;
-        let apiUsed = "";
-
+      // ✅ FUNCIÓN SIMPLE para llamar al script PHP de impresión
+      const callPrintScript = async () => {
         // Método 1: Usar window.printer (API específica para impresión)
         if (typeof window !== "undefined" && window.printer?.printTicket) {
-          console.log("🖨️ Usando window.printer.printTicket");
-          apiUsed = "window.printer";
-          result = await window.printer.printTicket(orderData);
+          console.log("🖨️ Llamando script PHP via window.printer.printTicket");
+          return await window.printer.printTicket(orderData);
         }
         // Método 2: Usar window.electron.ipcRenderer (API general)
         else if (
           typeof window !== "undefined" &&
           window.electron?.ipcRenderer
         ) {
-          console.log("📡 Usando window.electron.ipcRenderer");
-          apiUsed = "window.electron";
-          result = await window.electron.ipcRenderer.invoke(
+          console.log("🖨️ Llamando script PHP via window.electron.ipcRenderer");
+          return await window.electron.ipcRenderer.invoke(
             "print-ticket",
             orderData
           );
         }
         // Si ninguna API está disponible
         else {
-          // Verificar qué APIs están disponibles para debug
-          console.log("🔍 Debug - APIs disponibles:", {
-            electron: typeof window.electron,
-            printer: typeof window.printer,
-            electronStore: typeof (window as any).electronStore,
-            autoUpdater: typeof (window as any).autoUpdater,
-          });
-          throw new Error(
-            "API de Electron no disponible - ninguna API de impresión encontrada"
-          );
+          throw new Error("API de Electron no disponible");
         }
-
-        console.log(`📄 Resultado de impresión (${apiUsed}):`, result);
-        return { result, apiUsed };
       };
 
-      // ✅ NUEVO: Debug antes de la decisión de impresión
-      console.log("🔍 DEBUG: ANTES DE LA DECISIÓN DE IMPRESIÓN:", {
+      // ✅ LÓGICA SÚPER SIMPLE: Si dobleImpresionEnabled = true, hacer 2 llamadas
+      console.log("🔍 DEBUG DOBLE IMPRESIÓN:", {
         dobleImpresionEnabled,
-        tipoValor: typeof dobleImpresionEnabled,
-        condicionIf: dobleImpresionEnabled === true,
         businessInfoExists: !!businessInfo,
-        valorOriginalBusiness: businessInfo?.dobleImpresionEnabled,
+        valorOriginal: businessInfo?.dobleImpresionEnabled,
       });
 
-      // ✅ NUEVO: Implementar lógica de doble impresión
       try {
-        if (dobleImpresionEnabled) {
+        if (dobleImpresionEnabled === true) {
           console.log(
-            "🖨️🖨️ DOBLE IMPRESIÓN HABILITADA - Imprimiendo 2 tickets"
+            "🖨️🖨️ DOBLE IMPRESIÓN ACTIVADA - Mandando 2 impresiones al script PHP"
           );
-          console.log("🎯 ENTRANDO EN FLUJO DE DOBLE IMPRESIÓN");
 
-          // Primera impresión
-          console.log("📄 Realizando primera impresión...");
-          const { result: result1, apiUsed } = await performSinglePrint();
+          // ✅ PRIMERA IMPRESIÓN
+          console.log("📄 1️⃣ Primera llamada al script PHP...");
+          const result1 = await callPrintScript();
+          console.log("📄 1️⃣ Resultado primera impresión:", result1);
 
-          console.log("🔍 DEBUG: Resultado primera impresión:", {
-            result1,
-            success: result1?.success,
-            printerError: result1?.printerError,
-            apiUsed,
-          });
+          // ✅ SEGUNDA IMPRESIÓN (después de un pequeño delay)
+          await new Promise((resolve) => setTimeout(resolve, 500));
+          console.log("📄 2️⃣ Segunda llamada al script PHP...");
+          const result2 = await callPrintScript();
+          console.log("📄 2️⃣ Resultado segunda impresión:", result2);
 
-          if (result1 && result1.success && !result1.printerError) {
-            console.log("✅ Primera impresión exitosa");
-
-            // Esperar un momento entre impresiones para evitar conflictos
-            console.log(
-              "⏱️ Esperando 1 segundo antes de la segunda impresión..."
-            );
-            await new Promise((resolve) => setTimeout(resolve, 1000));
-
-            // Segunda impresión
-            console.log("📄 Realizando segunda impresión...");
-            const { result: result2 } = await performSinglePrint();
-
-            console.log("🔍 DEBUG: Resultado segunda impresión:", {
-              result2,
-              success: result2?.success,
-              printerError: result2?.printerError,
+          // Mostrar resultado
+          if (result1?.success && result2?.success) {
+            toast.success("Doble ticket impreso correctamente", {
+              description: "Se mandaron 2 impresiones al script PHP",
             });
-
-            if (result2 && result2.success && !result2.printerError) {
-              console.log("✅ Segunda impresión exitosa");
-              toast.success("Doble ticket impreso correctamente", {
-                description: "Se imprimieron 2 tickets como está configurado",
-              });
-            } else {
-              console.log(
-                "⚠️ Segunda impresión falló, pero la primera fue exitosa"
-              );
-              toast.warning("Primer ticket impreso, segundo falló", {
-                description:
-                  "Se imprimió solo un ticket debido a un error en la segunda impresión",
-              });
-            }
           } else {
-            console.log("❌ Primera impresión falló");
-            if (result1 && result1.printerError) {
-              console.error(
-                "❌ Error de impresora TP806L:",
-                result1.printerError
-              );
-              toast.error(`Error de impresión: ${result1.printerError}`, {
-                description:
-                  "La venta se completó correctamente pero no se pudo imprimir el ticket",
-              });
-            } else {
-              console.error("❌ Error general al imprimir:", result1?.message);
-              toast.error(
-                `Error al imprimir el ticket: ${
-                  result1?.message || "Desconocido"
-                }`
-              );
-            }
+            toast.warning("Problemas con la doble impresión", {
+              description: `Primera: ${
+                result1?.success ? "OK" : "Error"
+              }, Segunda: ${result2?.success ? "OK" : "Error"}`,
+            });
           }
         } else {
-          // Impresión simple (comportamiento original)
-          console.log("🖨️ IMPRESIÓN SIMPLE - Imprimiendo 1 ticket");
-          console.log("🎯 ENTRANDO EN FLUJO DE IMPRESIÓN SIMPLE");
-          console.log("🔍 DEBUG: Razón para impresión simple:", {
-            dobleImpresionEnabled,
-            businessInfoExists: !!businessInfo,
-            API_URL_proporcionado: !!API_URL,
-            appId_proporcionado: appId !== undefined,
-            valorOriginalBusiness: businessInfo?.dobleImpresionEnabled,
-          });
-          const { result, apiUsed } = await performSinglePrint();
+          console.log(
+            "🖨️ IMPRESIÓN SIMPLE - Mandando 1 impresión al script PHP"
+          );
+          console.log("📄 Única llamada al script PHP...");
+          const result = await callPrintScript();
+          console.log("📄 Resultado impresión simple:", result);
 
-          if (result && result.success && !result.printerError) {
+          if (result?.success) {
             toast.success("Ticket impreso correctamente");
-          } else if (result && result.printerError) {
-            // Error específico de la impresora TP806L - mostrar toast de error pero no fallar
-            console.error("❌ Error de impresora TP806L:", result.printerError);
-            toast.error(`Error de impresión: ${result.printerError}`, {
-              description:
-                "La venta se completó correctamente pero no se pudo imprimir el ticket",
-            });
+          } else if (result?.printerError) {
+            toast.error(`Error de impresión: ${result.printerError}`);
           } else {
-            // Error general - mostrar toast de error
-            console.error("❌ Error general al imprimir:", result?.message);
-            toast.error(
-              `Error al imprimir el ticket: ${result?.message || "Desconocido"}`
-            );
+            toast.error("Error al imprimir el ticket");
           }
         }
 
