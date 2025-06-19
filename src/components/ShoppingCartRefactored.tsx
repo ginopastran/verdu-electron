@@ -32,6 +32,7 @@ import {
 
 // Hooks
 import { useAuth } from "@/contexts/AuthContext";
+import { useCartSidebar } from "@/contexts/CartSidebarContext";
 import { useCartState } from "@/hooks/useCartState";
 import { usePaymentProcessing } from "@/hooks/usePaymentProcessing";
 import { useScaleWeight } from "@/hooks/useScaleWeight";
@@ -49,10 +50,8 @@ import {
   CartItem,
   CartSummary,
   CartTabs,
-  ProductSearch,
   PaymentDialog,
   ManualQrDialog,
-  BackgroundLayout,
   HeaderActions,
   ClosingDialog,
   QRPaymentDialog,
@@ -79,6 +78,7 @@ interface Product {
 
 export default function ShoppingCartRefactored() {
   const { user, logout } = useAuth();
+  const { selectedProductFromSidebar, clearSelectedProduct } = useCartSidebar();
   const API_URL = import.meta.env.VITE_API_URL;
   const searchInputRef = useRef<HTMLInputElement>(
     null
@@ -142,8 +142,8 @@ export default function ShoppingCartRefactored() {
 
   function getAppId() {
     return (
-      window.electron?.process?.argv
-        ?.find((arg) => arg.startsWith("--app-id="))
+      (window as any).electron?.process?.argv
+        ?.find((arg: string) => arg.startsWith("--app-id="))
         ?.split("=")[1] || null
     );
   }
@@ -385,11 +385,22 @@ export default function ShoppingCartRefactored() {
     }
 
     // Para otros métodos (tarjeta), procesar directamente
-    await paymentProcessor.processPayment(
-      method,
-      Number(cartState.calculateTotal().toFixed(2)),
-      cartState.getCurrentItems()
-    );
+    try {
+      await paymentProcessor.processPayment(
+        method,
+        Number(cartState.calculateTotal().toFixed(2)),
+        cartState.getCurrentItems()
+      );
+      // ✅ MEJORADO: Estados se limpian en processPayment, pero asegurar limpieza local
+      setIsProcessingPayment(false);
+      setSelectedPaymentMethod(null);
+    } catch (error: any) {
+      console.error("❌ Error al procesar pago:", error);
+      // ✅ MEJORADO: Limpiar estados en caso de error
+      setIsProcessingPayment(false);
+      setSelectedPaymentMethod(null);
+      setPaymentDialogOpen(false);
+    }
   };
 
   // Confirmar pago redondeado en efectivo
@@ -440,11 +451,19 @@ export default function ShoppingCartRefactored() {
         cartState.getCurrentItems()
       );
       console.log("🔄 processPayment llamado exitosamente");
+
+      // ✅ MEJORADO: Limpiar estados locales después de éxito
+      setIsProcessingPayment(false);
+      setSelectedPaymentMethod(null);
+
       // NO cerrar el diálogo aquí - se cerrará en processPayment después del éxito
     } catch (error) {
       console.error("❌ Error al procesar pago:", error);
       toast.error("Error al procesar el pago");
+
+      // ✅ MEJORADO: Limpiar estados en caso de error
       setIsProcessingPayment(false);
+      setSelectedPaymentMethod(null);
       paymentProcessor.setRoundedAmountDialogOpen(false);
     }
     console.log("🔄 =========================");
@@ -533,31 +552,31 @@ export default function ShoppingCartRefactored() {
     };
   }, [qrDialogOpen]);
 
+  // Escuchar productos seleccionados desde el sidebar
+  useEffect(() => {
+    if (selectedProductFromSidebar) {
+      handleProductSelect(selectedProductFromSidebar);
+      clearSelectedProduct();
+    }
+  }, [selectedProductFromSidebar, clearSelectedProduct]);
+
   // Mostrar loading mientras se carga la información del negocio
   if (businessInfoLoading) {
     return (
-      <BackgroundLayout>
-        <div className="flex items-center justify-center h-full">
-          <div className="flex flex-col items-center gap-4">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
-            <p className="text-gray-600">
-              Cargando configuración del negocio...
-            </p>
-          </div>
+      <div className="flex items-center justify-center h-full p-6">
+        <div className="flex flex-col items-center gap-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
+          <p className="text-gray-600">Cargando configuración del negocio...</p>
         </div>
-      </BackgroundLayout>
+      </div>
     );
   }
 
   return (
-    <BackgroundLayout>
+    <div className="flex flex-col h-full p-6">
       {/* Header section */}
       <div className="flex w-full items-center mb-4 gap-2 justify-start">
         <div className="flex items-center gap-1">
-          <ProductSearch
-            onProductSelect={handleProductSelect}
-            inputRef={searchInputRef}
-          />
           <CartTabs
             screens={cartState.screens}
             activeScreen={cartState.activeScreen}
@@ -614,6 +633,9 @@ export default function ShoppingCartRefactored() {
       <PaymentDialog
         isOpen={paymentDialogOpen}
         onClose={() => {
+          console.log(
+            "🚪 REFACTORED: Cerrando PaymentDialog - reseteando estados"
+          );
           setPaymentDialogOpen(false);
           paymentProcessor.resetPaymentState();
           setIsProcessingPayment(false);
@@ -629,6 +651,9 @@ export default function ShoppingCartRefactored() {
         open={paymentProcessor.roundedAmountDialogOpen}
         onOpenChange={(open) => {
           if (!open) {
+            console.log(
+              "🚪 REFACTORED: Cerrando CashPaymentDialog - reseteando estados"
+            );
             paymentProcessor.setRoundedAmountDialogOpen(false);
             paymentProcessor.resetPaymentState();
             setIsProcessingPayment(false);
@@ -651,6 +676,9 @@ export default function ShoppingCartRefactored() {
         }}
         onConfirm={confirmRoundedPayment}
         onCancel={() => {
+          console.log(
+            "❌ REFACTORED: Cancelando CashPaymentDialog - reseteando estados"
+          );
           paymentProcessor.setRoundedAmountDialogOpen(false);
           paymentProcessor.resetPaymentState();
           setIsProcessingPayment(false);
@@ -704,6 +732,6 @@ export default function ShoppingCartRefactored() {
         formatFechaArgentina={formatFechaArgentina}
         handleTicketPrinting={handleTicketPrinting}
       />
-    </BackgroundLayout>
+    </div>
   );
 }

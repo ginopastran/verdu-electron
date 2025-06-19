@@ -17,6 +17,7 @@ import AdminMessage from "./components/AdminMessage";
 import AppRouter from "./components/AppRouter";
 import UpdateNotification from "./components/UpdateNotification";
 import { ElectronDebug } from "./components/ElectronDebug";
+import { CartWrapper } from "./components/CartWrapper";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -54,7 +55,7 @@ export default function App() {
                 path="/cart"
                 element={
                   <ProtectedRoute>
-                    <ShoppingCartRefactored />
+                    <CartWrapper />
                   </ProtectedRoute>
                 }
               />
@@ -62,7 +63,7 @@ export default function App() {
                 path="/cart-refactored"
                 element={
                   <ProtectedRoute>
-                    <ShoppingCartRefactored />
+                    <CartWrapper />
                   </ProtectedRoute>
                 }
               />

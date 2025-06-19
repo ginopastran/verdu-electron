@@ -25,7 +25,9 @@ export function CartTabs({
             variant={activeScreen === screen.id ? "default" : "outline"}
             size="sm"
             onClick={() => onChangeScreen(screen.id)}
-            className={`h-8 rounded-r-none ${screen.id > 0 ? "ml-0.5" : ""}`}
+            className={`h-8 rounded-lg px-8 py-5 text-white ${
+              screen.id > 0 ? "ml-4" : ""
+            } ${activeScreen === screen.id ? "bg-black" : "bg-gray-300"}`}
           >
             Orden {screen.id + 1}
           </Button>

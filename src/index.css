@@ -92,14 +92,14 @@ body {
     z-index: 1;
   }
 
-  .bg-emerald-gradient::after {
+  /* .bg-emerald-gradient::after {
     content: "";
     @apply absolute inset-0 rounded-md;
     background: linear-gradient(to bottom right, #1f5444, #0a3a2b);
     opacity: 0;
     z-index: -1;
     transition: opacity 0.3s ease-in-out;
-  }
+  } */
 
   .bg-emerald-gradient:hover::after {
     opacity: 1;

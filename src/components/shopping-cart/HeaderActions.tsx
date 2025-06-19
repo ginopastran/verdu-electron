@@ -36,7 +36,7 @@ export const HeaderActions = ({
         </Button>
       )}
 
-      <UserMenu user={userMenuUser} />
+      {/* <UserMenu user={userMenuUser} /> */}
     </div>
   );
 };

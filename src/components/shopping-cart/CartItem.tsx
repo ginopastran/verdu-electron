@@ -10,7 +10,7 @@ interface CartItemProps {
 
 export function CartItem({ item, onRemove }: CartItemProps) {
   return (
-    <Card className="bg-background border p-4 flex items-center justify-between shadow-sm rounded-xl">
+    <Card className="bg-background border p-4 flex items-center justify-between shadow-sm rounded-xl border-[#A7A7A7]">
       <div className="flex justify-between w-full items-center">
         <div className="flex justify-between items-end gap-10">
           <span className="text-2xl font-medium">{item.name}</span>

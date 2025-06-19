@@ -193,6 +193,7 @@ export function usePaymentProcessing({
       vendedorId: user.id,
       sucursalId: user.sucursalId,
       vendedor: user.nombre,
+      businessName: await getBusinessName(),
       createdAt: new Date().toISOString(),
     };
 
@@ -269,7 +270,9 @@ export function usePaymentProcessing({
         setPaymentDialogOpen(false);
       }
     } finally {
+      // ✅ MEJORADO: Asegurar que el estado se resetee SIEMPRE
       setIsProcessingPayment(false);
+      setSelectedPaymentMethod(null);
     }
   };
 
@@ -695,6 +698,7 @@ export function usePaymentProcessing({
 
   // Resetear el estado del procesador de pagos
   const resetPaymentState = () => {
+    console.log("🧹 RESET: Limpiando estados del procesador de pagos");
     setSelectedPaymentMethod(null);
     setIsProcessingPayment(false);
     setQrData(null);
@@ -703,6 +707,10 @@ export function usePaymentProcessing({
     setSecondPaymentMethod("tarjeta");
     setRetryCount(0);
     setPollingStartTime(null);
+    setRoundedAmountDialogOpen(false);
+    setApplyingDiscount(false);
+    setManualQrPasswordDialogOpen(false);
+    setManualQrPassword("");
     cleanupPolling();
   };
 
@@ -806,45 +814,36 @@ export function usePaymentProcessing({
         throw new Error("Error al crear la orden");
       }
 
-      // Imprimir ticket usando Electron IPC
+      // Capturar la respuesta para obtener el ID real de la orden
+      const orderResult = await orderResponse.json();
+      console.log("📋 Respuesta del API (Split Payment):", orderResult);
+
+      // Añadir el idReal a los datos de la orden para impresión
+      const enrichedOrderData = {
+        ...orderData,
+        idReal: orderResult.idReal || orderResult.id || null,
+        id: orderResult.id || null,
+      };
+
+      // ✅ CORREGIDO: Usar la impresión a través del hook compartido
+      // Mostrar toast de carga para la impresión ANTES de imprimir
+      const printingToastId = toast.loading("Imprimiendo ticket...");
+
       try {
-        if ((window as any).electronAPI) {
-          const { ipcRenderer } = (window as any).electronAPI;
-          console.log("Enviando datos para impresión:", orderData);
-          toast.info("Imprimiendo ticket...", {
-            duration: 3000,
-            description: "Enviando datos a la impresora",
-          });
+        // Imprimir ticket usando handleTicketPrinting que ya funciona
+        const printSuccess = await handleTicketPrinting(enrichedOrderData);
 
-          const result = await ipcRenderer.invoke("print-ticket", orderData);
-          console.log("Resultado de impresión:", result);
+        // Cerrar el toast de carga de impresión
+        toast.dismiss(printingToastId);
 
-          if (result.success && !result.printerError) {
-            toast.success("Ticket impreso correctamente");
-          } else if (result.printerError) {
-            // Error específico de la impresora TP806L - mostrar toast de error pero no fallar
-            console.error("❌ Error de impresora TP806L:", result.printerError);
-            toast.error(`Error de impresión: ${result.printerError}`, {
-              description:
-                "La venta se completó correctamente pero no se pudo imprimir el ticket",
-            });
-          } else {
-            // Error general - mostrar toast de error
-            console.error("❌ Error general al imprimir:", result.message);
-            toast.error(
-              `Error al imprimir el ticket: ${result.message || "Desconocido"}`
-            );
-          }
-        } else {
-          console.log("🌐 Modo desarrollo: simulando impresión");
-          toast.success("Ticket simulado (modo desarrollo)");
+        // Mostrar toast de error si la impresión falló (handleTicketPrinting ya muestra éxito)
+        if (!printSuccess) {
+          toast.error("Error al imprimir el ticket.");
         }
-      } catch (printError: any) {
-        console.error("Error detallado al imprimir:", printError);
-        toast.error(`Error al imprimir el ticket: ${printError.message}`, {
-          description:
-            "La venta se completó correctamente pero no se pudo imprimir el ticket",
-        });
+      } catch (printError) {
+        // Asegurar que el toast se cierre siempre
+        toast.dismiss(printingToastId);
+        console.error("Error en impresión:", printError);
       }
 
       // Limpiar todos los estados relacionados con el pago
@@ -858,9 +857,12 @@ export function usePaymentProcessing({
     } catch (error) {
       console.error("Error:", error);
       toast.error("Error al procesar la orden");
+      // ✅ MEJORADO: También resetear estados en caso de error
+      resetPaymentState();
     } finally {
-      // Asegurar que el estado se resetee SIEMPRE
+      // ✅ MEJORADO: Asegurar que el estado se resetee SIEMPRE
       setIsProcessingPayment(false);
+      setSelectedPaymentMethod(null);
     }
   };
 
