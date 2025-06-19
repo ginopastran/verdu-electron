@@ -47,7 +47,7 @@ export function CartTabs({
         <Button
           variant="outline"
           size="sm"
-          className="h-8 ml-0.5 px-2"
+          className="h-8 ml-1 px-2 border-black text-black"
           onClick={onAddScreen}
         >
           <Plus className="h-4 w-4" />
