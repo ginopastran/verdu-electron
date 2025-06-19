@@ -52,20 +52,67 @@ export const useTicketPrinting = () => {
       let businessInfo = null;
       let dobleImpresionEnabled = false;
 
+      console.log("🔍 DEBUG: ANTES DE LA DECISIÓN DE OBTENER BUSINESS INFO:", {
+        API_URL_proporcionado: !!API_URL,
+        API_URL_valor: API_URL,
+        appId_proporcionado: appId !== undefined,
+        appId_valor: appId,
+        appId_tipo: typeof appId,
+        condicionIf: API_URL && appId !== undefined,
+      });
+
       if (API_URL && appId !== undefined) {
         console.log(
           "🏢 Obteniendo información del business para doble impresión..."
         );
-        businessInfo = await getBusinessInfo(API_URL, appId);
-        dobleImpresionEnabled = businessInfo?.dobleImpresionEnabled === true;
-        console.log("📋 Business info obtenida:", {
-          businessInfo: !!businessInfo,
-          dobleImpresionEnabled,
-        });
+
+        try {
+          businessInfo = await getBusinessInfo(API_URL, appId);
+
+          console.log("🔍 DEBUG: RESULTADO DE getBusinessInfo:", {
+            businessInfo_existe: !!businessInfo,
+            businessInfo_completo: businessInfo,
+            dobleImpresionEnabled_raw: businessInfo?.dobleImpresionEnabled,
+            dobleImpresionEnabled_tipo:
+              typeof businessInfo?.dobleImpresionEnabled,
+          });
+
+          // Evaluar dobleImpresionEnabled con diferentes comparaciones
+          const comparaciones = {
+            estricta_true: businessInfo?.dobleImpresionEnabled === true,
+            flexible_true: businessInfo?.dobleImpresionEnabled == true,
+            string_true: businessInfo?.dobleImpresionEnabled === "true",
+            truthy: !!businessInfo?.dobleImpresionEnabled,
+            numero_1: businessInfo?.dobleImpresionEnabled === 1,
+          };
+
+          console.log(
+            "🔍 DEBUG: COMPARACIONES dobleImpresionEnabled:",
+            comparaciones
+          );
+
+          // Usar la comparación estricta por defecto
+          dobleImpresionEnabled = businessInfo?.dobleImpresionEnabled === true;
+
+          console.log("📋 Business info obtenida:", {
+            businessInfo: !!businessInfo,
+            dobleImpresionEnabled_final: dobleImpresionEnabled,
+            valor_original: businessInfo?.dobleImpresionEnabled,
+          });
+        } catch (error) {
+          console.error("❌ Error al obtener business info:", error);
+          dobleImpresionEnabled = false;
+        }
       } else {
         console.log(
           "⚠️ No se proporcionaron API_URL o appId, usando impresión simple"
         );
+        console.log("🔍 DEBUG: Razones para usar impresión simple:", {
+          API_URL_missing: !API_URL,
+          appId_undefined: appId === undefined,
+          API_URL_actual: API_URL,
+          appId_actual: appId,
+        });
       }
 
       // Simular el ticket antes de imprimir
@@ -188,16 +235,33 @@ export const useTicketPrinting = () => {
         return { result, apiUsed };
       };
 
+      // ✅ NUEVO: Debug antes de la decisión de impresión
+      console.log("🔍 DEBUG: ANTES DE LA DECISIÓN DE IMPRESIÓN:", {
+        dobleImpresionEnabled,
+        tipoValor: typeof dobleImpresionEnabled,
+        condicionIf: dobleImpresionEnabled === true,
+        businessInfoExists: !!businessInfo,
+        valorOriginalBusiness: businessInfo?.dobleImpresionEnabled,
+      });
+
       // ✅ NUEVO: Implementar lógica de doble impresión
       try {
         if (dobleImpresionEnabled) {
           console.log(
             "🖨️🖨️ DOBLE IMPRESIÓN HABILITADA - Imprimiendo 2 tickets"
           );
+          console.log("🎯 ENTRANDO EN FLUJO DE DOBLE IMPRESIÓN");
 
           // Primera impresión
           console.log("📄 Realizando primera impresión...");
           const { result: result1, apiUsed } = await performSinglePrint();
+
+          console.log("🔍 DEBUG: Resultado primera impresión:", {
+            result1,
+            success: result1?.success,
+            printerError: result1?.printerError,
+            apiUsed,
+          });
 
           if (result1 && result1.success && !result1.printerError) {
             console.log("✅ Primera impresión exitosa");
@@ -211,6 +275,12 @@ export const useTicketPrinting = () => {
             // Segunda impresión
             console.log("📄 Realizando segunda impresión...");
             const { result: result2 } = await performSinglePrint();
+
+            console.log("🔍 DEBUG: Resultado segunda impresión:", {
+              result2,
+              success: result2?.success,
+              printerError: result2?.printerError,
+            });
 
             if (result2 && result2.success && !result2.printerError) {
               console.log("✅ Segunda impresión exitosa");
@@ -249,6 +319,14 @@ export const useTicketPrinting = () => {
         } else {
           // Impresión simple (comportamiento original)
           console.log("🖨️ IMPRESIÓN SIMPLE - Imprimiendo 1 ticket");
+          console.log("🎯 ENTRANDO EN FLUJO DE IMPRESIÓN SIMPLE");
+          console.log("🔍 DEBUG: Razón para impresión simple:", {
+            dobleImpresionEnabled,
+            businessInfoExists: !!businessInfo,
+            API_URL_proporcionado: !!API_URL,
+            appId_proporcionado: appId !== undefined,
+            valorOriginalBusiness: businessInfo?.dobleImpresionEnabled,
+          });
           const { result, apiUsed } = await performSinglePrint();
 
           if (result && result.success && !result.printerError) {

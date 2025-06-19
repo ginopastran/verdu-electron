@@ -1316,59 +1316,22 @@ export function usePaymentProcessing({
     });
   };
 
-  // Función para manejar la impresión de tickets
+  // ✅ NUEVO: Usar el hook de impresión con soporte para doble impresión
+  const { handleTicketPrinting: printTicketWithDoubleSupport } =
+    useTicketPrinting();
+
+  // Función para manejar la impresión de tickets (wrapper que usa el hook)
   const handleTicketPrinting = async (orderData: any): Promise<boolean> => {
     try {
-      console.log("====== SIMULACIÓN DEL TICKET ======");
-      console.log(`Negocio: ${orderData.businessName}`);
-      console.log(`Vendedor: ${orderData.vendedor}`);
-      console.log(
-        `Fecha: ${formatFechaArgentina(orderData.createdAt || orderData.fecha)}`
-      );
-      console.log("-----------------------------");
-      console.log("PRODUCTO      CANT    PRECIO    TOTAL");
-      console.log("-----------------------------");
-
-      const items = orderData.items || orderData.detalles || [];
-      if (items && items.length > 0) {
-        items.forEach((item: any) => {
-          const nombre = (item.nombre || item.producto?.nombre || "").padEnd(
-            12
-          );
-          const cantidad = (item.cantidad || 0).toString().padStart(8);
-          const precio = `$${Number(
-            item.precioHistorico || item.precio || 0
-          ).toFixed(2)}`.padStart(8);
-          const subtotal = `$${Number(item.subtotal || 0).toFixed(2)}`.padStart(
-            8
-          );
-          console.log(`${nombre} ${cantidad} ${precio} ${subtotal}`);
-        });
-      } else {
-        console.log("❌ No hay items en la orden");
-      }
-
-      console.log("-----------------------------");
-      console.log(`TOTAL: $${Number(orderData.total).toFixed(2)}`);
-
-      if (orderData.pagos && Array.isArray(orderData.pagos)) {
-        console.log("MÉTODOS DE PAGO:");
-        orderData.pagos.forEach((pago: any) => {
-          console.log(
-            `${pago.metodoPago.toUpperCase()}: $${Number(pago.monto).toFixed(
-              2
-            )}`
-          );
-        });
-      } else {
-        console.log(`Método de pago: ${orderData.metodoPago?.toUpperCase()}`);
-      }
-
-      console.log("¡Gracias por su compra!");
-      console.log("==============================");
-
-      // ✅ NUEVO: Usar el hook de impresión con soporte para doble impresión
-      const { handleTicketPrinting: printTicket } = useTicketPrinting();
+      console.log("🎯 PAYMENT PROCESSING: Iniciando impresión de ticket");
+      console.log("📋 Datos de la orden para impresión:", {
+        businessName: orderData.businessName,
+        vendedor: orderData.vendedor,
+        total: orderData.total,
+        items: orderData.items?.length || 0,
+        metodoPago: orderData.metodoPago,
+        pagos: orderData.pagos?.length || 0,
+      });
 
       // Obtener appId de forma simple para evitar conflictos de tipos
       let appId: string | null = null;
@@ -1383,6 +1346,9 @@ export function usePaymentProcessing({
           );
           if (appIdArg) {
             appId = appIdArg.split("=")[1];
+            console.log("✅ AppId obtenido:", appId);
+          } else {
+            console.log("⚠️ No se encontró appId en argv");
           }
         }
       } catch (error) {
@@ -1390,8 +1356,14 @@ export function usePaymentProcessing({
         appId = null;
       }
 
-      // Llamar a la función de impresión con los parámetros necesarios
-      return await printTicket(orderData, API_URL, appId);
+      console.log("🔧 Parámetros para impresión:", {
+        API_URL,
+        appId,
+        appIdType: typeof appId,
+      });
+
+      // ✅ USAR EL HOOK QUE TIENE SOPORTE PARA DOBLE IMPRESIÓN
+      return await printTicketWithDoubleSupport(orderData, API_URL, appId);
     } catch (error: any) {
       console.error("❌ Error al imprimir:", error);
       toast.error(
