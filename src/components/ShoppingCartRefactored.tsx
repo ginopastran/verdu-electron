@@ -35,6 +35,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useCartSidebar } from "@/contexts/CartSidebarContext";
 import { useCartState } from "@/hooks/useCartState";
 import { usePaymentProcessing } from "@/hooks/usePaymentProcessing";
+import { useAfipPaymentProcessing } from "@/hooks/useAfipPaymentProcessing";
 import { useScaleWeight } from "@/hooks/useScaleWeight";
 import { useBusinessInfo } from "@/hooks/useBusinessInfo";
 import { useProducts } from "@/hooks/useProducts";
@@ -95,6 +96,7 @@ export default function ShoppingCartRefactored() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
+  const [afipPaymentDialogOpen, setAfipPaymentDialogOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] =
     useState<AvailableProduct | null>(null);
 
@@ -158,6 +160,16 @@ export default function ShoppingCartRefactored() {
     setPaymentDialogOpen: setPaymentDialogOpen,
     setQrDialogOpen: setQrDialogOpen,
     setSplitPaymentDialogOpen: setSplitPaymentDialogOpen,
+  });
+
+  const afipPaymentProcessor = useAfipPaymentProcessing({
+    user,
+    API_URL,
+    appId: getAppId(),
+    clearCart: cartState.clearCart,
+    calculateTotal: cartState.calculateTotal,
+    setPaymentDialogOpen: setAfipPaymentDialogOpen,
+    searchInputRef,
   });
 
   // Handler para cerrar sesión
@@ -224,7 +236,68 @@ export default function ShoppingCartRefactored() {
       });
       return;
     }
+
+    console.log("💰 handlePaymentClick - Artículos en carrito:", currentItems);
+
+    // Resetear estados del flujo AFIP al abrir diálogo normal
+    console.log("🧹 Reseteando estados del flujo AFIP antes de pago normal");
+    afipPaymentProcessor.resetPaymentState();
+
     setPaymentDialogOpen(true);
+    setAfipPaymentDialogOpen(false); // Asegurar que el diálogo AFIP esté cerrado
+  };
+
+  // Handler para mostrar diálogo de pago AFIP
+  const handleAfipPaymentClick = () => {
+    const currentItems = cartState.getCurrentItems();
+    if (currentItems.length === 0) {
+      toast.error("No hay productos en el carrito", {
+        description: "Agrega al menos un producto antes de continuar",
+      });
+      return;
+    }
+
+    console.log("🧾 Abriendo diálogo de pago AFIP");
+
+    // Resetear estados del flujo normal al abrir AFIP
+    console.log("🧹 Reseteando estados del flujo normal antes de AFIP");
+    paymentProcessor.resetPaymentState();
+    setIsProcessingPayment(false);
+    setSelectedPaymentMethod(null);
+
+    setAfipPaymentDialogOpen(true);
+    setPaymentDialogOpen(false); // Asegurar que el diálogo normal esté cerrado
+  };
+
+  // Handler para seleccionar método de pago AFIP
+  const handleAfipPayment = async (method: string) => {
+    console.log("🧾 Procesando pago AFIP con método:", method);
+
+    try {
+      // Si es efectivo, usar el handler especial como en el flujo normal
+      if (method === "efectivo") {
+        console.log("🧾 AFIP: Efectivo detectado - usando handler especial");
+        if (!businessInfo) {
+          toast.error("Información de negocio no disponible");
+          return;
+        }
+        afipPaymentProcessor.handleAfipCashPayment(businessInfo);
+        return;
+      }
+
+      // Para otros métodos, procesar directamente
+      await afipPaymentProcessor.processAfipPayment(
+        method,
+        cartState.getCurrentItems()
+      );
+
+      // Los estados se limpian en el hook afipPaymentProcessor
+    } catch (error: any) {
+      console.error("❌ Error en pago AFIP:", error);
+      toast.error(`Error en factura AFIP: ${error.message}`);
+      // NO limpiar estados locales aquí, solo los del hook AFIP
+      afipPaymentProcessor.resetPaymentState();
+    }
   };
 
   // Handler para seleccionar método de pago
@@ -533,14 +606,20 @@ export default function ShoppingCartRefactored() {
   // Usar el hook de atajos de teclado después de declarar todas las funciones
   useKeyboardShortcuts({
     paymentDialogOpen,
+    afipPaymentDialogOpen,
     isProcessingPayment,
     selectedPaymentMethod,
+    afipIsProcessingPayment: afipPaymentProcessor.isProcessingPayment,
+    afipSelectedPaymentMethod: afipPaymentProcessor.selectedPaymentMethod,
     handlePayment,
+    handleAfipPayment,
     handleLogout,
     handleCancelClick,
     handlePaymentClick,
+    handleAfipPaymentClick,
     getCurrentItems: cartState.getCurrentItems,
     calculateTotal: cartState.calculateTotal,
+    businessInfo,
   });
 
   // Limpiar intervalos al desmontar o cuando cambia el estado del diálogo QR
@@ -646,6 +725,119 @@ export default function ShoppingCartRefactored() {
         onSelectPayment={handlePayment}
         isProcessingPayment={isProcessingPayment}
         selectedPaymentMethod={selectedPaymentMethod}
+      />
+
+      <PaymentDialog
+        isOpen={afipPaymentDialogOpen}
+        onClose={() => {
+          console.log(
+            "🚪 REFACTORED: Cerrando AFIP PaymentDialog - reseteando estados"
+          );
+          setAfipPaymentDialogOpen(false);
+          afipPaymentProcessor.resetPaymentState();
+          // NO tocar los estados locales del flujo normal
+          setTimeout(() => searchInputRef.current?.focus(), 100);
+        }}
+        onSelectPayment={handleAfipPayment}
+        isProcessingPayment={afipPaymentProcessor.isProcessingPayment}
+        selectedPaymentMethod={afipPaymentProcessor.selectedPaymentMethod}
+        isAfipMode={true}
+      />
+
+      {/* Diálogo de efectivo para AFIP */}
+      <CashPaymentDialog
+        open={afipPaymentProcessor.roundedAmountDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            console.log(
+              "🚪 REFACTORED: Cerrando AFIP CashPaymentDialog - reseteando estados"
+            );
+            afipPaymentProcessor.setRoundedAmountDialogOpen(false);
+            afipPaymentProcessor.resetPaymentState();
+            setTimeout(() => searchInputRef.current?.focus(), 100);
+          }
+        }}
+        isProcessingPayment={afipPaymentProcessor.isProcessingPayment}
+        isLoading={afipPaymentProcessor.isProcessingPayment}
+        applyingDiscount={afipPaymentProcessor.applyingDiscount}
+        businessInfo={businessInfo}
+        originalAmount={afipPaymentProcessor.originalAmount}
+        roundedAmount={afipPaymentProcessor.roundedAmount}
+        onApplyDiscount={() => {
+          if (!businessInfo) return;
+          afipPaymentProcessor.setRoundedAmountDialogOpen(false);
+          setTimeout(() => {
+            afipPaymentProcessor.handleAfipCashPayment(businessInfo, true);
+          }, 100);
+        }}
+        onConfirm={async () => {
+          console.log("💰 AFIP: Confirmando pago redondeado");
+          try {
+            await afipPaymentProcessor.processAfipPayment(
+              "efectivo",
+              cartState.getCurrentItems(),
+              afipPaymentProcessor.roundedAmount
+            );
+            console.log("✅ AFIP: Pago redondeado procesado exitosamente");
+          } catch (error) {
+            console.error("❌ AFIP: Error al procesar pago redondeado:", error);
+          }
+        }}
+        onCancel={() => {
+          console.log(
+            "❌ REFACTORED: Cancelando AFIP CashPaymentDialog - reseteando estados"
+          );
+          afipPaymentProcessor.setRoundedAmountDialogOpen(false);
+          afipPaymentProcessor.resetPaymentState();
+        }}
+      />
+
+      {/* Diálogo de pago exacto para AFIP */}
+      <ExactPaymentDialog
+        open={afipPaymentProcessor.exactPaymentDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            console.log(
+              "🚪 REFACTORED: Cerrando AFIP ExactPaymentDialog - reseteando estados"
+            );
+            afipPaymentProcessor.setExactPaymentDialogOpen(false);
+            afipPaymentProcessor.resetPaymentState();
+            setTimeout(() => searchInputRef.current?.focus(), 100);
+          }
+        }}
+        totalAmount={afipPaymentProcessor.roundedAmount}
+        isLoading={afipPaymentProcessor.isProcessingPayment}
+        onConfirm={async (paidAmount: number, change: number) => {
+          console.log(
+            "💰 AFIP EXACT PAYMENT: Confirmando desde ShoppingCartRefactored",
+            {
+              paidAmount,
+              change,
+              totalAmount: afipPaymentProcessor.roundedAmount,
+            }
+          );
+
+          try {
+            await afipPaymentProcessor.confirmAfipExactPayment(
+              paidAmount,
+              change,
+              cartState.getCurrentItems()
+            );
+
+            console.log("✅ AFIP EXACT PAYMENT: Pago procesado exitosamente");
+
+            setTimeout(() => searchInputRef.current?.focus(), 100);
+          } catch (error) {
+            console.error("❌ AFIP EXACT PAYMENT: Error al procesar:", error);
+          }
+        }}
+        onCancel={() => {
+          console.log(
+            "❌ REFACTORED: Cancelando AFIP ExactPaymentDialog - reseteando estados"
+          );
+          afipPaymentProcessor.setExactPaymentDialogOpen(false);
+          afipPaymentProcessor.resetPaymentState();
+        }}
       />
 
       <CashPaymentDialog

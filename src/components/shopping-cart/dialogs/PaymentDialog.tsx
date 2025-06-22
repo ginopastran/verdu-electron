@@ -14,6 +14,7 @@ interface PaymentDialogProps {
   onSelectPayment: (method: string) => void;
   isProcessingPayment: boolean;
   selectedPaymentMethod: string | null;
+  isAfipMode?: boolean;
 }
 
 export function PaymentDialog({
@@ -22,6 +23,7 @@ export function PaymentDialog({
   onSelectPayment,
   isProcessingPayment,
   selectedPaymentMethod,
+  isAfipMode = false,
 }: PaymentDialogProps) {
   return (
     <Dialog
@@ -34,16 +36,21 @@ export function PaymentDialog({
     >
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Seleccionar método de pago</DialogTitle>
+          <DialogTitle>
+            {isAfipMode
+              ? "Seleccionar método de pago - Factura AFIP"
+              : "Seleccionar método de pago"}
+          </DialogTitle>
           <DialogDescription>
-            Presiona el número correspondiente al método de pago o haz clic en
-            el botón
+            {isAfipMode
+              ? "Presiona el número correspondiente al método de pago para generar factura AFIP"
+              : "Presiona el número correspondiente al método de pago o haz clic en el botón"}
           </DialogDescription>
         </DialogHeader>
         <div className="grid grid-cols-2 gap-4">
           <Button
             onClick={() => onSelectPayment("qr")}
-            className={`h-32 flex flex-col items-center justify-center space-y-2 [&_svg]:size-8 ${
+            className={`h-32 flex flex-col border-[#A7A7A7] items-center justify-center space-y-2 [&_svg]:size-8 ${
               selectedPaymentMethod === "qr"
                 ? "bg-emerald-100 border-emerald-600 border-2"
                 : ""
@@ -65,7 +72,7 @@ export function PaymentDialog({
           </Button>
           <Button
             onClick={() => onSelectPayment("tarjeta")}
-            className={`h-32 flex flex-col items-center justify-center space-y-2 [&_svg]:size-8 ${
+            className={`h-32 flex flex-col items-center border-[#A7A7A7] justify-center space-y-2 [&_svg]:size-8 ${
               selectedPaymentMethod === "tarjeta"
                 ? "bg-emerald-100 border-emerald-600 border-2"
                 : ""
@@ -88,7 +95,7 @@ export function PaymentDialog({
           </Button>
           <Button
             onClick={() => onSelectPayment("efectivo")}
-            className={`h-32 flex flex-col items-center justify-center space-y-2 [&_svg]:size-8 ${
+            className={`h-32 flex flex-col border-[#A7A7A7] items-center justify-center space-y-2 [&_svg]:size-8 ${
               selectedPaymentMethod === "efectivo"
                 ? "bg-emerald-100 border-emerald-600 border-2"
                 : ""
@@ -111,7 +118,7 @@ export function PaymentDialog({
           </Button>
           <Button
             onClick={() => onSelectPayment("split")}
-            className={`h-32 flex flex-col items-center justify-center space-y-2 [&_svg]:size-8 ${
+            className={`h-32 flex flex-col items-center border-[#A7A7A7] justify-center space-y-2 [&_svg]:size-8 ${
               selectedPaymentMethod === "split"
                 ? "bg-emerald-100 border-emerald-600 border-2"
                 : ""

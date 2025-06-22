@@ -3,26 +3,38 @@ import { toast } from "sonner";
 
 interface UseKeyboardShortcutsProps {
   paymentDialogOpen: boolean;
+  afipPaymentDialogOpen: boolean;
   isProcessingPayment: boolean;
   selectedPaymentMethod: string | null;
+  afipIsProcessingPayment: boolean;
+  afipSelectedPaymentMethod: string | null;
   handlePayment: (method: string) => void;
+  handleAfipPayment: (method: string) => void;
   handleLogout: () => void;
   handleCancelClick: () => void;
   handlePaymentClick: () => void;
+  handleAfipPaymentClick: () => void;
   getCurrentItems: () => any[];
   calculateTotal: () => number;
+  businessInfo: any;
 }
 
 export const useKeyboardShortcuts = ({
   paymentDialogOpen,
+  afipPaymentDialogOpen,
   isProcessingPayment,
   selectedPaymentMethod,
+  afipIsProcessingPayment,
+  afipSelectedPaymentMethod,
   handlePayment,
+  handleAfipPayment,
   handleLogout,
   handleCancelClick,
   handlePaymentClick,
+  handleAfipPaymentClick,
   getCurrentItems,
   calculateTotal,
+  businessInfo,
 }: UseKeyboardShortcutsProps) => {
   useEffect(() => {
     const handleGlobalKeyPress = (e: KeyboardEvent) => {
@@ -33,7 +45,7 @@ export const useKeyboardShortcuts = ({
         return;
       }
 
-      // Para el diálogo de pago
+      // Para el diálogo de pago normal
       if (paymentDialogOpen) {
         // Si ya se está procesando o hay un método seleccionado, ignorar teclas
         if (isProcessingPayment || selectedPaymentMethod) {
@@ -55,6 +67,31 @@ export const useKeyboardShortcuts = ({
           case "4":
             e.preventDefault();
             handlePayment("split");
+            break;
+        }
+      }
+      // Para el diálogo de pago AFIP
+      else if (afipPaymentDialogOpen) {
+        // Si ya se está procesando o hay un método seleccionado, ignorar teclas
+        if (afipIsProcessingPayment || afipSelectedPaymentMethod) {
+          return;
+        }
+        switch (e.key) {
+          case "1":
+            e.preventDefault();
+            handleAfipPayment("qr");
+            break;
+          case "2":
+            e.preventDefault();
+            handleAfipPayment("tarjeta");
+            break;
+          case "3":
+            e.preventDefault();
+            handleAfipPayment("efectivo");
+            break;
+          case "4":
+            e.preventDefault();
+            handleAfipPayment("split");
             break;
         }
       } else {
@@ -80,6 +117,24 @@ export const useKeyboardShortcuts = ({
             }
             handlePaymentClick();
             break;
+          case "F3":
+            e.preventDefault();
+            // Verificar si la facturación AFIP está habilitada
+            if (!businessInfo?.facturacionHabilitada) {
+              toast.error("Facturación AFIP no habilitada", {
+                description:
+                  "La facturación AFIP no está habilitada para este negocio",
+              });
+              return;
+            }
+            if (getCurrentItems().length === 0) {
+              toast.error("No hay productos en el carrito", {
+                description: "Agrega al menos un producto antes de continuar",
+              });
+              return;
+            }
+            handleAfipPaymentClick();
+            break;
         }
       }
     };
@@ -88,13 +143,19 @@ export const useKeyboardShortcuts = ({
     return () => window.removeEventListener("keydown", handleGlobalKeyPress);
   }, [
     paymentDialogOpen,
+    afipPaymentDialogOpen,
     isProcessingPayment,
     selectedPaymentMethod,
+    afipIsProcessingPayment,
+    afipSelectedPaymentMethod,
     handlePayment,
+    handleAfipPayment,
     handleLogout,
     handleCancelClick,
     handlePaymentClick,
+    handleAfipPaymentClick,
     getCurrentItems,
     calculateTotal,
+    businessInfo,
   ]);
 };
