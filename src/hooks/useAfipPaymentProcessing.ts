@@ -325,7 +325,7 @@ export function useAfipPaymentProcessing({
         throw new Error("No se recibió CAE de AFIP");
       }
 
-      // Preparar datos para impresión
+      // Preparar datos para impresión con información completa del negocio
       const printData = {
         ...afipResult,
         metodoPago: method,
@@ -333,6 +333,37 @@ export function useAfipPaymentProcessing({
         total: finalTotal,
         usuario: user.nombre || "Vendedor",
         fechaHora: new Date().toLocaleString("es-AR"),
+        // Información del negocio
+        businessName:
+          afipResult.business?.name || user.business?.name || "Comercio",
+        razonSocial:
+          afipResult.business?.razonSocial ||
+          user.business?.razonSocial ||
+          afipResult.business?.name ||
+          user.business?.name ||
+          "Comercio",
+        cuit:
+          afipResult.business?.cuit ||
+          user.business?.cuit ||
+          user.cuit ||
+          "00-00000000-0",
+        condicionIva:
+          afipResult.business?.condicionIva ||
+          user.business?.condicionIva ||
+          "Responsable Inscripto",
+        direccion:
+          afipResult.business?.direccion ||
+          user.business?.direccion ||
+          "Dirección no configurada",
+        // Datos AFIP
+        cae: afipResult.afip?.cae,
+        fechaVtoCae: afipResult.afip?.fechaVtoCae,
+        puntoVenta:
+          afipResult.afip?.puntoVenta || afipResult.puntoVenta || "0001",
+        numeroFactura:
+          afipResult.afip?.numeroFactura || afipResult.numeroFactura,
+        tipoFactura: afipResult.afip?.tipoFactura || "FACTURA B",
+        vendedor: user.nombre || "Vendedor",
         // Calcular descuento si aplica
         ...(method === "efectivo" &&
           originalAmount > finalTotal && {
@@ -340,6 +371,8 @@ export function useAfipPaymentProcessing({
             totalOriginal: originalAmount,
           }),
       };
+
+      console.log("📋 Datos preparados para impresión AFIP:", printData);
 
       // Imprimir ticket AFIP
       await handleAfipTicketPrinting(printData);

@@ -155,7 +155,9 @@ try {
     $printer->setTextSize(2, 2);
     
     // Determinar el nombre del business de manera dinámica
-    $businessName = "Verdulería"; // Valor por defecto
+    $businessName = "Comercio"; // Valor por defecto más genérico
+    $razonSocial = "Comercio";
+    
     if (isset($afipData['businessName']) && !empty($afipData['businessName'])) {
         $businessName = $afipData['businessName'];
         file_put_contents('php://stderr', "✅ Usando nombre del business desde afipData: " . $businessName . "\n");
@@ -163,15 +165,24 @@ try {
         file_put_contents('php://stderr', "⚠️ Usando nombre por defecto: " . $businessName . "\n");
     }
     
-    $printer->text(strtoupper($businessName) . "\n");
+    // Usar razón social si está disponible, sino usar businessName
+    if (isset($afipData['razonSocial']) && !empty($afipData['razonSocial'])) {
+        $razonSocial = $afipData['razonSocial'];
+        file_put_contents('php://stderr', "✅ Usando razón social desde afipData: " . $razonSocial . "\n");
+    } else {
+        $razonSocial = $businessName;
+        file_put_contents('php://stderr', "⚠️ Usando businessName como razón social: " . $razonSocial . "\n");
+    }
+    
+    $printer->text(strtoupper($razonSocial) . "\n");
     $printer->setEmphasis(false);
     $printer->setTextSize(1, 1);
 
     // Información AFIP requerida
-    $printer->text("Razón Social: " . ($afipData['razonSocial'] ?? $businessName) . "\n");
+    $printer->text("Razón Social: " . $razonSocial . "\n");
     $printer->text("CUIT: " . ($afipData['cuit'] ?? '00-00000000-0') . "\n");
     $printer->text("Condición IVA: " . ($afipData['condicionIva'] ?? 'Responsable Inscripto') . "\n");
-    $printer->text("Dirección: " . ($afipData['direccion'] ?? 'Calle Falsa 123') . "\n");
+    $printer->text("Dirección: " . ($afipData['direccion'] ?? 'Dirección no configurada') . "\n");
     
     $printer->text("-----------------------------\n");
     
@@ -189,7 +200,7 @@ try {
     $printer->text("Nro: " . ($afipData['puntoVenta'] ?? '0001') . "-" . str_pad($afipData['numeroFactura'] ?? '1', 8, '0', STR_PAD_LEFT) . "\n");
     date_default_timezone_set('America/Argentina/Buenos_Aires');
     $printer->text("Fecha: " . date("d/m/Y H:i:s") . "\n");
-    $printer->text("Vendedor: " . ($afipData['vendedor'] ?? 'N/A') . "\n");
+    $printer->text("Vendedor: " . ($afipData['vendedor'] ?? $afipData['usuario'] ?? 'N/A') . "\n");
     
     $printer->text("-----------------------------\n");
 
@@ -235,15 +246,25 @@ try {
     $printer->setJustification(Printer::JUSTIFY_CENTER);
     $printer->text("COMPROBANTE AUTORIZADO\n");
     
-    // CAE
+    // CAE - Código de Autorización Electrónico
+    $cae = $afipData['cae'] ?? 'NO DISPONIBLE';
     $printer->setEmphasis(true);
-    $printer->text("CAE: " . ($afipData['cae'] ?? 'NO DISPONIBLE') . "\n");
+    $printer->text("CAE: " . $cae . "\n");
     $printer->setEmphasis(false);
     
     // Fecha de vencimiento del CAE
     $fechaVtoCae = $afipData['fechaVtoCae'] ?? date('Ymd');
-    $fechaFormateada = date('d/m/Y', strtotime($fechaVtoCae));
-    $printer->text("Fecha Vto: $fechaFormateada\n");
+    if (strlen($fechaVtoCae) === 8) {
+        // Formato YYYYMMDD de AFIP
+        $fechaFormateada = date('d/m/Y', strtotime($fechaVtoCae));
+    } else {
+        $fechaFormateada = date('d/m/Y', strtotime($fechaVtoCae));
+    }
+    $printer->text("Fecha Vto CAE: $fechaFormateada\n");
+    
+    // Debug del CAE
+    file_put_contents('php://stderr', "💾 CAE procesado: " . $cae . "\n");
+    file_put_contents('php://stderr', "📅 Fecha Vto CAE: " . $fechaVtoCae . " -> " . $fechaFormateada . "\n");
 
     // Código QR (si está disponible)
     if (isset($afipData['qrData'])) {
@@ -269,6 +290,11 @@ try {
     file_put_contents('php://stderr', "- Total impreso: $" . number_format($afipData['total'], 2) . "\n");
     file_put_contents('php://stderr', "- CAE: " . ($afipData['cae'] ?? 'NO DISPONIBLE') . "\n");
     file_put_contents('php://stderr', "- Business mostrado: " . $businessName . "\n");
+    file_put_contents('php://stderr', "- Razón Social: " . $razonSocial . "\n");
+    file_put_contents('php://stderr', "- CUIT: " . ($afipData['cuit'] ?? 'NO DISPONIBLE') . "\n");
+    file_put_contents('php://stderr', "- Vendedor: " . ($afipData['vendedor'] ?? $afipData['usuario'] ?? 'N/A') . "\n");
+    file_put_contents('php://stderr', "- Tipo Factura: " . ($afipData['tipoFactura'] ?? 'N/A') . "\n");
+    file_put_contents('php://stderr', "- Número: " . ($afipData['puntoVenta'] ?? '0001') . "-" . str_pad($afipData['numeroFactura'] ?? '1', 8, '0', STR_PAD_LEFT) . "\n");
     file_put_contents('php://stderr', "====== FIN DEBUG IMPRESIÓN TICKET AFIP ======\n");
 
 } catch (Exception $e) {
