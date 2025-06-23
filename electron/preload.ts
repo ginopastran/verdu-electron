@@ -57,3 +57,13 @@ console.log("🔧 Preload script - APIs expuestas exitosamente:", {
   printer:
     "disponible (printTicket, printAfipTicket, printClosing, getAvailablePrinters)",
 });
+
+// Verificar que printAfipTicket esté disponible
+console.log(
+  "🔧 Verificando printAfipTicket:",
+  typeof window !== "undefined" ? "disponible en window" : "no disponible"
+);
+console.log(
+  "🔧 printAfipTicket function:",
+  typeof (window as any).printer?.printAfipTicket
+);

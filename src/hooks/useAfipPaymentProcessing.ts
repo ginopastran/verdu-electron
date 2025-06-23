@@ -70,14 +70,25 @@ export function useAfipPaymentProcessing({
       console.log("🧾 Iniciando impresión de ticket AFIP...");
       console.log("📄 Datos AFIP para impresión:", afipData);
 
+      // Verificar APIs disponibles
+      console.log("🔍 Verificando APIs disponibles:");
+      console.log("  - window.printer:", !!(window as any).printer);
+      console.log(
+        "  - window.printer.printAfipTicket:",
+        !!(window as any).printer?.printAfipTicket
+      );
+      console.log("  - window.electron:", !!(window as any).electron);
+      console.log(
+        "  - window.electron.ipcRenderer:",
+        !!(window as any).electron?.ipcRenderer
+      );
+
       // Método 1: Usar window.printer (API específica para impresión)
       if (
         typeof window !== "undefined" &&
         (window as any).printer?.printAfipTicket
       ) {
-        console.log(
-          "🖨️ Llamando script PHP AFIP via window.printer.printAfipTicket"
-        );
+        console.log("🖨️ Usando window.printer.printAfipTicket");
         return await (window as any).printer.printAfipTicket(afipData);
       }
       // Método 2: Usar window.electron.ipcRenderer (API general)
@@ -86,21 +97,29 @@ export function useAfipPaymentProcessing({
         (window as any).electron?.ipcRenderer
       ) {
         console.log(
-          "🖨️ Llamando script PHP AFIP via window.electron.ipcRenderer"
+          "🖨️ Usando window.electron.ipcRenderer.invoke('print-afip-ticket')"
         );
-        return await (window as any).electron.ipcRenderer.invoke(
+        const result = await (window as any).electron.ipcRenderer.invoke(
           "print-afip-ticket",
           afipData
         );
+        console.log("📝 Resultado de print-afip-ticket:", result);
+        return result;
       }
       // Si ninguna API está disponible
       else {
+        console.error("❌ Ninguna API de impresión AFIP disponible");
         throw new Error("API de Electron no disponible para impresión AFIP");
       }
     } catch (error: any) {
       console.error("❌ Error al imprimir ticket AFIP:", error);
-      toast.error("Error al imprimir el ticket AFIP");
-      return false;
+      console.error("❌ Stack trace:", error.stack);
+      toast.error(`Error al imprimir el ticket AFIP: ${error.message}`);
+      return {
+        success: false,
+        printerError: error.message,
+        message: error.message,
+      };
     }
   };
 

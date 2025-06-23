@@ -499,7 +499,9 @@ ipcMain.handle("print-ticket", async (_, orderData) => {
 });
 
 // Handler para impresión AFIP
+console.log("🔧 Registrando handler para print-afip-ticket...");
 ipcMain.handle("print-afip-ticket", async (_, afipData) => {
+  console.log("🖨️ Handler print-afip-ticket ejecutándose con datos:", afipData);
   try {
     const tempDir = os.tmpdir();
     const tempDataPath = path.join(tempDir, `afip-data-${Date.now()}.json`);
@@ -741,3 +743,14 @@ ipcMain.handle("print-closing", async (_, closingData) => {
     throw error;
   }
 });
+
+// Log de confirmación de handlers registrados
+console.log("✅ Todos los handlers IPC registrados:");
+console.log("   - print-ticket");
+console.log("   - print-afip-ticket");
+console.log("   - print-closing");
+console.log("   - toggle-devtools");
+console.log("   - get-available-printers");
+console.log("   - store-get, store-set, store-delete, store-has");
+console.log("   - check-for-updates, download-update, install-update");
+console.log("   - read-peso");
