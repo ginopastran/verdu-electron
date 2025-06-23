@@ -42,6 +42,8 @@ contextBridge.exposeInMainWorld("pesoReader", {
 contextBridge.exposeInMainWorld("printer", {
   printTicket: (orderData: any) =>
     ipcRenderer.invoke("print-ticket", orderData),
+  printAfipTicket: (afipData: any) =>
+    ipcRenderer.invoke("print-afip-ticket", afipData),
   printClosing: (closingData: any) =>
     ipcRenderer.invoke("print-closing", closingData),
   getAvailablePrinters: () => ipcRenderer.invoke("get-available-printers"),
@@ -52,5 +54,6 @@ console.log("🔧 Preload script - APIs expuestas exitosamente:", {
   electron: "disponible",
   autoUpdater: "disponible",
   pesoReader: "disponible",
-  printer: "disponible",
+  printer:
+    "disponible (printTicket, printAfipTicket, printClosing, getAvailablePrinters)",
 });
