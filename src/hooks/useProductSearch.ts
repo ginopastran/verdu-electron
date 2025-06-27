@@ -7,6 +7,7 @@ export interface AvailableProduct {
   unit: string;
   costo: number;
   codigoBarras: string | null;
+  plu: string | null;
 }
 
 export function useProductSearch() {
@@ -57,6 +58,7 @@ export function useProductSearch() {
           unit: p.tipoMedida,
           costo: p.costo,
           codigoBarras: p.codigoBarras,
+          plu: p.plu,
         }));
 
         setAvailableProducts(transformedProducts);
@@ -182,6 +184,15 @@ export function useProductSearch() {
       const product = availableProducts.find((p) => p.codigoBarras === value);
       if (product) {
         handleProductSelect(product);
+        return;
+      }
+    }
+
+    // Detectar PLU directo (3-6 dígitos numéricos)
+    if (/^\d{3,6}$/.test(value)) {
+      const productByPlu = availableProducts.find((p) => p.plu === value);
+      if (productByPlu) {
+        handleProductSelect(productByPlu);
       }
     }
   };

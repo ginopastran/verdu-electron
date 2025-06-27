@@ -115,7 +115,12 @@ export const useKeyboardShortcuts = ({
               });
               return;
             }
-            handlePaymentClick();
+            // Verificar si la facturación AFIP está habilitada
+            if (businessInfo?.facturacionHabilitada) {
+              handleAfipPaymentClick();
+            } else {
+              handlePaymentClick();
+            }
             break;
           case "F3":
             e.preventDefault();

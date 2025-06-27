@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain, dialog } from "electron";
 import * as path from "path";
 import { fileURLToPath } from "url";
-import { exec, spawn } from "child_process";
+import { exec } from "child_process";
 import * as fsPromises from "fs/promises";
 import os from "os";
 import * as fs from "fs";
@@ -361,100 +361,6 @@ ipcMain.handle("print-ticket", async (_, orderData) => {
         console.log(`NODE_ENV: ${process.env.NODE_ENV}`);
         console.log(`PHP Script: ${phpScriptPath}`);
         console.log(`Datos: ${tempDataPath}`);
-        // Handler para impresión AFIP
-        ipcMain.handle("print-afip-ticket", async (_, afipData) => {
-            try {
-                const tempDir = os.tmpdir();
-                const tempDataPath = path.join(tempDir, `afip-data-${Date.now()}.json`);
-                await fsPromises.writeFile(tempDataPath, JSON.stringify(afipData), "utf8");
-                const isProduction = process.env.NODE_ENV !== "development";
-                let phpScriptPath;
-                if (isProduction) {
-                    phpScriptPath = path.join(process.resourcesPath, "resources", "afip_ticket_printer.php");
-                }
-                else {
-                    phpScriptPath = path.join(app.getAppPath(), "resources", "afip_ticket_printer.php");
-                }
-                // LOG: Verificar existencia del script PHP AFIP
-                if (!fs.existsSync(phpScriptPath)) {
-                    console.error("❌ No se encontró el script PHP AFIP:", phpScriptPath);
-                    return {
-                        success: false,
-                        printerError: `No se encontró el script PHP AFIP: ${phpScriptPath}`,
-                        message: `No se encontró el script PHP AFIP: ${phpScriptPath}`,
-                    };
-                }
-                console.log("------ INFO DE IMPRESIÓN AFIP ------");
-                console.log(`NODE_ENV: ${process.env.NODE_ENV}`);
-                console.log(`PHP Script AFIP: ${phpScriptPath}`);
-                console.log(`Datos AFIP: ${tempDataPath}`);
-                const result = spawn("php", [phpScriptPath, tempDataPath], {
-                    stdio: ["pipe", "pipe", "pipe"],
-                });
-                let output = "";
-                let errorOutput = "";
-                result.stdout.on("data", (data) => {
-                    output += data.toString();
-                });
-                result.stderr.on("data", (data) => {
-                    const errorStr = data.toString();
-                    console.log("PHP AFIP stderr:", errorStr);
-                    errorOutput += errorStr;
-                });
-                return new Promise((resolve) => {
-                    result.on("close", (code) => {
-                        console.log(`Script PHP AFIP terminó con código: ${code}`);
-                        // Limpiar archivo temporal
-                        try {
-                            fs.unlinkSync(tempDataPath);
-                        }
-                        catch (cleanupError) {
-                            console.error("Error limpiando archivo temporal AFIP:", cleanupError);
-                        }
-                        if (code === 0) {
-                            console.log("✅ Impresión AFIP exitosa");
-                            resolve({
-                                success: true,
-                                output: output,
-                                message: "Ticket AFIP impreso correctamente",
-                            });
-                        }
-                        else {
-                            console.error("❌ Error en impresión AFIP, código:", code);
-                            console.error("Error output AFIP:", errorOutput);
-                            let errorMessage = "Error en la impresión AFIP";
-                            if (errorOutput.includes("No se puede encontrar la impresora")) {
-                                errorMessage = "Impresora no encontrada";
-                            }
-                            else if (errorOutput.includes("Error")) {
-                                const errorLines = errorOutput.split("\n");
-                                const lastErrorLine = errorLines
-                                    .reverse()
-                                    .find((line) => line.includes("Error"));
-                                if (lastErrorLine) {
-                                    errorMessage = lastErrorLine.replace(/^.*Error:\s*/, "");
-                                }
-                            }
-                            resolve({
-                                success: false,
-                                printerError: errorMessage,
-                                message: errorMessage,
-                                errorOutput: errorOutput,
-                                exitCode: code,
-                            });
-                        }
-                    });
-                });
-            }
-            catch (error) {
-                console.error("Error en print-afip-ticket:", error);
-                return {
-                    success: false,
-                    printerError: error.message,
-                    message: error.message,
-                };
-            }
-        });
         return new Promise((resolve, reject) => {
             exec(`set NODE_ENV=${process.env.NODE_ENV}&& php "${phpScriptPath}" "${tempDataPath}"`, async (error, stdout, stderr) => {
                 try {
@@ -509,6 +415,95 @@ ipcMain.handle("print-ticket", async (_, orderData) => {
     catch (error) {
         console.error("Error en impresión:", error);
         throw error;
+    }
+});
+// Handler para impresión AFIP
+console.log("🔧 Registrando handler para print-afip-ticket...");
+ipcMain.handle("print-afip-ticket", async (_, afipData) => {
+    console.log("🖨️ Handler print-afip-ticket ejecutándose con datos:", afipData);
+    try {
+        const tempDir = os.tmpdir();
+        const tempDataPath = path.join(tempDir, `afip-data-${Date.now()}.json`);
+        await fsPromises.writeFile(tempDataPath, JSON.stringify(afipData), "utf8");
+        const isProduction = process.env.NODE_ENV !== "development";
+        let phpScriptPath;
+        if (isProduction) {
+            phpScriptPath = path.join(process.resourcesPath, "resources", "afip_ticket_printer.php");
+        }
+        else {
+            phpScriptPath = path.join(app.getAppPath(), "resources", "afip_ticket_printer.php");
+        }
+        // LOG: Verificar existencia del script PHP AFIP
+        if (!fs.existsSync(phpScriptPath)) {
+            console.error("❌ No se encontró el script PHP AFIP:", phpScriptPath);
+            return {
+                success: false,
+                printerError: `No se encontró el script PHP AFIP: ${phpScriptPath}`,
+                message: `No se encontró el script PHP AFIP: ${phpScriptPath}`,
+            };
+        }
+        console.log("------ INFO DE IMPRESIÓN AFIP ------");
+        console.log(`NODE_ENV: ${process.env.NODE_ENV}`);
+        console.log(`PHP Script AFIP: ${phpScriptPath}`);
+        console.log(`Datos AFIP: ${tempDataPath}`);
+        return new Promise((resolve, reject) => {
+            exec(`set NODE_ENV=${process.env.NODE_ENV}&& php "${phpScriptPath}" "${tempDataPath}"`, async (error, stdout, stderr) => {
+                try {
+                    await fsPromises.unlink(tempDataPath);
+                    console.log("[PRINT-AFIP] error:", error);
+                    console.log("[PRINT-AFIP] stdout:", stdout);
+                    console.log("[PRINT-AFIP] stderr:", stderr);
+                    if (error) {
+                        console.error("[PRINT-AFIP] Código de salida:", error.code);
+                    }
+                    let printerError = null;
+                    if (stderr && stderr.includes("Error: ")) {
+                        const errorMatch = stderr.match(/Error: (.*?)(\n|$)/);
+                        if (errorMatch && errorMatch[1]) {
+                            printerError = errorMatch[1];
+                        }
+                    }
+                    if (error) {
+                        resolve({
+                            success: false,
+                            printerError: printerError || error.message,
+                            message: printerError
+                                ? `Error de impresión AFIP: ${printerError}`
+                                : error.message
+                                    ? `Error de impresión AFIP: ${error.message}`
+                                    : "Error desconocido en impresión AFIP",
+                        });
+                        return;
+                    }
+                    if (printerError) {
+                        resolve({
+                            success: false,
+                            printerError,
+                            message: `Error de impresión AFIP: ${printerError}`,
+                        });
+                        return;
+                    }
+                    console.log("✅ Ticket AFIP impreso correctamente");
+                    resolve({
+                        success: true,
+                        printerError: null,
+                        message: "Ticket AFIP impreso correctamente",
+                    });
+                }
+                catch (err) {
+                    console.error("Error en el callback AFIP:", err);
+                    reject(err);
+                }
+            });
+        });
+    }
+    catch (error) {
+        console.error("Error en print-afip-ticket:", error);
+        return {
+            success: false,
+            printerError: error.message,
+            message: error.message,
+        };
     }
 });
 // Agregar un nuevo manejador IPC para DevTools
@@ -633,3 +628,13 @@ ipcMain.handle("print-closing", async (_, closingData) => {
         throw error;
     }
 });
+// Log de confirmación de handlers registrados
+console.log("✅ Todos los handlers IPC registrados:");
+console.log("   - print-ticket");
+console.log("   - print-afip-ticket");
+console.log("   - print-closing");
+console.log("   - toggle-devtools");
+console.log("   - get-available-printers");
+console.log("   - store-get, store-set, store-delete, store-has");
+console.log("   - check-for-updates, download-update, install-update");
+console.log("   - read-peso");

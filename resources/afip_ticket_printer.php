@@ -180,7 +180,13 @@ try {
 
     // Información AFIP requerida
     $printer->text("Razón Social: " . $razonSocial . "\n");
-    $printer->text("CUIT: " . ($afipData['cuit'] ?? '00-00000000-0') . "\n");
+
+    // Formatear CUIT si viene sin guiones (11 dígitos)
+    $cuitValue = $afipData['cuit'] ?? '00-00000000-0';
+    if (preg_match('/^\d{11}$/', $cuitValue)) {
+        $cuitValue = substr($cuitValue, 0, 2) . '-' . substr($cuitValue, 2, 8) . '-' . substr($cuitValue, 10, 1);
+    }
+    $printer->text("CUIT: " . $cuitValue . "\n");
     $printer->text("Condición IVA: " . ($afipData['condicionIva'] ?? 'Responsable Inscripto') . "\n");
     $printer->text("Dirección: " . ($afipData['direccion'] ?? 'Dirección no configurada') . "\n");
     
@@ -199,7 +205,8 @@ try {
     // Número de factura y fecha
     $printer->text("Nro: " . ($afipData['puntoVenta'] ?? '0001') . "-" . str_pad($afipData['numeroFactura'] ?? '1', 8, '0', STR_PAD_LEFT) . "\n");
     date_default_timezone_set('America/Argentina/Buenos_Aires');
-    $printer->text("Fecha: " . date("d/m/Y H:i:s") . "\n");
+    $fechaFactura = $afipData['fechaHora'] ?? date("d/m/Y H:i:s");
+    $printer->text("Fecha: " . $fechaFactura . "\n");
     $printer->text("Vendedor: " . ($afipData['vendedor'] ?? $afipData['usuario'] ?? 'N/A') . "\n");
     
     $printer->text("-----------------------------\n");
@@ -283,6 +290,8 @@ try {
     $printer->pulse();
     $printer->close();
     
+
+
     // Debug final
     file_put_contents('php://stderr', "✅ Impresión AFIP completada exitosamente\n");
     file_put_contents('php://stderr', "📊 ESTADÍSTICAS FINALES AFIP:\n");

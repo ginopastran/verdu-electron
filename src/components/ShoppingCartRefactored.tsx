@@ -86,6 +86,14 @@ export default function ShoppingCartRefactored() {
     null
   ) as React.RefObject<HTMLInputElement>;
 
+  // Bloqueo simple para evitar disparar múltiples pagos
+  const paymentLockRef = useRef(false);
+
+  // Enfocar el input al montar el componente
+  useEffect(() => {
+    searchInputRef.current?.focus();
+  }, []);
+
   // Estados para búsqueda y productos
   const [searchQuery, setSearchQuery] = useState("");
   const [showResults, setShowResults] = useState(false);
@@ -271,6 +279,8 @@ export default function ShoppingCartRefactored() {
 
   // Handler para seleccionar método de pago AFIP
   const handleAfipPayment = async (method: string) => {
+    if (paymentLockRef.current) return;
+    paymentLockRef.current = true;
     console.log("🧾 Procesando pago AFIP con método:", method);
 
     try {
@@ -297,13 +307,18 @@ export default function ShoppingCartRefactored() {
       toast.error(`Error en factura AFIP: ${error.message}`);
       // NO limpiar estados locales aquí, solo los del hook AFIP
       afipPaymentProcessor.resetPaymentState();
+    } finally {
+      paymentLockRef.current = false;
     }
   };
 
   // Handler para seleccionar método de pago
   const handlePayment = async (method: string) => {
+    if (paymentLockRef.current) return;
+    paymentLockRef.current = true;
     if (!user) {
       toast.error("Debes iniciar sesión para realizar una orden");
+      paymentLockRef.current = false;
       return;
     }
 
@@ -422,7 +437,30 @@ export default function ShoppingCartRefactored() {
 
           try {
             // Imprimir ticket
-            await handleTicketPrinting(enrichedOrderData);
+            await handleTicketPrinting(enrichedOrderData, API_URL, getAppId());
+
+            // 🆕 DOBLE IMPRESIÓN QR/MP DESHABILITADO: Si está habilitada, imprimir segunda vez
+            if (businessInfo?.dobleImpresionEnabled === true) {
+              console.log(
+                "🖨️🖨️ QR/MP DESHABILITADO DOBLE IMPRESIÓN: Imprimiendo segunda copia..."
+              );
+              try {
+                await handleTicketPrinting(
+                  enrichedOrderData,
+                  API_URL,
+                  getAppId()
+                );
+                console.log(
+                  "✅ QR/MP DESHABILITADO DOBLE IMPRESIÓN: Segunda copia impresa exitosamente"
+                );
+              } catch (error) {
+                console.error(
+                  "❌ QR/MP DESHABILITADO DOBLE IMPRESIÓN: Error en segunda copia:",
+                  error
+                );
+                // No fallar la orden si la segunda impresión falla
+              }
+            }
           } catch (printError) {
             console.error("Error en impresión:", printError);
           } finally {
@@ -474,6 +512,11 @@ export default function ShoppingCartRefactored() {
       setIsProcessingPayment(false);
       setSelectedPaymentMethod(null);
       setPaymentDialogOpen(false);
+    } finally {
+      // ✅ MEJORADO: Asegurar que el estado se resetee SIEMPRE
+      setIsProcessingPayment(false);
+      setSelectedPaymentMethod(null);
+      paymentLockRef.current = false;
     }
   };
 
@@ -580,9 +623,33 @@ export default function ShoppingCartRefactored() {
     setLastInputTime(currentTime);
 
     if (/^\d{8,13}$/.test(value)) {
-      const product = availableProducts.find((p) => p.codigoBarras === value);
+      const product = availableProducts.find(
+        (p: any) => p.codigoBarras === value
+      );
       if (product) {
-        handleProductSelect(product);
+        // Agregar automáticamente producto por código de barras (1 unidad)
+        autoAddScannedProduct(product, 1);
+        setBarcodeBuffer("");
+        return;
+      }
+    }
+
+    // Detectar formato 0 + 3 dígitos PLU + 8 dígitos peso(g) + 1 dígito checksum (13 dígitos)
+    const pluWeightRegex = /^0(\d{3})(\d{8})\d$/;
+    const match = value.match(pluWeightRegex);
+    if (match) {
+      const plu = match[1];
+      const grams = parseInt(match[2], 10);
+      const kgQuantity = grams / 1000; // convertir a kilos
+
+      const productByPlu: any = availableProducts.find((p: any) => {
+        if (p.plu === null || p.plu === undefined) return false;
+        return String(p.plu) === plu;
+      });
+      if (productByPlu) {
+        autoAddScannedProduct(productByPlu, kgQuantity);
+        setBarcodeBuffer("");
+        return;
       }
     }
   };
@@ -601,6 +668,39 @@ export default function ShoppingCartRefactored() {
     setDeleteScreenDialogOpen(false);
     setScreenToDelete(null);
     toast.success("Pantalla eliminada correctamente");
+  };
+
+  // Función auxiliar para añadir producto escaneado directamente al carrito
+  const autoAddScannedProduct = (prod: any, qty: number) => {
+    try {
+      if (qty <= 0) return;
+
+      const uniqueId = `${prod.id}-${Date.now()}-${Math.random()
+        .toString(36)
+        .substring(2, 10)}`;
+
+      const newItem: Product = {
+        id: prod.id,
+        cartId: uniqueId,
+        name: prod.nombre,
+        quantity: qty,
+        unit: prod.tipoMedida || "Unidad",
+        pricePerUnit: prod.precio,
+        subtotal: Number((prod.precio * qty).toFixed(2)),
+        costo: prod.costo,
+      };
+
+      cartState.addToCart(newItem);
+
+      // Limpiar input y restablecer foco
+      setSearchQuery("");
+      if (searchInputRef.current) {
+        searchInputRef.current.value = "";
+        searchInputRef.current.focus();
+      }
+    } catch (err) {
+      console.error("Error auto-add producto:", err);
+    }
   };
 
   // Usar el hook de atajos de teclado después de declarar todas las funciones
@@ -692,7 +792,11 @@ export default function ShoppingCartRefactored() {
       <CartSummary
         total={cartState.calculateTotal()}
         onCancel={handleCancelClick}
-        onCheckout={handlePaymentClick}
+        onCheckout={
+          businessInfo?.facturacionHabilitada
+            ? handleAfipPaymentClick
+            : handlePaymentClick
+        }
       />
 
       {/* Dialogs */}

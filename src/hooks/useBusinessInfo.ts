@@ -104,12 +104,16 @@ export const useBusinessInfo = (API_URL: string, appId: string | null) => {
       }
 
       try {
-        const response = await fetch(`${API_URL}/api/business/${businessId}`, {
-          headers: {
-            "Content-Type": "application/json",
-            ...(appId && { "X-App-ID": appId }),
-          },
-        });
+        // Modificar el endpoint para incluir datos de sucursal
+        const response = await fetch(
+          `${API_URL}/api/business/${businessId}?include=sucursales`,
+          {
+            headers: {
+              "Content-Type": "application/json",
+              ...(appId && { "X-App-ID": appId }),
+            },
+          }
+        );
 
         if (!response.ok) {
           if (cachedBusinessInfo) {
@@ -126,6 +130,29 @@ export const useBusinessInfo = (API_URL: string, appId: string | null) => {
 
         const data = await response.json();
         console.log("✅ Información del negocio cargada desde API:", data);
+
+        // 🆕 PROCESAMIENTO MEJORADO: Incluir datos de sucursal si están disponibles
+        if (data.sucursales && data.sucursales.length > 0) {
+          // Buscar la sucursal principal o la primera disponible
+          const sucursalPrincipal =
+            data.sucursales.find((s: any) => s.esPrincipal) ||
+            data.sucursales[0];
+
+          // Enriquecer la información del business con datos de la sucursal
+          data.direccion = sucursalPrincipal.direccion || data.direccion;
+          data.telefono = sucursalPrincipal.telefono || data.telefono;
+          data.sucursalActiva = sucursalPrincipal;
+
+          console.log("✅ Datos de sucursal incluidos:", {
+            direccion: data.direccion,
+            telefono: data.telefono,
+            sucursal: sucursalPrincipal.nombre,
+          });
+        } else {
+          console.log(
+            "ℹ️ No hay sucursales configuradas, usando datos del business principal"
+          );
+        }
 
         // Verificar si tiene configuración de sistema de pago
         if (!data.sistemaPago) {

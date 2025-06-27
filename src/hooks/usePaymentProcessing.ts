@@ -222,6 +222,32 @@ export function usePaymentProcessing({
         // Imprimir ticket usando Electron IPC
         const printSuccess = await handleTicketPrinting(enrichedOrderData);
 
+        // 🆕 DOBLE IMPRESIÓN NORMAL: Si está habilitada, imprimir segunda vez
+        if (printSuccess) {
+          try {
+            // Obtener businessInfo para verificar doble impresión
+            const businessInfo = await (
+              await import("@/utils/businessHelpers")
+            ).getBusinessInfo(API_URL, appId);
+
+            if (businessInfo?.dobleImpresionEnabled === true) {
+              console.log(
+                "🖨️🖨️ NORMAL DOBLE IMPRESIÓN: Imprimiendo segunda copia..."
+              );
+              await handleTicketPrinting(enrichedOrderData);
+              console.log(
+                "✅ NORMAL DOBLE IMPRESIÓN: Segunda copia impresa exitosamente"
+              );
+            }
+          } catch (error) {
+            console.error(
+              "❌ NORMAL DOBLE IMPRESIÓN: Error en segunda copia:",
+              error
+            );
+            // No fallar la orden si la segunda impresión falla
+          }
+        }
+
         // Cerrar el toast de carga de impresión
         toast.dismiss(printingToastId);
 
@@ -679,7 +705,33 @@ export function usePaymentProcessing({
 
           // Solo imprimir el ticket si no se indica saltar la impresión
           if (!skipPrinting) {
-            await handleTicketPrinting(enrichedOrderData);
+            const printSuccess = await handleTicketPrinting(enrichedOrderData);
+
+            // 🆕 DOBLE IMPRESIÓN QR/MP: Si está habilitada, imprimir segunda vez
+            if (printSuccess) {
+              try {
+                // Obtener businessInfo para verificar doble impresión
+                const businessInfo = await (
+                  await import("@/utils/businessHelpers")
+                ).getBusinessInfo(API_URL, appId);
+
+                if (businessInfo?.dobleImpresionEnabled === true) {
+                  console.log(
+                    "🖨️🖨️ QR/MP DOBLE IMPRESIÓN: Imprimiendo segunda copia..."
+                  );
+                  await handleTicketPrinting(enrichedOrderData);
+                  console.log(
+                    "✅ QR/MP DOBLE IMPRESIÓN: Segunda copia impresa exitosamente"
+                  );
+                }
+              } catch (error) {
+                console.error(
+                  "❌ QR/MP DOBLE IMPRESIÓN: Error en segunda copia:",
+                  error
+                );
+                // No fallar la orden si la segunda impresión falla
+              }
+            }
           } else {
             console.log("🖨️ Impresión de ticket omitida (skipPrinting=true)");
           }
@@ -876,6 +928,32 @@ export function usePaymentProcessing({
         // Imprimir ticket usando handleTicketPrinting que ya funciona
         const printSuccess = await handleTicketPrinting(enrichedOrderData);
 
+        // 🆕 DOBLE IMPRESIÓN MIXTO: Si está habilitada, imprimir segunda vez
+        if (printSuccess) {
+          try {
+            // Obtener businessInfo para verificar doble impresión
+            const businessInfo = await (
+              await import("@/utils/businessHelpers")
+            ).getBusinessInfo(API_URL, appId);
+
+            if (businessInfo?.dobleImpresionEnabled === true) {
+              console.log(
+                "🖨️🖨️ MIXTO DOBLE IMPRESIÓN: Imprimiendo segunda copia..."
+              );
+              await handleTicketPrinting(enrichedOrderData);
+              console.log(
+                "✅ MIXTO DOBLE IMPRESIÓN: Segunda copia impresa exitosamente"
+              );
+            }
+          } catch (error) {
+            console.error(
+              "❌ MIXTO DOBLE IMPRESIÓN: Error en segunda copia:",
+              error
+            );
+            // No fallar la orden si la segunda impresión falla
+          }
+        }
+
         // Cerrar el toast de carga de impresión
         toast.dismiss(printingToastId);
 
@@ -1003,7 +1081,26 @@ export function usePaymentProcessing({
         const printingToastId = toast.loading("Imprimiendo ticket...");
 
         // Imprimir ticket
-        await handleTicketPrinting(enrichedOrderData);
+        const printSuccess = await handleTicketPrinting(enrichedOrderData);
+
+        // 🆕 DOBLE IMPRESIÓN MIXTO MP DESHABILITADO: Si está habilitada, imprimir segunda vez
+        if (printSuccess && businessInfo?.dobleImpresionEnabled === true) {
+          console.log(
+            "🖨️🖨️ MIXTO MP DESHABILITADO DOBLE IMPRESIÓN: Imprimiendo segunda copia..."
+          );
+          try {
+            await handleTicketPrinting(enrichedOrderData);
+            console.log(
+              "✅ MIXTO MP DESHABILITADO DOBLE IMPRESIÓN: Segunda copia impresa exitosamente"
+            );
+          } catch (error) {
+            console.error(
+              "❌ MIXTO MP DESHABILITADO DOBLE IMPRESIÓN: Error en segunda copia:",
+              error
+            );
+            // No fallar la orden si la segunda impresión falla
+          }
+        }
 
         // Cerrar el toast de carga de impresión
         toast.dismiss(printingToastId);
@@ -1453,7 +1550,33 @@ export function usePaymentProcessing({
             id: orderResult.id || null,
           };
 
-          await handleTicketPrinting(enrichedOrderData);
+          const printSuccess = await handleTicketPrinting(enrichedOrderData);
+
+          // 🆕 DOBLE IMPRESIÓN MIXTO QR: Si está habilitada, imprimir segunda vez
+          if (printSuccess) {
+            try {
+              // Obtener businessInfo para verificar doble impresión
+              const businessInfo = await (
+                await import("@/utils/businessHelpers")
+              ).getBusinessInfo(API_URL, appId);
+
+              if (businessInfo?.dobleImpresionEnabled === true) {
+                console.log(
+                  "🖨️🖨️ MIXTO QR DOBLE IMPRESIÓN: Imprimiendo segunda copia..."
+                );
+                await handleTicketPrinting(enrichedOrderData);
+                console.log(
+                  "✅ MIXTO QR DOBLE IMPRESIÓN: Segunda copia impresa exitosamente"
+                );
+              }
+            } catch (error) {
+              console.error(
+                "❌ MIXTO QR DOBLE IMPRESIÓN: Error en segunda copia:",
+                error
+              );
+              // No fallar la orden si la segunda impresión falla
+            }
+          }
         } catch (error: any) {
           console.error("❌ Error al procesar orden mixta:", error);
           toast.error(`Error: ${error.message}`);

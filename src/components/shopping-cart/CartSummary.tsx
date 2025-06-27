@@ -25,7 +25,7 @@ export function CartSummary({ total, onCancel, onCheckout }: CartSummaryProps) {
             PAGAR
           </Button>
         </div>
-        <div className="text-4xl font-semibold bg-white border px-8 py-6 shadow-sm rounded-xl">
+        <div className="text-4xl font-semibold bg-white border px-8 py-6 shadow-sm rounded-2xl border-[#A7A7A7]">
           TOTAL: ${total.toLocaleString()}
         </div>
       </div>

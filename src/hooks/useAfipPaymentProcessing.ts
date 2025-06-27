@@ -2,6 +2,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Product } from "./useCartState";
 import { getBusinessName } from "@/utils/businessHelpers";
+import { useBusinessInfo } from "./useBusinessInfo";
 
 interface AfipPaymentOptions {
   user: any;
@@ -22,6 +23,9 @@ export function useAfipPaymentProcessing({
   setPaymentDialogOpen,
   searchInputRef,
 }: AfipPaymentOptions) {
+  // 🆕 MEJORA: Usar businessInfo desde el hook
+  const { businessInfo } = useBusinessInfo(API_URL, appId);
+
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<
     string | null
@@ -83,13 +87,16 @@ export function useAfipPaymentProcessing({
         !!(window as any).electron?.ipcRenderer
       );
 
+      let result;
+
       // Método 1: Usar window.printer (API específica para impresión)
       if (
         typeof window !== "undefined" &&
         (window as any).printer?.printAfipTicket
       ) {
         console.log("🖨️ Usando window.printer.printAfipTicket");
-        return await (window as any).printer.printAfipTicket(afipData);
+        result = await (window as any).printer.printAfipTicket(afipData);
+        console.log("📝 Resultado detallado de printAfipTicket:", result);
       }
       // Método 2: Usar window.electron.ipcRenderer (API general)
       else if (
@@ -99,18 +106,56 @@ export function useAfipPaymentProcessing({
         console.log(
           "🖨️ Usando window.electron.ipcRenderer.invoke('print-afip-ticket')"
         );
-        const result = await (window as any).electron.ipcRenderer.invoke(
+        result = await (window as any).electron.ipcRenderer.invoke(
           "print-afip-ticket",
           afipData
         );
         console.log("📝 Resultado de print-afip-ticket:", result);
-        return result;
       }
       // Si ninguna API está disponible
       else {
         console.error("❌ Ninguna API de impresión AFIP disponible");
         throw new Error("API de Electron no disponible para impresión AFIP");
       }
+
+      // 🆕 VALIDACIÓN MEJORADA: Verificar que la impresión fue realmente exitosa
+      console.log("🔍 VALIDANDO RESULTADO DE IMPRESIÓN:");
+      console.log("- Tipo de resultado:", typeof result);
+      console.log("- Resultado completo:", result);
+
+      // Verificar diferentes formatos de respuesta
+      if (result === undefined || result === null) {
+        console.warn("⚠️ Resultado vacío - posible problema de impresión");
+        return {
+          success: false,
+          printerError: "Resultado vacío de la función de impresión",
+          message: "No se recibió confirmación de impresión",
+        };
+      }
+
+      // Si es un objeto, verificar la propiedad success
+      if (typeof result === "object") {
+        if (result.success === false) {
+          console.error(
+            "❌ Error reportado por la función de impresión:",
+            result
+          );
+          return result;
+        }
+
+        // Verificar si hay alguna propiedad que indique error
+        if (result.error || result.printerError) {
+          console.error("❌ Error en propiedades del resultado:", result);
+          return {
+            success: false,
+            printerError: result.error || result.printerError,
+            message: result.message || "Error en impresión",
+          };
+        }
+      }
+
+      console.log("✅ Impresión AFIP aparentemente exitosa");
+      return result;
     } catch (error: any) {
       console.error("❌ Error al imprimir ticket AFIP:", error);
       console.error("❌ Stack trace:", error.stack);
@@ -265,10 +310,31 @@ export function useAfipPaymentProcessing({
 
     const finalTotal = totalAmount || calculateTotal();
 
-    // Prevenir procesamiento duplicado
+    // 🚦 PREVENIR PROCESOS DUPLICADOS Y MOSTRAR CARGA INSTANTÁNEA
     if (isProcessingPayment) {
       console.log("⚠️ Ya hay un pago AFIP en proceso");
       return;
+    }
+
+    // Marcar inmediatamente como procesando para feedback instantáneo
+    setIsProcessingPayment(true);
+    setSelectedPaymentMethod(method);
+
+    // Obtener la info del negocio para los datos del ticket
+    let fetchedBusinessInfo: any = null;
+    try {
+      fetchedBusinessInfo = await (
+        await import("@/utils/businessHelpers")
+      ).getBusinessInfo(API_URL, appId);
+      console.log(
+        "🏢 AFIP: businessInfo obtenido dentro de processAfipPayment",
+        fetchedBusinessInfo
+      );
+    } catch (err) {
+      console.warn(
+        "⚠️ AFIP: No se pudo obtener businessInfo, usando valores por defecto",
+        err
+      );
     }
 
     // Si es efectivo y no viene de los diálogos de efectivo, manejar redondeo
@@ -278,9 +344,6 @@ export function useAfipPaymentProcessing({
       );
       throw new Error("Use handleAfipCashPayment para pagos en efectivo");
     }
-
-    setIsProcessingPayment(true);
-    setSelectedPaymentMethod(method);
 
     const orderItems = items.map((item) => ({
       productoId: item.id,
@@ -325,7 +388,7 @@ export function useAfipPaymentProcessing({
         throw new Error("No se recibió CAE de AFIP");
       }
 
-      // Preparar datos para impresión con información completa del negocio
+      // 🆕 PREPARAR DATOS MEJORADO: Usar businessInfo como fuente principal
       const printData = {
         ...afipResult,
         metodoPago: method,
@@ -333,37 +396,100 @@ export function useAfipPaymentProcessing({
         total: finalTotal,
         usuario: user.nombre || "Vendedor",
         fechaHora: new Date().toLocaleString("es-AR"),
-        // Información del negocio
+
+        // 🔧 INFORMACIÓN DEL NEGOCIO: Priorizar businessInfo del contexto
         businessName:
-          afipResult.business?.name || user.business?.name || "Comercio",
-        razonSocial:
-          afipResult.business?.razonSocial ||
-          user.business?.razonSocial ||
+          fetchedBusinessInfo?.nombre ||
+          fetchedBusinessInfo?.name ||
+          fetchedBusinessInfo?.razonSocial ||
           afipResult.business?.name ||
+          afipResult.business?.razonSocial ||
           user.business?.name ||
+          user.business?.razonSocial ||
+          user.nombre ||
           "Comercio",
+
+        razonSocial:
+          fetchedBusinessInfo?.razonSocial ||
+          fetchedBusinessInfo?.nombre ||
+          fetchedBusinessInfo?.name ||
+          afipResult.business?.razonSocial ||
+          afipResult.business?.name ||
+          afipResult.razonSocial ||
+          afipResult.empresa?.razonSocial ||
+          afipResult.empresa?.nombre ||
+          user.business?.razonSocial ||
+          user.business?.name ||
+          user.razonSocial ||
+          user.empresa ||
+          user.nombre ||
+          "Comercio",
+
         cuit:
+          fetchedBusinessInfo?.cuit ||
+          fetchedBusinessInfo?.CUIT ||
           afipResult.business?.cuit ||
+          afipResult.cuit ||
+          afipResult.empresa?.cuit ||
           user.business?.cuit ||
           user.cuit ||
+          user.empresa?.cuit ||
           "00-00000000-0",
+
         condicionIva:
+          fetchedBusinessInfo?.condicionIva ||
           afipResult.business?.condicionIva ||
+          afipResult.condicionIva ||
+          afipResult.empresa?.condicionIva ||
           user.business?.condicionIva ||
+          user.condicionIva ||
           "Responsable Inscripto",
+
+        // 🏢 DIRECCIÓN: Priorizar sucursal activa del businessInfo
         direccion:
-          afipResult.business?.direccion ||
-          user.business?.direccion ||
+          businessInfo?.sucursalActiva?.ubicacion ||
+          businessInfo?.direccion ||
+          fetchedBusinessInfo?.sucursalActiva?.ubicacion ||
+          fetchedBusinessInfo?.direccion ||
+          afipResult.business?.sucursalActiva?.ubicacion ||
+          afipResult.business?.ubicacion ||
+          afipResult.direccion ||
+          afipResult.empresa?.ubicacion ||
+          user.business?.sucursalActiva?.ubicacion ||
+          user.business?.ubicacion ||
+          user.direccion ||
           "Dirección no configurada",
+
+        // 📞 TELÉFONO: Incluir desde sucursal si está disponible
+        telefono:
+          businessInfo?.sucursalActiva?.telefono ||
+          businessInfo?.telefono ||
+          fetchedBusinessInfo?.sucursalActiva?.telefono ||
+          fetchedBusinessInfo?.telefono ||
+          afipResult.business?.sucursalActiva?.telefono ||
+          afipResult.business?.telefono ||
+          afipResult.telefono ||
+          "",
+
         // Datos AFIP
-        cae: afipResult.afip?.cae,
-        fechaVtoCae: afipResult.afip?.fechaVtoCae,
+        cae: afipResult.afip?.cae || afipResult.cae,
+        fechaVtoCae: afipResult.afip?.fechaVtoCae || afipResult.fechaVtoCae,
         puntoVenta:
-          afipResult.afip?.puntoVenta || afipResult.puntoVenta || "0001",
+          afipResult.afip?.puntoVenta ||
+          afipResult.puntoVenta ||
+          afipResult.punto_venta ||
+          "0001",
         numeroFactura:
-          afipResult.afip?.numeroFactura || afipResult.numeroFactura,
-        tipoFactura: afipResult.afip?.tipoFactura || "FACTURA B",
-        vendedor: user.nombre || "Vendedor",
+          afipResult.afip?.numeroFactura ||
+          afipResult.numeroFactura ||
+          afipResult.numero_factura ||
+          afipResult.numero,
+        tipoFactura:
+          afipResult.afip?.tipoFactura ||
+          afipResult.tipoFactura ||
+          afipResult.tipo_factura ||
+          "FACTURA B",
+        vendedor: user.nombre || user.name || "Vendedor",
         // Calcular descuento si aplica
         ...(method === "efectivo" &&
           originalAmount > finalTotal && {
@@ -374,24 +500,197 @@ export function useAfipPaymentProcessing({
 
       console.log("📋 Datos preparados para impresión AFIP:", printData);
 
+      // 🔍 DEBUG MEJORADO: Mostrar fuentes de datos
+      console.log("🔍 DEBUG FUENTES DE DATOS:");
+      console.log("- businessInfo:", businessInfo);
+      console.log(
+        "- businessInfo.sucursalActiva:",
+        businessInfo?.sucursalActiva
+      );
+      console.log("- afipResult.business:", afipResult.business);
+      console.log("- user:", user);
+
+      // DEBUG: Verificar qué valores están siendo seleccionados en printData
+      console.log("🎯 VALORES FINALES SELECCIONADOS:");
+      console.log("- businessName final:", printData.businessName);
+      console.log("- razonSocial final:", printData.razonSocial);
+      console.log("- cuit final:", printData.cuit);
+      console.log("- condicionIva final:", printData.condicionIva);
+      console.log("- direccion final:", printData.direccion);
+      console.log("- telefono final:", printData.telefono);
+      console.log("- cae final:", printData.cae);
+      console.log("- fechaVtoCae final:", printData.fechaVtoCae);
+      console.log("- vendedor final:", printData.vendedor);
+
+      // Simular el ticket AFIP antes de imprimir
+      console.log("\n🎭 ====== SIMULACIÓN DEL TICKET AFIP ======");
+
+      // Encabezado reducido (sin nombre grande)
+      console.log(`Razón Social: ${printData.razonSocial}`);
+      console.log(`CUIT: ${printData.cuit || "00-00000000-0"}`);
+      console.log(
+        `Condición IVA: ${printData.condicionIva || "Responsable Inscripto"}`
+      );
+      console.log(
+        `Dirección: ${printData.direccion || "Dirección no configurada"}`
+      );
+      console.log(`-----------------------------`);
+      console.log(``);
+      console.log(
+        `           ${(printData.tipoFactura || "FACTURA B").toUpperCase()}`
+      );
+      console.log(``);
+      console.log(
+        `Nro: ${printData.puntoVenta || "0001"}-${String(
+          printData.numeroFactura || "1"
+        ).padStart(8, "0")}`
+      );
+      console.log(`Fecha: ${new Date().toLocaleString("es-AR")}`);
+      console.log(
+        `Vendedor: ${printData.vendedor || printData.usuario || "N/A"}`
+      );
+      console.log(`-----------------------------`);
+      console.log(`Cliente: Consumidor Final`);
+      console.log(`Condición IVA: Consumidor Final`);
+      console.log(`-----------------------------`);
+      console.log(`PRODUCTO      CANT    PRECIO    TOTAL`);
+      console.log(`-----------------------------`);
+
+      // Mostrar productos
+      const items = printData.items || [];
+      let subtotalNeto = 0;
+      let totalIva = 0;
+
+      if (items && items.length > 0) {
+        items.forEach((item: any) => {
+          const nombre = (item.nombre || "").substring(0, 12).padEnd(12);
+          const cantidad = Number(item.cantidad || 0)
+            .toFixed(3)
+            .padStart(8);
+          const precio = `$${Number(
+            item.precioHistorico || item.precio || 0
+          ).toFixed(2)}`.padStart(8);
+          const subtotal = `$${Number(item.subtotal || 0).toFixed(2)}`.padStart(
+            8
+          );
+
+          console.log(`${nombre} ${cantidad} ${precio} ${subtotal}`);
+
+          // Calcular subtotal neto (sin IVA) y IVA
+          const itemSubtotal = Number(item.subtotal || 0);
+          subtotalNeto += itemSubtotal / 1.21; // Asumiendo IVA 21%
+          totalIva += itemSubtotal - itemSubtotal / 1.21;
+        });
+      } else {
+        console.log("❌ No hay items en la factura AFIP");
+      }
+
+      console.log(`-----------------------------`);
+      console.log(`Subtotal: $${subtotalNeto.toFixed(2)}`);
+      console.log(`IVA (21%): $${totalIva.toFixed(2)}`);
+      console.log(
+        `                 TOTAL: $${Number(printData.total).toFixed(2)}`
+      );
+      console.log(`-----------------------------`);
+      console.log(`     COMPROBANTE AUTORIZADO`);
+      console.log(`        CAE: ${printData.cae || "NO DISPONIBLE"}`);
+
+      // Fecha de vencimiento del CAE
+      let fechaFormateada = new Date().toLocaleDateString("es-AR");
+      if (printData.fechaVtoCae) {
+        const fechaVto = printData.fechaVtoCae;
+        if (fechaVto.length === 8) {
+          // Formato YYYYMMDD de AFIP
+          const year = fechaVto.substring(0, 4);
+          const month = fechaVto.substring(4, 6);
+          const day = fechaVto.substring(6, 8);
+          fechaFormateada = `${day}/${month}/${year}`;
+        } else {
+          fechaFormateada = new Date(fechaVto).toLocaleDateString("es-AR");
+        }
+      }
+      console.log(`    Fecha Vto CAE: ${fechaFormateada}`);
+      console.log(``);
+      console.log(`     ¡Gracias por su compra!`);
+      console.log(`    Conserve este comprobante`);
+      console.log(`🎭 ======= FIN SIMULACIÓN TICKET AFIP =======\n`);
+
       // Imprimir ticket AFIP
-      await handleAfipTicketPrinting(printData);
+      const firstPrintResult = await handleAfipTicketPrinting(printData);
 
-      // Mostrar el CAE al usuario
-      toast.success(`Factura AFIP creada exitosamente`, {
-        description: `CAE: ${afipResult.afip.cae}`,
-        duration: 5000,
-      });
+      // 🆕 MANEJO MEJORADO DE ERRORES DE IMPRESIÓN
+      let printingFailed = false;
+      if (firstPrintResult && firstPrintResult.success === false) {
+        console.error("❌ Primera impresión AFIP falló:", firstPrintResult);
+        printingFailed = true;
 
-      // Esperar un poco para que el usuario vea el éxito antes de cerrar
+        // 🎯 TOAST CORTO Y CLARO (no lanzar excepción)
+        toast.error("Error al imprimir factura AFIP", {
+          description:
+            "La factura se creó exitosamente pero no se pudo imprimir",
+          duration: 4000,
+        });
+      }
+
+      // 🆕 DOBLE IMPRESIÓN AFIP: Solo si la primera fue exitosa
+      if (
+        !printingFailed &&
+        (businessInfo?.dobleImpresionEnabled === true ||
+          fetchedBusinessInfo?.dobleImpresionEnabled === true)
+      ) {
+        console.log("🖨️🖨️ AFIP DOBLE IMPRESIÓN: Imprimiendo segunda copia...");
+        try {
+          const secondPrintResult = await handleAfipTicketPrinting(printData);
+
+          // Verificar resultado de segunda impresión
+          if (secondPrintResult && secondPrintResult.success === false) {
+            console.error(
+              "❌ Segunda impresión AFIP falló:",
+              secondPrintResult
+            );
+            toast.warning(
+              "Primera impresión exitosa, pero la segunda copia falló"
+            );
+          } else {
+            console.log(
+              "✅ AFIP DOBLE IMPRESIÓN: Segunda copia impresa exitosamente"
+            );
+          }
+        } catch (error) {
+          console.error(
+            "❌ AFIP DOBLE IMPRESIÓN: Error en segunda copia:",
+            error
+          );
+          toast.warning(
+            "Primera impresión exitosa, pero la segunda copia falló"
+          );
+        }
+      }
+
+      // 🎯 MOSTRAR ÉXITO SIEMPRE (factura creada correctamente)
+      if (!printingFailed) {
+        toast.success(`Factura AFIP creada exitosamente`, {
+          description: `CAE: ${afipResult.afip.cae}`,
+          duration: 5000,
+        });
+      } else {
+        // Si falló la impresión, mostrar que la factura se creó pero con problema de impresión
+        toast.success(`Factura AFIP creada exitosamente`, {
+          description: `CAE: ${afipResult.afip.cae} (Error de impresión)`,
+          duration: 5000,
+        });
+      }
+
+      // ✅ LIMPIAR CARRITO SIEMPRE (factura creada exitosamente)
+      // Esperar un poco para que el usuario vea el mensaje
       await new Promise((resolve) => setTimeout(resolve, 1500));
 
-      // Limpiar carrito y estados
+      // Limpiar carrito y estados SIEMPRE
       clearCart();
       resetPaymentState();
       setPaymentDialogOpen(false);
 
-      // Devolver el foco al input de búsqueda (igual que las órdenes normales)
+      // Devolver el foco al input de búsqueda
       setTimeout(() => {
         if (searchInputRef?.current) {
           searchInputRef.current.focus();
@@ -399,9 +698,24 @@ export function useAfipPaymentProcessing({
       }, 100);
     } catch (error: any) {
       console.error("❌ Error al procesar factura AFIP:", error);
-      toast.error(
-        `Error: ${error.message || "Error al crear la factura AFIP"}`
-      );
+
+      // 🎯 TOAST DE ERROR MÁS CORTO
+      if (
+        error.message?.includes("Failed to copy file to printer") ||
+        error.message?.includes("Error de impresión")
+      ) {
+        toast.error("Error al crear factura AFIP", {
+          description: "Problema de conexión con la impresora",
+          duration: 4000,
+        });
+      } else {
+        toast.error("Error al crear factura AFIP", {
+          description:
+            error.message?.substring(0, 100) + "..." || "Error desconocido",
+          duration: 4000,
+        });
+      }
+
       resetPaymentState();
       setPaymentDialogOpen(false);
 
