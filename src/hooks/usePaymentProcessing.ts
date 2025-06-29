@@ -548,6 +548,12 @@ export function usePaymentProcessing({
           return;
         }
 
+        // Si por alguna razón los datos del QR se limpiaron, detén el polling
+        if (!qrData) {
+          cleanupPolling();
+          return;
+        }
+
         console.log("🔄 Verificando estado del pago...");
         const response = await fetch(
           `${API_URL}/api/mercadopago/check-status?orderId=${orderId}`,
@@ -1389,6 +1395,13 @@ export function usePaymentProcessing({
           false
         );
       }
+
+      // Limpiar cualquier polling activo inmediatamente para evitar errores
+      cleanupPolling();
+
+      // Reset visual flags antes de que el usuario pueda abrir un nuevo diálogo
+      setIsProcessingPayment(false);
+      setSelectedPaymentMethod(null);
 
       toast.success("Orden completada. Reiniciando carrito...");
 
