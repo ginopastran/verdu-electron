@@ -424,7 +424,9 @@ ipcMain.handle("print-afip-ticket", async (_, afipData) => {
     try {
         const tempDir = os.tmpdir();
         const tempDataPath = path.join(tempDir, `afip-data-${Date.now()}.json`);
+        console.log("📁 AFIP: Escribiendo datos temporales en:", tempDataPath);
         await fsPromises.writeFile(tempDataPath, JSON.stringify(afipData), "utf8");
+        console.log("✅ AFIP: Archivo temporal creado exitosamente");
         const isProduction = process.env.NODE_ENV !== "development";
         let phpScriptPath;
         if (isProduction) {
@@ -433,6 +435,8 @@ ipcMain.handle("print-afip-ticket", async (_, afipData) => {
         else {
             phpScriptPath = path.join(app.getAppPath(), "resources", "afip_ticket_printer.php");
         }
+        console.log("🔍 AFIP: Ruta del script PHP:", phpScriptPath);
+        console.log("🔍 AFIP: ¿Existe el script?", fs.existsSync(phpScriptPath));
         // LOG: Verificar existencia del script PHP AFIP
         if (!fs.existsSync(phpScriptPath)) {
             console.error("❌ No se encontró el script PHP AFIP:", phpScriptPath);
@@ -446,13 +450,18 @@ ipcMain.handle("print-afip-ticket", async (_, afipData) => {
         console.log(`NODE_ENV: ${process.env.NODE_ENV}`);
         console.log(`PHP Script AFIP: ${phpScriptPath}`);
         console.log(`Datos AFIP: ${tempDataPath}`);
+        const command = `set NODE_ENV=${process.env.NODE_ENV}&& php "${phpScriptPath}" "${tempDataPath}"`;
+        console.log("💻 AFIP: Comando a ejecutar:", command);
         return new Promise((resolve, reject) => {
-            exec(`set NODE_ENV=${process.env.NODE_ENV}&& php "${phpScriptPath}" "${tempDataPath}"`, async (error, stdout, stderr) => {
+            exec(command, async (error, stdout, stderr) => {
                 try {
+                    console.log("🔄 AFIP: Eliminando archivo temporal...");
                     await fsPromises.unlink(tempDataPath);
+                    console.log("📊 ===== RESULTADOS AFIP =====");
                     console.log("[PRINT-AFIP] error:", error);
                     console.log("[PRINT-AFIP] stdout:", stdout);
                     console.log("[PRINT-AFIP] stderr:", stderr);
+                    console.log("📊 ========================");
                     if (error) {
                         console.error("[PRINT-AFIP] Código de salida:", error.code);
                     }
@@ -464,6 +473,7 @@ ipcMain.handle("print-afip-ticket", async (_, afipData) => {
                         }
                     }
                     if (error) {
+                        console.error("❌ AFIP: Error en exec:", error);
                         resolve({
                             success: false,
                             printerError: printerError || error.message,
@@ -476,6 +486,7 @@ ipcMain.handle("print-afip-ticket", async (_, afipData) => {
                         return;
                     }
                     if (printerError) {
+                        console.error("❌ AFIP: Error en stderr:", printerError);
                         resolve({
                             success: false,
                             printerError,
@@ -483,7 +494,7 @@ ipcMain.handle("print-afip-ticket", async (_, afipData) => {
                         });
                         return;
                     }
-                    console.log("✅ Ticket AFIP impreso correctamente");
+                    console.log("✅ AFIP: Ticket impreso correctamente");
                     resolve({
                         success: true,
                         printerError: null,
@@ -491,14 +502,14 @@ ipcMain.handle("print-afip-ticket", async (_, afipData) => {
                     });
                 }
                 catch (err) {
-                    console.error("Error en el callback AFIP:", err);
+                    console.error("❌ AFIP: Error en el callback:", err);
                     reject(err);
                 }
             });
         });
     }
     catch (error) {
-        console.error("Error en print-afip-ticket:", error);
+        console.error("❌ AFIP: Error general en print-afip-ticket:", error);
         return {
             success: false,
             printerError: error.message,

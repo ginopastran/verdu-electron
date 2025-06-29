@@ -208,7 +208,18 @@ try {
     $fechaFactura = $afipData['fechaHora'] ?? date("d/m/Y H:i:s");
     $printer->text("Fecha: " . $fechaFactura . "\n");
     $printer->text("Vendedor: " . ($afipData['vendedor'] ?? $afipData['usuario'] ?? 'N/A') . "\n");
-    
+
+    // Añadir ID real de la orden/factura si está disponible
+    if (isset($afipData['idReal']) && !empty($afipData['idReal'])) {
+        $printer->text("Orden #" . $afipData['idReal'] . "\n");
+        file_put_contents('php://stderr', "✅ ID Real encontrado: " . $afipData['idReal'] . "\n");
+    } elseif (isset($afipData['factura']) && is_array($afipData['factura']) && isset($afipData['factura']['idReal']) && !empty($afipData['factura']['idReal'])) {
+        $printer->text("Orden #" . $afipData['factura']['idReal'] . "\n");
+        file_put_contents('php://stderr', "✅ ID Real encontrado en factura: " . $afipData['factura']['idReal'] . "\n");
+    } else {
+        file_put_contents('php://stderr', "⚠️ No se encontró ID Real en los datos AFIP\n");
+    }
+
     $printer->text("-----------------------------\n");
 
     // Cliente (siempre Consumidor Final para Factura B)

@@ -490,6 +490,12 @@ export function useAfipPaymentProcessing({
           afipResult.tipo_factura ||
           "FACTURA B",
         vendedor: user.nombre || user.name || "Vendedor",
+        // Identificador real de la factura/orden para mostrar en el ticket
+        idReal:
+          afipResult.factura?.idReal ||
+          afipResult.idReal ||
+          (afipResult.factura && afipResult.factura.idReal) ||
+          null,
         // Calcular descuento si aplica
         ...(method === "efectivo" &&
           originalAmount > finalTotal && {

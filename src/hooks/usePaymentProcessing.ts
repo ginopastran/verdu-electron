@@ -4,6 +4,7 @@ import QRCode from "qrcode";
 import { Product } from "./useCartState";
 import { getBusinessName, getAdminData } from "@/utils/businessHelpers";
 import { useTicketPrinting } from "@/hooks/useTicketPrinting";
+import { createValidOrderPayload } from "@/utils/orderHelpers";
 
 // Tipos ya declarados en otros archivos
 
@@ -192,10 +193,12 @@ export function usePaymentProcessing({
 
     try {
       // Crear la orden
+      const validPayload = createValidOrderPayload(orderData);
+
       const orderResponse = await fetch(`${API_URL}/api/ordenes`, {
         method: "POST",
         headers,
-        body: JSON.stringify(orderData),
+        body: JSON.stringify(validPayload),
       });
 
       if (!orderResponse.ok) {
@@ -568,10 +571,13 @@ export function usePaymentProcessing({
               total: qrData.monto,
             };
 
-            await finalizeMPPayment({
-              ...statusData,
-              cartData,
-            });
+            await finalizeMPPayment(
+              {
+                ...statusData,
+                cartData,
+              },
+              false
+            );
 
             toast.success("¡Pago completado! Cerrando en 2 segundos...");
             setTimeout(() => {
@@ -592,9 +598,12 @@ export function usePaymentProcessing({
         }
       } catch (error: any) {
         console.error("❌ Error al verificar estado:", error);
-        setRetryCount((prev) => prev + 1);
 
-        if (retryCount >= MAX_RETRIES) {
+        // Incrementar el contador de reintentos y usar el valor ACTUALIZADO para la verificación.
+        const nextRetries = retryCount + 1;
+        setRetryCount(nextRetries);
+
+        if (nextRetries >= MAX_RETRIES) {
           cleanupPolling();
           toast.error(
             "Error al verificar el estado del pago. Por favor, verifique manualmente."
@@ -656,14 +665,7 @@ export function usePaymentProcessing({
         try {
           console.log("💰 Pago completado, preparando para crear orden en BD");
 
-          const orderItems = paymentData.cartData.items.map((item: any) => ({
-            productoId: item.id,
-            cantidad: item.quantity,
-            subtotal: Number(item.subtotal.toFixed(2)),
-            precioHistorico: item.pricePerUnit,
-            costo: Number(item.costo.toFixed(2)),
-            nombre: item.name,
-          }));
+          const orderItems = paymentData.cartData.items as any[];
 
           const orderData = {
             metodoPago: "qr",
@@ -677,7 +679,10 @@ export function usePaymentProcessing({
             referencia: paymentData.orderId?.toString() || "unknown",
           };
 
-          console.log("💾 Guardando orden en BD:", orderData);
+          // Asegurarnos de que el payload cumple los requisitos del backend
+          const validPayload = createValidOrderPayload(orderData);
+
+          console.log("💾 Guardando orden en BD:", validPayload);
 
           const orderResponse = await fetch(`${API_URL}/api/ordenes`, {
             method: "POST",
@@ -685,7 +690,7 @@ export function usePaymentProcessing({
               "Content-Type": "application/json",
               ...(appId && { "X-App-ID": appId }),
             },
-            body: JSON.stringify(orderData),
+            body: JSON.stringify(validPayload),
           });
 
           if (!orderResponse.ok) {
@@ -743,6 +748,10 @@ export function usePaymentProcessing({
     } catch (error: any) {
       console.error("❌ Error al finalizar pago:", error);
       toast.error(`Error al finalizar el pago: ${error.message}`);
+    } finally {
+      // Asegurarse de limpiar siempre el estado de procesamiento y selección
+      setIsProcessingPayment(false);
+      setSelectedPaymentMethod(null);
     }
   };
 
@@ -896,13 +905,15 @@ export function usePaymentProcessing({
       };
 
       // Crear la orden
+      const validPayload = createValidOrderPayload(orderData);
+
       const orderResponse = await fetch(`${API_URL}/api/ordenes`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           ...(appId && { "X-App-ID": appId }),
         },
-        body: JSON.stringify(orderData),
+        body: JSON.stringify(validPayload),
       });
 
       if (!orderResponse.ok) {
@@ -1048,13 +1059,15 @@ export function usePaymentProcessing({
         const processingToastId = toast.loading("Procesando orden mixta...");
 
         // Crear la orden
+        const validPayload = createValidOrderPayload(orderData);
+
         const orderResponse = await fetch(`${API_URL}/api/ordenes`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             ...(appId && { "X-App-ID": appId }),
           },
-          body: JSON.stringify(orderData),
+          body: JSON.stringify(validPayload),
         });
 
         if (!orderResponse.ok) {
@@ -1373,7 +1386,7 @@ export function usePaymentProcessing({
             orderId: result.orderId,
             cartData,
           },
-          true
+          false
         );
       }
 
@@ -1492,14 +1505,7 @@ export function usePaymentProcessing({
 
       if (paymentData.isCompleted) {
         try {
-          const orderItems = qrData.items.map((item: any) => ({
-            productoId: item.id,
-            cantidad: item.quantity,
-            subtotal: Number(item.subtotal.toFixed(2)),
-            precioHistorico: item.pricePerUnit,
-            costo: Number(item.costo.toFixed(2)),
-            nombre: item.name,
-          }));
+          const orderItems = qrData.items as any[];
 
           const totalAmount = qrData.monto + cashAmount;
 
@@ -1524,7 +1530,10 @@ export function usePaymentProcessing({
             ],
           };
 
-          console.log("💾 Guardando orden mixta en BD:", orderData);
+          // Asegurarnos de que el payload cumple los requisitos del backend
+          const validPayload = createValidOrderPayload(orderData);
+
+          console.log("💾 Guardando orden mixta en BD:", validPayload);
 
           const orderResponse = await fetch(`${API_URL}/api/ordenes`, {
             method: "POST",
@@ -1532,7 +1541,7 @@ export function usePaymentProcessing({
               "Content-Type": "application/json",
               ...(appId && { "X-App-ID": appId }),
             },
-            body: JSON.stringify(orderData),
+            body: JSON.stringify(validPayload),
           });
 
           if (!orderResponse.ok) {
@@ -1585,6 +1594,10 @@ export function usePaymentProcessing({
     } catch (error: any) {
       console.error("❌ Error al finalizar pago mixto:", error);
       toast.error(`Error al procesar el pago mixto: ${error.message}`);
+    } finally {
+      // Asegurarse de limpiar siempre el estado de procesamiento y selección
+      setIsProcessingPayment(false);
+      setSelectedPaymentMethod(null);
     }
   };
 
