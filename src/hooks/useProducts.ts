@@ -7,31 +7,53 @@ export const useProducts = (API_URL: string, appId: string | null) => {
     AvailableProduct[]
   >([]);
 
-  const fetchProducts = async () => {
+  const fetchAllProducts = async (limit = 150) => {
     try {
-      const response = await fetch(`${API_URL}/api/productos/all`, {
-        headers: {
-          "Content-Type": "application/json",
-          ...(appId && { "X-App-ID": appId }),
-        },
-      });
+      let page = 1;
+      let hasNext = true;
+      let allProducts: any[] = [];
 
-      if (!response.ok) {
-        throw new Error("Error al cargar productos");
+      while (hasNext) {
+        const response = await fetch(
+          `${API_URL}/api/productos?limit=${limit}&page=${page}`,
+          {
+            headers: {
+              "Content-Type": "application/json",
+              ...(appId && { "X-App-ID": appId }),
+            },
+            credentials: "include",
+          }
+        );
+
+        if (response.status === 401 || response.status === 403) {
+          throw new Error("No autorizado: inicia sesión nuevamente");
+        }
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+        const productosPage = data.productos || data.data || [];
+        allProducts = allProducts.concat(productosPage);
+        hasNext = data.pagination?.hasNext ?? false;
+        page += 1;
       }
 
-      const data = await response.json();
-      console.log("✅ Productos cargados:", data);
-      setAvailableProducts(data);
+      console.log("✅ Productos cargados:", allProducts.length);
+      setAvailableProducts(allProducts);
     } catch (error) {
       console.error("Error al cargar productos:", error);
-      toast.error("Error al cargar los productos");
+      toast.error(
+        (error as Error).message || "Error inesperado al cargar los productos"
+      );
     }
   };
 
   useEffect(() => {
-    fetchProducts();
+    fetchAllProducts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [API_URL, appId]);
 
-  return { availableProducts, fetchProducts };
+  return { availableProducts, fetchAllProducts };
 };

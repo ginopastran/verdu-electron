@@ -36,22 +36,47 @@ export function useProductSearch() {
 
   // Cargar productos al inicializar
   useEffect(() => {
-    const fetchProducts = async () => {
+    /**
+     * Descarga todos los productos utilizando el endpoint paginado
+     * /api/productos?limit=150&page=n hasta que pagination.hasNext sea false.
+     * En caso de error 401/403 informa al usuario que debe iniciar sesión.
+     */
+    const fetchAllProducts = async (limit = 150) => {
       try {
         setLoading(true);
         const API_URL = import.meta.env.VITE_API_URL;
-        const response = await fetch(`${API_URL}/api/productos`, {
-          headers,
-        });
-        if (!response.ok) {
-          throw new Error("Error al cargar productos");
+        let page = 1;
+        let hasNext = true;
+        let allProducts: any[] = [];
+
+        while (hasNext) {
+          const res = await fetch(
+            `${API_URL}/api/productos?limit=${limit}&page=${page}`,
+            {
+              headers,
+              credentials: "include",
+            }
+          );
+
+          if (res.status === 401 || res.status === 403) {
+            throw new Error("No autorizado: inicia sesión nuevamente");
+          }
+
+          if (!res.ok) {
+            throw new Error(`Error HTTP ${res.status}`);
+          }
+
+          const data = await res.json();
+          const productsArray = data.productos || data.data || [];
+          allProducts = allProducts.concat(productsArray);
+
+          // Controlar el bucle con la respuesta del backend
+          hasNext = data.pagination?.hasNext ?? false;
+          page += 1;
         }
-        const data = await response.json();
 
-        // Asumiendo que la respuesta es un objeto con una propiedad 'productos' o 'data'
-        const productsArray = data.productos || data.data || [];
-
-        const transformedProducts = productsArray.map((p: any) => ({
+        // Transformar los productos al formato usado en el frontend
+        const transformedProducts = allProducts.map((p: any) => ({
           id: p.id,
           name: p.nombre,
           pricePerUnit: p.precio,
@@ -62,14 +87,16 @@ export function useProductSearch() {
         }));
 
         setAvailableProducts(transformedProducts);
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error al cargar productos:", error);
+        // En producción podríamos mostrar un toast aquí indicando la acción a seguir
       } finally {
         setLoading(false);
       }
     };
 
-    fetchProducts();
+    // Iniciar la descarga al montar el hook
+    fetchAllProducts();
   }, []);
 
   // Filtrar productos según búsqueda
