@@ -169,6 +169,9 @@ export function usePaymentProcessing({
       "✅ PAYMENT PROCESSOR: Validaciones pasadas, iniciando procesamiento"
     );
 
+    // Mantener en sync el método de pago seleccionado para que la UI se actualice
+    setSelectedPaymentMethod(method);
+
     setIsProcessingPayment(true);
 
     const orderItems = items.map((item) => ({
@@ -270,9 +273,11 @@ export function usePaymentProcessing({
       // Esperar un poco para que el usuario vea el éxito antes de cerrar
       await new Promise((resolve) => setTimeout(resolve, 1500));
 
-      // Limpiar carrito y estados
-      clearCart();
+      // ✅ MEJORADO: Resetear estados del hook ANTES de limpiar carrito
       resetPaymentState();
+
+      // Limpiar carrito después de resetear estados
+      clearCart();
 
       // Cerrar el diálogo del efectivo si está abierto
       setRoundedAmountDialogOpen(false);
@@ -499,6 +504,9 @@ export function usePaymentProcessing({
         items: orderItems,
       });
 
+      // Establecer estado inicial como pendiente para que el usuario vea inmediatamente el estado y pueda completar manualmente si es necesario
+      setPaymentStatus("PENDIENTE");
+
       // Cerrar el toast de carga
       toast.dismiss("qr-loading");
 
@@ -566,7 +574,22 @@ export function usePaymentProcessing({
 
         const statusData = await response.json();
         setRetryCount(0);
-        setPaymentStatus(statusData.status);
+
+        // Normalizar el status que devuelve el backend para que coincida con los textos mostrados en el diálogo
+        const backendStatus: string = (statusData.status || "").toUpperCase();
+
+        const normalizedStatus =
+          backendStatus === "PENDING"
+            ? "PENDIENTE"
+            : backendStatus === "APPROVED" || backendStatus === "COMPLETED"
+            ? "COMPLETADA"
+            : backendStatus === "CANCELLED" ||
+              backendStatus === "CANCELED" ||
+              backendStatus === "REJECTED"
+            ? "CANCELADA"
+            : backendStatus; // Podría ser que ya venga en español
+
+        setPaymentStatus(normalizedStatus);
 
         if (statusData.isCompleted || statusData.isCancelled) {
           cleanupPolling();
@@ -640,13 +663,24 @@ export function usePaymentProcessing({
     setSelectedPaymentMethod(null);
   };
 
-  // Limpiar intervalo de polling
+  // Limpiar el polling
   const cleanupPolling = () => {
     console.log("🧹 Limpiando intervalo de polling");
+
+    // ✅ LIMPIEZA ROBUSTA: Limpiar múltiples posibles intervalos
     if (pollingInterval) {
       clearInterval(pollingInterval);
       setPollingInterval(null);
       console.log("✅ Intervalo de polling limpiado");
+    }
+
+    // ✅ AÑADIDO: Limpiar cualquier timeout pendiente que pueda estar interfiriendo
+    // Esto es para casos donde hay setTimeout que pueden estar ejecutándose
+    if (typeof window !== "undefined") {
+      // Limpiar timeouts que puedan estar pendientes (método defensivo)
+      for (let i = 1; i < 1000; i++) {
+        clearTimeout(i);
+      }
     }
   };
 
@@ -746,6 +780,17 @@ export function usePaymentProcessing({
           } else {
             console.log("🖨️ Impresión de ticket omitida (skipPrinting=true)");
           }
+
+          // ✅ Orden registrada - limpiar estados, cerrar diálogo y vaciar carrito
+          if (setQrDialogOpenRef) {
+            setQrDialogOpenRef(false);
+          }
+
+          toast.success("Orden completada exitosamente");
+
+          // Limpiar carrito y estados
+          clearCart();
+          resetPaymentState();
         } catch (error: any) {
           console.error("❌ Error al procesar orden:", error);
           toast.error(`Error: ${error.message}`);
@@ -755,7 +800,7 @@ export function usePaymentProcessing({
       console.error("❌ Error al finalizar pago:", error);
       toast.error(`Error al finalizar el pago: ${error.message}`);
     } finally {
-      // Asegurarse de limpiar siempre el estado de procesamiento y selección
+      // Asegurarse de limpiar spinner en todos los casos
       setIsProcessingPayment(false);
       setSelectedPaymentMethod(null);
     }
@@ -805,6 +850,17 @@ export function usePaymentProcessing({
   // Resetear el estado del procesador de pagos
   const resetPaymentState = () => {
     console.log("🧹 RESET: Limpiando estados del procesador de pagos");
+    console.log("🧹 RESET: Estados ANTES de limpiar:", {
+      selectedPaymentMethod,
+      isProcessingPayment,
+      qrData: !!qrData,
+      paymentStatus,
+      cashAmount,
+      roundedAmountDialogOpen,
+      manualQrPasswordDialogOpen,
+    });
+
+    // ✅ LIMPIEZA COMPLETA: Limpiar todos los estados de forma síncrona
     setSelectedPaymentMethod(null);
     setIsProcessingPayment(false);
     setQrData(null);
@@ -817,11 +873,20 @@ export function usePaymentProcessing({
     setApplyingDiscount(false);
     setManualQrPasswordDialogOpen(false);
     setManualQrPassword("");
-    // Nuevos estados para pago exacto
-    setExactPaymentDialogOpen(false);
-    setPaidAmount(0);
-    setChangeAmount(0);
+    setManualQrOrderDetails(null);
+
+    // ✅ LIMPIEZA DE POLLING: Asegurar que se limpia completamente
     cleanupPolling();
+
+    console.log("✅ RESET: Estados limpiados completamente");
+
+    // ✅ FORZAR RE-RENDER: Usar setTimeout para asegurar que el cambio de estado se propague
+    setTimeout(() => {
+      console.log("🔄 RESET: Verificando estados después de reset:", {
+        selectedPaymentMethod,
+        isProcessingPayment,
+      });
+    }, 100);
   };
 
   // Función para procesar pagos mixtos
@@ -1213,6 +1278,9 @@ export function usePaymentProcessing({
         items: orderItems,
       });
 
+      // Establecer estado inicial como pendiente para que el usuario vea inmediatamente el estado y pueda completar manualmente si es necesario
+      setPaymentStatus("PENDIENTE");
+
       // Ocultar toast de carga
       toast.dismiss("qr-loading");
 
@@ -1271,7 +1339,23 @@ export function usePaymentProcessing({
         const statusData = await response.json();
         console.log("🔄 Estado actual del pago mixto:", statusData);
 
-        setPaymentStatus(statusData.status);
+        setRetryCount((prev) => prev + 1);
+
+        // Normalizar el status que devuelve el backend para que coincida con los textos mostrados en el diálogo
+        const backendStatus: string = (statusData.status || "").toUpperCase();
+
+        const normalizedStatus =
+          backendStatus === "PENDING"
+            ? "PENDIENTE"
+            : backendStatus === "APPROVED" || backendStatus === "COMPLETED"
+            ? "COMPLETADA"
+            : backendStatus === "CANCELLED" ||
+              backendStatus === "CANCELED" ||
+              backendStatus === "REJECTED"
+            ? "CANCELADA"
+            : backendStatus; // Podría ser que ya venga en español
+
+        setPaymentStatus(normalizedStatus);
 
         // Si el pago se completó o canceló, detener el polling
         if (statusData.isCompleted || statusData.isCancelled) {
@@ -1330,6 +1414,149 @@ export function usePaymentProcessing({
     setManualQrPasswordDialogOpen(true);
   };
 
+  // ✅ NUEVA: Función auxiliar para finalización manual sin conflictos de estado
+  const finalizeManualPayment = async (
+    orderId: number,
+    isSplitPayment: boolean,
+    cashAmount?: number
+  ) => {
+    try {
+      console.log("🔄 MANUAL FINALIZE: Iniciando finalización manual:", {
+        orderId,
+        isSplitPayment,
+        cashAmount,
+      });
+
+      if (!user) {
+        throw new Error("Usuario no disponible");
+      }
+
+      if (isSplitPayment && typeof cashAmount === "number") {
+        // ✅ FINALIZACIÓN MANUAL MIXTA: Procesar sin conflictos de estado
+        console.log("🔄 MANUAL FINALIZE: Procesando pago mixto manual");
+
+        const orderItems = qrData?.items || [];
+        const totalAmount = (qrData?.monto || 0) + cashAmount;
+
+        const orderData = {
+          total: totalAmount,
+          items: orderItems,
+          vendedorId: user.id,
+          sucursalId: user.sucursalId,
+          vendedor: user.nombre,
+          businessName: await getBusinessName(),
+          createdAt: new Date().toISOString(),
+          pagos: [
+            {
+              metodoPago: "efectivo",
+              monto: cashAmount,
+            },
+            {
+              metodoPago: "qr",
+              monto: qrData?.monto || 0,
+              referencia: orderId.toString(),
+            },
+          ],
+        };
+
+        // Crear orden en BD
+        const validPayload = createValidOrderPayload(orderData);
+        const orderResponse = await fetch(`${API_URL}/api/ordenes`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(appId && { "X-App-ID": appId }),
+          },
+          body: JSON.stringify(validPayload),
+        });
+
+        if (!orderResponse.ok) {
+          throw new Error("Error al crear la orden mixta");
+        }
+
+        const orderResult = await orderResponse.json();
+        const enrichedOrderData = {
+          ...orderData,
+          idReal: orderResult.idReal || orderResult.id || null,
+          id: orderResult.id || null,
+        };
+
+        // Imprimir ticket
+        await handleTicketPrinting(enrichedOrderData);
+
+        console.log("✅ MANUAL FINALIZE: Pago mixto completado");
+      } else {
+        // ✅ FINALIZACIÓN MANUAL QR: Procesar sin conflictos de estado
+        console.log("🔄 MANUAL FINALIZE: Procesando pago QR manual");
+
+        const orderItems = qrData?.items || [];
+        const orderData = {
+          metodoPago: "qr",
+          total: qrData?.monto || 0,
+          items: orderItems,
+          vendedorId: user.id,
+          sucursalId: user.sucursalId,
+          vendedor: user.nombre,
+          businessName: await getBusinessName(),
+          createdAt: new Date().toISOString(),
+          referencia: orderId.toString(),
+        };
+
+        // Crear orden en BD
+        const validPayload = createValidOrderPayload(orderData);
+        const orderResponse = await fetch(`${API_URL}/api/ordenes`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(appId && { "X-App-ID": appId }),
+          },
+          body: JSON.stringify(validPayload),
+        });
+
+        if (!orderResponse.ok) {
+          throw new Error("Error al crear la orden QR");
+        }
+
+        const orderResult = await orderResponse.json();
+        const enrichedOrderData = {
+          ...orderData,
+          idReal: orderResult.idReal || orderResult.id || null,
+          id: orderResult.id || null,
+        };
+
+        // Imprimir ticket
+        await handleTicketPrinting(enrichedOrderData);
+
+        console.log("✅ MANUAL FINALIZE: Pago QR completado");
+      }
+
+      // ✅ FINALIZACIÓN EXITOSA: Limpiar todo de manera controlada
+      console.log("🧹 MANUAL FINALIZE: Iniciando limpieza controlada");
+
+      // Mostrar toast de éxito
+      toast.success("¡Orden completada exitosamente!");
+
+      // Cerrar diálogo QR
+      if (setQrDialogOpenRef) {
+        setQrDialogOpenRef(false);
+      }
+
+      // Limpiar carrito
+      clearCart();
+
+      // Limpiar estados de polling y procesamiento
+      cleanupPolling();
+
+      // Resetear todos los estados del hook
+      resetPaymentState();
+
+      console.log("✅ MANUAL FINALIZE: Limpieza controlada completada");
+    } catch (error: any) {
+      console.error("❌ MANUAL FINALIZE: Error en finalización:", error);
+      throw error; // Re-lanzar para manejo en la función principal
+    }
+  };
+
   // Función para manejar el envío de contraseña QR manual
   const handleManualQrPasswordSubmit = async () => {
     if (!manualQrOrderDetails) return;
@@ -1346,13 +1573,15 @@ export function usePaymentProcessing({
     setManualQrPasswordDialogOpen(false);
 
     try {
-      console.log("🔄 Intentando completar orden manualmente con contraseña:", {
+      console.log("🔐 MANUAL PASSWORD: Iniciando completación manual:", {
         orderId,
         isSplitPayment,
         cashAmount,
       });
+
       const processingToastId = toast.loading("Procesando orden manual...");
 
+      // ✅ STEP 1: Marcar como completada en Mercado Pago
       const response = await fetch(
         `${API_URL}/api/mercadopago/manual-complete`,
         {
@@ -1369,59 +1598,48 @@ export function usePaymentProcessing({
       }
 
       const result = await response.json();
-      console.log("✅ Orden completada manualmente:", result);
+      console.log("✅ MP MANUAL: Orden marcada como completada:", result);
       toast.dismiss(processingToastId);
 
-      if (isSplitPayment && typeof cashAmount === "number") {
-        await finalizeSplitMPPayment(
-          {
-            isCompleted: true,
-            orderId: result.orderId,
-          },
-          cashAmount
-        );
-      } else {
-        const cartData = {
-          items: qrData.items,
-          total: qrData.monto,
-        };
+      // ✅ STEP 2: Finalizar localmente usando función especializada
+      await finalizeManualPayment(orderId, isSplitPayment, cashAmount);
 
-        await finalizeMPPayment(
-          {
-            isCompleted: true,
-            orderId: result.orderId,
-            cartData,
-          },
-          false
-        );
-      }
+      console.log("✅ MANUAL PASSWORD: Proceso completo exitoso");
+    } catch (error: any) {
+      console.error("❌ MANUAL PASSWORD: Error en proceso manual:", error);
+      toast.error(`Error al completar la orden manualmente: ${error.message}`);
 
-      // Limpiar cualquier polling activo inmediatamente para evitar errores
-      cleanupPolling();
+      // ✅ LIMPIEZA ROBUSTA EN CASO DE ERROR
+      console.log("🧹 MANUAL PASSWORD ERROR: Iniciando limpieza de emergencia");
 
-      // Reset visual flags antes de que el usuario pueda abrir un nuevo diálogo
-      setIsProcessingPayment(false);
-      setSelectedPaymentMethod(null);
+      try {
+        // Limpiar polling y estados críticos
+        cleanupPolling();
+        setIsProcessingPayment(false);
+        setSelectedPaymentMethod(null);
+        setPaymentStatus(null);
+        setQrData(null);
 
-      toast.success("Orden completada. Reiniciando carrito...");
-
-      setTimeout(() => {
-        if (pollingInterval) {
-          clearInterval(pollingInterval);
-          setPollingInterval(null);
-        }
-
+        // Cerrar diálogo QR
         if (setQrDialogOpenRef) {
           setQrDialogOpenRef(false);
         }
+
+        // Resetear todos los estados
         resetPaymentState();
-        clearCart();
-      }, 2000);
-    } catch (error: any) {
-      console.error("❌ Error al completar manualmente:", error);
-      toast.error(`Error al completar la orden manualmente: ${error.message}`);
+
+        console.log(
+          "✅ MANUAL PASSWORD ERROR: Limpieza de emergencia completada"
+        );
+      } catch (cleanupError) {
+        console.error("❌ Error en limpieza de emergencia:", cleanupError);
+      }
     } finally {
+      // ✅ SIEMPRE limpiar detalles de orden manual
       setManualQrOrderDetails(null);
+      console.log(
+        "🧹 MANUAL PASSWORD FINALLY: Detalles de orden manual limpiados"
+      );
     }
   };
 
@@ -1443,21 +1661,14 @@ export function usePaymentProcessing({
   const { handleTicketPrinting: printTicketWithDoubleSupport } =
     useTicketPrinting();
 
-  // Función para manejar la impresión de tickets (wrapper que usa el hook)
+  // Función auxiliar para manejar la impresión de tickets
   const handleTicketPrinting = async (orderData: any): Promise<boolean> => {
     try {
       console.log("🎯 PAYMENT PROCESSING: Iniciando impresión de ticket");
-      console.log("📋 Datos de la orden para impresión:", {
-        businessName: orderData.businessName,
-        vendedor: orderData.vendedor,
-        total: orderData.total,
-        items: orderData.items?.length || 0,
-        metodoPago: orderData.metodoPago,
-        pagos: orderData.pagos?.length || 0,
-      });
+      console.log("📋 Datos de la orden para impresión:", orderData);
 
-      // Obtener appId de forma simple para evitar conflictos de tipos
-      let appId: string | null = null;
+      // Obtener appId desde los argumentos de la aplicación
+      let appId = null;
       try {
         if (
           typeof window !== "undefined" &&
@@ -1486,17 +1697,30 @@ export function usePaymentProcessing({
       });
 
       // ✅ USAR EL HOOK QUE TIENE SOPORTE PARA DOBLE IMPRESIÓN
-      return await printTicketWithDoubleSupport(orderData, API_URL, appId);
+      const printResult = await printTicketWithDoubleSupport(
+        orderData,
+        API_URL,
+        appId
+      );
+
+      // ✅ SIEMPRE RETORNAR TRUE: La impresión es opcional, no debe bloquear la orden
+      if (!printResult) {
+        console.log("⚠️ La impresión falló, pero continuando con la orden");
+        toast.error(
+          "Error al imprimir el ticket, pero la orden se completó correctamente"
+        );
+      }
+
+      return true; // ✅ SIEMPRE retornar true para no bloquear el flujo
     } catch (error: any) {
       console.error("❌ Error al imprimir:", error);
       toast.error(
-        `Error al imprimir el ticket: ${error.message || "Desconocido"}`,
+        "Error al imprimir el ticket, pero la orden se completó correctamente",
         {
-          description:
-            "La venta se completó correctamente pero no se pudo imprimir el ticket",
+          description: "La venta se registró exitosamente en el sistema",
         }
       );
-      // Retornar true para no cortar el proceso de venta
+      // ✅ SIEMPRE retornar true: La impresión no debe bloquear la finalización de la orden
       return true;
     }
   };
@@ -1599,16 +1823,27 @@ export function usePaymentProcessing({
               // No fallar la orden si la segunda impresión falla
             }
           }
+
+          // ✅ Orden registrada - limpiar estados, cerrar diálogo y vaciar carrito
+          if (setQrDialogOpenRef) {
+            setQrDialogOpenRef(false);
+          }
+
+          toast.success("Orden completada exitosamente");
+
+          // Limpiar carrito y estados
+          clearCart();
+          resetPaymentState();
         } catch (error: any) {
-          console.error("❌ Error al procesar orden mixta:", error);
+          console.error("❌ Error al procesar orden:", error);
           toast.error(`Error: ${error.message}`);
         }
       }
     } catch (error: any) {
-      console.error("❌ Error al finalizar pago mixto:", error);
+      console.error("❌ Error al finalizar pago:", error);
       toast.error(`Error al procesar el pago mixto: ${error.message}`);
     } finally {
-      // Asegurarse de limpiar siempre el estado de procesamiento y selección
+      // Asegurarse de limpiar spinner en todos los casos
       setIsProcessingPayment(false);
       setSelectedPaymentMethod(null);
     }

@@ -1,0 +1,733 @@
+Preload script iniciado correctamente
+VM115 C:\Users\GINO\Desktop\verdu-electron\dist-electron\preload.cjs:4 🔧 Proceso de preload - Entorno: Object
+VM115 C:\Users\GINO\Desktop\verdu-electron\dist-electron\preload.cjs:5 🔧 Proceso de preload - Node integración disponible: 20.18.1
+VM115 C:\Users\GINO\Desktop\verdu-electron\dist-electron\preload.cjs:39 🔧 Preload script - APIs expuestas exitosamente: Object
+VM115 C:\Users\GINO\Desktop\verdu-electron\dist-electron\preload.cjs:47 🔧 Verificando printAfipTicket: disponible en window
+VM115 C:\Users\GINO\Desktop\verdu-electron\dist-electron\preload.cjs:48 🔧 printAfipTicket function: undefined
+VM122:1  Console Ninja extension is connected to Vite, see https://tinyurl.com/2vt8jxzw for more info.
+react-dom_client.js?v=abea90db:17804 Download the React DevTools for a better development experience: https://react.dev/link/react-devtools
+main.tsx:7 🚀 Aplicación iniciando - Verificando APIs de Electron:
+main.tsx:8 - window.electron: object
+main.tsx:9 - window.printer: object
+main.tsx:10 - window.electronStore: object
+main.tsx:11 - window.autoUpdater: object
+main.tsx:12 - window.pesoReader: object
+BusinessContext.tsx:203 🔍 hasAdminConfigured: {adminData: false, businessId: null, isConfigured: false}
+AppRouter.tsx:7 🎯 AppRouter render - loading: true hasAdminConfigured: false adminData: false
+AppRouter.tsx:17 🔄 AppRouter: Mostrando loader porque loading = true
+BusinessContext.tsx:203 🔍 hasAdminConfigured: {adminData: false, businessId: null, isConfigured: false}
+AppRouter.tsx:7 🎯 AppRouter render - loading: true hasAdminConfigured: false adminData: false
+AppRouter.tsx:17 🔄 AppRouter: Mostrando loader porque loading = true
+useAutoUpdater.ts:34 🔍 Estado checking cambiado a: false
+AuthContext.tsx:42 🔄 AuthContext: Iniciando carga de usuario...
+AuthContext.tsx:47 ✅ Usuario encontrado en localStorage
+AuthContext.tsx:55 ✅ AuthContext: Finalizando loading
+BusinessContext.tsx:53 🚀 BusinessContext useEffect ejecutándose
+BusinessContext.tsx:58 🔄 BusinessContext: Iniciando carga de datos admin...
+BusinessContext.tsx:62 📱 Usando electronStore...
+BusinessContext.tsx:147 🧹 BusinessContext cleanup
+useAutoUpdater.ts:34 🔍 Estado checking cambiado a: false
+AuthContext.tsx:42 🔄 AuthContext: Iniciando carga de usuario...
+AuthContext.tsx:47 ✅ Usuario encontrado en localStorage
+AuthContext.tsx:55 ✅ AuthContext: Finalizando loading
+BusinessContext.tsx:53 🚀 BusinessContext useEffect ejecutándose
+BusinessContext.tsx:58 🔄 BusinessContext: Iniciando carga de datos admin...
+BusinessContext.tsx:62 📱 Usando electronStore...
+VM111 renderer_init:2 Electron Security Warning (Disabled webSecurity) This renderer process has "webSecurity" disabled. This
+  exposes users of this app to severe security risks.
+
+For more information and help, consult
+https://electronjs.org/docs/tutorial/security.
+This warning will not show up
+once the app is packaged.
+(anonymous) @ VM111 renderer_init:2
+logSecurityWarnings @ VM111 renderer_init:2
+(anonymous) @ VM111 renderer_init:2
+VM111 renderer_init:2 Electron Security Warning (allowRunningInsecureContent) This renderer process has "allowRunningInsecureContent"
+  enabled. This exposes users of this app to severe security risks.
+
+  
+For more information and help, consult
+https://electronjs.org/docs/tutorial/security.
+This warning will not show up
+once the app is packaged.
+(anonymous) @ VM111 renderer_init:2
+logSecurityWarnings @ VM111 renderer_init:2
+(anonymous) @ VM111 renderer_init:2
+VM111 renderer_init:2 Electron Security Warning (Insecure Content-Security-Policy) This renderer process has either no Content Security
+  Policy set or a policy with "unsafe-eval" enabled. This exposes users of
+  this app to unnecessary security risks.
+
+For more information and help, consult
+https://electronjs.org/docs/tutorial/security.
+This warning will not show up
+once the app is packaged.
+warnAboutInsecureCSP @ VM111 renderer_init:2
+logSecurityWarnings @ VM111 renderer_init:2
+(anonymous) @ VM111 renderer_init:2
+BusinessContext.tsx:65 📋 Resultado de electronStore.get: {id: 2, nombre: 'Lucas Barrera', email: 'lbarreratuenti@gmail.com', businessId: 1, businessName: 'Iselín'}
+BusinessContext.tsx:65 📋 Resultado de electronStore.get: {id: 2, nombre: 'Lucas Barrera', email: 'lbarreratuenti@gmail.com', businessId: 1, businessName: 'Iselín'}
+BusinessContext.tsx:68 ✅ Datos admin encontrados en electronStore: {id: 2, nombre: 'Lucas Barrera', email: 'lbarreratuenti@gmail.com', businessId: 1, businessName: 'Iselín'}
+BusinessContext.tsx:77 ✅ Datos admin válidos cargados
+BusinessContext.tsx:138 ✅ BusinessContext: Finalizando loading
+BusinessContext.tsx:203 🔍 hasAdminConfigured: {adminData: true, businessId: 1, isConfigured: true}
+AppRouter.tsx:7 🎯 AppRouter render - loading: false hasAdminConfigured: true adminData: true
+BusinessContext.tsx:203 🔍 hasAdminConfigured: {adminData: true, businessId: 1, isConfigured: true}
+AppRouter.tsx:39 🔄 Redirigiendo a /user-login (admin configurado)
+AppRouter.tsx:40 🔍 Configuración válida: {adminData: true, businessId: 1, businessName: 'Iselín'}
+BusinessContext.tsx:203 🔍 hasAdminConfigured: {adminData: true, businessId: 1, isConfigured: true}
+AppRouter.tsx:7 🎯 AppRouter render - loading: false hasAdminConfigured: true adminData: true
+BusinessContext.tsx:203 🔍 hasAdminConfigured: {adminData: true, businessId: 1, isConfigured: true}
+AppRouter.tsx:39 🔄 Redirigiendo a /user-login (admin configurado)
+AppRouter.tsx:40 🔍 Configuración válida: {adminData: true, businessId: 1, businessName: 'Iselín'}
+UserLogin.tsx:49 🚀 UserLogin: Componente montándose...
+UserLogin.tsx:57 📊 UserLogin state: {businessId: 1, adminData: true, isOnline: true}
+UserLogin.tsx:66 🔧 Usando businessId: 1
+UserLogin.tsx:49 🚀 UserLogin: Componente montándose...
+UserLogin.tsx:57 📊 UserLogin state: {businessId: 1, adminData: true, isOnline: true}
+UserLogin.tsx:66 🔧 Usando businessId: 1
+UserLogin.tsx:156 🔄 UserLogin useEffect triggered - effectiveBusinessId: 1
+UserLogin.tsx:85 🔄 UserLogin: Iniciando carga de vendors...
+UserLogin.tsx:86 📊 businessId: 1 effectiveBusinessId: 1 isOnline: true
+UserLogin.tsx:115 🌐 Haciendo petición a API... http://localhost:3000/api/usuarios/vendedores?businessId=1
+UserLogin.tsx:156 🔄 UserLogin useEffect triggered - effectiveBusinessId: 1
+UserLogin.tsx:85 🔄 UserLogin: Iniciando carga de vendors...
+UserLogin.tsx:86 📊 businessId: 1 effectiveBusinessId: 1 isOnline: true
+UserLogin.tsx:115 🌐 Haciendo petición a API... http://localhost:3000/api/usuarios/vendedores?businessId=1
+UserLogin.tsx:130 📡 Respuesta recibida: 200 OK
+UserLogin.tsx:141 ✅ Vendors cargados: 5 vendors
+UserLogin.tsx:149 ✅ fetchVendors terminado, setLoadingVendors(false)
+UserLogin.tsx:49 🚀 UserLogin: Componente montándose...
+UserLogin.tsx:57 📊 UserLogin state: {businessId: 1, adminData: true, isOnline: true}
+UserLogin.tsx:66 🔧 Usando businessId: 1
+UserLogin.tsx:49 🚀 UserLogin: Componente montándose...
+UserLogin.tsx:57 📊 UserLogin state: {businessId: 1, adminData: true, isOnline: true}
+UserLogin.tsx:66 🔧 Usando businessId: 1
+UserLogin.tsx:130 📡 Respuesta recibida: 200 OK
+UserLogin.tsx:141 ✅ Vendors cargados: 5 vendors
+UserLogin.tsx:149 ✅ fetchVendors terminado, setLoadingVendors(false)
+UserLogin.tsx:49 🚀 UserLogin: Componente montándose...
+UserLogin.tsx:57 📊 UserLogin state: {businessId: 1, adminData: true, isOnline: true}
+UserLogin.tsx:66 🔧 Usando businessId: 1
+UserLogin.tsx:49 🚀 UserLogin: Componente montándose...
+UserLogin.tsx:57 📊 UserLogin state: {businessId: 1, adminData: true, isOnline: true}
+UserLogin.tsx:66 🔧 Usando businessId: 1
+UserLogin.tsx:49 🚀 UserLogin: Componente montándose...
+UserLogin.tsx:57 📊 UserLogin state: {businessId: 1, adminData: true, isOnline: true}
+UserLogin.tsx:66 🔧 Usando businessId: 1
+UserLogin.tsx:49 🚀 UserLogin: Componente montándose...
+UserLogin.tsx:57 📊 UserLogin state: {businessId: 1, adminData: true, isOnline: true}
+UserLogin.tsx:66 🔧 Usando businessId: 1
+@radix-ui_react-dialog.js?v=abea90db:334 Warning: Missing `Description` or `aria-describedby={undefined}` for {DialogContent}.
+(anonymous) @ @radix-ui_react-dialog.js?v=abea90db:334
+react-stack-bottom-frame @ react-dom_client.js?v=abea90db:16242
+runWithFiberInDEV @ react-dom_client.js?v=abea90db:726
+commitHookEffectListMount @ react-dom_client.js?v=abea90db:7767
+commitHookPassiveMountEffects @ react-dom_client.js?v=abea90db:7825
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9182
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9265
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9176
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9176
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9176
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9176
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9176
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9176
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9176
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9265
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9176
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9176
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9265
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9176
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9176
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9176
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9265
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9176
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9176
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9265
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9265
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9176
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9265
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9176
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9176
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9265
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9176
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9265
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9176
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9265
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9265
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9176
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9176
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9265
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9176
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9176
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9265
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9186
+flushPassiveEffects @ react-dom_client.js?v=abea90db:11119
+commitRootImpl @ react-dom_client.js?v=abea90db:11070
+commitRoot @ react-dom_client.js?v=abea90db:10989
+commitRootWhenReady @ react-dom_client.js?v=abea90db:10477
+performWorkOnRoot @ react-dom_client.js?v=abea90db:10421
+performSyncWorkOnRoot @ react-dom_client.js?v=abea90db:11448
+flushSyncWorkAcrossRoots_impl @ react-dom_client.js?v=abea90db:11356
+processRootScheduleInMicrotask @ react-dom_client.js?v=abea90db:11375
+(anonymous) @ react-dom_client.js?v=abea90db:11459
+@radix-ui_react-dialog.js?v=abea90db:334 Warning: Missing `Description` or `aria-describedby={undefined}` for {DialogContent}.
+(anonymous) @ @radix-ui_react-dialog.js?v=abea90db:334
+react-stack-bottom-frame @ react-dom_client.js?v=abea90db:16242
+runWithFiberInDEV @ react-dom_client.js?v=abea90db:726
+commitHookEffectListMount @ react-dom_client.js?v=abea90db:7767
+commitHookPassiveMountEffects @ react-dom_client.js?v=abea90db:7825
+reconnectPassiveEffects @ react-dom_client.js?v=abea90db:9297
+recursivelyTraverseReconnectPassiveEffects @ react-dom_client.js?v=abea90db:9276
+reconnectPassiveEffects @ react-dom_client.js?v=abea90db:9335
+recursivelyTraverseReconnectPassiveEffects @ react-dom_client.js?v=abea90db:9276
+reconnectPassiveEffects @ react-dom_client.js?v=abea90db:9290
+recursivelyTraverseReconnectPassiveEffects @ react-dom_client.js?v=abea90db:9276
+reconnectPassiveEffects @ react-dom_client.js?v=abea90db:9290
+recursivelyTraverseReconnectPassiveEffects @ react-dom_client.js?v=abea90db:9276
+reconnectPassiveEffects @ react-dom_client.js?v=abea90db:9290
+recursivelyTraverseReconnectPassiveEffects @ react-dom_client.js?v=abea90db:9276
+reconnectPassiveEffects @ react-dom_client.js?v=abea90db:9290
+recursivelyTraverseReconnectPassiveEffects @ react-dom_client.js?v=abea90db:9276
+reconnectPassiveEffects @ react-dom_client.js?v=abea90db:9290
+recursivelyTraverseReconnectPassiveEffects @ react-dom_client.js?v=abea90db:9276
+reconnectPassiveEffects @ react-dom_client.js?v=abea90db:9290
+recursivelyTraverseReconnectPassiveEffects @ react-dom_client.js?v=abea90db:9276
+reconnectPassiveEffects @ react-dom_client.js?v=abea90db:9290
+recursivelyTraverseReconnectPassiveEffects @ react-dom_client.js?v=abea90db:9276
+reconnectPassiveEffects @ react-dom_client.js?v=abea90db:9335
+doubleInvokeEffectsOnFiber @ react-dom_client.js?v=abea90db:11282
+runWithFiberInDEV @ react-dom_client.js?v=abea90db:726
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom_client.js?v=abea90db:11253
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom_client.js?v=abea90db:11259
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom_client.js?v=abea90db:11259
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom_client.js?v=abea90db:11259
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom_client.js?v=abea90db:11259
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom_client.js?v=abea90db:11259
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom_client.js?v=abea90db:11259
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom_client.js?v=abea90db:11259
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom_client.js?v=abea90db:11259
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom_client.js?v=abea90db:11259
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom_client.js?v=abea90db:11259
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom_client.js?v=abea90db:11259
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom_client.js?v=abea90db:11259
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom_client.js?v=abea90db:11259
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom_client.js?v=abea90db:11259
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom_client.js?v=abea90db:11259
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom_client.js?v=abea90db:11259
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom_client.js?v=abea90db:11259
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom_client.js?v=abea90db:11259
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom_client.js?v=abea90db:11259
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom_client.js?v=abea90db:11259
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom_client.js?v=abea90db:11259
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom_client.js?v=abea90db:11259
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom_client.js?v=abea90db:11259
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom_client.js?v=abea90db:11259
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom_client.js?v=abea90db:11259
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom_client.js?v=abea90db:11259
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom_client.js?v=abea90db:11259
+commitDoubleInvokeEffectsInDEV @ react-dom_client.js?v=abea90db:11290
+flushPassiveEffects @ react-dom_client.js?v=abea90db:11126
+commitRootImpl @ react-dom_client.js?v=abea90db:11070
+commitRoot @ react-dom_client.js?v=abea90db:10989
+commitRootWhenReady @ react-dom_client.js?v=abea90db:10477
+performWorkOnRoot @ react-dom_client.js?v=abea90db:10421
+performSyncWorkOnRoot @ react-dom_client.js?v=abea90db:11448
+flushSyncWorkAcrossRoots_impl @ react-dom_client.js?v=abea90db:11356
+processRootScheduleInMicrotask @ react-dom_client.js?v=abea90db:11375
+(anonymous) @ react-dom_client.js?v=abea90db:11459
+useAutoUpdater.ts:181 🔍 Iniciando verificación automática de actualizaciones...
+useAutoUpdater.ts:45 📞 Llamando a checkForUpdates...
+useAutoUpdater.ts:34 🔍 Estado checking cambiado a: true
+useAutoUpdater.ts:58 📋 Resultado de checkForUpdates: {available: false, info: {…}}
+useAutoUpdater.ts:84 No hay actualizaciones disponibles
+useAutoUpdater.ts:91 ✅ Aplicación actualizada
+useAutoUpdater.ts:103 🏁 Verificación de actualizaciones completada
+useAutoUpdater.ts:34 🔍 Estado checking cambiado a: false
+UserLogin.tsx:49 🚀 UserLogin: Componente montándose...
+UserLogin.tsx:57 📊 UserLogin state: {businessId: 1, adminData: true, isOnline: true}
+UserLogin.tsx:66 🔧 Usando businessId: 1
+UserLogin.tsx:49 🚀 UserLogin: Componente montándose...
+UserLogin.tsx:57 📊 UserLogin state: {businessId: 1, adminData: true, isOnline: true}
+UserLogin.tsx:66 🔧 Usando businessId: 1
+UserLogin.tsx:49 🚀 UserLogin: Componente montándose...
+UserLogin.tsx:57 📊 UserLogin state: {businessId: 1, adminData: true, isOnline: true}
+UserLogin.tsx:66 🔧 Usando businessId: 1
+UserLogin.tsx:49 🚀 UserLogin: Componente montándose...
+UserLogin.tsx:57 📊 UserLogin state: {businessId: 1, adminData: true, isOnline: true}
+UserLogin.tsx:66 🔧 Usando businessId: 1
+AuthContext.tsx:61 ⚠️ SAFETY: AuthContext timeout - forzando fin de loading
+UserLogin.tsx:49 🚀 UserLogin: Componente montándose...
+UserLogin.tsx:57 📊 UserLogin state: {businessId: 1, adminData: true, isOnline: true}
+UserLogin.tsx:66 🔧 Usando businessId: 1
+UserLogin.tsx:49 🚀 UserLogin: Componente montándose...
+UserLogin.tsx:57 📊 UserLogin state: {businessId: 1, adminData: true, isOnline: true}
+UserLogin.tsx:66 🔧 Usando businessId: 1
+useBusinessInfo.ts:93 🏢 Iniciando carga de información del negocio...
+useBusinessInfo.ts:40 📂 Cargando businessInfo desde electronStore: businessInfo_1
+useBusinessInfo.ts:93 🏢 Iniciando carga de información del negocio...
+useBusinessInfo.ts:40 📂 Cargando businessInfo desde electronStore: businessInfo_1
+ShoppingCartRefactored.tsx:185 🔄 SYNC: Actualizando isProcessingPayment local: false
+ShoppingCartRefactored.tsx:193 🔄 SYNC: Actualizando selectedPaymentMethod local: null
+ShoppingCartRefactored.tsx:207 🧹 SYNC: Hook reseteado, limpiando estados locales
+usePaymentProcessing.ts:668 🧹 Limpiando intervalo de polling
+usePaymentProcessing.ts:668 🧹 Limpiando intervalo de polling
+usePaymentProcessing.ts:668 🧹 Limpiando intervalo de polling
+useBusinessInfo.ts:93 🏢 Iniciando carga de información del negocio...
+useBusinessInfo.ts:40 📂 Cargando businessInfo desde electronStore: businessInfo_1
+useBusinessInfo.ts:93 🏢 Iniciando carga de información del negocio...
+useBusinessInfo.ts:40 📂 Cargando businessInfo desde electronStore: businessInfo_1
+ShoppingCartRefactored.tsx:185 🔄 SYNC: Actualizando isProcessingPayment local: false
+ShoppingCartRefactored.tsx:193 🔄 SYNC: Actualizando selectedPaymentMethod local: null
+ShoppingCartRefactored.tsx:207 🧹 SYNC: Hook reseteado, limpiando estados locales
+usePaymentProcessing.ts:668 🧹 Limpiando intervalo de polling
+useBusinessInfo.ts:42 📋 Resultado de electronStore.get: {id: 1, nombre: 'Iselín', tipo: 'verduleria', creadoEn: '2025-04-10T13:37:03.043Z', sistemaPago: 'redondeo', …}
+useBusinessInfo.ts:44 ✅ BusinessInfo encontrado en electronStore: {id: 1, nombre: 'Iselín', tipo: 'verduleria', creadoEn: '2025-04-10T13:37:03.043Z', sistemaPago: 'redondeo', …}
+useBusinessInfo.ts:98 🚀 Usando businessInfo desde cache: {id: 1, nombre: 'Iselín', tipo: 'verduleria', creadoEn: '2025-04-10T13:37:03.043Z', sistemaPago: 'redondeo', …}
+useBusinessInfo.ts:103 🔄 Verificando actualizaciones en background...
+useBusinessInfo.ts:42 📋 Resultado de electronStore.get: {id: 1, nombre: 'Iselín', tipo: 'verduleria', creadoEn: '2025-04-10T13:37:03.043Z', sistemaPago: 'redondeo', …}
+useBusinessInfo.ts:44 ✅ BusinessInfo encontrado en electronStore: {id: 1, nombre: 'Iselín', tipo: 'verduleria', creadoEn: '2025-04-10T13:37:03.043Z', sistemaPago: 'redondeo', …}
+useBusinessInfo.ts:98 🚀 Usando businessInfo desde cache: {id: 1, nombre: 'Iselín', tipo: 'verduleria', creadoEn: '2025-04-10T13:37:03.043Z', sistemaPago: 'redondeo', …}
+useBusinessInfo.ts:103 🔄 Verificando actualizaciones en background...
+useBusinessInfo.ts:42 📋 Resultado de electronStore.get: {id: 1, nombre: 'Iselín', tipo: 'verduleria', creadoEn: '2025-04-10T13:37:03.043Z', sistemaPago: 'redondeo', …}
+useBusinessInfo.ts:44 ✅ BusinessInfo encontrado en electronStore: {id: 1, nombre: 'Iselín', tipo: 'verduleria', creadoEn: '2025-04-10T13:37:03.043Z', sistemaPago: 'redondeo', …}
+useBusinessInfo.ts:98 🚀 Usando businessInfo desde cache: {id: 1, nombre: 'Iselín', tipo: 'verduleria', creadoEn: '2025-04-10T13:37:03.043Z', sistemaPago: 'redondeo', …}
+useBusinessInfo.ts:103 🔄 Verificando actualizaciones en background...
+useBusinessInfo.ts:42 📋 Resultado de electronStore.get: {id: 1, nombre: 'Iselín', tipo: 'verduleria', creadoEn: '2025-04-10T13:37:03.043Z', sistemaPago: 'redondeo', …}
+useBusinessInfo.ts:44 ✅ BusinessInfo encontrado en electronStore: {id: 1, nombre: 'Iselín', tipo: 'verduleria', creadoEn: '2025-04-10T13:37:03.043Z', sistemaPago: 'redondeo', …}
+useBusinessInfo.ts:98 🚀 Usando businessInfo desde cache: {id: 1, nombre: 'Iselín', tipo: 'verduleria', creadoEn: '2025-04-10T13:37:03.043Z', sistemaPago: 'redondeo', …}
+useBusinessInfo.ts:103 🔄 Verificando actualizaciones en background...
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: false}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: false}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: true}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: true}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+RecentOrdersDialog.tsx:69 🔍 Debug paginación: {totalOrders: 0, itemsPerPage: 6, totalPages: 0, currentPage: 1, startIndex: 0, …}
+RecentOrdersDialog.tsx:69 🔍 Debug paginación: {totalOrders: 0, itemsPerPage: 6, totalPages: 0, currentPage: 1, startIndex: 0, …}
+RecentOrdersDialog.tsx:91 👤 Cambio de usuario detectado: {anteriorUserId: null, nuevoUserId: 14, nombreUsuario: 'ZZZ'}
+RecentOrdersDialog.tsx:81 🧹 Limpiando cache de órdenes...
+RecentOrdersDialog.tsx:217 🚪 Diálogo cerrado, manteniendo cache para próxima apertura
+RecentOrdersDialog.tsx:91 👤 Cambio de usuario detectado: {anteriorUserId: null, nuevoUserId: 14, nombreUsuario: 'ZZZ'}
+RecentOrdersDialog.tsx:81 🧹 Limpiando cache de órdenes...
+RecentOrdersDialog.tsx:217 🚪 Diálogo cerrado, manteniendo cache para próxima apertura
+RecentOrdersDialog.tsx:69 🔍 Debug paginación: {totalOrders: 0, itemsPerPage: 6, totalPages: 0, currentPage: 1, startIndex: 0, …}
+RecentOrdersDialog.tsx:69 🔍 Debug paginación: {totalOrders: 0, itemsPerPage: 6, totalPages: 0, currentPage: 1, startIndex: 0, …}
+useScaleWeight.ts:24 📏 Leyendo peso usando pesoReader IPC...
+useScaleWeight.ts:28 ✅ Peso leído correctamente: 310
+useScaleWeight.ts:24 📏 Leyendo peso usando pesoReader IPC...
+useScaleWeight.ts:28 ✅ Peso leído correctamente: 310
+useScaleWeight.ts:24 📏 Leyendo peso usando pesoReader IPC...
+useScaleWeight.ts:28 ✅ Peso leído correctamente: 310
+useBusinessInfo.ts:132 ✅ Información del negocio cargada desde API: {id: 1, nombre: 'Iselín', tipo: 'verduleria', creadoEn: '2025-04-10T13:37:03.043Z', sistemaPago: 'redondeo', …}
+useBusinessInfo.ts:146 ✅ Datos de sucursal incluidos: {direccion: undefined, telefono: undefined, sucursal: 'IselÍn II'}
+useBusinessInfo.ts:12 💾 Guardando businessInfo en electronStore: businessInfo_1
+useProducts.ts:24 ✅ Productos cargados: (177) [{…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, …]
+useBusinessInfo.ts:19 ✅ BusinessInfo guardado: {id: 1, nombre: 'Iselín', tipo: 'verduleria', creadoEn: '2025-04-10T13:37:03.043Z', sistemaPago: 'redondeo', …}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: false}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: false}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: true}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: true}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+RecentOrdersDialog.tsx:69 🔍 Debug paginación: {totalOrders: 0, itemsPerPage: 6, totalPages: 0, currentPage: 1, startIndex: 0, …}
+RecentOrdersDialog.tsx:69 🔍 Debug paginación: {totalOrders: 0, itemsPerPage: 6, totalPages: 0, currentPage: 1, startIndex: 0, …}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: false}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: false}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: true}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: true}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+RecentOrdersDialog.tsx:69 🔍 Debug paginación: {totalOrders: 0, itemsPerPage: 6, totalPages: 0, currentPage: 1, startIndex: 0, …}
+RecentOrdersDialog.tsx:69 🔍 Debug paginación: {totalOrders: 0, itemsPerPage: 6, totalPages: 0, currentPage: 1, startIndex: 0, …}
+ShoppingCartRefactored.tsx:283 Producto seleccionado: 166 Zanahoria Oferta
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: false}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: false}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: true}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: true}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+RecentOrdersDialog.tsx:69 🔍 Debug paginación: {totalOrders: 0, itemsPerPage: 6, totalPages: 0, currentPage: 1, startIndex: 0, …}
+RecentOrdersDialog.tsx:69 🔍 Debug paginación: {totalOrders: 0, itemsPerPage: 6, totalPages: 0, currentPage: 1, startIndex: 0, …}
+useProducts.ts:24 ✅ Productos cargados: (177) [{…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, …]
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: false}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: false}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: true}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: true}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+RecentOrdersDialog.tsx:69 🔍 Debug paginación: {totalOrders: 0, itemsPerPage: 6, totalPages: 0, currentPage: 1, startIndex: 0, …}
+RecentOrdersDialog.tsx:69 🔍 Debug paginación: {totalOrders: 0, itemsPerPage: 6, totalPages: 0, currentPage: 1, startIndex: 0, …}
+useScaleWeight.ts:24 📏 Leyendo peso usando pesoReader IPC...
+useScaleWeight.ts:28 ✅ Peso leído correctamente: 310
+useBusinessInfo.ts:132 ✅ Información del negocio cargada desde API: {id: 1, nombre: 'Iselín', tipo: 'verduleria', creadoEn: '2025-04-10T13:37:03.043Z', sistemaPago: 'redondeo', …}
+useBusinessInfo.ts:146 ✅ Datos de sucursal incluidos: {direccion: undefined, telefono: undefined, sucursal: 'IselÍn II'}
+useBusinessInfo.ts:12 💾 Guardando businessInfo en electronStore: businessInfo_1
+useBusinessInfo.ts:19 ✅ BusinessInfo guardado: {id: 1, nombre: 'Iselín', tipo: 'verduleria', creadoEn: '2025-04-10T13:37:03.043Z', sistemaPago: 'redondeo', …}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: false}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: false}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: true}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: true}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+RecentOrdersDialog.tsx:69 🔍 Debug paginación: {totalOrders: 0, itemsPerPage: 6, totalPages: 0, currentPage: 1, startIndex: 0, …}
+RecentOrdersDialog.tsx:69 🔍 Debug paginación: {totalOrders: 0, itemsPerPage: 6, totalPages: 0, currentPage: 1, startIndex: 0, …}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: false}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: false}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: true}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: true}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+RecentOrdersDialog.tsx:69 🔍 Debug paginación: {totalOrders: 0, itemsPerPage: 6, totalPages: 0, currentPage: 1, startIndex: 0, …}
+RecentOrdersDialog.tsx:69 🔍 Debug paginación: {totalOrders: 0, itemsPerPage: 6, totalPages: 0, currentPage: 1, startIndex: 0, …}
+useBusinessInfo.ts:132 ✅ Información del negocio cargada desde API: {id: 1, nombre: 'Iselín', tipo: 'verduleria', creadoEn: '2025-04-10T13:37:03.043Z', sistemaPago: 'redondeo', …}
+useBusinessInfo.ts:146 ✅ Datos de sucursal incluidos: {direccion: undefined, telefono: undefined, sucursal: 'IselÍn II'}
+useBusinessInfo.ts:12 💾 Guardando businessInfo en electronStore: businessInfo_1
+useBusinessInfo.ts:19 ✅ BusinessInfo guardado: {id: 1, nombre: 'Iselín', tipo: 'verduleria', creadoEn: '2025-04-10T13:37:03.043Z', sistemaPago: 'redondeo', …}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: false}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: false}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: true}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: true}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+RecentOrdersDialog.tsx:69 🔍 Debug paginación: {totalOrders: 0, itemsPerPage: 6, totalPages: 0, currentPage: 1, startIndex: 0, …}
+RecentOrdersDialog.tsx:69 🔍 Debug paginación: {totalOrders: 0, itemsPerPage: 6, totalPages: 0, currentPage: 1, startIndex: 0, …}
+ShoppingCartRefactored.tsx:337 💰 handlePaymentClick - Artículos en carrito: [{…}]
+ShoppingCartRefactored.tsx:340 🧹 Reseteando estados del flujo AFIP antes de pago normal
+useAfipPaymentProcessing.ts:286 🧹 AFIP RESET: Limpiando estados del procesador de pagos AFIP
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: true, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: false}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: true, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: false}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: true}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: true}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+RecentOrdersDialog.tsx:69 🔍 Debug paginación: {totalOrders: 0, itemsPerPage: 6, totalPages: 0, currentPage: 1, startIndex: 0, …}
+RecentOrdersDialog.tsx:69 🔍 Debug paginación: {totalOrders: 0, itemsPerPage: 6, totalPages: 0, currentPage: 1, startIndex: 0, …}
+ShoppingCartRefactored.tsx:219 🚪 ABRIR: Diálogo de pago abierto, reseteando estados
+usePaymentProcessing.ts:852 🧹 RESET: Limpiando estados del procesador de pagos
+usePaymentProcessing.ts:853 🧹 RESET: Estados ANTES de limpiar: {selectedPaymentMethod: null, isProcessingPayment: false, qrData: false, paymentStatus: null, cashAmount: '', …}
+usePaymentProcessing.ts:668 🧹 Limpiando intervalo de polling
+usePaymentProcessing.ts:885 ✅ RESET: Estados limpiados completamente
+usePaymentProcessing.ts:889 🔄 RESET: Verificando estados después de reset: {selectedPaymentMethod: null, isProcessingPayment: false}
+ShoppingCartRefactored.tsx:414 🔄 handlePayment llamado con método: qr
+ShoppingCartRefactored.tsx:415 🔄 Estados ANTES de procesar: {isProcessingPayment: false, selectedPaymentMethod: null, hookIsProcessing: false, hookSelectedMethod: null}
+ShoppingCartRefactored.tsx:457 🔄 Verificando configuración de Mercado Pago...
+ShoppingCartRefactored.tsx:458 🔄 businessInfo: {id: 1, nombre: 'Iselín', tipo: 'verduleria', creadoEn: '2025-04-10T13:37:03.043Z', sistemaPago: 'redondeo', …}
+ShoppingCartRefactored.tsx:459 🔄 mpEnabled: true
+usePaymentProcessing.ts:452 🔄 Enviando solicitud para generar QR: {monto: 186, descripcion: 'Compra de 1 productos', vendedorId: 14, sucursalId: 1, externalPosId: 'POS1747232351167', …}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: true, selectedPaymentMethod: 'qr', isAfipMode: false}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: true, selectedPaymentMethod: 'qr', isAfipMode: false}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: true}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: true}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+RecentOrdersDialog.tsx:69 🔍 Debug paginación: {totalOrders: 0, itemsPerPage: 6, totalPages: 0, currentPage: 1, startIndex: 0, …}
+RecentOrdersDialog.tsx:69 🔍 Debug paginación: {totalOrders: 0, itemsPerPage: 6, totalPages: 0, currentPage: 1, startIndex: 0, …}
+ShoppingCartRefactored.tsx:185 🔄 SYNC: Actualizando isProcessingPayment local: true
+ShoppingCartRefactored.tsx:193 🔄 SYNC: Actualizando selectedPaymentMethod local: qr
+ShoppingCartRefactored.tsx:239 🧹 SYNC CLEANUP: Diálogos cerrados pero estados activos, limpiando: {qrDialogOpen: false, paymentDialogOpen: false, splitPaymentDialogOpen: false, isProcessingPayment: true, selectedPaymentMethod: 'qr'}
+ShoppingCartRefactored.tsx:259 🧹 SYNC CLEANUP: También limpiando estados del hook
+usePaymentProcessing.ts:852 🧹 RESET: Limpiando estados del procesador de pagos
+usePaymentProcessing.ts:853 🧹 RESET: Estados ANTES de limpiar: {selectedPaymentMethod: 'qr', isProcessingPayment: true, qrData: false, paymentStatus: null, cashAmount: '', …}
+usePaymentProcessing.ts:668 🧹 Limpiando intervalo de polling
+usePaymentProcessing.ts:885 ✅ RESET: Estados limpiados completamente
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: false}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: false}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: true}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: true}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+RecentOrdersDialog.tsx:69 🔍 Debug paginación: {totalOrders: 0, itemsPerPage: 6, totalPages: 0, currentPage: 1, startIndex: 0, …}
+RecentOrdersDialog.tsx:69 🔍 Debug paginación: {totalOrders: 0, itemsPerPage: 6, totalPages: 0, currentPage: 1, startIndex: 0, …}
+ShoppingCartRefactored.tsx:185 🔄 SYNC: Actualizando isProcessingPayment local: false
+ShoppingCartRefactored.tsx:193 🔄 SYNC: Actualizando selectedPaymentMethod local: null
+ShoppingCartRefactored.tsx:207 🧹 SYNC: Hook reseteado, limpiando estados locales
+useBusinessInfo.ts:132 ✅ Información del negocio cargada desde API: {id: 1, nombre: 'Iselín', tipo: 'verduleria', creadoEn: '2025-04-10T13:37:03.043Z', sistemaPago: 'redondeo', …}
+useBusinessInfo.ts:146 ✅ Datos de sucursal incluidos: {direccion: undefined, telefono: undefined, sucursal: 'IselÍn II'}
+useBusinessInfo.ts:12 💾 Guardando businessInfo en electronStore: businessInfo_1
+useBusinessInfo.ts:19 ✅ BusinessInfo guardado: {id: 1, nombre: 'Iselín', tipo: 'verduleria', creadoEn: '2025-04-10T13:37:03.043Z', sistemaPago: 'redondeo', …}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: false}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: false}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: true}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: true}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+RecentOrdersDialog.tsx:69 🔍 Debug paginación: {totalOrders: 0, itemsPerPage: 6, totalPages: 0, currentPage: 1, startIndex: 0, …}
+RecentOrdersDialog.tsx:69 🔍 Debug paginación: {totalOrders: 0, itemsPerPage: 6, totalPages: 0, currentPage: 1, startIndex: 0, …}
+usePaymentProcessing.ts:889 🔄 RESET: Verificando estados después de reset: {selectedPaymentMethod: 'qr', isProcessingPayment: true}
+usePaymentProcessing.ts:472 ✅ QR generado: {orderId: 16043, id: 16043, qrData: '00020101021243650016com.mercadolibre02013063657373…3030325802AR5917Verduleria Iselin6004CABA63045E76', qrType: 'dynamic', qrBase64: '00020101021243650016com.mercadolibre02013063657373…3030325802AR5917Verduleria Iselin6004CABA63045E76'}
+usePaymentProcessing.ts:487 ✅ QR generado localmente con éxito
+usePaymentProcessing.ts:514 🔄 Intentando abrir diálogo QR...
+usePaymentProcessing.ts:517 ✅ Función para abrir diálogo QR ejecutada
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: false}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: false}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: true}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: true}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+RecentOrdersDialog.tsx:69 🔍 Debug paginación: {totalOrders: 0, itemsPerPage: 6, totalPages: 0, currentPage: 1, startIndex: 0, …}
+RecentOrdersDialog.tsx:69 🔍 Debug paginación: {totalOrders: 0, itemsPerPage: 6, totalPages: 0, currentPage: 1, startIndex: 0, …}
+usePaymentProcessing.ts:668 🧹 Limpiando intervalo de polling
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: false}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: false}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: true}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: true}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+RecentOrdersDialog.tsx:69 🔍 Debug paginación: {totalOrders: 0, itemsPerPage: 6, totalPages: 0, currentPage: 1, startIndex: 0, …}
+RecentOrdersDialog.tsx:69 🔍 Debug paginación: {totalOrders: 0, itemsPerPage: 6, totalPages: 0, currentPage: 1, startIndex: 0, …}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: false}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: false}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: true}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: true}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+RecentOrdersDialog.tsx:69 🔍 Debug paginación: {totalOrders: 0, itemsPerPage: 6, totalPages: 0, currentPage: 1, startIndex: 0, …}
+RecentOrdersDialog.tsx:69 🔍 Debug paginación: {totalOrders: 0, itemsPerPage: 6, totalPages: 0, currentPage: 1, startIndex: 0, …}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: false}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: false}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: true}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: true}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+RecentOrdersDialog.tsx:69 🔍 Debug paginación: {totalOrders: 0, itemsPerPage: 6, totalPages: 0, currentPage: 1, startIndex: 0, …}
+RecentOrdersDialog.tsx:69 🔍 Debug paginación: {totalOrders: 0, itemsPerPage: 6, totalPages: 0, currentPage: 1, startIndex: 0, …}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: false}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: false}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: true}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: true}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+RecentOrdersDialog.tsx:69 🔍 Debug paginación: {totalOrders: 0, itemsPerPage: 6, totalPages: 0, currentPage: 1, startIndex: 0, …}
+RecentOrdersDialog.tsx:69 🔍 Debug paginación: {totalOrders: 0, itemsPerPage: 6, totalPages: 0, currentPage: 1, startIndex: 0, …}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: false}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: false}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: true}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: true}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+RecentOrdersDialog.tsx:69 🔍 Debug paginación: {totalOrders: 0, itemsPerPage: 6, totalPages: 0, currentPage: 1, startIndex: 0, …}
+RecentOrdersDialog.tsx:69 🔍 Debug paginación: {totalOrders: 0, itemsPerPage: 6, totalPages: 0, currentPage: 1, startIndex: 0, …}
+usePaymentProcessing.ts:1580 🔐 MANUAL PASSWORD: Iniciando completación manual: {orderId: 16043, isSplitPayment: false, cashAmount: undefined}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: false}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: false}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: true}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: true}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+RecentOrdersDialog.tsx:69 🔍 Debug paginación: {totalOrders: 0, itemsPerPage: 6, totalPages: 0, currentPage: 1, startIndex: 0, …}
+RecentOrdersDialog.tsx:69 🔍 Debug paginación: {totalOrders: 0, itemsPerPage: 6, totalPages: 0, currentPage: 1, startIndex: 0, …}
+usePaymentProcessing.ts:1605 ✅ MP MANUAL: Orden marcada como completada: {message: 'Orden completada manualmente con éxito', orderId: 16043}
+usePaymentProcessing.ts:1428 🔄 MANUAL FINALIZE: Iniciando finalización manual: {orderId: 16043, isSplitPayment: false, cashAmount: undefined}
+usePaymentProcessing.ts:1494 🔄 MANUAL FINALIZE: Procesando pago QR manual
+usePaymentProcessing.ts:1671 🎯 PAYMENT PROCESSING: Iniciando impresión de ticket
+usePaymentProcessing.ts:1672 📋 Datos de la orden para impresión: {metodoPago: 'qr', total: 186, items: Array(1), vendedorId: 14, sucursalId: 1, …}
+usePaymentProcessing.ts:1689 ⚠️ No se encontró appId en argv
+usePaymentProcessing.ts:1697 🔧 Parámetros para impresión: {API_URL: 'http://localhost:3000', appId: null, appIdType: 'object'}
+useTicketPrinting.ts:40 🔍 Verificación inicial de APIs:
+useTicketPrinting.ts:41 - window existe: true
+useTicketPrinting.ts:42 - window.electron: object
+useTicketPrinting.ts:43 - window.printer: object
+useTicketPrinting.ts:44 - window.electronStore: object
+useTicketPrinting.ts:48 - window.autoUpdater: object
+useTicketPrinting.ts:49 - window.pesoReader: object
+useTicketPrinting.ts:55 🔍 DEBUG: ANTES DE LA DECISIÓN DE OBTENER BUSINESS INFO: {API_URL_proporcionado: true, API_URL_valor: 'http://localhost:3000', appId_proporcionado: true, appId_valor: null, appId_tipo: 'object', …}
+useTicketPrinting.ts:65 🏢 Obteniendo información del business para doble impresión...
+businessHelpers.ts:91 🔍 DEBUG getBusinessInfo: Iniciando...
+businessHelpers.ts:92 🔍 DEBUG: Parámetros de entrada: {API_URL: 'http://localhost:3000', appId: null, appIdType: 'object'}
+businessHelpers.ts:34 🔍 DEBUG getAdminData: Iniciando...
+businessHelpers.ts:35 🔍 DEBUG: Estado del window: {hasWindow: true, hasElectronStore: true, windowKeys: Array(2)}
+businessHelpers.ts:48 🔍 DEBUG: Obteniendo adminData desde electronStore...
+businessHelpers.ts:50 🔍 DEBUG: AdminData desde electronStore: {result: {…}, hasBusinessId: true, businessId: 1, allKeys: Array(5)}
+businessHelpers.ts:100 🔍 DEBUG: AdminData obtenida: {adminData: {…}, hasBusinessId: true, businessId: 1}
+businessHelpers.ts:112 🏢 Obteniendo información del business ID: 1
+businessHelpers.ts:121 🔍 DEBUG: Llamada HTTP: {url: 'http://localhost:3000/api/business/1', headers: {…}, method: 'GET'}
+businessHelpers.ts:130 🔍 DEBUG: Respuesta HTTP: {status: 200, statusText: 'OK', ok: true, headers: {…}}
+businessHelpers.ts:146 ✅ Información del business obtenida: {id: 1, nombre: 'Iselín', tipo: 'verduleria', creadoEn: '2025-04-10T13:37:03.043Z', sistemaPago: 'redondeo', …}
+businessHelpers.ts:149 🖨️ DEBUG DOBLE IMPRESIÓN:
+businessHelpers.ts:150 - dobleImpresionEnabled existe: true
+businessHelpers.ts:154 - dobleImpresionEnabled valor: false
+businessHelpers.ts:158 - dobleImpresionEnabled tipo: boolean
+businessHelpers.ts:162 - Comparación === true: false
+businessHelpers.ts:166 - Comparación == true: false
+businessHelpers.ts:170 - Comparación === 'true': false
+businessHelpers.ts:174 - Valor truthy: false
+businessHelpers.ts:177 🔍 DEBUG: Todos los campos del business: {id: 1, nombre: 'Iselín', dobleImpresionEnabled: false, descuentoEfectivo: 10, sistemaPago: 'redondeo', …}
+useTicketPrinting.ts:72 🔍 DEBUG: RESULTADO DE getBusinessInfo: {businessInfo_existe: true, businessInfo_completo: {…}, dobleImpresionEnabled_raw: false, dobleImpresionEnabled_tipo: 'boolean'}
+useTicketPrinting.ts:89 🔍 DEBUG: COMPARACIONES dobleImpresionEnabled: {estricta_true: false, flexible_true: false, string_true: false, truthy: false, numero_1: false}
+useTicketPrinting.ts:97 📋 Business info obtenida: {businessInfo: true, dobleImpresionEnabled_final: false, valor_original: false}
+useTicketPrinting.ts:119 
+====== SIMULACIÓN DEL TICKET ======
+useTicketPrinting.ts:125 ✅ Usando nombre del business: Iselín
+useTicketPrinting.ts:133 ISELÍN
+useTicketPrinting.ts:134 Vendedor: ZZZ
+useTicketPrinting.ts:135 Fecha: 29/06/2025, 22:46
+useTicketPrinting.ts:141 Orden #4201
+useTicketPrinting.ts:142 ✅ ID Real encontrado: 4201
+useTicketPrinting.ts:153 -----------------------------
+useTicketPrinting.ts:154 PRODUCTO      CANT    PRECIO    TOTAL
+useTicketPrinting.ts:155 -----------------------------
+useTicketPrinting.ts:171 166 Zanahoria Oferta     0.31  $600.00  $186.00
+useTicketPrinting.ts:177 -----------------------------
+useTicketPrinting.ts:178 TOTAL: $186.00
+useTicketPrinting.ts:191 
+Método de pago: QR
+useTicketPrinting.ts:194 
+¡Gracias por su compra!
+useTicketPrinting.ts:195 ==============================
+
+useTicketPrinting.ts:222 🔍 DEBUG DOBLE IMPRESIÓN: {dobleImpresionEnabled: false, businessInfoExists: true, valorOriginal: false}
+useTicketPrinting.ts:258 🖨️ IMPRESIÓN SIMPLE - Mandando 1 impresión al script PHP
+useTicketPrinting.ts:261 📄 Única llamada al script PHP...
+useTicketPrinting.ts:201 🖨️ Llamando script PHP via window.printer.printTicket
+useTicketPrinting.ts:263 📄 Resultado impresión simple: {success: false, printerError: 'Failed to copy file to printer', message: 'Error de impresión: Failed to copy file to printer'}
+usePaymentProcessing.ts:1534 ✅ MANUAL FINALIZE: Pago QR completado
+usePaymentProcessing.ts:1538 🧹 MANUAL FINALIZE: Iniciando limpieza controlada
+usePaymentProcessing.ts:668 🧹 Limpiando intervalo de polling
+usePaymentProcessing.ts:674 ✅ Intervalo de polling limpiado
+usePaymentProcessing.ts:852 🧹 RESET: Limpiando estados del procesador de pagos
+usePaymentProcessing.ts:853 🧹 RESET: Estados ANTES de limpiar: {selectedPaymentMethod: null, isProcessingPayment: false, qrData: true, paymentStatus: 'PENDIENTE', cashAmount: '', …}
+usePaymentProcessing.ts:668 🧹 Limpiando intervalo de polling
+usePaymentProcessing.ts:674 ✅ Intervalo de polling limpiado
+usePaymentProcessing.ts:885 ✅ RESET: Estados limpiados completamente
+usePaymentProcessing.ts:1557 ✅ MANUAL FINALIZE: Limpieza controlada completada
+usePaymentProcessing.ts:1611 ✅ MANUAL PASSWORD: Proceso completo exitoso
+usePaymentProcessing.ts:1644 🧹 MANUAL PASSWORD FINALLY: Detalles de orden manual limpiados
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: false}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: false}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: true}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: true}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+RecentOrdersDialog.tsx:69 🔍 Debug paginación: {totalOrders: 0, itemsPerPage: 6, totalPages: 0, currentPage: 1, startIndex: 0, …}
+RecentOrdersDialog.tsx:69 🔍 Debug paginación: {totalOrders: 0, itemsPerPage: 6, totalPages: 0, currentPage: 1, startIndex: 0, …}
+usePaymentProcessing.ts:668 🧹 Limpiando intervalo de polling
+usePaymentProcessing.ts:674 ✅ Intervalo de polling limpiado
+usePaymentProcessing.ts:668 🧹 Limpiando intervalo de polling
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: false}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: false}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: true}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: true}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+RecentOrdersDialog.tsx:69 🔍 Debug paginación: {totalOrders: 0, itemsPerPage: 6, totalPages: 0, currentPage: 1, startIndex: 0, …}
+RecentOrdersDialog.tsx:69 🔍 Debug paginación: {totalOrders: 0, itemsPerPage: 6, totalPages: 0, currentPage: 1, startIndex: 0, …}
+ShoppingCartRefactored.tsx:283 Producto seleccionado: 159 Pan
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: false}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: false}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: true}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: true}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+RecentOrdersDialog.tsx:69 🔍 Debug paginación: {totalOrders: 0, itemsPerPage: 6, totalPages: 0, currentPage: 1, startIndex: 0, …}
+RecentOrdersDialog.tsx:69 🔍 Debug paginación: {totalOrders: 0, itemsPerPage: 6, totalPages: 0, currentPage: 1, startIndex: 0, …}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: false}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: false}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: true}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: true}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+RecentOrdersDialog.tsx:69 🔍 Debug paginación: {totalOrders: 0, itemsPerPage: 6, totalPages: 0, currentPage: 1, startIndex: 0, …}
+RecentOrdersDialog.tsx:69 🔍 Debug paginación: {totalOrders: 0, itemsPerPage: 6, totalPages: 0, currentPage: 1, startIndex: 0, …}
+ShoppingCartRefactored.tsx:337 💰 handlePaymentClick - Artículos en carrito: [{…}]
+ShoppingCartRefactored.tsx:340 🧹 Reseteando estados del flujo AFIP antes de pago normal
+useAfipPaymentProcessing.ts:286 🧹 AFIP RESET: Limpiando estados del procesador de pagos AFIP
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: true, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: false}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: true, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: false}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: true}
+PaymentDialog.tsx:28 🎯 PaymentDialog render: {isOpen: false, isProcessingPayment: false, selectedPaymentMethod: null, isAfipMode: true}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+CashPaymentDialog.tsx:44 💰 CashPaymentDialog - Valores recibidos: {originalAmount: 0, roundedAmount: 0, hasDiscount: false, applyingDiscount: false, diferencia: 0}
+RecentOrdersDialog.tsx:69 🔍 Debug paginación: {totalOrders: 0, itemsPerPage: 6, totalPages: 0, currentPage: 1, startIndex: 0, …}
+RecentOrdersDialog.tsx:69 🔍 Debug paginación: {totalOrders: 0, itemsPerPage: 6, totalPages: 0, currentPage: 1, startIndex: 0, …}
+ShoppingCartRefactored.tsx:219 🚪 ABRIR: Diálogo de pago abierto, reseteando estados
+usePaymentProcessing.ts:852 🧹 RESET: Limpiando estados del procesador de pagos
+usePaymentProcessing.ts:853 🧹 RESET: Estados ANTES de limpiar: {selectedPaymentMethod: null, isProcessingPayment: false, qrData: false, paymentStatus: null, cashAmount: '', …}
+usePaymentProcessing.ts:668 🧹 Limpiando intervalo de polling
+usePaymentProcessing.ts:885 ✅ RESET: Estados limpiados completamente
+usePaymentProcessing.ts:889 🔄 RESET: Verificando estados después de reset: {selectedPaymentMethod: null, isProcessingPayment: false}

@@ -180,6 +180,110 @@ export default function ShoppingCartRefactored() {
     searchInputRef,
   });
 
+  // 🔄 SYNC: Mantener los estados locales de pago en línea con el hook
+  useEffect(() => {
+    console.log(
+      "🔄 SYNC: Actualizando isProcessingPayment local:",
+      paymentProcessor.isProcessingPayment
+    );
+    setIsProcessingPayment(paymentProcessor.isProcessingPayment);
+  }, [paymentProcessor.isProcessingPayment]);
+
+  useEffect(() => {
+    console.log(
+      "🔄 SYNC: Actualizando selectedPaymentMethod local:",
+      paymentProcessor.selectedPaymentMethod
+    );
+    setSelectedPaymentMethod(paymentProcessor.selectedPaymentMethod);
+  }, [paymentProcessor.selectedPaymentMethod]);
+
+  // 🆕 NUEVO: Effect para limpiar estados locales cuando el hook se resetea
+  useEffect(() => {
+    // Si el hook no tiene método seleccionado ni está procesando, limpiar estados locales
+    if (
+      !paymentProcessor.selectedPaymentMethod &&
+      !paymentProcessor.isProcessingPayment
+    ) {
+      console.log("🧹 SYNC: Hook reseteado, limpiando estados locales");
+      setSelectedPaymentMethod(null);
+      setIsProcessingPayment(false);
+    }
+  }, [
+    paymentProcessor.selectedPaymentMethod,
+    paymentProcessor.isProcessingPayment,
+  ]);
+
+  // 🆕 NUEVO: Effect para resetear estados cuando se abre el diálogo de pago
+  useEffect(() => {
+    if (paymentDialogOpen) {
+      console.log("🚪 ABRIR: Diálogo de pago abierto, reseteando estados");
+      setIsProcessingPayment(false);
+      setSelectedPaymentMethod(null);
+      paymentProcessor.resetPaymentState();
+    }
+  }, [paymentDialogOpen]);
+
+  // 🆕 NUEVO: Effect para resetear estados cuando se abre el diálogo AFIP
+  useEffect(() => {
+    if (afipPaymentDialogOpen) {
+      console.log("🚪 ABRIR: Diálogo AFIP abierto, reseteando estados");
+      afipPaymentProcessor.resetPaymentState();
+    }
+  }, [afipPaymentDialogOpen]);
+
+  // 🆕 NUEVO: Effect para detectar cuando se cierra el diálogo QR y limpiar estados residuales
+  useEffect(() => {
+    if (!qrDialogOpen && !paymentDialogOpen && !splitPaymentDialogOpen) {
+      // Si todos los diálogos están cerrados pero aún hay estados activos, limpiar
+      if (isProcessingPayment || selectedPaymentMethod) {
+        console.log(
+          "🧹 SYNC CLEANUP: Diálogos cerrados pero estados activos, limpiando:",
+          {
+            qrDialogOpen,
+            paymentDialogOpen,
+            splitPaymentDialogOpen,
+            isProcessingPayment,
+            selectedPaymentMethod,
+          }
+        );
+
+        // Limpiar estados locales
+        setIsProcessingPayment(false);
+        setSelectedPaymentMethod(null);
+
+        // Asegurar que el hook también esté limpio
+        if (
+          paymentProcessor.isProcessingPayment ||
+          paymentProcessor.selectedPaymentMethod
+        ) {
+          console.log("🧹 SYNC CLEANUP: También limpiando estados del hook");
+          paymentProcessor.resetPaymentState();
+        }
+      }
+    }
+  }, [
+    qrDialogOpen,
+    paymentDialogOpen,
+    splitPaymentDialogOpen,
+    isProcessingPayment,
+    selectedPaymentMethod,
+  ]);
+
+  // 🆕 NUEVO: Liberar paymentLock cuando el hook deja de procesar
+  useEffect(() => {
+    if (!paymentProcessor.isProcessingPayment) {
+      paymentLockRef.current = false;
+    }
+  }, [paymentProcessor.isProcessingPayment]);
+
+  // 🆕 NUEVO: Cerrar automáticamente el diálogo de pago cuando se abra el QRDialog
+  useEffect(() => {
+    if (qrDialogOpen && paymentDialogOpen) {
+      console.log("🔄 Cerrando PaymentDialog porque se abrió QRDialog");
+      setPaymentDialogOpen(false);
+    }
+  }, [qrDialogOpen, paymentDialogOpen]);
+
   // Handler para cerrar sesión
   const handleLogout = () => {
     toast.success("Cerrando sesión...");
@@ -292,6 +396,8 @@ export default function ShoppingCartRefactored() {
           return;
         }
         afipPaymentProcessor.handleAfipCashPayment(businessInfo);
+        setPaymentDialogOpen(false);
+        paymentLockRef.current = false;
         return;
       }
 
@@ -323,10 +429,17 @@ export default function ShoppingCartRefactored() {
     }
 
     console.log("🔄 handlePayment llamado con método:", method);
+    console.log("🔄 Estados ANTES de procesar:", {
+      isProcessingPayment,
+      selectedPaymentMethod,
+      hookIsProcessing: paymentProcessor.isProcessingPayment,
+      hookSelectedMethod: paymentProcessor.selectedPaymentMethod,
+    });
 
     // Prevenir procesamiento duplicado usando estado local antes de cualquier acción
     if (isProcessingPayment) {
       console.log("⚠️ Procesamiento bloqueado - ya está procesando");
+      paymentLockRef.current = false;
       return;
     }
 
@@ -337,6 +450,7 @@ export default function ShoppingCartRefactored() {
       setSelectedPaymentMethod("efectivo");
       paymentProcessor.handleCashPayment(businessInfo);
       setPaymentDialogOpen(false);
+      paymentLockRef.current = false;
       return;
     }
 
@@ -349,6 +463,7 @@ export default function ShoppingCartRefactored() {
       setTimeout(() => {
         setPaymentDialogOpen(false);
       }, 100);
+      paymentLockRef.current = false;
       return;
     }
 
@@ -475,6 +590,7 @@ export default function ShoppingCartRefactored() {
           setPaymentDialogOpen(false);
 
           toast.success("Orden completada exitosamente");
+          paymentLockRef.current = false;
         } catch (error: any) {
           console.error("❌ Error en flujo QR/MP deshabilitado:", error);
           toast.error(`Error al procesar la orden: ${error.message}`);
@@ -485,6 +601,7 @@ export default function ShoppingCartRefactored() {
           // Asegurar que cualquier toast de carga se cierre
           toast.dismiss("processing-order");
           toast.dismiss("printing-ticket");
+          paymentLockRef.current = false;
         }
 
         return;
@@ -492,7 +609,8 @@ export default function ShoppingCartRefactored() {
 
       // Si MP está habilitado, generar el QR
       paymentProcessor.generateQRPayment(cartState.getCurrentItems());
-      setPaymentDialogOpen(false);
+      // No cerramos inmediatamente el diálogo: permanecerá mostrando spinner
+      // El diálogo se cerrará automáticamente cuando se abra el diálogo QR
       return;
     }
 
@@ -820,10 +938,25 @@ export default function ShoppingCartRefactored() {
           console.log(
             "🚪 REFACTORED: Cerrando PaymentDialog - reseteando estados"
           );
-          setPaymentDialogOpen(false);
-          paymentProcessor.resetPaymentState();
+          console.log("🚪 Estados ANTES de cerrar:", {
+            isProcessingPayment,
+            selectedPaymentMethod,
+            hookIsProcessing: paymentProcessor.isProcessingPayment,
+            hookSelectedMethod: paymentProcessor.selectedPaymentMethod,
+          });
+
+          // ✅ RESETEAR ESTADOS INMEDIATAMENTE
           setIsProcessingPayment(false);
           setSelectedPaymentMethod(null);
+
+          setPaymentDialogOpen(false);
+          paymentProcessor.resetPaymentState();
+
+          console.log("🚪 Estados DESPUÉS de cerrar:", {
+            isProcessingPayment: false,
+            selectedPaymentMethod: null,
+          });
+
           setTimeout(() => searchInputRef.current?.focus(), 100);
         }}
         onSelectPayment={handlePayment}
@@ -837,9 +970,16 @@ export default function ShoppingCartRefactored() {
           console.log(
             "🚪 REFACTORED: Cerrando AFIP PaymentDialog - reseteando estados"
           );
+          console.log("🚪 AFIP Estados ANTES de cerrar:", {
+            afipIsProcessing: afipPaymentProcessor.isProcessingPayment,
+            afipSelectedMethod: afipPaymentProcessor.selectedPaymentMethod,
+          });
+
           setAfipPaymentDialogOpen(false);
           afipPaymentProcessor.resetPaymentState();
           // NO tocar los estados locales del flujo normal
+
+          console.log("🚪 AFIP Estados DESPUÉS de cerrar: reseteados");
           setTimeout(() => searchInputRef.current?.focus(), 100);
         }}
         onSelectPayment={handleAfipPayment}
