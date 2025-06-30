@@ -188,7 +188,14 @@ export function RecentOrdersDialog({
         ultimaOrden: ordersWithVendor[ordersWithVendor.length - 1]?.fecha,
       });
 
-      setAllOrders(ordersWithVendor);
+      // Filtro local: mantener solo órdenes del día por si el backend devuelve más
+      const todayIso = new Date().toISOString().slice(0, 10); // YYYY-MM-DD en UTC
+      const filtered = ordersWithVendor.filter((o: any) => {
+        const orderIso = new Date(o.fecha).toISOString().slice(0, 10);
+        return orderIso === todayIso;
+      });
+
+      setAllOrders(filtered);
 
       // Resetear a la primera página cuando se cargan nuevos datos
       setCurrentPage(1);

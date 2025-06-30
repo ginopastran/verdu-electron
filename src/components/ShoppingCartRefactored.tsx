@@ -88,10 +88,27 @@ export default function ShoppingCartRefactored() {
 
   // Bloqueo simple para evitar disparar múltiples pagos
   const paymentLockRef = useRef(false);
+  const isInitialMount = useRef(true);
 
-  // Enfocar el input al montar el componente
+  // Helper para enfocar el input de búsqueda de forma segura
+  const focusSearch = (source: string) => {
+    console.log(`🔍 Intentando enfocar la barra de búsqueda desde: ${source}`);
+    // Aumentar el delay para dar tiempo a que la UI se estabilice, especialmente en la carga inicial
+    setTimeout(() => {
+      if (searchInputRef.current) {
+        searchInputRef.current.focus();
+        console.log(`🎯 Foco establecido desde: ${source}`);
+      } else {
+        console.warn(
+          `⚠️ No se pudo enfocar desde ${source}: searchInputRef.current es nulo.`
+        );
+      }
+    }, 500);
+  };
+
+  // Enfocar la barra al montar el componente
   useEffect(() => {
-    searchInputRef.current?.focus();
+    focusSearch("montaje inicial");
   }, []);
 
   // Estados para búsqueda y productos
@@ -151,14 +168,6 @@ export default function ShoppingCartRefactored() {
   const closing = useClosing(user, API_URL, getAppId());
   const { handleTicketPrinting, formatFechaArgentina } = useTicketPrinting();
 
-  function getAppId() {
-    return (
-      (window as any).electron?.process?.argv
-        ?.find((arg: string) => arg.startsWith("--app-id="))
-        ?.split("=")[1] || null
-    );
-  }
-
   const paymentProcessor = usePaymentProcessing({
     user,
     API_URL,
@@ -169,6 +178,9 @@ export default function ShoppingCartRefactored() {
     setQrDialogOpen: setQrDialogOpen,
     setSplitPaymentDialogOpen: setSplitPaymentDialogOpen,
   });
+
+  const { roundedAmountDialogOpen: cashDialogOpen, exactPaymentDialogOpen } =
+    paymentProcessor;
 
   const afipPaymentProcessor = useAfipPaymentProcessing({
     user,
@@ -233,7 +245,13 @@ export default function ShoppingCartRefactored() {
 
   // 🆕 NUEVO: Effect para detectar cuando se cierra el diálogo QR y limpiar estados residuales
   useEffect(() => {
-    if (!qrDialogOpen && !paymentDialogOpen && !splitPaymentDialogOpen) {
+    if (
+      !qrDialogOpen &&
+      !paymentDialogOpen &&
+      !splitPaymentDialogOpen &&
+      !cashDialogOpen &&
+      !exactPaymentDialogOpen
+    ) {
       // Si todos los diálogos están cerrados pero aún hay estados activos, limpiar
       if (isProcessingPayment || selectedPaymentMethod) {
         console.log(
@@ -242,6 +260,8 @@ export default function ShoppingCartRefactored() {
             qrDialogOpen,
             paymentDialogOpen,
             splitPaymentDialogOpen,
+            cashDialogOpen,
+            exactPaymentDialogOpen,
             isProcessingPayment,
             selectedPaymentMethod,
           }
@@ -265,6 +285,8 @@ export default function ShoppingCartRefactored() {
     qrDialogOpen,
     paymentDialogOpen,
     splitPaymentDialogOpen,
+    cashDialogOpen,
+    exactPaymentDialogOpen,
     isProcessingPayment,
     selectedPaymentMethod,
   ]);
@@ -283,6 +305,43 @@ export default function ShoppingCartRefactored() {
       setPaymentDialogOpen(false);
     }
   }, [qrDialogOpen, paymentDialogOpen]);
+
+  // 🆕 NUEVO: Enfocar automáticamente la barra de búsqueda cuando todos los diálogos estén cerrados
+  useEffect(() => {
+    // No ejecutar en el montaje inicial
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+
+    if (
+      !dialogOpen &&
+      !cancelDialogOpen &&
+      !paymentDialogOpen &&
+      !afipPaymentDialogOpen &&
+      !qrDialogOpen &&
+      !splitPaymentDialogOpen &&
+      !exactPaymentDialogOpen &&
+      !cashDialogOpen &&
+      !ordersDialogOpen &&
+      !deleteScreenDialogOpen &&
+      !isAddingToCart
+    ) {
+      focusSearch("cierre de diálogo o fin de acción");
+    }
+  }, [
+    dialogOpen,
+    cancelDialogOpen,
+    paymentDialogOpen,
+    afipPaymentDialogOpen,
+    qrDialogOpen,
+    splitPaymentDialogOpen,
+    exactPaymentDialogOpen,
+    cashDialogOpen,
+    ordersDialogOpen,
+    deleteScreenDialogOpen,
+    isAddingToCart,
+  ]);
 
   // Handler para cerrar sesión
   const handleLogout = () => {
@@ -1225,5 +1284,13 @@ export default function ShoppingCartRefactored() {
         formatFechaArgentina={formatFechaArgentina}
       />
     </div>
+  );
+}
+
+function getAppId() {
+  return (
+    (window as any).electron?.process?.argv
+      ?.find((arg: string) => arg.startsWith("--app-id="))
+      ?.split("=")[1] || null
   );
 }

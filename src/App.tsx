@@ -44,7 +44,12 @@ export default function App() {
       <Router>
         <AuthProvider>
           <OfflineModeProvider>
-            <Toaster richColors position="top-center" theme="light" />
+            <Toaster
+              richColors
+              position="top-center"
+              theme="light"
+              duration={2000}
+            />
             <UpdateNotification />
             <Routes>
               <Route path="/" element={<AppRouter />} />
