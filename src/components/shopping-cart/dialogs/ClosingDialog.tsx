@@ -14,7 +14,7 @@ interface ClosingDialogProps {
   onOpenChange: (open: boolean) => void;
   onHandleClosing: (period: string) => void;
   isClosing: boolean;
-  searchInputRef: RefObject<HTMLInputElement>;
+  searchInputRef: RefObject<HTMLInputElement | null>;
 }
 
 export const ClosingDialog = ({

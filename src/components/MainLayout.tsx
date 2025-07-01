@@ -12,6 +12,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { ProductSearch } from "./shopping-cart/ProductSearch";
 import { AvailableProduct } from "@/hooks/useProductSearch";
+import { useSearchInput } from "@/contexts/SearchInputContext";
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -20,7 +21,7 @@ interface MainLayoutProps {
 
 export function MainLayout({ children, onProductSelect }: MainLayoutProps) {
   const { user } = useAuth();
-  const searchInputRef = useRef<HTMLInputElement>(null);
+  const { searchInputRef } = useSearchInput();
 
   return (
     <div className="flex h-screen bg-gray-50">

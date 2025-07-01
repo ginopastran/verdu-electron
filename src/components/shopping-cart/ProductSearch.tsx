@@ -3,10 +3,11 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { useProductSearch, AvailableProduct } from "@/hooks/useProductSearch";
+import { RefObject } from "react";
 
 interface ProductSearchProps {
   onProductSelect: (product: AvailableProduct) => void;
-  inputRef: React.Ref<HTMLInputElement>;
+  inputRef: RefObject<HTMLInputElement | null>;
 }
 
 export function ProductSearch({
@@ -32,6 +33,18 @@ export function ProductSearch({
       clearSelection();
     }
   }, [selectedProduct, onProductSelect, clearSelection]);
+
+  // Efecto para enfocar el input cuando se monta el componente
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (inputRef.current) {
+        inputRef.current.focus();
+        console.log("🎯 ProductSearch: Input enfocado al montar");
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [inputRef]);
 
   const selectProduct = (product: AvailableProduct) => {
     handleProductSelect(product);
@@ -59,6 +72,7 @@ export function ProductSearch({
           onKeyDown={handleKeyDown}
           className="w-full rounded-lg text-black" // Usar todo el ancho disponible en el sidebar
           ref={inputRef}
+          autoFocus
         />
       </div>
 

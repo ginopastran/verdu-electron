@@ -17,7 +17,7 @@ interface SplitPaymentDialogProps {
   paymentProcessor: any;
   cartState: any;
   businessInfo: any;
-  searchInputRef: RefObject<HTMLInputElement>;
+  searchInputRef: RefObject<HTMLInputElement | null>;
 }
 
 export const SplitPaymentDialog = ({

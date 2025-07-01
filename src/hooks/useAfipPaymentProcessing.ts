@@ -11,7 +11,7 @@ interface AfipPaymentOptions {
   clearCart: () => void;
   calculateTotal: () => number;
   setPaymentDialogOpen: (open: boolean) => void;
-  searchInputRef?: React.RefObject<HTMLInputElement>;
+  searchInputRef?: React.RefObject<HTMLInputElement | null>;
 }
 
 export function useAfipPaymentProcessing({

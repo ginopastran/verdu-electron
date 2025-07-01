@@ -5,6 +5,7 @@ import {
   CartSidebarProvider,
   useCartSidebar,
 } from "@/contexts/CartSidebarContext";
+import { SearchInputProvider } from "@/contexts/SearchInputContext";
 
 function CartWithSidebar() {
   const { selectProductFromSidebar } = useCartSidebar();
@@ -18,8 +19,10 @@ function CartWithSidebar() {
 
 export function CartWrapper() {
   return (
-    <CartSidebarProvider>
-      <CartWithSidebar />
-    </CartSidebarProvider>
+    <SearchInputProvider>
+      <CartSidebarProvider>
+        <CartWithSidebar />
+      </CartSidebarProvider>
+    </SearchInputProvider>
   );
 }

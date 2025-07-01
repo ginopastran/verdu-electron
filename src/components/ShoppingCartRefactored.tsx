@@ -33,6 +33,7 @@ import {
 // Hooks
 import { useAuth } from "@/contexts/AuthContext";
 import { useCartSidebar } from "@/contexts/CartSidebarContext";
+import { useSearchInput } from "@/contexts/SearchInputContext";
 import { useCartState } from "@/hooks/useCartState";
 import { usePaymentProcessing } from "@/hooks/usePaymentProcessing";
 import { useAfipPaymentProcessing } from "@/hooks/useAfipPaymentProcessing";
@@ -81,35 +82,17 @@ interface Product {
 export default function ShoppingCartRefactored() {
   const { user, logout } = useAuth();
   const { selectedProductFromSidebar, clearSelectedProduct } = useCartSidebar();
+  const { searchInputRef, focusSearchInput } = useSearchInput();
   const API_URL = import.meta.env.VITE_API_URL;
-  const searchInputRef = useRef<HTMLInputElement>(
-    null
-  ) as React.RefObject<HTMLInputElement>;
 
   // Bloqueo simple para evitar disparar múltiples pagos
   const paymentLockRef = useRef(false);
   const isInitialMount = useRef(true);
 
-  // Helper para enfocar el input de búsqueda de forma segura
-  const focusSearch = (source: string) => {
-    console.log(`🔍 Intentando enfocar la barra de búsqueda desde: ${source}`);
-    // Aumentar el delay para dar tiempo a que la UI se estabilice, especialmente en la carga inicial
-    setTimeout(() => {
-      if (searchInputRef.current) {
-        searchInputRef.current.focus();
-        console.log(`🎯 Foco establecido desde: ${source}`);
-      } else {
-        console.warn(
-          `⚠️ No se pudo enfocar desde ${source}: searchInputRef.current es nulo.`
-        );
-      }
-    }, 500);
-  };
-
   // Enfocar la barra al montar el componente
   useEffect(() => {
-    focusSearch("montaje inicial");
-  }, []);
+    focusSearchInput("montaje inicial");
+  }, [focusSearchInput]);
 
   // Estados para búsqueda y productos
   const [searchQuery, setSearchQuery] = useState("");
@@ -327,7 +310,7 @@ export default function ShoppingCartRefactored() {
       !deleteScreenDialogOpen &&
       !isAddingToCart
     ) {
-      focusSearch("cierre de diálogo o fin de acción");
+      focusSearchInput("cierre de diálogo o fin de acción");
     }
   }, [
     dialogOpen,
@@ -341,6 +324,7 @@ export default function ShoppingCartRefactored() {
     ordersDialogOpen,
     deleteScreenDialogOpen,
     isAddingToCart,
+    focusSearchInput,
   ]);
 
   // Handler para cerrar sesión
@@ -366,11 +350,7 @@ export default function ShoppingCartRefactored() {
     setSelectedProduct(null);
 
     // Enfocar el input de búsqueda
-    setTimeout(() => {
-      if (searchInputRef.current) {
-        searchInputRef.current.focus();
-      }
-    }, 100);
+    focusSearchInput("agregado producto");
   };
 
   // Handler para mostrar diálogo de cancelación
@@ -391,9 +371,7 @@ export default function ShoppingCartRefactored() {
     setCancelDialogOpen(false);
 
     // Enfocar el input de búsqueda
-    setTimeout(() => {
-      searchInputRef.current?.focus();
-    }, 0);
+    focusSearchInput("carrito cancelado");
 
     toast.success("Carrito cancelado");
   };
@@ -871,10 +849,7 @@ export default function ShoppingCartRefactored() {
 
       // Limpiar input y restablecer foco
       setSearchQuery("");
-      if (searchInputRef.current) {
-        searchInputRef.current.value = "";
-        searchInputRef.current.focus();
-      }
+      focusSearchInput("producto escaneado");
     } catch (err) {
       console.error("Error auto-add producto:", err);
     }
@@ -1016,7 +991,7 @@ export default function ShoppingCartRefactored() {
             selectedPaymentMethod: null,
           });
 
-          setTimeout(() => searchInputRef.current?.focus(), 100);
+          focusSearchInput("cerrado payment dialog");
         }}
         onSelectPayment={handlePayment}
         isProcessingPayment={isProcessingPayment}
@@ -1039,7 +1014,7 @@ export default function ShoppingCartRefactored() {
           // NO tocar los estados locales del flujo normal
 
           console.log("🚪 AFIP Estados DESPUÉS de cerrar: reseteados");
-          setTimeout(() => searchInputRef.current?.focus(), 100);
+          focusSearchInput("cerrado AFIP payment dialog");
         }}
         onSelectPayment={handleAfipPayment}
         isProcessingPayment={afipPaymentProcessor.isProcessingPayment}
@@ -1057,7 +1032,7 @@ export default function ShoppingCartRefactored() {
             );
             afipPaymentProcessor.setRoundedAmountDialogOpen(false);
             afipPaymentProcessor.resetPaymentState();
-            setTimeout(() => searchInputRef.current?.focus(), 100);
+            focusSearchInput("cerrado AFIP cash payment dialog");
           }
         }}
         isProcessingPayment={afipPaymentProcessor.isProcessingPayment}
@@ -1105,7 +1080,7 @@ export default function ShoppingCartRefactored() {
             );
             afipPaymentProcessor.setExactPaymentDialogOpen(false);
             afipPaymentProcessor.resetPaymentState();
-            setTimeout(() => searchInputRef.current?.focus(), 100);
+            focusSearchInput("cerrado AFIP exact payment dialog");
           }
         }}
         totalAmount={afipPaymentProcessor.roundedAmount}
@@ -1129,7 +1104,7 @@ export default function ShoppingCartRefactored() {
 
             console.log("✅ AFIP EXACT PAYMENT: Pago procesado exitosamente");
 
-            setTimeout(() => searchInputRef.current?.focus(), 100);
+            focusSearchInput("AFIP exact payment confirmado");
           } catch (error) {
             console.error("❌ AFIP EXACT PAYMENT: Error al procesar:", error);
           }
@@ -1154,7 +1129,7 @@ export default function ShoppingCartRefactored() {
             paymentProcessor.resetPaymentState();
             setIsProcessingPayment(false);
             setSelectedPaymentMethod(null);
-            setTimeout(() => searchInputRef.current?.focus(), 100);
+            focusSearchInput("cerrado cash payment dialog");
           }
         }}
         isProcessingPayment={isProcessingPayment}
@@ -1193,7 +1168,7 @@ export default function ShoppingCartRefactored() {
             paymentProcessor.resetPaymentState();
             setIsProcessingPayment(false);
             setSelectedPaymentMethod(null);
-            setTimeout(() => searchInputRef.current?.focus(), 100);
+            focusSearchInput("cerrado exact payment dialog");
           }
         }}
         totalAmount={paymentProcessor.roundedAmount}
@@ -1221,7 +1196,7 @@ export default function ShoppingCartRefactored() {
             // Limpiar estados locales después del procesamiento exitoso
             setIsProcessingPayment(false);
             setSelectedPaymentMethod(null);
-            setTimeout(() => searchInputRef.current?.focus(), 100);
+            focusSearchInput("exact payment confirmado");
           } catch (error) {
             console.error("❌ EXACT PAYMENT: Error al procesar:", error);
             setIsProcessingPayment(false);
