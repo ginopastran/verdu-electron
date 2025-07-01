@@ -17,6 +17,20 @@ export function useScaleWeight() {
   const [weight, setWeight] = useState<number>(0);
 
   useEffect(() => {
+    // Suscribirse a eventos push desde el proceso principal (peso-updated)
+    let ipcListener: ((peso: number) => void) | null = null;
+
+    if (
+      typeof window !== "undefined" &&
+      (window as any).electron?.ipcRenderer
+    ) {
+      ipcListener = (newWeight: number) => {
+        // Evitar renders innecesarios
+        setWeight((prev) => (prev !== newWeight ? newWeight : prev));
+      };
+      (window as any).electron.ipcRenderer.on("peso-updated", ipcListener);
+    }
+
     const fetchWeight = async () => {
       try {
         // Intentar usar el nuevo IPC handler que funciona tanto en desarrollo como producción
@@ -75,8 +89,17 @@ export function useScaleWeight() {
       }
     };
 
-    const interval = setInterval(fetchWeight, 1000);
-    return () => clearInterval(interval);
+    const interval = setInterval(fetchWeight, 2000);
+
+    return () => {
+      clearInterval(interval);
+      if (ipcListener && (window as any).electron?.ipcRenderer) {
+        (window as any).electron.ipcRenderer.removeListener(
+          "peso-updated",
+          ipcListener
+        );
+      }
+    };
   }, []);
 
   return weight;

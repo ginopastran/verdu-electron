@@ -20,6 +20,12 @@ contextBridge.exposeInMainWorld("electron", {
   ipcRenderer: {
     invoke: (channel: string, ...args: any[]) =>
       ipcRenderer.invoke(channel, ...args),
+    on: (channel: string, listener: (...args: any[]) => void) =>
+      ipcRenderer.on(channel, (event: any, ...args: any[]) =>
+        listener(...args)
+      ),
+    removeListener: (channel: string, listener: (...args: any[]) => void) =>
+      ipcRenderer.removeListener(channel, listener),
   },
   process: {
     argv: process.argv,
