@@ -1257,6 +1257,7 @@ export default function ShoppingCartRefactored() {
         API_URL={API_URL}
         appId={getAppId()}
         formatFechaArgentina={formatFechaArgentina}
+        businessInfo={businessInfo}
       />
     </div>
   );

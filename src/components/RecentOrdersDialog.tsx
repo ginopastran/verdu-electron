@@ -22,6 +22,7 @@ import { Receipt, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getBusinessName } from "@/utils/businessHelpers";
 import { useTicketPrinting } from "@/hooks/useTicketPrinting";
+import { fetchTransaccionesDelDia } from "@/hooks/useTransactions";
 
 interface RecentOrdersDialogProps {
   isOpen: boolean;
@@ -29,6 +30,7 @@ interface RecentOrdersDialogProps {
   API_URL: string;
   appId: string | null;
   formatFechaArgentina: (fecha: string | Date) => string;
+  businessInfo: any;
 }
 
 export function RecentOrdersDialog({
@@ -37,6 +39,7 @@ export function RecentOrdersDialog({
   API_URL,
   appId,
   formatFechaArgentina,
+  businessInfo,
 }: RecentOrdersDialogProps) {
   const { user } = useAuth();
   const [allOrders, setAllOrders] = useState<any[]>([]);
@@ -141,58 +144,17 @@ export function RecentOrdersDialog({
         nombre: user.nombre,
       });
 
-      // Quitar el parámetro limit para obtener todas las órdenes del día
-      const response = await fetch(
-        `${API_URL}/api/ordenes/vendedor/${user.id}`,
-        { headers }
+      const includeFacturas = businessInfo?.facturacionHabilitada === true;
+      const transacciones = await fetchTransaccionesDelDia(
+        user.id,
+        includeFacturas
       );
 
-      if (!response.ok) {
-        throw new Error("Error al cargar órdenes del día");
-      }
-
-      const data = await response.json();
-      console.log("✅ Órdenes del día cargadas (raw):", data);
-
-      const ordersWithVendor = data.map((order: any) => ({
-        ...order,
-        vendedor:
-          typeof order.vendedor === "object"
-            ? order.vendedor.nombre || user.nombre
-            : order.vendedor || user.nombre,
-        vendedorId: order.vendedorId || user.id,
-        sucursalId: order.sucursalId || user.sucursalId,
-        items: Array.isArray(order.detalles)
-          ? order.detalles.map((detalle: any) => ({
-              ...detalle,
-              nombre:
-                detalle.producto?.nombre ||
-                detalle.nombre ||
-                "Producto sin nombre",
-              cantidad: Number(detalle.cantidad || 0),
-              precioHistorico: Number(
-                detalle.precioHistorico || detalle.precio || 0
-              ),
-              subtotal: Number(detalle.subtotal || 0),
-            }))
-          : [],
-        total: Number(order.total || 0),
-        metodoPago: order.metodoPago || "N/A",
-        fecha: order.fecha || order.createdAt,
-      }));
-
-      console.log("📋 Órdenes procesadas:", {
-        cantidad: ordersWithVendor.length,
-        usuario: user.nombre,
-        primeraOrden: ordersWithVendor[0]?.fecha,
-        ultimaOrden: ordersWithVendor[ordersWithVendor.length - 1]?.fecha,
-      });
-
-      // Filtro local: mantener solo órdenes del día por si el backend devuelve más
-      const todayIso = new Date().toISOString().slice(0, 10); // YYYY-MM-DD en UTC
-      const filtered = ordersWithVendor.filter((o: any) => {
-        const orderIso = new Date(o.fecha).toISOString().slice(0, 10);
-        return orderIso === todayIso;
+      // Filtro local por fecha del día (aunque backend ya debería filtrar)
+      const todayIso = new Date().toISOString().slice(0, 10);
+      const filtered = transacciones.filter((t: any) => {
+        const iso = new Date(t.fecha).toISOString().slice(0, 10);
+        return iso === todayIso;
       });
 
       setAllOrders(filtered);
@@ -294,7 +256,7 @@ export function RecentOrdersDialog({
       <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col">
         <DialogHeader className="border-b border-emerald-100 pb-4 flex-shrink-0">
           <DialogTitle className="text-2xl font-bold text-emerald-gradient">
-            Órdenes del día
+            Transacciones del día
           </DialogTitle>
           <DialogDescription className="text-lg">
             Todas las órdenes realizadas hoy por{" "}
@@ -303,7 +265,7 @@ export function RecentOrdersDialog({
             </span>
             {totalOrders > 0 && (
               <span className="ml-2 text-sm text-gray-600">
-                ({totalOrders} órdenes en total)
+                ({totalOrders} transacciones en total)
               </span>
             )}
           </DialogDescription>
@@ -324,7 +286,7 @@ export function RecentOrdersDialog({
                 <Receipt className="h-16 w-16 mx-auto" />
               </div>
               <p className="text-lg text-gray-500">
-                No se encontraron órdenes para el día de hoy
+                No se encontraron órdenes ni facturas B para el día de hoy
               </p>
             </div>
           ) : (
@@ -333,6 +295,9 @@ export function RecentOrdersDialog({
                 <Table>
                   <TableHeader className="bg-emerald-50">
                     <TableRow>
+                      <TableHead className="font-semibold text-emerald-800">
+                        Tipo
+                      </TableHead>
                       <TableHead className="font-semibold text-emerald-800">
                         Fecha
                       </TableHead>
@@ -356,6 +321,9 @@ export function RecentOrdersDialog({
                           index % 2 === 0 ? "bg-white" : "bg-gray-50/50"
                         )}
                       >
+                        <TableCell className="py-4 capitalize">
+                          {order.tipo === "facturaB" ? "Factura B" : "Orden"}
+                        </TableCell>
                         <TableCell className="py-4">
                           <div className="font-medium text-gray-900">
                             {formatFechaArgentina(order.fecha)}
@@ -413,7 +381,7 @@ export function RecentOrdersDialog({
             <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
               <div className="text-sm text-gray-600">
                 Mostrando {startIndex + 1} a {Math.min(endIndex, totalOrders)}{" "}
-                de {totalOrders} órdenes
+                de {totalOrders} transacciones
               </div>
 
               {/* Solo mostrar controles de navegación si hay más de 1 página */}

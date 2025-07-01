@@ -261,10 +261,45 @@ function createWindow() {
         });
     }
 }
+// ======= PESO WATCHER: Enviar peso actualizado a los renderers =======
+function setupPesoWatcher() {
+    const pesoPath = "C:\\Peso\\peso.json";
+    let lastSentPeso = null;
+    const readAndBroadcastPeso = () => {
+        try {
+            if (!fs.existsSync(pesoPath))
+                return;
+            const data = fs.readFileSync(pesoPath, "utf8");
+            const cleanData = data.replace(/^\uFEFF/, "").trim();
+            if (!cleanData)
+                return;
+            const weightData = JSON.parse(cleanData);
+            const peso = weightData.peso || 0;
+            if (peso !== lastSentPeso) {
+                lastSentPeso = peso;
+                BrowserWindow.getAllWindows().forEach((win) => {
+                    win.webContents.send("peso-updated", peso);
+                });
+            }
+        }
+        catch (err) {
+            console.error("❌ Error en peso watcher:", err);
+        }
+    };
+    // Leer inicialmente
+    readAndBroadcastPeso();
+    // Observar cambios
+    fs.watchFile(pesoPath, { interval: 500 }, () => {
+        readAndBroadcastPeso();
+    });
+    console.log("📡 Peso watcher iniciado en", pesoPath);
+}
 app.whenReady().then(async () => {
     // Inicializar electron-store antes de crear la ventana
     await initializeStore();
     createWindow();
+    // 👉 Iniciar watcher de peso en tiempo real
+    setupPesoWatcher();
     // Verificar actualizaciones después de 3 segundos en producción
     if (process.env.NODE_ENV !== "development") {
         // Habilitar logging detallado
