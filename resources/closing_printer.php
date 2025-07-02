@@ -4,6 +4,7 @@ require __DIR__ . '/vendor/autoload.php';
 use Mike42\Escpos\Printer;
 use Mike42\Escpos\EscposImage;
 use Mike42\Escpos\PrintConnectors\WindowsPrintConnector;
+use Mike42\Escpos\PrintConnectors\DummyPrintConnector;
 
 try {
     file_put_contents('php://stderr', "==== INICIO DE CLOSING PRINTER ====\n");
@@ -44,9 +45,19 @@ try {
     
     $nombre_impresora = "TP806L";
     
+    // Detectar modo simulación (pasar --simulate como segundo argumento)
+    $simulate = in_array("--simulate", $argv, true);
+    if ($simulate) {
+        file_put_contents('php://stderr', "⚙️  Modo simulación activado - no se enviará a impresora física\n");
+    }
+    
     try {
         // Intentar conectar a la impresora - esto fallará si no existe
-        $connector = new WindowsPrintConnector($nombre_impresora);
+        if ($simulate) {
+            $connector = new DummyPrintConnector();
+        } else {
+            $connector = new WindowsPrintConnector($nombre_impresora);
+        }
         
         // Si llegamos aquí, la conexión fue exitosa
         $printer = new Printer($connector);
@@ -444,6 +455,16 @@ try {
         
         file_put_contents('php://stderr', "✓ Ticket de cierre impreso correctamente\n");
         echo "Cierre impreso correctamente";
+
+        // Cerrar la impresora y, si es simulación, volcar datos al stdout
+        $printer->close();
+
+        if ($simulate && isset($connector) && $connector instanceof DummyPrintConnector) {
+            // Mostrar el texto RAW que se enviaría
+            echo "===== SIMULACIÓN DE IMPRESIÓN =====\n";
+            echo $connector->getData();
+            echo "===== FIN SIMULACIÓN =====\n";
+        }
 
     } catch (Exception $printerError) {
         // Error específico de la impresora - reportarlo pero no interrumpir el proceso
