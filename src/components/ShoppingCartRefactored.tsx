@@ -135,6 +135,10 @@ export default function ShoppingCartRefactored() {
   const [qrDialogOpen, setQrDialogOpen] = useState(false);
   const [splitPaymentDialogOpen, setSplitPaymentDialogOpen] = useState(false);
 
+  // Añadir estado para diálogo de pago mixto AFIP
+  const [afipSplitPaymentDialogOpen, setAfipSplitPaymentDialogOpen] =
+    useState(false);
+
   // Estados de procesamiento de pago (manejados en este componente)
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<
@@ -173,6 +177,8 @@ export default function ShoppingCartRefactored() {
     calculateTotal: cartState.calculateTotal,
     setPaymentDialogOpen: setAfipPaymentDialogOpen,
     searchInputRef,
+    // NUEVO: pasar referencia para abrir diálogo mixto
+    setSplitPaymentDialogOpen: setAfipSplitPaymentDialogOpen,
   });
 
   // 🔄 SYNC: Mantener los estados locales de pago en línea con el hook
@@ -232,8 +238,12 @@ export default function ShoppingCartRefactored() {
       !qrDialogOpen &&
       !paymentDialogOpen &&
       !splitPaymentDialogOpen &&
+      !afipSplitPaymentDialogOpen &&
+      !exactPaymentDialogOpen &&
       !cashDialogOpen &&
-      !exactPaymentDialogOpen
+      !ordersDialogOpen &&
+      !deleteScreenDialogOpen &&
+      !isAddingToCart
     ) {
       // Si todos los diálogos están cerrados pero aún hay estados activos, limpiar
       if (isProcessingPayment || selectedPaymentMethod) {
@@ -243,8 +253,12 @@ export default function ShoppingCartRefactored() {
             qrDialogOpen,
             paymentDialogOpen,
             splitPaymentDialogOpen,
-            cashDialogOpen,
+            afipSplitPaymentDialogOpen,
             exactPaymentDialogOpen,
+            cashDialogOpen,
+            ordersDialogOpen,
+            deleteScreenDialogOpen,
+            isAddingToCart,
             isProcessingPayment,
             selectedPaymentMethod,
           }
@@ -268,8 +282,12 @@ export default function ShoppingCartRefactored() {
     qrDialogOpen,
     paymentDialogOpen,
     splitPaymentDialogOpen,
-    cashDialogOpen,
+    afipSplitPaymentDialogOpen,
     exactPaymentDialogOpen,
+    cashDialogOpen,
+    ordersDialogOpen,
+    deleteScreenDialogOpen,
+    isAddingToCart,
     isProcessingPayment,
     selectedPaymentMethod,
   ]);
@@ -434,6 +452,18 @@ export default function ShoppingCartRefactored() {
         }
         afipPaymentProcessor.handleAfipCashPayment(businessInfo);
         setPaymentDialogOpen(false);
+        paymentLockRef.current = false;
+        return;
+      }
+
+      // NUEVO: pago mixto
+      if (method === "split") {
+        console.log("🧾 AFIP: Pago mixto seleccionado");
+        afipPaymentProcessor.handleSplitPayment();
+        // Cerrar diálogo principal después de un pequeño delay
+        setTimeout(() => {
+          setAfipPaymentDialogOpen(false);
+        }, 100);
         paymentLockRef.current = false;
         return;
       }
@@ -1246,6 +1276,16 @@ export default function ShoppingCartRefactored() {
         open={splitPaymentDialogOpen}
         onOpenChange={setSplitPaymentDialogOpen}
         paymentProcessor={paymentProcessor}
+        cartState={cartState}
+        businessInfo={businessInfo}
+        searchInputRef={searchInputRef}
+      />
+
+      {/* NUEVO: Diálogo de pago mixto para AFIP */}
+      <SplitPaymentDialog
+        open={afipSplitPaymentDialogOpen}
+        onOpenChange={setAfipSplitPaymentDialogOpen}
+        paymentProcessor={afipPaymentProcessor as any}
         cartState={cartState}
         businessInfo={businessInfo}
         searchInputRef={searchInputRef}

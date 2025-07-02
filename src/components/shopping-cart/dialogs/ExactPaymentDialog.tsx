@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -32,6 +32,9 @@ export function ExactPaymentDialog({
   const [change, setChange] = useState<number>(0);
   const [error, setError] = useState<string>("");
 
+  // Ref para el input y forzar foco al abrir
+  const paidInputRef = useRef<HTMLInputElement>(null);
+
   // Calcular vuelto cuando cambia el monto pagado
   useEffect(() => {
     const paid = parseFloat(paidAmount);
@@ -56,6 +59,19 @@ export function ExactPaymentDialog({
       setPaidAmount("");
       setChange(0);
       setError("");
+    }
+  }, [open]);
+
+  // Forzar foco cuando se abra el diálogo (después de un tick para que el DOM esté listo)
+  useEffect(() => {
+    if (open) {
+      setTimeout(() => {
+        paidInputRef.current?.focus();
+      }, 10);
+      // Reintentar un poco más tarde por si otro componente roba el foco
+      setTimeout(() => {
+        paidInputRef.current?.focus();
+      }, 400);
     }
   }, [open]);
 
@@ -128,6 +144,7 @@ export function ExactPaymentDialog({
               step="0.01"
               min={totalAmount.toString()}
               disabled={isLoading}
+              ref={paidInputRef}
               autoFocus
             />
             {error && <p className="text-sm text-red-600 mt-1">{error}</p>}

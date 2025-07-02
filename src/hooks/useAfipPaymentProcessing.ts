@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, RefObject } from "react";
 import { toast } from "sonner";
 import { Product } from "./useCartState";
 import { getBusinessName } from "@/utils/businessHelpers";
@@ -11,7 +11,8 @@ interface AfipPaymentOptions {
   clearCart: () => void;
   calculateTotal: () => number;
   setPaymentDialogOpen: (open: boolean) => void;
-  searchInputRef?: React.RefObject<HTMLInputElement | null>;
+  searchInputRef?: RefObject<HTMLInputElement | null>;
+  setSplitPaymentDialogOpen?: (open: boolean) => void;
 }
 
 export function useAfipPaymentProcessing({
@@ -22,6 +23,7 @@ export function useAfipPaymentProcessing({
   calculateTotal,
   setPaymentDialogOpen,
   searchInputRef,
+  setSplitPaymentDialogOpen,
 }: AfipPaymentOptions) {
   // 🆕 MEJORA: Usar businessInfo desde el hook
   const { businessInfo } = useBusinessInfo(API_URL, appId);
@@ -41,6 +43,11 @@ export function useAfipPaymentProcessing({
   const [exactPaymentDialogOpen, setExactPaymentDialogOpen] = useState(false);
   const [paidAmount, setPaidAmount] = useState<number>(0);
   const [changeAmount, setChangeAmount] = useState<number>(0);
+
+  // Estados para pago mixto
+  const [cashAmount, setCashAmount] = useState<string>("");
+  const [secondPaymentMethod, setSecondPaymentMethod] =
+    useState<string>("tarjeta");
 
   // Función para redondear a los 50 pesos más cercanos hacia abajo (igual que hook normal)
   const roundToNearest50 = (amount: number): number => {
@@ -288,7 +295,7 @@ export function useAfipPaymentProcessing({
     );
     setIsProcessingPayment(false);
     setSelectedPaymentMethod(null);
-    // Limpiar también estados de efectivo
+    // Limpiar también estados de efectivo y mixto
     setRoundedAmountDialogOpen(false);
     setOriginalAmount(0);
     setRoundedAmount(0);
@@ -296,6 +303,9 @@ export function useAfipPaymentProcessing({
     setExactPaymentDialogOpen(false);
     setPaidAmount(0);
     setChangeAmount(0);
+    // NUEVO: limpiar estados mixtos
+    setCashAmount("");
+    setSecondPaymentMethod("tarjeta");
   };
 
   const processAfipPayment = async (
@@ -734,10 +744,96 @@ export function useAfipPaymentProcessing({
     }
   };
 
+  // Helper para abrir diálogo de pago mixto
+  const handleSplitPayment = () => {
+    console.log("🔄 AFIP handleSplitPayment llamado");
+
+    if (!user) {
+      toast.error("Debes iniciar sesión para realizar una factura");
+      return;
+    }
+
+    // Evitar duplicados
+    if (isProcessingPayment) {
+      console.log("⚠️ Ya hay un proceso AFIP activo");
+      return;
+    }
+
+    setSelectedPaymentMethod("split");
+    setCashAmount("");
+    setSecondPaymentMethod("tarjeta");
+
+    if (setSplitPaymentDialogOpen) {
+      setSplitPaymentDialogOpen(true);
+    } else {
+      console.error(
+        "❌ setSplitPaymentDialogOpen no está definido en opciones AFIP"
+      );
+    }
+  };
+
+  // Procesar pago mixto AFIP
+  const processSplitPayment = async (
+    items: Product[],
+    totalAmount: number,
+    businessInfo?: any
+  ) => {
+    if (!user) {
+      toast.error("Debes iniciar sesión para realizar una factura");
+      return;
+    }
+
+    // Evitar duplicados
+    if (isProcessingPayment) {
+      console.log("⚠️ Pago mixto AFIP ya en proceso");
+      return;
+    }
+
+    const cashAmountValue = parseFloat(cashAmount);
+    if (isNaN(cashAmountValue) || cashAmountValue <= 0) {
+      toast.error("Ingresa un monto válido para el pago en efectivo");
+      return;
+    }
+
+    if (cashAmountValue >= totalAmount) {
+      toast.error("El monto en efectivo no puede ser mayor o igual al total");
+      return;
+    }
+
+    const secondAmount = parseFloat((totalAmount - cashAmountValue).toFixed(2));
+
+    setIsProcessingPayment(true);
+
+    try {
+      // Intentar procesar la factura AFIP como "split" (backend debe soportarlo)
+      await processAfipPayment("split", items, totalAmount);
+
+      // Cerrar diálogo
+      if (setSplitPaymentDialogOpen) {
+        setSplitPaymentDialogOpen(false);
+      }
+
+      clearCart();
+      resetPaymentState();
+      toast.success("Factura AFIP creada exitosamente (pago mixto)");
+    } catch (error: any) {
+      console.error("❌ Error en pago mixto AFIP:", error);
+      toast.error(`Error en factura AFIP mixta: ${error.message}`);
+      resetPaymentState();
+    } finally {
+      setIsProcessingPayment(false);
+      setSelectedPaymentMethod(null);
+    }
+  };
+
   return {
     processAfipPayment,
     handleAfipCashPayment,
     confirmAfipExactPayment,
+    // NUEVO: pago mixto
+    handleSplitPayment,
+    processSplitPayment,
+    // Estados
     isProcessingPayment,
     selectedPaymentMethod,
     resetPaymentState,
@@ -754,5 +850,10 @@ export function useAfipPaymentProcessing({
     setPaidAmount,
     changeAmount,
     setChangeAmount,
+    // NUEVO: estados de pago mixto
+    cashAmount,
+    setCashAmount,
+    secondPaymentMethod,
+    setSecondPaymentMethod,
   };
 }
