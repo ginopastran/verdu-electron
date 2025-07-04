@@ -55,8 +55,14 @@ export function usePaymentProcessing({
       return null;
     }
   };
-  // Estado para QR
+  // Estado para datos del QR
   const [qrData, setQrData] = useState<any>(null);
+  // Usar un ref para disponer siempre del valor más reciente dentro de los callbacks del polling
+  const qrDataRef = useRef<any>(null);
+  const updateQrData = (data: any) => {
+    qrDataRef.current = data;
+    setQrData(data);
+  };
   const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(
     null
   );
@@ -445,7 +451,7 @@ export function usePaymentProcessing({
         descripcion: `Compra de ${orderItems.length} productos`,
         vendedorId: user.id,
         sucursalId: user.sucursalId,
-        externalPosId: import.meta.env.VITE_POS_ID,
+        // externalPosId: import.meta.env.VITE_POS_ID,
         items: orderItems,
       };
 
@@ -496,13 +502,14 @@ export function usePaymentProcessing({
         }
       }
 
-      // Guardar datos del QR
-      setQrData({
+      // Guardar datos del QR (estado y ref)
+      const newQrData = {
         ...data,
         qrImageUrl: qrImageDataUrl,
         monto: orderData.monto,
         items: orderItems,
-      });
+      };
+      updateQrData(newQrData);
 
       // Establecer estado inicial como pendiente para que el usuario vea inmediatamente el estado y pueda completar manualmente si es necesario
       setPaymentStatus("PENDIENTE");
@@ -534,6 +541,13 @@ export function usePaymentProcessing({
 
   // Verificar el estado del pago
   const startPaymentStatusPolling = (orderId: number) => {
+    if (!orderId) {
+      console.error("❌ startPaymentStatusPolling: orderId inválido", orderId);
+      return;
+    }
+
+    console.log("🌐 API_URL en polling:", API_URL);
+
     const POLLING_INTERVAL = 3000;
     const MAX_POLLING_TIME = 10 * 60 * 1000;
     const MAX_RETRIES = 3;
@@ -541,31 +555,26 @@ export function usePaymentProcessing({
     setPollingStartTime(Date.now());
     setRetryCount(0);
 
-    const interval = setInterval(async () => {
+    // Función auxiliar para consultar el backend (evita duplicar código)
+    const fetchStatus = async () => {
       try {
-        if (
-          pollingStartTime &&
-          Date.now() - pollingStartTime > MAX_POLLING_TIME
-        ) {
-          cleanupPolling();
-          toast.error("Tiempo de espera agotado. El código QR ha expirado.");
-          if (setQrDialogOpenRef) {
-            setQrDialogOpenRef(false);
-          }
-          resetPaymentState();
-          return;
-        }
+        // Utilizar siempre la versión más reciente de qrData mediante el ref
+        const currentQrData = qrDataRef.current;
 
-        // Si por alguna razón los datos del QR se limpiaron, detén el polling
-        if (!qrData) {
-          cleanupPolling();
-          return;
-        }
+        console.log(
+          "🔄 Verificando estado del pago (llamada inmediata/intervalo)..."
+        );
+        console.log(
+          "🌐 Haciendo petición a:",
+          `${API_URL}/api/mercadopago/check-status?orderId=${orderId}`
+        );
 
-        console.log("🔄 Verificando estado del pago...");
         const response = await fetch(
           `${API_URL}/api/mercadopago/check-status?orderId=${orderId}`,
-          { headers }
+          {
+            headers,
+            credentials: "include",
+          }
         );
 
         if (!response.ok) {
@@ -573,6 +582,7 @@ export function usePaymentProcessing({
         }
 
         const statusData = await response.json();
+        console.log("✅ Respuesta del backend:", statusData);
         setRetryCount(0);
 
         // Normalizar el status que devuelve el backend para que coincida con los textos mostrados en el diálogo
@@ -596,8 +606,8 @@ export function usePaymentProcessing({
 
           if (statusData.isCompleted) {
             const cartData = {
-              items: qrData.items,
-              total: qrData.monto,
+              items: currentQrData?.items || [],
+              total: currentQrData?.monto ?? 0,
             };
 
             await finalizeMPPayment(
@@ -626,7 +636,7 @@ export function usePaymentProcessing({
           }
         }
       } catch (error: any) {
-        console.error("❌ Error al verificar estado:", error);
+        console.error("❌ Error al verificar estado de pago:", error);
 
         // Incrementar el contador de reintentos y usar el valor ACTUALIZADO para la verificación.
         const nextRetries = retryCount + 1;
@@ -643,9 +653,24 @@ export function usePaymentProcessing({
           resetPaymentState();
         }
       }
+    };
+
+    // Llamada inmediata antes de iniciar el intervalo continuo
+    fetchStatus();
+
+    console.log(
+      "⏰ CREANDO setInterval con intervalo de",
+      POLLING_INTERVAL,
+      "ms"
+    );
+    const interval = setInterval(() => {
+      console.log("⏰ setInterval EJECUTÁNDOSE - llamada periódica");
+      fetchStatus();
     }, POLLING_INTERVAL);
 
+    console.log("📌 setInterval creado con ID:", interval);
     setPollingInterval(interval);
+    console.log("✅ pollingInterval guardado en estado");
   };
 
   // Cancelar el pago con QR
@@ -657,7 +682,7 @@ export function usePaymentProcessing({
     if (setQrDialogOpenRef) {
       setQrDialogOpenRef(false);
     }
-    setQrData(null);
+    updateQrData(null as any);
     setPaymentStatus(null);
     setIsProcessingPayment(false);
     setSelectedPaymentMethod(null);
@@ -665,22 +690,14 @@ export function usePaymentProcessing({
 
   // Limpiar el polling
   const cleanupPolling = () => {
-    console.log("🧹 Limpiando intervalo de polling");
-
-    // ✅ LIMPIEZA ROBUSTA: Limpiar múltiples posibles intervalos
+    console.log("🧹 cleanupPolling llamado - stack trace:");
+    console.trace();
     if (pollingInterval) {
+      console.log("🧹 Limpiando intervalo de polling con ID:", pollingInterval);
       clearInterval(pollingInterval);
       setPollingInterval(null);
-      console.log("✅ Intervalo de polling limpiado");
-    }
-
-    // ✅ AÑADIDO: Limpiar cualquier timeout pendiente que pueda estar interfiriendo
-    // Esto es para casos donde hay setTimeout que pueden estar ejecutándose
-    if (typeof window !== "undefined") {
-      // Limpiar timeouts que puedan estar pendientes (método defensivo)
-      for (let i = 1; i < 1000; i++) {
-        clearTimeout(i);
-      }
+    } else {
+      console.log("🧹 No hay intervalo para limpiar");
     }
   };
 
@@ -863,7 +880,7 @@ export function usePaymentProcessing({
     // ✅ LIMPIEZA COMPLETA: Limpiar todos los estados de forma síncrona
     setSelectedPaymentMethod(null);
     setIsProcessingPayment(false);
-    setQrData(null);
+    updateQrData(null as any);
     setPaymentStatus(null);
     setCashAmount("");
     setSecondPaymentMethod("tarjeta");
@@ -1227,7 +1244,7 @@ export function usePaymentProcessing({
         descripcion: `Pago mixto: QR $${qrAmount} + Efectivo $${cashAmountValue}`,
         vendedorId: user.id,
         sucursalId: user.sucursalId,
-        externalPosId: import.meta.env.VITE_POS_ID,
+        // externalPosId: import.meta.env.VITE_POS_ID,
         items: orderItems,
         isSplitPayment: true,
         cashAmount: cashAmountValue,
@@ -1269,14 +1286,15 @@ export function usePaymentProcessing({
         throw new Error("Error al generar la imagen del código QR");
       }
 
-      // Guardar datos del QR con información del pago mixto
-      setQrData({
+      // Guardar datos del QR (estado y ref)
+      const newQrData = {
         ...data,
         qrImageUrl: qrImageDataUrl,
         isSplitPayment: true,
         cashAmount: cashAmountValue,
         items: orderItems,
-      });
+      };
+      updateQrData(newQrData);
 
       // Establecer estado inicial como pendiente para que el usuario vea inmediatamente el estado y pueda completar manualmente si es necesario
       setPaymentStatus("PENDIENTE");
@@ -1329,7 +1347,10 @@ export function usePaymentProcessing({
         console.log("🔄 Verificando estado del pago mixto...");
         const response = await fetch(
           `${API_URL}/api/mercadopago/check-status?orderId=${orderId}`,
-          { headers }
+          {
+            headers,
+            credentials: "include",
+          }
         );
 
         if (!response.ok) {
@@ -1435,8 +1456,8 @@ export function usePaymentProcessing({
         // ✅ FINALIZACIÓN MANUAL MIXTA: Procesar sin conflictos de estado
         console.log("🔄 MANUAL FINALIZE: Procesando pago mixto manual");
 
-        const orderItems = qrData?.items || [];
-        const totalAmount = (qrData?.monto || 0) + cashAmount;
+        const orderItems = qrDataRef.current?.items || [];
+        const totalAmount = (qrDataRef.current?.monto || 0) + cashAmount;
 
         const orderData = {
           total: totalAmount,
@@ -1453,7 +1474,7 @@ export function usePaymentProcessing({
             },
             {
               metodoPago: "qr",
-              monto: qrData?.monto || 0,
+              monto: qrDataRef.current?.monto || 0,
               referencia: orderId.toString(),
             },
           ],
@@ -1489,10 +1510,10 @@ export function usePaymentProcessing({
         // ✅ FINALIZACIÓN MANUAL QR: Procesar sin conflictos de estado
         console.log("🔄 MANUAL FINALIZE: Procesando pago QR manual");
 
-        const orderItems = qrData?.items || [];
+        const orderItems = qrDataRef.current?.items || [];
         const orderData = {
           metodoPago: "qr",
-          total: qrData?.monto || 0,
+          total: qrDataRef.current?.monto || 0,
           items: orderItems,
           vendedorId: user.id,
           sucursalId: user.sucursalId,
@@ -1618,7 +1639,7 @@ export function usePaymentProcessing({
         setIsProcessingPayment(false);
         setSelectedPaymentMethod(null);
         setPaymentStatus(null);
-        setQrData(null);
+        updateQrData(null as any);
 
         // Cerrar diálogo QR
         if (setQrDialogOpenRef) {
@@ -1742,9 +1763,9 @@ export function usePaymentProcessing({
 
       if (paymentData.isCompleted) {
         try {
-          const orderItems = qrData.items as any[];
+          const orderItems = qrDataRef.current?.items || [];
 
-          const totalAmount = qrData.monto + cashAmount;
+          const totalAmount = (qrDataRef.current?.monto || 0) + cashAmount;
 
           const orderData = {
             total: totalAmount,
@@ -1761,7 +1782,7 @@ export function usePaymentProcessing({
               },
               {
                 metodoPago: "qr",
-                monto: qrData.monto,
+                monto: qrDataRef.current?.monto || 0,
                 referencia: paymentData.orderId?.toString() || "unknown",
               },
             ],
