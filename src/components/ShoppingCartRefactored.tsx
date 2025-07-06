@@ -451,7 +451,51 @@ export default function ShoppingCartRefactored() {
           return;
         }
         afipPaymentProcessor.handleAfipCashPayment(businessInfo);
-        setPaymentDialogOpen(false);
+        setAfipPaymentDialogOpen(false);
+        paymentLockRef.current = false;
+        return;
+      }
+
+      // 🆕 NUEVO: QR con AFIP (generar QR primero, factura después)
+      if (method === "qr") {
+        console.log("🧾📱 AFIP: QR detectado - usando flujo híbrido");
+        console.log(
+          "🧾📱 AFIP: Verificando configuración MP:",
+          businessInfo?.mpEnabled
+        );
+
+        // ✅ VERIFICAR SI MP ESTÁ HABILITADO IGUAL QUE EN FLUJO NORMAL
+        if (businessInfo?.mpEnabled === false) {
+          console.log(
+            "🧾📱 AFIP: MP deshabilitado - procesando como transferencia directa con factura"
+          );
+
+          // Procesar como transferencia directa + factura AFIP
+          await afipPaymentProcessor.processAfipPayment(
+            "qr", // Método QR pero sin MercadoPago
+            cartState.getCurrentItems()
+          );
+
+          setAfipPaymentDialogOpen(false);
+          paymentLockRef.current = false;
+          return;
+        }
+
+        // Si MP está habilitado, generar QR de MercadoPago + AFIP
+        console.log("🧾📱 AFIP: MP habilitado - generando QR de MercadoPago");
+        const qrData = await afipPaymentProcessor.handleAfipQrPayment(
+          cartState.getCurrentItems()
+        );
+
+        if (qrData) {
+          // Abrir el diálogo QR con los datos
+          setQrDialogOpen(true);
+          setAfipPaymentDialogOpen(false);
+
+          // El QRPaymentDialog manejará el polling y cuando se confirme el pago
+          // llamará a afipPaymentProcessor.createAfipInvoiceAfterPayment
+        }
+
         paymentLockRef.current = false;
         return;
       }
@@ -468,7 +512,7 @@ export default function ShoppingCartRefactored() {
         return;
       }
 
-      // Para otros métodos, procesar directamente
+      // Para otros métodos (tarjeta), procesar directamente
       await afipPaymentProcessor.processAfipPayment(
         method,
         cartState.getCurrentItems()
@@ -1255,6 +1299,9 @@ export default function ShoppingCartRefactored() {
         open={qrDialogOpen}
         onOpenChange={setQrDialogOpen}
         paymentProcessor={paymentProcessor}
+        afipPaymentProcessor={afipPaymentProcessor}
+        isAfipMode={businessInfo?.facturacionHabilitada === true}
+        cartItems={cartState.getCurrentItems()}
       />
 
       <ManualQrDialog

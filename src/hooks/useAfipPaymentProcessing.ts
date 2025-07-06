@@ -826,6 +826,168 @@ export function useAfipPaymentProcessing({
     }
   };
 
+  // 🆕 NUEVA FUNCIÓN: Manejar QR con AFIP (generar QR primero, factura después)
+  const handleAfipQrPayment = async (items: Product[]) => {
+    if (!user) {
+      toast.error("Debes iniciar sesión para realizar una factura");
+      return;
+    }
+
+    console.log("🧾📱 AFIP QR: Iniciando flujo QR con facturación AFIP");
+
+    // Marcar como procesando
+    setIsProcessingPayment(true);
+    setSelectedPaymentMethod("qr");
+
+    try {
+      // 1. Preparar datos para generar QR (igual que flujo normal)
+      const orderItems = items.map((item) => ({
+        productoId: item.id,
+        nombre: item.name,
+        cantidad: item.quantity,
+        subtotal: Number(item.subtotal.toFixed(2)),
+        precioHistorico: item.pricePerUnit,
+        costo: Number(item.costo),
+      }));
+
+      const orderData = {
+        monto: Number(calculateTotal().toFixed(2)),
+        descripcion: `Compra de ${orderItems.length} productos`,
+        vendedorId: user.id,
+        sucursalId: user.sucursalId,
+        externalPosId: import.meta.env.VITE_POS_ID,
+        items: orderItems,
+        // 🆕 IMPORTANTE: Marcar que necesita factura AFIP
+        requiresAfipInvoice: true,
+        afipData: {
+          tipoFactura: "B",
+          esConsumidorFinal: true,
+          metodoPago: "qr",
+          vendedorId: user.id,
+          sucursalId: user.sucursalId,
+        },
+      };
+
+      console.log("🧾📱 AFIP QR: Generando QR con datos:", orderData);
+
+      // Cerrar diálogo de pagos y mostrar cargando
+      setPaymentDialogOpen(false);
+      toast.loading("Generando código QR para facturación...", {
+        id: "afip-qr-loading",
+      });
+
+      // 2. Generar QR (igual que flujo normal)
+      const response = await fetch(`${API_URL}/api/mercadopago/generate-qr`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(appId && { "X-App-ID": appId }),
+        },
+        credentials: "include",
+        body: JSON.stringify(orderData),
+      });
+
+      if (!response.ok) {
+        throw new Error("Error al generar el código QR para facturación");
+      }
+
+      const data = await response.json();
+      console.log("✅ QR AFIP generado:", data);
+
+      // Actualizar toast
+      toast.dismiss("afip-qr-loading");
+      toast.success("QR generado - Esperando pago para crear factura", {
+        duration: 3000,
+      });
+
+      // 3. Aquí el QRPaymentDialog debería manejar el polling
+      // y cuando se confirme el pago, llamar a createAfipInvoiceAfterPayment
+
+      // Por ahora, resetear estado local
+      setIsProcessingPayment(false);
+
+      return data;
+    } catch (error: any) {
+      console.error("❌ Error en QR AFIP:", error);
+      toast.dismiss("afip-qr-loading");
+      toast.error(`Error al generar QR para facturación: ${error.message}`);
+
+      resetPaymentState();
+      setPaymentDialogOpen(false);
+    }
+  };
+
+  // 🆕 NUEVA FUNCIÓN: Crear factura AFIP después de confirmación de pago
+  const createAfipInvoiceAfterPayment = async (
+    orderId: number,
+    items: Product[],
+    paymentData: any
+  ) => {
+    console.log("🧾✅ AFIP: Creando factura después de pago confirmado", {
+      orderId,
+      paymentData,
+    });
+
+    try {
+      // Preparar datos para factura AFIP
+      const orderItems = items.map((item) => ({
+        productoId: item.id,
+        cantidad: item.quantity,
+        precio: item.pricePerUnit,
+        subtotal: Number(item.subtotal.toFixed(2)),
+        nombre: item.name,
+      }));
+
+      // Crear la factura AFIP
+      const afipResponse = await fetch(`${API_URL}/api/facturas/crear-afip`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(appId && { "X-App-ID": appId }),
+        },
+        body: JSON.stringify({
+          tipoFactura: "B",
+          esConsumidorFinal: true,
+          clienteId: null,
+          productos: orderItems,
+          metodoPago: "qr",
+          vendedorId: user.id,
+          sucursalId: user.sucursalId,
+          observaciones: `Factura para orden QR #${orderId}`,
+          // 🆕 VINCULAR con la orden de QR ya pagada
+          ordenQrId: orderId,
+          paymentReference: paymentData.payment_id || paymentData.id,
+        }),
+      });
+
+      if (!afipResponse.ok) {
+        const errorData = await afipResponse.json().catch(() => ({}));
+        throw new Error(errorData.error || "Error al crear la factura AFIP");
+      }
+
+      const afipResult = await afipResponse.json();
+      console.log("✅ Factura AFIP creada después de pago QR:", afipResult);
+
+      // Mostrar éxito
+      toast.success(`Factura AFIP creada exitosamente`, {
+        description: `CAE: ${afipResult.afip.cae} - Orden QR #${orderId}`,
+        duration: 5000,
+      });
+
+      // Aquí podrías imprimir la factura si es necesario
+      // await handleAfipTicketPrinting(printData);
+
+      return afipResult;
+    } catch (error: any) {
+      console.error("❌ Error al crear factura AFIP después de pago:", error);
+      toast.error("Error al crear factura AFIP", {
+        description: `El pago fue exitoso pero falló la facturación: ${error.message}`,
+        duration: 8000,
+      });
+      throw error;
+    }
+  };
+
   return {
     processAfipPayment,
     handleAfipCashPayment,
@@ -855,5 +1017,9 @@ export function useAfipPaymentProcessing({
     setCashAmount,
     secondPaymentMethod,
     setSecondPaymentMethod,
+    // NUEVA FUNCIÓN: Manejar QR con AFIP (generar QR primero, factura después)
+    handleAfipQrPayment,
+    // NUEVA FUNCIÓN: Crear factura AFIP después de confirmación de pago
+    createAfipInvoiceAfterPayment,
   };
 }

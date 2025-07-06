@@ -13,13 +13,39 @@ interface QRPaymentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   paymentProcessor: any;
+  // 🆕 NUEVO: Props para AFIP
+  afipPaymentProcessor?: any;
+  isAfipMode?: boolean;
+  cartItems?: any[];
 }
 
 export const QRPaymentDialog = ({
   open,
   onOpenChange,
   paymentProcessor,
+  afipPaymentProcessor,
+  isAfipMode = false,
+  cartItems = [],
 }: QRPaymentDialogProps) => {
+  // 🆕 NUEVO: Manejar finalización de pago con AFIP
+  const handlePaymentSuccess = async (paymentData: any) => {
+    if (isAfipMode && afipPaymentProcessor && cartItems.length > 0) {
+      console.log(
+        "🧾✅ QR Dialog: Pago exitoso en modo AFIP, creando factura..."
+      );
+      try {
+        await afipPaymentProcessor.createAfipInvoiceAfterPayment(
+          paymentData.orderId,
+          cartItems,
+          paymentData
+        );
+        console.log("✅ QR Dialog: Factura AFIP creada exitosamente");
+      } catch (error) {
+        console.error("❌ QR Dialog: Error al crear factura AFIP:", error);
+        // El error ya se maneja en createAfipInvoiceAfterPayment
+      }
+    }
+  };
   return (
     <Dialog
       open={open}
@@ -35,10 +61,14 @@ export const QRPaymentDialog = ({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="text-xl">
-            Escanea el código QR para pagar
+            {isAfipMode
+              ? "Escanea el código QR para pagar y generar factura AFIP"
+              : "Escanea el código QR para pagar"}
           </DialogTitle>
           <DialogDescription>
-            Usa la app de Mercado Pago para escanear
+            {isAfipMode
+              ? "Usa la app de Mercado Pago para escanear. La factura AFIP se generará automáticamente después del pago."
+              : "Usa la app de Mercado Pago para escanear"}
           </DialogDescription>
         </DialogHeader>
 
@@ -134,16 +164,46 @@ export const QRPaymentDialog = ({
                   <Button
                     variant="outline"
                     className="w-full mt-4 bg-emerald-50 border-emerald-200 hover:bg-emerald-100 hover:text-emerald-700"
-                    onClick={() =>
-                      paymentProcessor.completarOrdenManualmente(
+                    onClick={async () => {
+                      // Completar orden manualmente
+                      await paymentProcessor.completarOrdenManualmente(
                         paymentProcessor.qrData.orderId,
                         paymentProcessor.qrData.isSplitPayment,
                         paymentProcessor.qrData.cashAmount
-                      )
-                    }
+                      );
+
+                      // 🆕 NUEVO: Si es modo AFIP, crear factura después
+                      if (
+                        isAfipMode &&
+                        afipPaymentProcessor &&
+                        cartItems.length > 0
+                      ) {
+                        console.log(
+                          "🧾📱 QR Dialog: Completado manualmente en modo AFIP, creando factura..."
+                        );
+                        try {
+                          await afipPaymentProcessor.createAfipInvoiceAfterPayment(
+                            paymentProcessor.qrData.orderId,
+                            cartItems,
+                            {
+                              payment_id: `manual_${paymentProcessor.qrData.orderId}`,
+                              orderId: paymentProcessor.qrData.orderId,
+                              isManual: true,
+                            }
+                          );
+                        } catch (error) {
+                          console.error(
+                            "❌ QR Dialog: Error al crear factura AFIP manual:",
+                            error
+                          );
+                        }
+                      }
+                    }}
                   >
                     <Receipt className="h-4 w-4 mr-2" />
-                    Completar manualmente
+                    {isAfipMode
+                      ? "Completar manualmente y generar factura"
+                      : "Completar manualmente"}
                   </Button>
                 )}
               </div>
