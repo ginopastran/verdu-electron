@@ -60,32 +60,64 @@ export const useClosing = (
     setIsClosing(true);
 
     try {
-      const getUTCDate = (hoursArg: number) => {
-        const date = new Date();
-        date.setUTCHours(hoursArg + 3, 0, 0, 0);
-        return date.toISOString();
+      // Función para crear fechas en hora local Argentina y convertir a UTC
+      const crearFechaArgentina = (
+        year: number,
+        month: number,
+        day: number,
+        hour: number = 0,
+        minute: number = 0
+      ) => {
+        // Crear fecha en hora local Argentina
+        const fecha = new Date(year, month - 1, day, hour, minute, 0, 0);
+
+        // Convertir a UTC restando 3 horas (Argentina es UTC-3)
+        return new Date(fecha.getTime() - 3 * 60 * 60 * 1000);
       };
 
-      let startDate;
+      // Obtener fecha actual
+      const hoy = new Date();
+      const year = hoy.getFullYear();
+      const month = hoy.getMonth() + 1;
+      const day = hoy.getDate();
+
+      // Crear fechas según el período
+      let fechaInicioUTC;
+      let fechaCierreUTC;
+
       if (period === "mañana") {
-        startDate = getUTCDate(6);
+        fechaInicioUTC = crearFechaArgentina(year, month, day, 6, 0); // 6:00 AM
+        fechaCierreUTC = crearFechaArgentina(year, month, day, 11, 59); // 11:59 AM
       } else if (period === "tarde") {
-        startDate = getUTCDate(12);
+        fechaInicioUTC = crearFechaArgentina(year, month, day, 12, 0); // 12:00 PM
+        fechaCierreUTC = crearFechaArgentina(year, month, day, 23, 59); // 11:59 PM
       } else {
-        startDate = getUTCDate(0);
+        fechaInicioUTC = crearFechaArgentina(year, month, day, 0, 0); // 12:00 AM
+        fechaCierreUTC = crearFechaArgentina(year, month, day, 23, 59); // 11:59 PM
       }
 
-      console.log(`🕒 Fecha inicio (${period}) UTC:`, startDate);
+      console.log(
+        `🕒 Fecha inicio (${period}) UTC:`,
+        fechaInicioUTC.toISOString()
+      );
       console.log(
         `🕒 Fecha inicio (${period}) hora Argentina:`,
-        formatFechaArgentina(startDate)
+        formatFechaArgentina(fechaInicioUTC.toISOString())
+      );
+      console.log(
+        `🕒 Fecha cierre (${period}) UTC:`,
+        fechaCierreUTC.toISOString()
+      );
+      console.log(
+        `🕒 Fecha cierre (${period}) hora Argentina:`,
+        formatFechaArgentina(fechaCierreUTC.toISOString())
       );
 
       const closingData = {
         vendedorId: user.id,
         sucursalId: user.sucursalId,
-        fechaInicio: startDate,
-        fechaCierre: new Date().toISOString(),
+        fechaInicio: fechaInicioUTC.toISOString(),
+        fechaCierre: fechaCierreUTC.toISOString(),
         periodo: period,
       };
 
