@@ -805,6 +805,17 @@ export function useAfipPaymentProcessing({
     setIsProcessingPayment(true);
 
     try {
+      // ⚠️ CORRECCIÓN: Solo procesar factura AFIP si es el flujo AFIP real
+      // Si no hay businessInfo o facturación AFIP no está habilitada, es probable que sea un error
+      if (!businessInfo?.facturacionHabilitada) {
+        console.log(
+          "❌ AFIP: processSplitPayment llamado sin facturación AFIP habilitada"
+        );
+        throw new Error(
+          "Este método solo debe usarse con facturación AFIP habilitada"
+        );
+      }
+
       // Intentar procesar la factura AFIP como "split" (backend debe soportarlo)
       await processAfipPayment("split", items, totalAmount);
 
@@ -900,11 +911,11 @@ export function useAfipPaymentProcessing({
         duration: 3000,
       });
 
-      // 3. Aquí el QRPaymentDialog debería manejar el polling
-      // y cuando se confirme el pago, llamar a createAfipInvoiceAfterPayment
-
-      // Por ahora, resetear estado local
-      setIsProcessingPayment(false);
+      // ✅ IMPORTANTE: Mantener el estado de procesamiento para el QR
+      // NO resetear aquí, se resetea cuando se completa o cancela el pago
+      console.log(
+        "🧾📱 AFIP QR: Manteniendo estado de procesamiento para el QR"
+      );
 
       return data;
     } catch (error: any) {

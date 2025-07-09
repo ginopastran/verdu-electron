@@ -58,6 +58,7 @@ import {
   ClosingDialog,
   QRPaymentDialog,
   SplitPaymentDialog,
+  AfipSplitPaymentDialog,
 } from "./shopping-cart";
 
 // Componentes de diálogo
@@ -144,6 +145,8 @@ export default function ShoppingCartRefactored() {
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<
     string | null
   >(null);
+  // ✅ NUEVO: Estado para distinguir entre flujo AFIP (F2) y flujo normal (F3)
+  const [isCurrentlyAfipFlow, setIsCurrentlyAfipFlow] = useState(false);
 
   // Utilizar los hooks personalizados
   const cartState = useCartState();
@@ -404,11 +407,17 @@ export default function ShoppingCartRefactored() {
       return;
     }
 
-    console.log("💰 handlePaymentClick - Artículos en carrito:", currentItems);
+    console.log(
+      "💰 handlePaymentClick - Artículos en carrito (F3 - Sin AFIP):",
+      currentItems
+    );
 
     // Resetear estados del flujo AFIP al abrir diálogo normal
     console.log("🧹 Reseteando estados del flujo AFIP antes de pago normal");
     afipPaymentProcessor.resetPaymentState();
+
+    // ✅ MARCAR: Flujo normal (F3 - Sin AFIP)
+    setIsCurrentlyAfipFlow(false);
 
     setPaymentDialogOpen(true);
     setAfipPaymentDialogOpen(false); // Asegurar que el diálogo AFIP esté cerrado
@@ -424,13 +433,16 @@ export default function ShoppingCartRefactored() {
       return;
     }
 
-    console.log("🧾 Abriendo diálogo de pago AFIP");
+    console.log("🧾 Abriendo diálogo de pago AFIP (F2 - Con AFIP)");
 
     // Resetear estados del flujo normal al abrir AFIP
     console.log("🧹 Reseteando estados del flujo normal antes de AFIP");
     paymentProcessor.resetPaymentState();
     setIsProcessingPayment(false);
     setSelectedPaymentMethod(null);
+
+    // ✅ MARCAR: Flujo AFIP (F2 - Con AFIP)
+    setIsCurrentlyAfipFlow(true);
 
     setAfipPaymentDialogOpen(true);
     setPaymentDialogOpen(false); // Asegurar que el diálogo normal esté cerrado
@@ -488,9 +500,28 @@ export default function ShoppingCartRefactored() {
         );
 
         if (qrData) {
+          // ✅ CRÍTICO: Actualizar estado del QR en el hook principal
+          console.log(
+            "🧾📱 AFIP: Actualizando estado del QR con datos:",
+            qrData
+          );
+
+          // ✅ CORRECCIÓN: Agregar el monto desde el carrito ya que el backend no lo incluye
+          const qrDataWithAmount = {
+            ...qrData,
+            monto: Number(cartState.calculateTotal().toFixed(2)),
+          };
+
+          console.log("🧾📱 AFIP: QR con monto agregado:", qrDataWithAmount);
+          paymentProcessor.updateQrData(qrDataWithAmount);
+          paymentProcessor.setPaymentStatus("PENDIENTE");
+
           // Abrir el diálogo QR con los datos
           setQrDialogOpen(true);
           setAfipPaymentDialogOpen(false);
+
+          // ✅ MANTENER: isCurrentlyAfipFlow como true para el QR AFIP
+          // (Ya está establecido en handleAfipPaymentClick)
 
           // El QRPaymentDialog manejará el polling y cuando se confirme el pago
           // llamará a afipPaymentProcessor.createAfipInvoiceAfterPayment
@@ -873,7 +904,8 @@ export default function ShoppingCartRefactored() {
 
       const productByPlu: any = availableProducts.find((p: any) => {
         if (p.plu === null || p.plu === undefined) return false;
-        return String(p.plu) === plu;
+        // Comparar numéricamente para ignorar ceros a la izquierda ("002" vs "2")
+        return Number(p.plu) === Number(plu);
       });
       if (productByPlu) {
         autoAddScannedProduct(productByPlu, kgQuantity);
@@ -904,6 +936,25 @@ export default function ShoppingCartRefactored() {
     try {
       if (qty <= 0) return;
 
+      // 🛒 DEBUG: Estado del carrito ANTES de agregar en autoAddScannedProduct
+      const itemsBeforeAdd = cartState.getCurrentItems();
+      console.log("🛒 DEBUG: [autoAddScannedProduct] Estado carrito ANTES:", {
+        count: itemsBeforeAdd.length,
+        items: itemsBeforeAdd.map((item) => ({
+          id: item.id,
+          name: item.name,
+          cartId: item.cartId,
+        })),
+      });
+
+      console.log("🛒 DEBUG: [autoAddScannedProduct] Agregando producto:", {
+        id: prod.id,
+        name: prod.name,
+        quantity: qty,
+        pricePerUnit: prod.pricePerUnit,
+        unit: prod.unit,
+      });
+
       const uniqueId = `${prod.id}-${Date.now()}-${Math.random()
         .toString(36)
         .substring(2, 10)}`;
@@ -911,21 +962,39 @@ export default function ShoppingCartRefactored() {
       const newItem: Product = {
         id: prod.id,
         cartId: uniqueId,
-        name: prod.nombre,
+        name: prod.name,
         quantity: qty,
-        unit: prod.tipoMedida || "Unidad",
-        pricePerUnit: prod.precio,
-        subtotal: Number((prod.precio * qty).toFixed(2)),
+        unit: prod.unit || "Unidad",
+        pricePerUnit: prod.pricePerUnit,
+        subtotal: Number((prod.pricePerUnit * qty).toFixed(2)),
         costo: prod.costo,
       };
 
+      console.log("🛒 DEBUG: [autoAddScannedProduct] Objeto creado:", newItem);
+
       cartState.addToCart(newItem);
+
+      // 🛒 DEBUG: Estado del carrito DESPUÉS de agregar en autoAddScannedProduct
+      setTimeout(() => {
+        const itemsAfterAdd = cartState.getCurrentItems();
+        console.log(
+          "🛒 DEBUG: [autoAddScannedProduct] Estado carrito DESPUÉS:",
+          {
+            count: itemsAfterAdd.length,
+            items: itemsAfterAdd.map((item) => ({
+              id: item.id,
+              name: item.name,
+              cartId: item.cartId,
+            })),
+          }
+        );
+      }, 50);
 
       // Limpiar input y restablecer foco
       setSearchQuery("");
       focusSearchInput("producto escaneado");
     } catch (err) {
-      console.error("Error auto-add producto:", err);
+      console.error("❌ Error auto-add producto:", err);
     }
   };
 
@@ -965,6 +1034,231 @@ export default function ShoppingCartRefactored() {
       clearSelectedProduct();
     }
   }, [selectedProductFromSidebar, clearSelectedProduct]);
+
+  // 🎯 ESCUCHA GLOBAL DEL INPUT PARA ESCÁNER DE CÓDIGOS
+  useEffect(() => {
+    const input = searchInputRef.current;
+    if (!input) {
+      console.log("🔍 DEBUG: searchInputRef.current es null");
+      return;
+    }
+
+    console.log("🔍 DEBUG: Configurando listeners para input de búsqueda");
+    console.log("🔍 DEBUG: Productos disponibles:", availableProducts.length);
+
+    const handleInputEvent = (e: Event) => {
+      const value = (e.target as HTMLInputElement).value.trim();
+      console.log(`🔍 DEBUG: Input event detectado, valor: "${value}"`);
+
+      // Usar setTimeout para procesar después de que se complete el paste
+      setTimeout(() => {
+        const currentValue = (e.target as HTMLInputElement).value.trim();
+        console.log(
+          `🔍 DEBUG: Procesando valor después de timeout: "${currentValue}"`
+        );
+
+        if (!currentValue) {
+          console.log("🔍 DEBUG: Valor vacío, no procesando");
+          return;
+        }
+
+        // Verificar que tengamos productos cargados
+        if (!availableProducts || availableProducts.length === 0) {
+          console.log("🔍 DEBUG: Productos aún no cargados, esperando...");
+          return;
+        }
+
+        // 🛒 DEBUG: Estado actual del carrito antes de procesar
+        const currentItems = cartState.getCurrentItems();
+        console.log("🛒 DEBUG: Estado del carrito antes de procesar:", {
+          itemsCount: currentItems.length,
+          items: currentItems.map((item) => ({
+            id: item.id,
+            name: item.name,
+            cartId: item.cartId,
+          })),
+        });
+
+        // 1. Código de barras estándar (8-15 dígitos) - EAN-8, UPC-A, EAN-13, Code 128, etc.
+        if (/^\d{8,15}$/.test(currentValue)) {
+          console.log("🔍 DEBUG: Patrón de código de barras detectado");
+          console.log(
+            "🔍 DEBUG: Productos con código de barras:",
+            availableProducts
+              .filter((p) => p.codigoBarras)
+              .map((p) => ({ name: p.name, codigoBarras: p.codigoBarras }))
+          );
+
+          // Buscar coincidencia exacta
+          let product = availableProducts.find(
+            (p: any) => p.codigoBarras === currentValue
+          );
+
+          // Si no hay coincidencia exacta, buscar si algún código contiene el valor o viceversa
+          if (!product) {
+            console.log(
+              "🔍 DEBUG: No encontrado exacto, buscando coincidencias parciales..."
+            );
+            product = availableProducts.find(
+              (p: any) =>
+                p.codigoBarras &&
+                (p.codigoBarras.includes(currentValue) ||
+                  currentValue.includes(p.codigoBarras))
+            );
+          }
+
+          if (product) {
+            console.log("🔍 DEBUG: Producto encontrado por código de barras:", {
+              id: product.id,
+              name: product.name,
+              codigoBarras: product.codigoBarras,
+              precio: product.pricePerUnit,
+              cantidad: 1,
+            });
+
+            // 🛒 DEBUG: Estado del carrito ANTES de agregar código de barras
+            const itemsBeforeAdd = cartState.getCurrentItems();
+            console.log(
+              "🛒 DEBUG: Items en carrito ANTES de agregar código de barras:",
+              {
+                count: itemsBeforeAdd.length,
+                items: itemsBeforeAdd.map((item) => ({
+                  id: item.id,
+                  name: item.name,
+                  cartId: item.cartId,
+                })),
+              }
+            );
+
+            autoAddScannedProduct(product, 1);
+            (e.target as HTMLInputElement).value = "";
+
+            // 🛒 DEBUG: Estado del carrito después de agregar código de barras
+            setTimeout(() => {
+              const itemsAfterAdd = cartState.getCurrentItems();
+              console.log(
+                "🛒 DEBUG: Items en carrito DESPUÉS de agregar código de barras:",
+                {
+                  count: itemsAfterAdd.length,
+                  items: itemsAfterAdd.map((item) => ({
+                    id: item.id,
+                    name: item.name,
+                    cartId: item.cartId,
+                  })),
+                }
+              );
+            }, 100);
+            return;
+          } else {
+            console.log(
+              "🔍 DEBUG: No se encontró producto con código de barras:",
+              currentValue
+            );
+          }
+        }
+
+        // 2. PLU + peso: 0 + 3 dígitos PLU + 8 dígitos gramos + 1 checksum (13 dígitos)
+        const pluWeightRegex = /^0(\d{3})(\d{8})\d$/;
+        const match = currentValue.match(pluWeightRegex);
+        if (match) {
+          const plu = match[1];
+          const grams = parseInt(match[2], 10);
+          const kgQuantity = grams / 1000; // convertir a kilos
+
+          console.log(
+            `🔍 DEBUG: PLU + peso detectado - PLU: ${plu}, gramos: ${grams}, kg: ${kgQuantity}`
+          );
+
+          const productByPlu: any = availableProducts.find((p: any) => {
+            if (p.plu === null || p.plu === undefined) return false;
+            return Number(p.plu) === Number(plu);
+          });
+
+          if (productByPlu) {
+            console.log("🔍 DEBUG: Producto encontrado por PLU:", {
+              id: productByPlu.id,
+              name: productByPlu.name,
+              plu: productByPlu.plu,
+              precio: productByPlu.pricePerUnit,
+              cantidad: kgQuantity,
+            });
+
+            // 🛒 DEBUG: Estado del carrito ANTES de agregar PLU+peso
+            const itemsBeforeAdd = cartState.getCurrentItems();
+            console.log(
+              "🛒 DEBUG: Items en carrito ANTES de agregar PLU+peso:",
+              {
+                count: itemsBeforeAdd.length,
+                items: itemsBeforeAdd.map((item) => ({
+                  id: item.id,
+                  name: item.name,
+                  cartId: item.cartId,
+                })),
+              }
+            );
+
+            autoAddScannedProduct(productByPlu, kgQuantity);
+            (e.target as HTMLInputElement).value = "";
+
+            // 🛒 DEBUG: Estado del carrito después de agregar PLU+peso
+            setTimeout(() => {
+              const itemsAfterAdd = cartState.getCurrentItems();
+              console.log(
+                "🛒 DEBUG: Items en carrito DESPUÉS de agregar PLU+peso:",
+                {
+                  count: itemsAfterAdd.length,
+                  items: itemsAfterAdd.map((item) => ({
+                    id: item.id,
+                    name: item.name,
+                    cartId: item.cartId,
+                  })),
+                }
+              );
+            }, 100);
+          } else {
+            console.log("🔍 DEBUG: No se encontró producto con PLU:", plu);
+            console.log(
+              "🔍 DEBUG: Productos disponibles con PLU:",
+              availableProducts
+                .filter((p) => p.plu)
+                .map((p) => ({ name: p.name, plu: p.plu }))
+            );
+          }
+        } else {
+          console.log("🔍 DEBUG: No coincide con patrón PLU + peso");
+        }
+      }, 10);
+    };
+
+    const handlePasteEvent = (e: ClipboardEvent) => {
+      console.log("🔍 DEBUG: Paste event detectado");
+      const pastedText = e.clipboardData?.getData("text") || "";
+      console.log(`🔍 DEBUG: Texto pegado: "${pastedText}"`);
+
+      setTimeout(() => {
+        const inputElement = e.target as HTMLInputElement;
+        const currentValue = inputElement.value.trim();
+        console.log(`🔍 DEBUG: Valor después de paste: "${currentValue}"`);
+
+        // Procesar el valor pegado
+        if (currentValue) {
+          handleInputEvent({ target: inputElement } as any);
+        }
+      }, 50);
+    };
+
+    // Escuchar tanto 'input' como 'paste' para capturar pegado por Ctrl+V
+    input.addEventListener("input", handleInputEvent);
+    input.addEventListener("paste", handlePasteEvent);
+
+    console.log("🔍 DEBUG: Listeners configurados correctamente");
+
+    return () => {
+      console.log("🔍 DEBUG: Removiendo listeners");
+      input.removeEventListener("input", handleInputEvent);
+      input.removeEventListener("paste", handlePasteEvent);
+    };
+  }, [availableProducts, searchInputRef]);
 
   // Mostrar loading mientras se carga la información del negocio
   if (businessInfoLoading) {
@@ -1297,10 +1591,16 @@ export default function ShoppingCartRefactored() {
 
       <QRPaymentDialog
         open={qrDialogOpen}
-        onOpenChange={setQrDialogOpen}
+        onOpenChange={(open) => {
+          setQrDialogOpen(open);
+          // ✅ RESETEAR: Flujo AFIP cuando se cierra el diálogo QR
+          if (!open) {
+            setIsCurrentlyAfipFlow(false);
+          }
+        }}
         paymentProcessor={paymentProcessor}
         afipPaymentProcessor={afipPaymentProcessor}
-        isAfipMode={businessInfo?.facturacionHabilitada === true}
+        isAfipMode={isCurrentlyAfipFlow}
         cartItems={cartState.getCurrentItems()}
       />
 
@@ -1329,10 +1629,10 @@ export default function ShoppingCartRefactored() {
       />
 
       {/* NUEVO: Diálogo de pago mixto para AFIP */}
-      <SplitPaymentDialog
+      <AfipSplitPaymentDialog
         open={afipSplitPaymentDialogOpen}
         onOpenChange={setAfipSplitPaymentDialogOpen}
-        paymentProcessor={afipPaymentProcessor as any}
+        afipPaymentProcessor={afipPaymentProcessor}
         cartState={cartState}
         businessInfo={businessInfo}
         searchInputRef={searchInputRef}

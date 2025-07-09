@@ -75,25 +75,41 @@ export const useClosing = (
         return new Date(fecha.getTime() - 3 * 60 * 60 * 1000);
       };
 
-      // Obtener fecha actual
-      const hoy = new Date();
-      const year = hoy.getFullYear();
-      const month = hoy.getMonth() + 1;
-      const day = hoy.getDate();
+      // Obtener fecha y hora actuales
+      const ahora = new Date();
+      const year = ahora.getFullYear();
+      const month = ahora.getMonth() + 1;
+      const day = ahora.getDate();
 
-      // Crear fechas según el período
+      // ✅ FECHAS DINÁMICAS: Usar hora actual para fechaCierre
       let fechaInicioUTC;
       let fechaCierreUTC;
 
+      // La fechaCierre siempre es la hora actual
+      fechaCierreUTC = new Date(ahora.getTime() - 3 * 60 * 60 * 1000); // Hora actual en UTC
+
       if (period === "mañana") {
-        fechaInicioUTC = crearFechaArgentina(year, month, day, 6, 0); // 6:00 AM
-        fechaCierreUTC = crearFechaArgentina(year, month, day, 11, 59); // 11:59 AM
+        // Para cierre de mañana: inicio a las 6:00 AM del mismo día
+        fechaInicioUTC = crearFechaArgentina(year, month, day, 0, 0); // 0:00 AM
       } else if (period === "tarde") {
+        // Para cierre de tarde: inicio depende de si ya hay cierre de mañana
+        // Por simplicidad, usamos 12:00 PM (mediodía) como inicio de tarde
         fechaInicioUTC = crearFechaArgentina(year, month, day, 12, 0); // 12:00 PM
-        fechaCierreUTC = crearFechaArgentina(year, month, day, 23, 59); // 11:59 PM
       } else {
-        fechaInicioUTC = crearFechaArgentina(year, month, day, 0, 0); // 12:00 AM
-        fechaCierreUTC = crearFechaArgentina(year, month, day, 23, 59); // 11:59 PM
+        // Para cierre de todo el día: inicio a las 6:00 AM
+        fechaInicioUTC = crearFechaArgentina(year, month, day, 0, 0); // 0:00 AM
+      }
+
+      // ✅ VALIDACIÓN: Asegurar que fechaInicio sea anterior a fechaCierre
+      if (fechaInicioUTC.getTime() >= fechaCierreUTC.getTime()) {
+        // Si fechaInicio es mayor o igual, ajustar fechaInicio al día anterior
+        const fechaInicioAjustada = new Date(fechaInicioUTC);
+        fechaInicioAjustada.setDate(fechaInicioAjustada.getDate() - 1);
+        fechaInicioUTC = fechaInicioAjustada;
+
+        console.log(
+          "⚠️ Ajustando fechaInicio al día anterior para evitar conflicto"
+        );
       }
 
       console.log(

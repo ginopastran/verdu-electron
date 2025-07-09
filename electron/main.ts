@@ -52,7 +52,7 @@ ipcMain.handle("read-peso", async () => {
   const pesoPath = "C:\\Peso\\peso.json";
 
   try {
-    console.log("📏 Leyendo peso desde:", pesoPath);
+    // console.log("📏 Leyendo peso desde:", pesoPath);
 
     // Verificar si el archivo existe
     if (!fs.existsSync(pesoPath)) {
@@ -65,7 +65,7 @@ ipcMain.handle("read-peso", async () => {
 
     // Limpiar BOM y espacios extra antes del parsing
     const cleanData = data.replace(/^\uFEFF/, "").trim();
-    console.log("📋 Datos leídos del archivo:", cleanData);
+    // console.log("📋 Datos leídos del archivo:", cleanData);
 
     if (!cleanData) {
       console.log("⚠️ Archivo de peso está vacío");
@@ -74,7 +74,7 @@ ipcMain.handle("read-peso", async () => {
 
     // Parsear el JSON
     const weightData = JSON.parse(cleanData);
-    console.log("✅ Peso parseado exitosamente:", weightData);
+    // console.log("✅ Peso parseado exitosamente:", weightData);
 
     return { success: true, peso: weightData.peso || 0 };
   } catch (error) {

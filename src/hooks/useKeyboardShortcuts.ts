@@ -138,7 +138,8 @@ export const useKeyboardShortcuts = ({
               });
               return;
             }
-            handleAfipPaymentClick();
+            // ✅ Con facturación habilitada, F3 crea una orden normal (sin AFIP)
+            handlePaymentClick();
             break;
         }
       }

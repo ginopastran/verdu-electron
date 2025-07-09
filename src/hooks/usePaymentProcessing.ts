@@ -99,6 +99,9 @@ export function usePaymentProcessing({
   const [manualQrOrderDetails, setManualQrOrderDetails] =
     useState<ManualQrDetails | null>(null);
 
+  // ✅ ANTI-DUPLICADOS: Flag para evitar llamadas concurrentes
+  const [isProcessingOrder, setIsProcessingOrder] = useState(false);
+
   // Referencias para controles externos - Usar las funciones pasadas como parámetros
   const setQrDialogOpenRef = setQrDialogOpen;
   const setSplitPaymentDialogOpenRef = setSplitPaymentDialogOpen;
@@ -107,6 +110,62 @@ export function usePaymentProcessing({
   const headers = {
     "Content-Type": "application/json",
     ...(appId && { "X-App-ID": appId }),
+  };
+
+  // ✅ ANTI-DUPLICADOS: Función para crear órdenes verificando duplicados
+  const createOrderWithDuplicateCheck = async (orderData: any) => {
+    if (isProcessingOrder) {
+      console.log(
+        "⏳ ANTI-DUPLICADOS: Orden ya en proceso, evitando duplicado..."
+      );
+      return null;
+    }
+
+    setIsProcessingOrder(true);
+
+    try {
+      console.log(
+        "📋 ANTI-DUPLICADOS: Creando orden con verificación de duplicados"
+      );
+
+      const validPayload = createValidOrderPayload(orderData);
+
+      const orderResponse = await fetch(`${API_URL}/api/ordenes`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(validPayload),
+      });
+
+      if (!orderResponse.ok) {
+        throw new Error("Error al crear la orden");
+      }
+
+      const result = await orderResponse.json();
+
+      // ✅ CRÍTICO: Verificar si es duplicado
+      if (result.isDuplicate) {
+        console.log(
+          "✅ ANTI-DUPLICADOS: Orden ya existe, evitando duplicado:",
+          result.id
+        );
+        return {
+          ...result,
+          isDuplicate: true,
+          message: "Orden ya existe",
+        };
+      }
+
+      console.log("✅ ANTI-DUPLICADOS: Nueva orden creada:", result.id);
+      return {
+        ...result,
+        isDuplicate: false,
+      };
+    } catch (error) {
+      console.error("❌ ANTI-DUPLICADOS: Error creando orden:", error);
+      throw error;
+    } finally {
+      setIsProcessingOrder(false);
+    }
   };
 
   // Función para redondear a los 50 pesos más cercanos hacia abajo
@@ -201,22 +260,25 @@ export function usePaymentProcessing({
     };
 
     try {
-      // Crear la orden
-      const validPayload = createValidOrderPayload(orderData);
+      // ✅ ANTI-DUPLICADOS: Crear orden con verificación de duplicados
+      const orderResult = await createOrderWithDuplicateCheck(orderData);
 
-      const orderResponse = await fetch(`${API_URL}/api/ordenes`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify(validPayload),
-      });
-
-      if (!orderResponse.ok) {
-        throw new Error("Error al crear la orden");
+      if (!orderResult) {
+        console.log("⏳ PROCESS PAYMENT: Orden cancelada por concurrencia");
+        return;
       }
 
-      // Capturar la respuesta para obtener el ID real de la orden
-      const orderResult = await orderResponse.json();
-      console.log("📋 Respuesta del API al crear orden:", orderResult);
+      if (orderResult.isDuplicate) {
+        console.log(
+          "✅ PROCESS PAYMENT: Orden duplicada detectada, usando existente"
+        );
+        toast.success("Orden completada exitosamente");
+        clearCart();
+        resetPaymentState();
+        return;
+      }
+
+      console.log("📋 PROCESS PAYMENT: Nueva orden creada:", orderResult);
 
       // Añadir el idReal a los datos de la orden para impresión
       const enrichedOrderData = {
@@ -736,27 +798,29 @@ export function usePaymentProcessing({
             referencia: paymentData.orderId?.toString() || "unknown",
           };
 
-          // Asegurarnos de que el payload cumple los requisitos del backend
-          const validPayload = createValidOrderPayload(orderData);
+          // ✅ ANTI-DUPLICADOS: Crear orden con verificación de duplicados
+          const orderResult = await createOrderWithDuplicateCheck(orderData);
 
-          console.log("💾 Guardando orden en BD:", validPayload);
-
-          const orderResponse = await fetch(`${API_URL}/api/ordenes`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              ...(appId && { "X-App-ID": appId }),
-            },
-            body: JSON.stringify(validPayload),
-          });
-
-          if (!orderResponse.ok) {
-            throw new Error("Error al crear la orden en base de datos");
+          if (!orderResult) {
+            console.log("⏳ FINALIZE MP: Orden cancelada por concurrencia");
+            return;
           }
 
-          // Capturar la respuesta para obtener el ID real de la orden
-          const orderResult = await orderResponse.json();
-          console.log("📋 Respuesta del API (QR):", orderResult);
+          if (orderResult.isDuplicate) {
+            console.log(
+              "✅ FINALIZE MP: Orden duplicada detectada, usando existente"
+            );
+            // Mostrar éxito y limpiar estados
+            toast.success("Orden completada exitosamente");
+            if (setQrDialogOpenRef) {
+              setQrDialogOpenRef(false);
+            }
+            clearCart();
+            resetPaymentState();
+            return;
+          }
+
+          console.log("📋 FINALIZE MP: Nueva orden creada:", orderResult);
 
           // Añadir el idReal a los datos de la orden para impresión
           const enrichedOrderData = {
@@ -892,6 +956,9 @@ export function usePaymentProcessing({
     setManualQrPassword("");
     setManualQrOrderDetails(null);
 
+    // ✅ ANTI-DUPLICADOS: Resetear flag de procesamiento
+    setIsProcessingOrder(false);
+
     // ✅ LIMPIEZA DE POLLING: Asegurar que se limpia completamente
     cleanupPolling();
 
@@ -992,25 +1059,28 @@ export function usePaymentProcessing({
         ],
       };
 
-      // Crear la orden
-      const validPayload = createValidOrderPayload(orderData);
+      // ✅ ANTI-DUPLICADOS: Crear orden con verificación de duplicados
+      const orderResult = await createOrderWithDuplicateCheck(orderData);
 
-      const orderResponse = await fetch(`${API_URL}/api/ordenes`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(appId && { "X-App-ID": appId }),
-        },
-        body: JSON.stringify(validPayload),
-      });
-
-      if (!orderResponse.ok) {
-        throw new Error("Error al crear la orden");
+      if (!orderResult) {
+        console.log("⏳ PROCESS SPLIT: Orden cancelada por concurrencia");
+        return;
       }
 
-      // Capturar la respuesta para obtener el ID real de la orden
-      const orderResult = await orderResponse.json();
-      console.log("📋 Respuesta del API (Split Payment):", orderResult);
+      if (orderResult.isDuplicate) {
+        console.log(
+          "✅ PROCESS SPLIT: Orden duplicada detectada, usando existente"
+        );
+        toast.success("Orden completada exitosamente");
+        if (setSplitPaymentDialogOpenRef) {
+          setSplitPaymentDialogOpenRef(false);
+        }
+        clearCart();
+        resetPaymentState();
+        return;
+      }
+
+      console.log("📋 PROCESS SPLIT: Nueva orden creada:", orderResult);
 
       // Añadir el idReal a los datos de la orden para impresión
       const enrichedOrderData = {
@@ -1146,30 +1216,31 @@ export function usePaymentProcessing({
         // Mostrar toast de carga ANTES de la llamada a la API
         const processingToastId = toast.loading("Procesando orden mixta...");
 
-        // Crear la orden
-        const validPayload = createValidOrderPayload(orderData);
+        // ✅ ANTI-DUPLICADOS: Crear orden con verificación de duplicados
+        const orderResult = await createOrderWithDuplicateCheck(orderData);
 
-        const orderResponse = await fetch(`${API_URL}/api/ordenes`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(appId && { "X-App-ID": appId }),
-          },
-          body: JSON.stringify(validPayload),
-        });
-
-        if (!orderResponse.ok) {
-          const errorData = await orderResponse.json().catch(() => ({}));
-          console.error("❌ Error al crear la orden mixta:", errorData);
-          throw new Error(errorData.message || "Error al crear la orden");
-        }
-
-        // Ocultar toast de carga y mostrar toast de impresión
+        // Ocultar toast de carga
         toast.dismiss(processingToastId);
 
-        // Capturar la respuesta para obtener el ID real de la orden
-        const orderResult = await orderResponse.json();
-        console.log("📋 Respuesta del API (Split Payment):", orderResult);
+        if (!orderResult) {
+          console.log("⏳ GENERATE SPLIT QR: Orden cancelada por concurrencia");
+          return;
+        }
+
+        if (orderResult.isDuplicate) {
+          console.log(
+            "✅ GENERATE SPLIT QR: Orden duplicada detectada, usando existente"
+          );
+          toast.success("Orden completada exitosamente");
+          if (setSplitPaymentDialogOpenRef) {
+            setSplitPaymentDialogOpenRef(false);
+          }
+          clearCart();
+          resetPaymentState();
+          return;
+        }
+
+        console.log("📋 GENERATE SPLIT QR: Nueva orden creada:", orderResult);
 
         // Añadir el idReal a los datos de la orden para impresión
         const enrichedOrderData = {
@@ -1239,9 +1310,14 @@ export function usePaymentProcessing({
         costo: Number(item.costo),
       }));
 
+      // ✅ CORRECCIÓN: Enviar el monto TOTAL de la venta (no solo el monto del QR)
+      const totalAmount = cashAmountValue + qrAmount;
+
       const orderData = {
-        monto: qrAmount,
-        descripcion: `Pago mixto: QR $${qrAmount} + Efectivo $${cashAmountValue}`,
+        monto: totalAmount, // ✅ CORRECTO: Monto TOTAL de la venta
+        descripcion: `Pago mixto: QR $${qrAmount.toFixed(
+          2
+        )} + Efectivo $${cashAmountValue.toFixed(2)}`,
         vendedorId: user.id,
         sucursalId: user.sucursalId,
         // externalPosId: import.meta.env.VITE_POS_ID,
@@ -1253,6 +1329,14 @@ export function usePaymentProcessing({
       console.log(
         "🔄 Enviando solicitud para generar QR de pago mixto:",
         orderData
+      );
+      console.log(
+        "💰 CORRECCIÓN APLICADA: Enviando monto total =",
+        totalAmount,
+        "Efectivo =",
+        cashAmountValue,
+        "QR calculado =",
+        qrAmount
       );
 
       // Mostrar cargando
@@ -1290,6 +1374,7 @@ export function usePaymentProcessing({
       const newQrData = {
         ...data,
         qrImageUrl: qrImageDataUrl,
+        monto: qrAmount, // ✅ IMPORTANTE: El monto del QR (no el total)
         isSplitPayment: true,
         cashAmount: cashAmountValue,
         items: orderItems,
@@ -1480,22 +1565,21 @@ export function usePaymentProcessing({
           ],
         };
 
-        // Crear orden en BD
-        const validPayload = createValidOrderPayload(orderData);
-        const orderResponse = await fetch(`${API_URL}/api/ordenes`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(appId && { "X-App-ID": appId }),
-          },
-          body: JSON.stringify(validPayload),
-        });
+        // ✅ ANTI-DUPLICADOS: Crear orden con verificación de duplicados
+        const orderResult = await createOrderWithDuplicateCheck(orderData);
 
-        if (!orderResponse.ok) {
-          throw new Error("Error al crear la orden mixta");
+        if (!orderResult) {
+          console.log(
+            "⏳ FINALIZE MANUAL SPLIT: Orden cancelada por concurrencia"
+          );
+          return;
         }
 
-        const orderResult = await orderResponse.json();
+        if (orderResult.isDuplicate) {
+          console.log("✅ FINALIZE MANUAL SPLIT: Orden duplicada detectada");
+          return; // Ya existe, no hacer nada más
+        }
+
         const enrichedOrderData = {
           ...orderData,
           idReal: orderResult.idReal || orderResult.id || null,
@@ -1523,22 +1607,21 @@ export function usePaymentProcessing({
           referencia: orderId.toString(),
         };
 
-        // Crear orden en BD
-        const validPayload = createValidOrderPayload(orderData);
-        const orderResponse = await fetch(`${API_URL}/api/ordenes`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(appId && { "X-App-ID": appId }),
-          },
-          body: JSON.stringify(validPayload),
-        });
+        // ✅ ANTI-DUPLICADOS: Crear orden con verificación de duplicados
+        const orderResult = await createOrderWithDuplicateCheck(orderData);
 
-        if (!orderResponse.ok) {
-          throw new Error("Error al crear la orden QR");
+        if (!orderResult) {
+          console.log(
+            "⏳ FINALIZE MANUAL QR: Orden cancelada por concurrencia"
+          );
+          return;
         }
 
-        const orderResult = await orderResponse.json();
+        if (orderResult.isDuplicate) {
+          console.log("✅ FINALIZE MANUAL QR: Orden duplicada detectada");
+          return; // Ya existe, no hacer nada más
+        }
+
         const enrichedOrderData = {
           ...orderData,
           idReal: orderResult.idReal || orderResult.id || null,
@@ -1622,7 +1705,46 @@ export function usePaymentProcessing({
       console.log("✅ MP MANUAL: Orden marcada como completada:", result);
       toast.dismiss(processingToastId);
 
-      // ✅ STEP 2: Finalizar localmente usando función especializada
+      // ✅ ANTI-DUPLICADOS: Verificar si ya está completada
+      if (result.skipNewOrderCreation) {
+        console.log(
+          "✅ MANUAL COMPLETE: Orden ya completada, solo mostrar éxito"
+        );
+        console.log(
+          "📋 MANUAL COMPLETE: Datos de orden existente:",
+          result.order
+        );
+
+        // Imprimir ticket de la orden existente
+        if (result.order) {
+          const printingToastId = toast.loading("Imprimiendo ticket...");
+          try {
+            await handleTicketPrinting(result.order);
+            toast.dismiss(printingToastId);
+          } catch (error) {
+            toast.dismiss(printingToastId);
+            console.error("❌ Error al imprimir ticket:", error);
+          }
+        }
+
+        toast.success("¡Orden completada exitosamente!");
+
+        // Cerrar diálogo QR
+        if (setQrDialogOpenRef) {
+          setQrDialogOpenRef(false);
+        }
+
+        // Limpiar carrito y estados
+        clearCart();
+        resetPaymentState();
+
+        console.log(
+          "✅ MANUAL COMPLETE: Proceso completado sin crear nueva orden"
+        );
+        return;
+      }
+
+      // ✅ STEP 2: Solo si no está completada, finalizar localmente
       await finalizeManualPayment(orderId, isSplitPayment, cashAmount);
 
       console.log("✅ MANUAL PASSWORD: Proceso completo exitoso");
@@ -1788,27 +1910,30 @@ export function usePaymentProcessing({
             ],
           };
 
-          // Asegurarnos de que el payload cumple los requisitos del backend
-          const validPayload = createValidOrderPayload(orderData);
+          // ✅ ANTI-DUPLICADOS: Crear orden con verificación de duplicados
+          const orderResult = await createOrderWithDuplicateCheck(orderData);
 
-          console.log("💾 Guardando orden mixta en BD:", validPayload);
-
-          const orderResponse = await fetch(`${API_URL}/api/ordenes`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              ...(appId && { "X-App-ID": appId }),
-            },
-            body: JSON.stringify(validPayload),
-          });
-
-          if (!orderResponse.ok) {
-            throw new Error("Error al crear la orden");
+          if (!orderResult) {
+            console.log(
+              "⏳ FINALIZE SPLIT MP: Orden cancelada por concurrencia"
+            );
+            return;
           }
 
-          // Capturar la respuesta para obtener el ID real de la orden
-          const orderResult = await orderResponse.json();
-          console.log("📋 Respuesta del API (Split MP Payment):", orderResult);
+          if (orderResult.isDuplicate) {
+            console.log(
+              "✅ FINALIZE SPLIT MP: Orden duplicada detectada, usando existente"
+            );
+            toast.success("Orden completada exitosamente");
+            if (setQrDialogOpenRef) {
+              setQrDialogOpenRef(false);
+            }
+            clearCart();
+            resetPaymentState();
+            return;
+          }
+
+          console.log("📋 FINALIZE SPLIT MP: Nueva orden creada:", orderResult);
 
           // Añadir el idReal a los datos de la orden para impresión
           const enrichedOrderData = {
@@ -1910,6 +2035,9 @@ export function usePaymentProcessing({
     handleTicketPrinting,
     // Nueva función para pago exacto
     confirmExactPayment,
+    // ✅ EXPONER: Funciones de polling
+    startPaymentStatusPolling,
+    startSplitPaymentStatusPolling,
 
     // Setters
     setCashAmount,
@@ -1921,5 +2049,8 @@ export function usePaymentProcessing({
     setExactPaymentDialogOpen,
     setPaidAmount,
     setChangeAmount,
+    // ✅ EXPONER: Funciones para actualizar estado del QR
+    updateQrData,
+    setPaymentStatus,
   };
 }

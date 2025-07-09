@@ -39,7 +39,7 @@ export function useScaleWeight() {
           const result = await window.pesoReader.readPeso();
 
           if (result.success) {
-            console.log("✅ Peso leído correctamente:", result.peso);
+            // console.log("✅ Peso leído correctamente:", result.peso);
             setWeight(result.peso);
           } else {
             console.log("⚠️ Error al leer peso:", result.error);

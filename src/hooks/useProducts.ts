@@ -2,6 +2,17 @@ import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { AvailableProduct } from "@/hooks/useProductSearch";
 
+// Tipo para los productos que vienen del backend
+interface BackendProduct {
+  id: number;
+  nombre: string;
+  precio: number;
+  tipoMedida: string;
+  costo: number;
+  codigoBarras: string | null;
+  plu: string | null;
+}
+
 export const useProducts = (API_URL: string, appId: string | null) => {
   const [availableProducts, setAvailableProducts] = useState<
     AvailableProduct[]
@@ -11,7 +22,7 @@ export const useProducts = (API_URL: string, appId: string | null) => {
     try {
       let page = 1;
       let hasNext = true;
-      let allProducts: any[] = [];
+      let allProducts: BackendProduct[] = [];
 
       while (hasNext) {
         const response = await fetch(
@@ -40,8 +51,21 @@ export const useProducts = (API_URL: string, appId: string | null) => {
         page += 1;
       }
 
-      console.log("✅ Productos cargados:", allProducts.length);
-      setAvailableProducts(allProducts);
+      // Transformar los productos al formato usado en el frontend
+      const transformedProducts = allProducts.map(
+        (p: BackendProduct): AvailableProduct => ({
+          id: p.id,
+          name: p.nombre,
+          pricePerUnit: p.precio,
+          unit: p.tipoMedida,
+          costo: p.costo,
+          codigoBarras: p.codigoBarras,
+          plu: p.plu,
+        })
+      );
+
+      console.log("✅ Productos cargados:", transformedProducts.length);
+      setAvailableProducts(transformedProducts);
     } catch (error) {
       console.error("Error al cargar productos:", error);
       toast.error(

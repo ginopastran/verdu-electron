@@ -8,6 +8,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Wallet, QrCode, Receipt } from "lucide-react";
+import { useEffect } from "react";
 
 interface QRPaymentDialogProps {
   open: boolean;
@@ -27,6 +28,32 @@ export const QRPaymentDialog = ({
   isAfipMode = false,
   cartItems = [],
 }: QRPaymentDialogProps) => {
+  // ✅ DEBUG: Verificar estado del flujo AFIP
+  console.log("🔍 QRPaymentDialog - isAfipMode:", isAfipMode);
+
+  // ✅ NUEVO: Iniciar polling automáticamente cuando se abre el diálogo con datos de QR
+  useEffect(() => {
+    if (open && paymentProcessor.qrData?.orderId) {
+      console.log(
+        "🔄 QRPaymentDialog: Iniciando polling automático para orden:",
+        paymentProcessor.qrData.orderId
+      );
+
+      if (paymentProcessor.qrData.isSplitPayment) {
+        // Para pago mixto, usar el polling específico
+        paymentProcessor.startSplitPaymentStatusPolling(
+          paymentProcessor.qrData.orderId,
+          paymentProcessor.qrData.cashAmount || 0
+        );
+      } else {
+        // Para pago normal, usar el polling regular
+        paymentProcessor.startPaymentStatusPolling(
+          paymentProcessor.qrData.orderId
+        );
+      }
+    }
+  }, [open, paymentProcessor.qrData?.orderId]);
+
   // 🆕 NUEVO: Manejar finalización de pago con AFIP
   const handlePaymentSuccess = async (paymentData: any) => {
     if (isAfipMode && afipPaymentProcessor && cartItems.length > 0) {
