@@ -214,25 +214,10 @@ try {
             file_put_contents('php://stderr', "Traza: " . $e->getTraceAsString() . "\n");
         }
 
-        // Encabezado dinámico con nombre del business
+        // Encabezado simplificado - solo "Cierre de Caja"
         $printer->setJustification(Printer::JUSTIFY_CENTER);
         $printer->setEmphasis(true);
         $printer->setTextSize(2, 2);
-        
-        // Determinar el nombre del business de manera dinámica
-        $businessName = "Verdulería"; // Valor por defecto
-        if (isset($closingData['businessName']) && !empty($closingData['businessName'])) {
-            $businessName = $closingData['businessName'];
-            file_put_contents('php://stderr', "✅ Usando nombre del business desde closingData: " . $businessName . "\n");
-        } elseif (isset($closingData['sucursal']) && !empty($closingData['sucursal'])) {
-            $businessName = $closingData['sucursal'];
-            file_put_contents('php://stderr', "✅ Usando nombre de sucursal: " . $businessName . "\n");
-        } else {
-            file_put_contents('php://stderr', "⚠️ Usando nombre por defecto: " . $businessName . "\n");
-            file_put_contents('php://stderr', "🔍 Datos disponibles en closingData: " . json_encode(array_keys($closingData)) . "\n");
-        }
-        
-        $printer->text(strtoupper($businessName) . "\n");
         $printer->text("Cierre de Caja\n");
         $printer->setTextSize(1, 1);
         $printer->text("Periodo: " . strtoupper($closingData['periodo']) . "\n\n");
