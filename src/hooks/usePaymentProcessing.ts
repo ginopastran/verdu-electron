@@ -1944,21 +1944,69 @@ export function usePaymentProcessing({
       const result = await response.json();
       console.log("✅ Pago manual completado:", result);
 
+      // ✅ CORRECCIÓN: NO cerrar diálogos inmediatamente, esperar impresión
       setManualQrPasswordDialogOpen(false);
       setManualQrPassword("");
 
-      // Limpiar y finalizar
+      // ✅ PASO 1: Detener polling para evitar doble procesamiento
       cleanupPolling();
+
+      // ✅ PASO 2: Mostrar loading para impresión
+      const printingToastId = toast.loading(
+        "Procesando impresión del ticket..."
+      );
+
+      try {
+        // ✅ PASO 3: Ejecutar impresión manualmente en lugar de esperar al polling
+        console.log("🖨️ MANUAL COMPLETE: Iniciando impresión inmediata");
+
+        const cartData = {
+          items: qrDataRef.current?.items || [],
+          total: qrDataRef.current?.monto || 0,
+        };
+
+        const orderDataForPrint = {
+          id: qrDataRef.current?.id || orderId,
+          idReal: qrDataRef.current?.id || orderId,
+          metodoPago: "qr",
+          total: cartData.total,
+          items: cartData.items,
+          vendedorId: user.id,
+          sucursalId: user.sucursalId,
+          vendedor: user.nombre,
+          estado: "COMPLETADA",
+          createdAt: new Date().toISOString(),
+        };
+
+        // ✅ SIMULACIÓN: Log detallado de impresión manual
+        console.log("🎯 SIMULACIÓN DE TICKET QR MANUAL SINCRONIZADO:");
+        console.log("📋 === DATOS PARA IMPRESIÓN MANUAL ===");
+        console.log("🆔 ID:", orderDataForPrint.id);
+        console.log("💳 Método:", orderDataForPrint.metodoPago);
+        console.log("💰 Total:", orderDataForPrint.total);
+        console.log("🛒 Items:", orderDataForPrint.items);
+
+        // Ejecutar impresión
+        await handleTicketPrinting(orderDataForPrint);
+
+        // ✅ PASO 4: Cerrar toast de impresión y mostrar éxito
+        toast.dismiss(printingToastId);
+        toast.success("¡Pago completado e impreso exitosamente!");
+      } catch (printError) {
+        console.error("❌ Error en impresión manual:", printError);
+        toast.dismiss(printingToastId);
+        toast.success("¡Pago completado exitosamente!");
+        toast.error(
+          "Error al imprimir, pero el pago se completó correctamente"
+        );
+      }
+
+      // ✅ PASO 5: AHORA SÍ limpiar todo después de la impresión
       if (setQrDialogOpen) {
         setQrDialogOpen(false);
       }
       clearCart();
       resetPaymentState();
-
-      // Mostrar éxito con mensaje específico
-      toast.success(
-        result.message || "¡Orden completada manualmente con éxito!"
-      );
     } catch (error: any) {
       console.error("Error en handleManualQrPasswordSubmit:", error);
       toast.error(error.message);

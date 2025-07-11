@@ -1496,20 +1496,34 @@ export function useAfipPaymentProcessing({
       const result = await response.json();
       console.log("✅ AFIP: Pago manual completado:", result);
 
-      // ✅ MEJORA: Toast más claro y específico para AFIP
-      if (result.success && result.facturaId && result.cae) {
-        toast.success(
-          `¡Pago completado! Factura AFIP N° ${result.numero} generada exitosamente`
-        );
-      } else {
-        toast.success("¡Pago completado y factura AFIP generada!");
-      }
-
-      // Cerrar diálogo de contraseña
+      // ✅ CORRECCIÓN: NO cerrar diálogos inmediatamente, esperar sincronización
       setManualQrPasswordDialogOpen(false);
       setManualQrPassword("");
 
-      // Cerrar QR dialog
+      // ✅ PASO 1: Mostrar loading para procesamiento final
+      const processingToastId = toast.loading("Finalizando pago AFIP...");
+
+      try {
+        // ✅ PASO 2: Simular breve procesamiento para mejor UX
+        await new Promise((resolve) => setTimeout(resolve, 500));
+
+        // ✅ PASO 3: Mostrar éxito específico para AFIP
+        toast.dismiss(processingToastId);
+
+        if (result.success && result.facturaId && result.cae) {
+          toast.success(
+            `¡Pago completado! Factura AFIP N° ${result.numero} generada exitosamente`
+          );
+        } else {
+          toast.success("¡Pago completado y factura AFIP generada!");
+        }
+      } catch (processingError) {
+        console.error("❌ Error en procesamiento final AFIP:", processingError);
+        toast.dismiss(processingToastId);
+        toast.success("¡Pago completado y factura AFIP generada!");
+      }
+
+      // ✅ PASO 4: AHORA SÍ limpiar todo después del procesamiento
       if (setQrDialogOpen) {
         setQrDialogOpen(false);
       }
