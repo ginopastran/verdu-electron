@@ -224,8 +224,15 @@ try {
         
         // Detalles del periodo
         $printer->setJustification(Printer::JUSTIFY_LEFT);
-        $printer->text("Fecha inicio: " . date("d/m/Y H:i", strtotime($closingData['fechaInicio'])) . "\n");
-        $printer->text("Fecha cierre: " . date("d/m/Y H:i", strtotime($closingData['fechaCierre'])) . "\n");
+        // Asegurar que la fecha de inicio muestre 00:00
+        $fechaInicio = new DateTime($closingData['fechaInicio'], new DateTimeZone('America/Argentina/Buenos_Aires'));
+        $fechaInicio->setTime(0, 0); // Establecer hora a 00:00
+        
+        // Manejar la fecha de cierre con zona horaria
+        $fechaCierre = new DateTime($closingData['fechaCierre'], new DateTimeZone('America/Argentina/Buenos_Aires'));
+        
+        $printer->text("Fecha inicio: " . $fechaInicio->format("d/m/Y H:i") . "\n");
+        $printer->text("Fecha cierre: " . $fechaCierre->format("d/m/Y H:i") . "\n");
         $printer->text("-----------------------------\n");
 
         // Estructurar los datos de métodos de pago - Sección crítica

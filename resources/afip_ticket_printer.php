@@ -235,10 +235,25 @@ try {
     $subtotalNeto = 0;
     $totalIva = 0;
 
+    // Debug de items
+    file_put_contents('php://stderr', "🔍 DEBUG ITEMS AFIP:\n");
+    file_put_contents('php://stderr', json_encode($afipData['items'], JSON_PRETTY_PRINT) . "\n");
+
     foreach ($afipData['items'] as $item) {
+        // Debug del item actual
+        file_put_contents('php://stderr', "📦 Procesando item: " . json_encode($item) . "\n");
+        
         $nombre = str_pad(substr($item['nombre'], 0, 12), 12);
         $cantidad = str_pad(number_format($item['cantidad'], 3), 8);
-        $precio = str_pad('$' . number_format($item['precioHistorico'], 2), 8);
+        
+        // Calcular precio unitario desde el subtotal y cantidad si no está disponible
+        $precioUnitario = isset($item['precio']) ? $item['precio'] : 
+                         (isset($item['precioHistorico']) ? $item['precioHistorico'] : 
+                         ($item['cantidad'] > 0 ? $item['subtotal'] / $item['cantidad'] : 0));
+        
+        file_put_contents('php://stderr', "💰 Precio calculado para {$item['nombre']}: $precioUnitario\n");
+        
+        $precio = str_pad('$' . number_format($precioUnitario, 2), 8);
         $subtotal = str_pad('$' . number_format($item['subtotal'], 2), 8);
         
         $printer->text("$nombre $cantidad $precio $subtotal\n");
