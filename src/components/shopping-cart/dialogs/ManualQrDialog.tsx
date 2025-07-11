@@ -15,6 +15,7 @@ interface ManualQrDialogProps {
   password: string;
   onPasswordChange: (password: string) => void;
   onSubmit: () => void;
+  isLoading?: boolean;
 }
 
 export function ManualQrDialog({
@@ -23,6 +24,7 @@ export function ManualQrDialog({
   password,
   onPasswordChange,
   onSubmit,
+  isLoading = false,
 }: ManualQrDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -40,10 +42,11 @@ export function ManualQrDialog({
             value={password}
             onChange={(e) => onPasswordChange(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter") {
+              if (e.key === "Enter" && !isLoading) {
                 onSubmit();
               }
             }}
+            disabled={isLoading}
             autoFocus
           />
         </div>
@@ -52,15 +55,24 @@ export function ManualQrDialog({
             type="button"
             variant="outline"
             onClick={() => onOpenChange(false)}
+            disabled={isLoading}
           >
             Cancelar
           </Button>
           <Button
             type="button"
             onClick={onSubmit}
+            disabled={isLoading}
             className="bg-emerald-600 hover:bg-emerald-700"
           >
-            Confirmar
+            {isLoading ? (
+              <div className="flex items-center gap-2">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                <span>Procesando...</span>
+              </div>
+            ) : (
+              "Confirmar"
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -1,0 +1,692 @@
+actualizaciones...
+useAutoUpdater.ts:45 📞 Llamando a checkForUpdates...
+useAutoUpdater.ts:58 📋 Resultado de checkForUpdates: {available: false, info: {…}}
+useAutoUpdater.ts:84 No hay actualizaciones disponibles
+useAutoUpdater.ts:91 ✅ Aplicación actualizada
+useAutoUpdater.ts:103 🏁 Verificación de actualizaciones completada
+AfipSplitPaymentDialog.tsx:61 ⌨️ TECLADO: Enter detectado en diálogo de pago mixto AFIP
+useAfipPaymentProcessing.ts:829 🧾 SPLIT PAYMENT: Iniciando processSplitPayment
+useAfipPaymentProcessing.ts:830 🧾 SPLIT PAYMENT: cashAmount: 4
+useAfipPaymentProcessing.ts:831 🧾 SPLIT PAYMENT: secondPaymentMethod: qr
+useAfipPaymentProcessing.ts:848 🧾 SPLIT PAYMENT: Proceso de pago mixto AFIP iniciado con QR.
+useAfipPaymentProcessing.ts:851 🔍 CRÍTICO: Debería SOLO generar QR, NO crear factura
+useAfipPaymentProcessing.ts:992 🔥🔥🔥 GENERATE AFIP SPLIT QR: INICIANDO
+useAfipPaymentProcessing.ts:993 🔥🔥🔥 STACK TRACE: Error
+    at generateAfipSplitQRPayment (http://localhost:5173/src/hooks/useAfipPaymentProcessing.ts?t=1752260838003:699:78)
+    at Object.processSplitPayment (http://localhost:5173/src/hooks/useAfipPaymentProcessing.ts?t=1752260838003:584:13)
+    at onKeyDown (http://localhost:5173/src/components/shopping-cart/dialogs/AfipSplitPaymentDialog.tsx:60:38)
+    at overrideProps.<computed> (http://localhost:5173/node_modules/.vite/deps/chunk-GAULL5HR.js?v=abea90db:100:11)
+    at processDispatchQueue (http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=abea90db:11577:19)
+    at http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=abea90db:11988:11
+    at batchedUpdates$1 (http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=abea90db:2539:42)
+    at dispatchEventForPluginEventSystem (http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=abea90db:11683:9)
+    at dispatchEvent (http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=abea90db:14608:13)
+    at dispatchDiscreteEvent (http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=abea90db:14589:62)
+useAfipPaymentProcessing.ts:994 🔥🔥🔥 cashAmountValue: 4
+useAfipPaymentProcessing.ts:995 🔥🔥🔥 qrAmount: 2.4000000000000004
+useAfipPaymentProcessing.ts:996 🔥🔥🔥 items count: 1
+useAfipPaymentProcessing.ts:1004 🧾🔁 Generando QR para pago mixto AFIP... {cashAmountValue: 4, qrAmount: 2.4000000000000004}
+useAfipPaymentProcessing.ts:1036 🔥🔥🔥 PAYLOAD COMPLETO A ENVIAR:
+useAfipPaymentProcessing.ts:1037 🔥🔥🔥 {
+  "monto": 6.4,
+  "descripcion": "Pago mixto AFIP: QR $2.40 + Efectivo $4.00",
+  "vendedorId": 20,
+  "sucursalId": 4,
+  "items": [
+    {
+      "productoId": 177,
+      "nombre": "Blanda ",
+      "cantidad": 2,
+      "subtotal": 6.4,
+      "precioHistorico": 3.2,
+      "costo": 2
+    }
+  ],
+  "requiresAfipInvoice": true,
+  "isSplitPayment": true,
+  "cashAmount": 4,
+  "afipData": null
+}
+useAfipPaymentProcessing.ts:1038 🔥🔥🔥 requiresAfipInvoice: true
+useAfipPaymentProcessing.ts:1039 🔥🔥🔥 isSplitPayment: true
+useAfipPaymentProcessing.ts:1040 🔥🔥🔥 cashAmount: 4
+useAfipPaymentProcessing.ts:1041 🔥🔥🔥 ATENCIÓN: Enviando a /api/mercadopago/generate-qr
+useAfipPaymentProcessing.ts:1042 🔥🔥🔥 ESTE ENDPOINT SOLO DEBERÍA CREAR QR, NO FACTURA
+useAfipPaymentProcessing.ts:1051 🔥🔥🔥 ENVIANDO REQUEST...
+AuthContext.tsx:61 ⚠️ SAFETY: AuthContext timeout - forzando fin de loading
+useAfipPaymentProcessing.ts:1058 🔥🔥🔥 RESPUESTA RECIBIDA, status: 200
+useAfipPaymentProcessing.ts:1059 🔥🔥🔥 RESPUESTA ok: true
+useAfipPaymentProcessing.ts:1070 🔥🔥🔥 RESULTADO COMPLETO:
+useAfipPaymentProcessing.ts:1071 🔥🔥🔥 {
+  "orderId": 20639,
+  "id": 20639,
+  "qrData": "00020101021243650016com.mercadolibre0201306361f2561bd-824a-4ad2-bb2b-5bad45903d0150150011204230650965204970053030325802AR5914Andres Pravata6004CABA6304A497",
+  "qrType": "dynamic",
+  "qrBase64": "00020101021243650016com.mercadolibre0201306361f2561bd-824a-4ad2-bb2b-5bad45903d0150150011204230650965204970053030325802AR5914Andres Pravata6004CABA6304A497",
+  "qrImageUrl": "https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=00020101021243650016com.mercadolibre0201306361f2561bd-824a-4ad2-bb2b-5bad45903d0150150011204230650965204970053030325802AR5914Andres%20Pravata6004CABA6304A497",
+  "isSplitPayment": true,
+  "cashAmount": 4
+}
+useAfipPaymentProcessing.ts:1072 🧾🔁 Respuesta del backend (QR mixto AFIP): {orderId: 20639, id: 20639, qrData: '00020101021243650016com.mercadolibre0201306361f256…0053030325802AR5914Andres Pravata6004CABA6304A497', qrType: 'dynamic', qrBase64: '00020101021243650016com.mercadolibre0201306361f256…0053030325802AR5914Andres Pravata6004CABA6304A497', …}
+useAfipPaymentProcessing.ts:1075 🧾🔁✅ Estado QR mixto actualizado.
+useAfipPaymentProcessing.ts:1076 🔍 CRÍTICO: QR creado, NO debería crear factura aún
+useAfipPaymentProcessing.ts:1086 🧾🔁✅ Abriendo diálogo de QR...
+useAfipPaymentProcessing.ts:1090 🧾🔁✅ Cerrando diálogo de pago mixto...
+useAfipPaymentProcessing.ts:1094 🧾🔁✅ Iniciando polling para orderId: 20639
+useAfipPaymentProcessing.ts:1095 🔍 CRÍTICO: Solo debería hacer polling, NO crear factura
+useAfipPaymentProcessing.ts:1117 🔄 AFIP POLLING: Iniciando polling para orden: 20639
+useAfipPaymentProcessing.ts:1118 🔄 AFIP POLLING: isAfip: true
+useAfipPaymentProcessing.ts:1119 🔍 CRÍTICO: Polling SOLO verifica estado, factura se crea automáticamente en backend
+usePaymentProcessing.ts:777 console.trace
+cleanupPolling @ usePaymentProcessing.ts:777
+(anonymous) @ ShoppingCartRefactored.tsx:1019
+react-stack-bottom-frame @ react-dom_client.js?v=abea90db:16248
+runWithFiberInDEV @ react-dom_client.js?v=abea90db:726
+commitHookEffectListUnmount @ react-dom_client.js?v=abea90db:7809
+commitHookPassiveUnmountEffects @ react-dom_client.js?v=abea90db:7828
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=abea90db:9445
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=abea90db:9437
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=abea90db:9466
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=abea90db:9437
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=abea90db:9466
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=abea90db:9437
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=abea90db:9466
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=abea90db:9437
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=abea90db:9444
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=abea90db:9437
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=abea90db:9444
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=abea90db:9437
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=abea90db:9466
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=abea90db:9437
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=abea90db:9444
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=abea90db:9437
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=abea90db:9466
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=abea90db:9437
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=abea90db:9444
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=abea90db:9437
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=abea90db:9444
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=abea90db:9437
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=abea90db:9444
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=abea90db:9437
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=abea90db:9466
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=abea90db:9437
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=abea90db:9444
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=abea90db:9437
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=abea90db:9444
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=abea90db:9437
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=abea90db:9466
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=abea90db:9437
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=abea90db:9444
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=abea90db:9437
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=abea90db:9466
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=abea90db:9437
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=abea90db:9444
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=abea90db:9437
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=abea90db:9466
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=abea90db:9437
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=abea90db:9466
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=abea90db:9437
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=abea90db:9444
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=abea90db:9437
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=abea90db:9444
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=abea90db:9437
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=abea90db:9466
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=abea90db:9437
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=abea90db:9444
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=abea90db:9437
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=abea90db:9444
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=abea90db:9437
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=abea90db:9466
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=abea90db:9437
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=abea90db:9453
+flushPassiveEffects @ react-dom_client.js?v=abea90db:11118
+performSyncWorkOnRoot @ react-dom_client.js?v=abea90db:11445
+flushSyncWorkAcrossRoots_impl @ react-dom_client.js?v=abea90db:11356
+commitRootImpl @ react-dom_client.js?v=abea90db:11073
+commitRoot @ react-dom_client.js?v=abea90db:10989
+commitRootWhenReady @ react-dom_client.js?v=abea90db:10477
+performWorkOnRoot @ react-dom_client.js?v=abea90db:10421
+performWorkOnRootViaSchedulerTask @ react-dom_client.js?v=abea90db:11436
+performWorkUntilDeadline @ react-dom_client.js?v=abea90db:35
+QRPaymentDialog.tsx:231 🔧 QR Dialog: Iniciando completado manual {orderId: 20639, isAfipMode: true, isSplitPayment: true, cashAmount: 4}
+QRPaymentDialog.tsx:241 🔧 QR Dialog: Abriendo diálogo de contraseña AFIP
+useAfipPaymentProcessing.ts:1391 🔧 AFIP: Completando manualmente orden 20639 con requiresAfipInvoice: true
+useAfipPaymentProcessing.ts:1411 🔧 AFIP: Enviando a /manual-complete: {orderId: 20639, requiresAfipInvoice: true}
+useAfipPaymentProcessing.ts:1201 🔄 AFIP POLLING: Estado actualizado para orden: 20639 {orderId: 20639, status: 'pending', isCompleted: false, isCancelled: false, total: 6.4, …}
+useAfipPaymentProcessing.ts:1306 🔄 AFIP POLLING: ⏳ Pago pendiente, continuando polling...
+useAfipPaymentProcessing.ts:1201 🔄 AFIP POLLING: Estado actualizado para orden: 20639 {orderId: 20639, status: 'pending', isCompleted: false, isCancelled: false, total: 6.4, …}
+useAfipPaymentProcessing.ts:1306 🔄 AFIP POLLING: ⏳ Pago pendiente, continuando polling...
+useAfipPaymentProcessing.ts:1430 ✅ AFIP: Pago manual completado: {success: true, message: 'Factura AFIP creada correctamente y orden eliminada', facturaId: 'xPQNsKNu', cae: '75286262471344', numero: '120', …}
+useAfipPaymentProcessing.ts:323 🧹 AFIP RESET: Limpiando estados del procesador de pagos AFIP
+usePaymentProcessing.ts:777 console.trace
+cleanupPolling @ usePaymentProcessing.ts:777
+(anonymous) @ ShoppingCartRefactored.tsx:1019
+react-stack-bottom-frame @ react-dom_client.js?v=abea90db:16248
+runWithFiberInDEV @ react-dom_client.js?v=abea90db:726
+commitHookEffectListUnmount @ react-dom_client.js?v=abea90db:7809
+commitHookPassiveUnmountEffects @ react-dom_client.js?v=abea90db:7828
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=abea90db:9445
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=abea90db:9437
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=abea90db:9466
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=abea90db:9437
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=abea90db:9466
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=abea90db:9437
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=abea90db:9466
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=abea90db:9437
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=abea90db:9444
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=abea90db:9437
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=abea90db:9444
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=abea90db:9437
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=abea90db:9466
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=abea90db:9437
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=abea90db:9444
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=abea90db:9437
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=abea90db:9466
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=abea90db:9437
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=abea90db:9444
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=abea90db:9437
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=abea90db:9444
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=abea90db:9437
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=abea90db:9444
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=abea90db:9437
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=abea90db:9466
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=abea90db:9437
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=abea90db:9444
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=abea90db:9437
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=abea90db:9444
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=abea90db:9437
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=abea90db:9466
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=abea90db:9437
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=abea90db:9444
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=abea90db:9437
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=abea90db:9466
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=abea90db:9437
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=abea90db:9444
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=abea90db:9437
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=abea90db:9466
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=abea90db:9437
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=abea90db:9466
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=abea90db:9437
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=abea90db:9444
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=abea90db:9437
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=abea90db:9444
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=abea90db:9437
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=abea90db:9466
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=abea90db:9437
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=abea90db:9444
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=abea90db:9437
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=abea90db:9444
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=abea90db:9437
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=abea90db:9466
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=abea90db:9437
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=abea90db:9453
+flushPassiveEffects @ react-dom_client.js?v=abea90db:11118
+commitRootImpl @ react-dom_client.js?v=abea90db:11070
+commitRoot @ react-dom_client.js?v=abea90db:10989
+commitRootWhenReady @ react-dom_client.js?v=abea90db:10477
+performWorkOnRoot @ react-dom_client.js?v=abea90db:10421
+performSyncWorkOnRoot @ react-dom_client.js?v=abea90db:11448
+flushSyncWorkAcrossRoots_impl @ react-dom_client.js?v=abea90db:11356
+flushSyncWork$1 @ react-dom_client.js?v=abea90db:10533
+f @ react-dom_client.js?v=abea90db:17487
+exports.flushSync @ chunk-OX56QJAV.js?v=abea90db:92
+(anonymous) @ sonner.js?v=abea90db:281
+setTimeout
+(anonymous) @ sonner.js?v=abea90db:280
+(anonymous) @ sonner.js?v=abea90db:56
+publish @ sonner.js?v=abea90db:56
+addToast @ sonner.js?v=abea90db:59
+create @ sonner.js?v=abea90db:64
+success @ sonner.js?v=abea90db:71
+handleManualQrPasswordSubmit @ useAfipPaymentProcessing.ts:1433
+await in handleManualQrPasswordSubmit
+onSubmit @ ShoppingCartRefactored.tsx:1639
+onKeyDown @ ManualQrDialog.tsx:46
+processDispatchQueue @ react-dom_client.js?v=abea90db:11577
+(anonymous) @ react-dom_client.js?v=abea90db:11988
+batchedUpdates$1 @ react-dom_client.js?v=abea90db:2539
+dispatchEventForPluginEventSystem @ react-dom_client.js?v=abea90db:11683
+dispatchEvent @ react-dom_client.js?v=abea90db:14608
+dispatchDiscreteEvent @ react-dom_client.js?v=abea90db:14589
+usePaymentProcessing.ts:777 console.trace
+cleanupPolling @ usePaymentProcessing.ts:777
+(anonymous) @ ShoppingCartRefactored.tsx:1016
+react-stack-bottom-frame @ react-dom_client.js?v=abea90db:16242
+runWithFiberInDEV @ react-dom_client.js?v=abea90db:726
+commitHookEffectListMount @ react-dom_client.js?v=abea90db:7767
+commitHookPassiveMountEffects @ react-dom_client.js?v=abea90db:7825
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9182
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9265
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9265
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9265
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9176
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9176
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9265
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9176
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9265
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9176
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9176
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9176
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9265
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9176
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9176
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9265
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9176
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9265
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9176
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9265
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9265
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9176
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9176
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9265
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9176
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9176
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9265
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=abea90db:9163
+commitPassiveMountOnFiber @ react-dom_client.js?v=abea90db:9186
+flushPassiveEffects @ react-dom_client.js?v=abea90db:11119
+commitRootImpl @ react-dom_client.js?v=abea90db:11070
+commitRoot @ react-dom_client.js?v=abea90db:10989
+commitRootWhenReady @ react-dom_client.js?v=abea90db:10477
+performWorkOnRoot @ react-dom_client.js?v=abea90db:10421
+performSyncWorkOnRoot @ react-dom_client.js?v=abea90db:11448
+flushSyncWorkAcrossRoots_impl @ react-dom_client.js?v=abea90db:11356
+flushSyncWork$1 @ react-dom_client.js?v=abea90db:10533
+f @ react-dom_client.js?v=abea90db:17487
+exports.flushSync @ chunk-OX56QJAV.js?v=abea90db:92
+(anonymous) @ sonner.js?v=abea90db:281
+setTimeout
+(anonymous) @ sonner.js?v=abea90db:280
+(anonymous) @ sonner.js?v=abea90db:56
+publish @ sonner.js?v=abea90db:56
+addToast @ sonner.js?v=abea90db:59
+create @ sonner.js?v=abea90db:64
+success @ sonner.js?v=abea90db:71
+handleManualQrPasswordSubmit @ useAfipPaymentProcessing.ts:1433
+await in handleManualQrPasswordSubmit
+onSubmit @ ShoppingCartRefactored.tsx:1639
+onKeyDown @ ManualQrDialog.tsx:46
+processDispatchQueue @ react-dom_client.js?v=abea90db:11577
+(anonymous) @ react-dom_client.js?v=abea90db:11988
+batchedUpdates$1 @ react-dom_client.js?v=abea90db:2539
+dispatchEventForPluginEventSystem @ react-dom_client.js?v=abea90db:11683
+dispatchEvent @ react-dom_client.js?v=abea90db:14608
+dispatchDiscreteEvent @ react-dom_client.js?v=abea90db:14589
+useAfipPaymentProcessing.ts:1201 🔄 AFIP POLLING: Estado actualizado para orden: 20639 {orderId: 20639, status: 'completed', isCompleted: true, isCancelled: false, total: 6.4, …}
+useAfipPaymentProcessing.ts:1252 🔄 AFIP POLLING: ✅ Pago completado, verificando factura AFIP...
+useAfipPaymentProcessing.ts:1260 🔄 AFIP POLLING: ✅ Factura AFIP creada automáticamente: {id: 'KbUZepHQ', cae: '75286262471357', numero: '120', idReal: 145, created: true, …}
+useAfipPaymentProcessing.ts:323 🧹 AFIP RESET: Limpiando estados del procesador de pagos AFIP
+VM3207:1 
+        
+        
+       GET http://localhost:3000/api/mercadopago/check-status/20639 404 (Not Found)
+_0x3397a9.fetch @ VM3207:1
+(anonymous) @ useAfipPaymentProcessing.ts:1149
+setInterval
+startPaymentStatusPolling @ useAfipPaymentProcessing.ts:1131
+generateAfipSplitQRPayment @ useAfipPaymentProcessing.ts:1096
+await in generateAfipSplitQRPayment
+processSplitPayment @ useAfipPaymentProcessing.ts:853
+onKeyDown @ AfipSplitPaymentDialog.tsx:64
+overrideProps.<computed> @ chunk-GAULL5HR.js?v=abea90db:100
+processDispatchQueue @ react-dom_client.js?v=abea90db:11577
+(anonymous) @ react-dom_client.js?v=abea90db:11988
+batchedUpdates$1 @ react-dom_client.js?v=abea90db:2539
+dispatchEventForPluginEventSystem @ react-dom_client.js?v=abea90db:11683
+dispatchEvent @ react-dom_client.js?v=abea90db:14608
+dispatchDiscreteEvent @ react-dom_client.js?v=abea90db:14589
+VM3204:1 🔄 AFIP POLLING: Error en respuesta: {message: 'Orden no encontrada'}
+eval @ VM3204:1
+(anonymous) @ useAfipPaymentProcessing.ts:1162
+setInterval
+startPaymentStatusPolling @ useAfipPaymentProcessing.ts:1131
+generateAfipSplitQRPayment @ useAfipPaymentProcessing.ts:1096
+await in generateAfipSplitQRPayment
+processSplitPayment @ useAfipPaymentProcessing.ts:853
+onKeyDown @ AfipSplitPaymentDialog.tsx:64
+overrideProps.<computed> @ chunk-GAULL5HR.js?v=abea90db:100
+processDispatchQueue @ react-dom_client.js?v=abea90db:11577
+(anonymous) @ react-dom_client.js?v=abea90db:11988
+batchedUpdates$1 @ react-dom_client.js?v=abea90db:2539
+dispatchEventForPluginEventSystem @ react-dom_client.js?v=abea90db:11683
+dispatchEvent @ react-dom_client.js?v=abea90db:14608
+dispatchDiscreteEvent @ react-dom_client.js?v=abea90db:14589
+useAfipPaymentProcessing.ts:1166 🔄 AFIP POLLING: Intentando con query parameters...
+VM3207:1 
+        
+        
+       GET http://localhost:3000/api/mercadopago/check-status/20639 404 (Not Found)
+_0x3397a9.fetch @ VM3207:1
+(anonymous) @ useAfipPaymentProcessing.ts:1149
+setInterval
+startPaymentStatusPolling @ useAfipPaymentProcessing.ts:1131
+generateAfipSplitQRPayment @ useAfipPaymentProcessing.ts:1096
+await in generateAfipSplitQRPayment
+processSplitPayment @ useAfipPaymentProcessing.ts:853
+onKeyDown @ AfipSplitPaymentDialog.tsx:64
+overrideProps.<computed> @ chunk-GAULL5HR.js?v=abea90db:100
+processDispatchQueue @ react-dom_client.js?v=abea90db:11577
+(anonymous) @ react-dom_client.js?v=abea90db:11988
+batchedUpdates$1 @ react-dom_client.js?v=abea90db:2539
+dispatchEventForPluginEventSystem @ react-dom_client.js?v=abea90db:11683
+dispatchEvent @ react-dom_client.js?v=abea90db:14608
+dispatchDiscreteEvent @ react-dom_client.js?v=abea90db:14589
+VM3204:1 🔄 AFIP POLLING: Error en respuesta: {message: 'Orden no encontrada'}
+eval @ VM3204:1
+(anonymous) @ useAfipPaymentProcessing.ts:1162
+setInterval
+startPaymentStatusPolling @ useAfipPaymentProcessing.ts:1131
+generateAfipSplitQRPayment @ useAfipPaymentProcessing.ts:1096
+await in generateAfipSplitQRPayment
+processSplitPayment @ useAfipPaymentProcessing.ts:853
+onKeyDown @ AfipSplitPaymentDialog.tsx:64
+overrideProps.<computed> @ chunk-GAULL5HR.js?v=abea90db:100
+processDispatchQueue @ react-dom_client.js?v=abea90db:11577
+(anonymous) @ react-dom_client.js?v=abea90db:11988
+batchedUpdates$1 @ react-dom_client.js?v=abea90db:2539
+dispatchEventForPluginEventSystem @ react-dom_client.js?v=abea90db:11683
+dispatchEvent @ react-dom_client.js?v=abea90db:14608
+dispatchDiscreteEvent @ react-dom_client.js?v=abea90db:14589
+useAfipPaymentProcessing.ts:1166 🔄 AFIP POLLING: Intentando con query parameters...
+VM3207:1 
+        
+        
+       GET http://localhost:3000/api/mercadopago/check-status/20639 404 (Not Found)
+_0x3397a9.fetch @ VM3207:1
+(anonymous) @ useAfipPaymentProcessing.ts:1149
+setInterval
+startPaymentStatusPolling @ useAfipPaymentProcessing.ts:1131
+generateAfipSplitQRPayment @ useAfipPaymentProcessing.ts:1096
+await in generateAfipSplitQRPayment
+processSplitPayment @ useAfipPaymentProcessing.ts:853
+onKeyDown @ AfipSplitPaymentDialog.tsx:64
+overrideProps.<computed> @ chunk-GAULL5HR.js?v=abea90db:100
+processDispatchQueue @ react-dom_client.js?v=abea90db:11577
+(anonymous) @ react-dom_client.js?v=abea90db:11988
+batchedUpdates$1 @ react-dom_client.js?v=abea90db:2539
+dispatchEventForPluginEventSystem @ react-dom_client.js?v=abea90db:11683
+dispatchEvent @ react-dom_client.js?v=abea90db:14608
+dispatchDiscreteEvent @ react-dom_client.js?v=abea90db:14589
+VM3204:1 🔄 AFIP POLLING: Error en respuesta: {message: 'Orden no encontrada'}
+eval @ VM3204:1
+(anonymous) @ useAfipPaymentProcessing.ts:1162
+setInterval
+startPaymentStatusPolling @ useAfipPaymentProcessing.ts:1131
+generateAfipSplitQRPayment @ useAfipPaymentProcessing.ts:1096
+await in generateAfipSplitQRPayment
+processSplitPayment @ useAfipPaymentProcessing.ts:853
+onKeyDown @ AfipSplitPaymentDialog.tsx:64
+overrideProps.<computed> @ chunk-GAULL5HR.js?v=abea90db:100
+processDispatchQueue @ react-dom_client.js?v=abea90db:11577
+(anonymous) @ react-dom_client.js?v=abea90db:11988
+batchedUpdates$1 @ react-dom_client.js?v=abea90db:2539
+dispatchEventForPluginEventSystem @ react-dom_client.js?v=abea90db:11683
+dispatchEvent @ react-dom_client.js?v=abea90db:14608
+dispatchDiscreteEvent @ react-dom_client.js?v=abea90db:14589
+useAfipPaymentProcessing.ts:1166 🔄 AFIP POLLING: Intentando con query parameters...
+VM3207:1 
+        
+        
+       GET http://localhost:3000/api/mercadopago/check-status/20639 404 (Not Found)
+_0x3397a9.fetch @ VM3207:1
+(anonymous) @ useAfipPaymentProcessing.ts:1149
+setInterval
+startPaymentStatusPolling @ useAfipPaymentProcessing.ts:1131
+generateAfipSplitQRPayment @ useAfipPaymentProcessing.ts:1096
+await in generateAfipSplitQRPayment
+processSplitPayment @ useAfipPaymentProcessing.ts:853
+onKeyDown @ AfipSplitPaymentDialog.tsx:64
+overrideProps.<computed> @ chunk-GAULL5HR.js?v=abea90db:100
+processDispatchQueue @ react-dom_client.js?v=abea90db:11577
+(anonymous) @ react-dom_client.js?v=abea90db:11988
+batchedUpdates$1 @ react-dom_client.js?v=abea90db:2539
+dispatchEventForPluginEventSystem @ react-dom_client.js?v=abea90db:11683
+dispatchEvent @ react-dom_client.js?v=abea90db:14608
+dispatchDiscreteEvent @ react-dom_client.js?v=abea90db:14589
+VM3204:1 🔄 AFIP POLLING: Error en respuesta: {message: 'Orden no encontrada'}
+eval @ VM3204:1
+(anonymous) @ useAfipPaymentProcessing.ts:1162
+setInterval
+startPaymentStatusPolling @ useAfipPaymentProcessing.ts:1131
+generateAfipSplitQRPayment @ useAfipPaymentProcessing.ts:1096
+await in generateAfipSplitQRPayment
+processSplitPayment @ useAfipPaymentProcessing.ts:853
+onKeyDown @ AfipSplitPaymentDialog.tsx:64
+overrideProps.<computed> @ chunk-GAULL5HR.js?v=abea90db:100
+processDispatchQueue @ react-dom_client.js?v=abea90db:11577
+(anonymous) @ react-dom_client.js?v=abea90db:11988
+batchedUpdates$1 @ react-dom_client.js?v=abea90db:2539
+dispatchEventForPluginEventSystem @ react-dom_client.js?v=abea90db:11683
+dispatchEvent @ react-dom_client.js?v=abea90db:14608
+dispatchDiscreteEvent @ react-dom_client.js?v=abea90db:14589
+useAfipPaymentProcessing.ts:1166 🔄 AFIP POLLING: Intentando con query parameters...
+VM3207:1 
+        
+        
+       GET http://localhost:3000/api/mercadopago/check-status/20639 404 (Not Found)
+_0x3397a9.fetch @ VM3207:1
+(anonymous) @ useAfipPaymentProcessing.ts:1149
+setInterval
+startPaymentStatusPolling @ useAfipPaymentProcessing.ts:1131
+generateAfipSplitQRPayment @ useAfipPaymentProcessing.ts:1096
+await in generateAfipSplitQRPayment
+processSplitPayment @ useAfipPaymentProcessing.ts:853
+onKeyDown @ AfipSplitPaymentDialog.tsx:64
+overrideProps.<computed> @ chunk-GAULL5HR.js?v=abea90db:100
+processDispatchQueue @ react-dom_client.js?v=abea90db:11577
+(anonymous) @ react-dom_client.js?v=abea90db:11988
+batchedUpdates$1 @ react-dom_client.js?v=abea90db:2539
+dispatchEventForPluginEventSystem @ react-dom_client.js?v=abea90db:11683
+dispatchEvent @ react-dom_client.js?v=abea90db:14608
+dispatchDiscreteEvent @ react-dom_client.js?v=abea90db:14589
+VM3204:1 🔄 AFIP POLLING: Error en respuesta: {message: 'Orden no encontrada'}
+eval @ VM3204:1
+(anonymous) @ useAfipPaymentProcessing.ts:1162
+setInterval
+startPaymentStatusPolling @ useAfipPaymentProcessing.ts:1131
+generateAfipSplitQRPayment @ useAfipPaymentProcessing.ts:1096
+await in generateAfipSplitQRPayment
+processSplitPayment @ useAfipPaymentProcessing.ts:853
+onKeyDown @ AfipSplitPaymentDialog.tsx:64
+overrideProps.<computed> @ chunk-GAULL5HR.js?v=abea90db:100
+processDispatchQueue @ react-dom_client.js?v=abea90db:11577
+(anonymous) @ react-dom_client.js?v=abea90db:11988
+batchedUpdates$1 @ react-dom_client.js?v=abea90db:2539
+dispatchEventForPluginEventSystem @ react-dom_client.js?v=abea90db:11683
+dispatchEvent @ react-dom_client.js?v=abea90db:14608
+dispatchDiscreteEvent @ react-dom_client.js?v=abea90db:14589
+useAfipPaymentProcessing.ts:1166 🔄 AFIP POLLING: Intentando con query parameters...
+VM3207:1 
+        
+        
+       GET http://localhost:3000/api/mercadopago/check-status/20639 404 (Not Found)
+_0x3397a9.fetch @ VM3207:1
+(anonymous) @ useAfipPaymentProcessing.ts:1149
+setInterval
+startPaymentStatusPolling @ useAfipPaymentProcessing.ts:1131
+generateAfipSplitQRPayment @ useAfipPaymentProcessing.ts:1096
+await in generateAfipSplitQRPayment
+processSplitPayment @ useAfipPaymentProcessing.ts:853
+onKeyDown @ AfipSplitPaymentDialog.tsx:64
+overrideProps.<computed> @ chunk-GAULL5HR.js?v=abea90db:100
+processDispatchQueue @ react-dom_client.js?v=abea90db:11577
+(anonymous) @ react-dom_client.js?v=abea90db:11988
+batchedUpdates$1 @ react-dom_client.js?v=abea90db:2539
+dispatchEventForPluginEventSystem @ react-dom_client.js?v=abea90db:11683
+dispatchEvent @ react-dom_client.js?v=abea90db:14608
+dispatchDiscreteEvent @ react-dom_client.js?v=abea90db:14589
+VM3204:1 🔄 AFIP POLLING: Error en respuesta: {message: 'Orden no encontrada'}
+eval @ VM3204:1
+(anonymous) @ useAfipPaymentProcessing.ts:1162
+setInterval
+startPaymentStatusPolling @ useAfipPaymentProcessing.ts:1131
+generateAfipSplitQRPayment @ useAfipPaymentProcessing.ts:1096
+await in generateAfipSplitQRPayment
+processSplitPayment @ useAfipPaymentProcessing.ts:853
+onKeyDown @ AfipSplitPaymentDialog.tsx:64
+overrideProps.<computed> @ chunk-GAULL5HR.js?v=abea90db:100
+processDispatchQueue @ react-dom_client.js?v=abea90db:11577
+(anonymous) @ react-dom_client.js?v=abea90db:11988
+batchedUpdates$1 @ react-dom_client.js?v=abea90db:2539
+dispatchEventForPluginEventSystem @ react-dom_client.js?v=abea90db:11683
+dispatchEvent @ react-dom_client.js?v=abea90db:14608
+dispatchDiscreteEvent @ react-dom_client.js?v=abea90db:14589
+useAfipPaymentProcessing.ts:1166 🔄 AFIP POLLING: Intentando con query parameters...
+VM3207:1 
+        
+        
+       GET http://localhost:3000/api/mercadopago/check-status/20639 404 (Not Found)
+_0x3397a9.fetch @ VM3207:1
+(anonymous) @ useAfipPaymentProcessing.ts:1167
+setInterval
+startPaymentStatusPolling @ useAfipPaymentProcessing.ts:1131
+generateAfipSplitQRPayment @ useAfipPaymentProcessing.ts:1096
+await in generateAfipSplitQRPayment
+processSplitPayment @ useAfipPaymentProcessing.ts:853
+onKeyDown @ AfipSplitPaymentDialog.tsx:64
+overrideProps.<computed> @ chunk-GAULL5HR.js?v=abea90db:100
+processDispatchQueue @ react-dom_client.js?v=abea90db:11577
+(anonymous) @ react-dom_client.js?v=abea90db:11988
+batchedUpdates$1 @ react-dom_client.js?v=abea90db:2539
+dispatchEventForPluginEventSystem @ react-dom_client.js?v=abea90db:11683
+dispatchEvent @ react-dom_client.js?v=abea90db:14608
+dispatchDiscreteEvent @ react-dom_client.js?v=abea90db:14589
+useAfipPaymentProcessing.ts:1209 🔄 AFIP POLLING: Error en respuesta: Orden no encontrada
+useAfipPaymentProcessing.ts:1216 🔄 AFIP POLLING: ✅ Orden no encontrada - probablemente ya fue procesada
+useAfipPaymentProcessing.ts:1223 🔄 AFIP POLLING: Deteniendo polling - orden completada y eliminada
+VM3207:1 
+        
+        
+       GET http://localhost:3000/api/mercadopago/check-status/20639 404 (Not Found)
+_0x3397a9.fetch @ VM3207:1
+(anonymous) @ useAfipPaymentProcessing.ts:1167
+setInterval
+startPaymentStatusPolling @ useAfipPaymentProcessing.ts:1131
+generateAfipSplitQRPayment @ useAfipPaymentProcessing.ts:1096
+await in generateAfipSplitQRPayment
+processSplitPayment @ useAfipPaymentProcessing.ts:853
+onKeyDown @ AfipSplitPaymentDialog.tsx:64
+overrideProps.<computed> @ chunk-GAULL5HR.js?v=abea90db:100
+processDispatchQueue @ react-dom_client.js?v=abea90db:11577
+(anonymous) @ react-dom_client.js?v=abea90db:11988
+batchedUpdates$1 @ react-dom_client.js?v=abea90db:2539
+dispatchEventForPluginEventSystem @ react-dom_client.js?v=abea90db:11683
+dispatchEvent @ react-dom_client.js?v=abea90db:14608
+dispatchDiscreteEvent @ react-dom_client.js?v=abea90db:14589
+useAfipPaymentProcessing.ts:1209 🔄 AFIP POLLING: Error en respuesta: Orden no encontrada
+useAfipPaymentProcessing.ts:1216 🔄 AFIP POLLING: ✅ Orden no encontrada - probablemente ya fue procesada
+useAfipPaymentProcessing.ts:1223 🔄 AFIP POLLING: Deteniendo polling - orden completada y eliminada
+VM3207:1 
+        
+        
+       GET http://localhost:3000/api/mercadopago/check-status/20639 404 (Not Found)
+_0x3397a9.fetch @ VM3207:1
+(anonymous) @ useAfipPaymentProcessing.ts:1167
+setInterval
+startPaymentStatusPolling @ useAfipPaymentProcessing.ts:1131
+generateAfipSplitQRPayment @ useAfipPaymentProcessing.ts:1096
+await in generateAfipSplitQRPayment
+processSplitPayment @ useAfipPaymentProcessing.ts:853
+onKeyDown @ AfipSplitPaymentDialog.tsx:64
+overrideProps.<computed> @ chunk-GAULL5HR.js?v=abea90db:100
+processDispatchQueue @ react-dom_client.js?v=abea90db:11577
+(anonymous) @ react-dom_client.js?v=abea90db:11988
+batchedUpdates$1 @ react-dom_client.js?v=abea90db:2539
+dispatchEventForPluginEventSystem @ react-dom_client.js?v=abea90db:11683
+dispatchEvent @ react-dom_client.js?v=abea90db:14608
+dispatchDiscreteEvent @ react-dom_client.js?v=abea90db:14589
+useAfipPaymentProcessing.ts:1209 🔄 AFIP POLLING: Error en respuesta: Orden no encontrada
+useAfipPaymentProcessing.ts:1216 🔄 AFIP POLLING: ✅ Orden no encontrada - probablemente ya fue procesada
+useAfipPaymentProcessing.ts:1223 🔄 AFIP POLLING: Deteniendo polling - orden completada y eliminada
+VM3207:1 
+        
+        
+       GET http://localhost:3000/api/mercadopago/check-status/20639 404 (Not Found)
+_0x3397a9.fetch @ VM3207:1
+(anonymous) @ useAfipPaymentProcessing.ts:1167
+setInterval
+startPaymentStatusPolling @ useAfipPaymentProcessing.ts:1131
+generateAfipSplitQRPayment @ useAfipPaymentProcessing.ts:1096
+await in generateAfipSplitQRPayment
+processSplitPayment @ useAfipPaymentProcessing.ts:853
+onKeyDown @ AfipSplitPaymentDialog.tsx:64
+overrideProps.<computed> @ chunk-GAULL5HR.js?v=abea90db:100
+processDispatchQueue @ react-dom_client.js?v=abea90db:11577
+(anonymous) @ react-dom_client.js?v=abea90db:11988
+batchedUpdates$1 @ react-dom_client.js?v=abea90db:2539
+dispatchEventForPluginEventSystem @ react-dom_client.js?v=abea90db:11683
+dispatchEvent @ react-dom_client.js?v=abea90db:14608
+dispatchDiscreteEvent @ react-dom_client.js?v=abea90db:14589
+useAfipPaymentProcessing.ts:1209 🔄 AFIP POLLING: Error en respuesta: Orden no encontrada
+useAfipPaymentProcessing.ts:1216 🔄 AFIP POLLING: ✅ Orden no encontrada - probablemente ya fue procesada
+useAfipPaymentProcessing.ts:1223 🔄 AFIP POLLING: Deteniendo polling - orden completada y eliminada
+VM3207:1 
+        
+        
+       GET http://localhost:3000/api/mercadopago/check-status/20639 404 (Not Found)
+_0x3397a9.fetch @ VM3207:1
+(anonymous) @ useAfipPaymentProcessing.ts:1167
+setInterval
+startPaymentStatusPolling @ useAfipPaymentProcessing.ts:1131
+generateAfipSplitQRPayment @ useAfipPaymentProcessing.ts:1096
+await in generateAfipSplitQRPayment
+processSplitPayment @ useAfipPaymentProcessing.ts:853
+onKeyDown @ AfipSplitPaymentDialog.tsx:64
+overrideProps.<computed> @ chunk-GAULL5HR.js?v=abea90db:100
+processDispatchQueue @ react-dom_client.js?v=abea90db:11577
+(anonymous) @ react-dom_client.js?v=abea90db:11988
+batchedUpdates$1 @ react-dom_client.js?v=abea90db:2539
+dispatchEventForPluginEventSystem @ react-dom_client.js?v=abea90db:11683
+dispatchEvent @ react-dom_client.js?v=abea90db:14608
+dispatchDiscreteEvent @ react-dom_client.js?v=abea90db:14589
+useAfipPaymentProcessing.ts:1209 🔄 AFIP POLLING: Error en respuesta: Orden no encontrada
+useAfipPaymentProcessing.ts:1216 🔄 AFIP POLLING: ✅ Orden no encontrada - probablemente ya fue procesada
+useAfipPaymentProcessing.ts:1223 🔄 AFIP POLLING: Deteniendo polling - orden completada y eliminada
+VM3207:1 
+        
+        
+       GET http://localhost:3000/api/mercadopago/check-status/20639 404 (Not Found)
+_0x3397a9.fetch @ VM3207:1
+(anonymous) @ useAfipPaymentProcessing.ts:1167
+setInterval
+startPaymentStatusPolling @ useAfipPaymentProcessing.ts:1131
+generateAfipSplitQRPayment @ useAfipPaymentProcessing.ts:1096
+await in generateAfipSplitQRPayment
+processSplitPayment @ useAfipPaymentProcessing.ts:853
+onKeyDown @ AfipSplitPaymentDialog.tsx:64
+overrideProps.<computed> @ chunk-GAULL5HR.js?v=abea90db:100
+processDispatchQueue @ react-dom_client.js?v=abea90db:11577
+(anonymous) @ react-dom_client.js?v=abea90db:11988
+batchedUpdates$1 @ react-dom_client.js?v=abea90db:2539
+dispatchEventForPluginEventSystem @ react-dom_client.js?v=abea90db:11683
+dispatchEvent @ react-dom_client.js?v=abea90db:14608
+dispatchDiscreteEvent @ react-dom_client.js?v=abea90db:14589
+useAfipPaymentProcessing.ts:1209 🔄 AFIP POLLING: Error en respuesta: Orden no encontrada
+useAfipPaymentProcessing.ts:1216 🔄 AFIP POLLING: ✅ Orden no encontrada - probablemente ya fue procesada
+useAfipPaymentProcessing.ts:1223 🔄 AFIP POLLING: Deteniendo polling - orden completada y eliminada

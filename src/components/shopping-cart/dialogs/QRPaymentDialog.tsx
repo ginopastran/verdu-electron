@@ -8,7 +8,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Wallet, QrCode, Receipt } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 interface QRPaymentDialogProps {
   open: boolean;
@@ -45,6 +45,10 @@ export const QRPaymentDialog = ({
   const shouldUseAfipMode =
     isAfipMode && businessInfo?.facturacionHabilitada === true;
   // console.log("🔍 QRPaymentDialog - shouldUseAfipMode:", shouldUseAfipMode);
+
+  // ✅ NUEVO: Estado para controlar loading del botón manual
+  const [isManualCompletionLoading, setIsManualCompletionLoading] =
+    useState(false);
 
   const qrData = isAfipMode
     ? afipPaymentProcessor?.qrData
@@ -90,22 +94,17 @@ export const QRPaymentDialog = ({
       },
     });
 
-    // ✅ VERIFICACIÓN ROBUSTA: Solo crear factura AFIP si está realmente habilitado
-    if (shouldUseAfipMode && afipPaymentProcessor && cartItems.length > 0) {
+    // ✅ CORRECCIÓN: El backend ya maneja automáticamente la creación de facturas AFIP
+    // cuando el pago se confirma con requiresAfipInvoice: true
+    if (shouldUseAfipMode) {
       console.log(
-        "🧾✅ QR Dialog: Pago exitoso en modo AFIP, creando factura..."
+        "🧾✅ QR Dialog: Pago exitoso en modo AFIP - backend creará factura automáticamente",
+        {
+          orderId: paymentData.orderId,
+          requiresAfipInvoice: true,
+          cartItemsLength: cartItems.length,
+        }
       );
-      try {
-        await afipPaymentProcessor.createAfipInvoiceAfterPayment(
-          paymentData.orderId,
-          cartItems,
-          paymentData
-        );
-        console.log("✅ QR Dialog: Factura AFIP creada exitosamente");
-      } catch (error) {
-        console.error("❌ QR Dialog: Error al crear factura AFIP:", error);
-        // El error ya se maneja en createAfipInvoiceAfterPayment
-      }
     }
   };
 
@@ -116,6 +115,8 @@ export const QRPaymentDialog = ({
         console.log("🔄 QR Dialog onOpenChange:", open);
         if (!open) {
           console.log("🔄 Cerrando diálogo QR, cancelando pago");
+          // ✅ PROTECCIÓN: Limpiar estado de loading al cerrar
+          setIsManualCompletionLoading(false);
           onOpenChange(false);
           paymentProcessor.cancelQRPayment();
         }
@@ -217,46 +218,54 @@ export const QRPaymentDialog = ({
                   <Button
                     variant="outline"
                     className="w-full mt-4 bg-emerald-50 border-emerald-200 hover:bg-emerald-100 hover:text-emerald-700"
-                    onClick={async () => {
-                      // Completar orden manualmente
-                      await paymentProcessor.completarOrdenManualmente(
-                        qrData.orderId,
-                        qrData.isSplitPayment,
-                        qrData.cashAmount
-                      );
-
-                      // 🆕 NUEVO: Si es modo AFIP Y facturación está habilitada, crear factura después
-                      if (
-                        shouldUseAfipMode &&
-                        afipPaymentProcessor &&
-                        cartItems.length > 0
-                      ) {
+                    disabled={isManualCompletionLoading}
+                    onClick={() => {
+                      // ✅ PROTECCIÓN: Evitar clics múltiples
+                      if (isManualCompletionLoading) {
                         console.log(
-                          "🧾📱 QR Dialog: Completado manualmente en modo AFIP, creando factura..."
+                          "🛡️ QR Dialog: Ignorando clic múltiple en completar manual"
                         );
-                        try {
-                          await afipPaymentProcessor.createAfipInvoiceAfterPayment(
-                            qrData.orderId,
-                            cartItems,
-                            {
-                              payment_id: `manual_${qrData.orderId}`,
-                              orderId: qrData.orderId,
-                              isManual: true,
-                            }
-                          );
-                        } catch (error) {
-                          console.error(
-                            "❌ QR Dialog: Error al crear factura AFIP manual:",
-                            error
-                          );
-                        }
+                        return;
+                      }
+
+                      console.log("🔧 QR Dialog: Iniciando completado manual", {
+                        orderId: qrData.orderId,
+                        isAfipMode: shouldUseAfipMode,
+                        isSplitPayment: qrData.isSplitPayment,
+                        cashAmount: qrData.cashAmount,
+                      });
+
+                      // ✅ CORRECCIÓN: Usar el flujo de contraseña como en el flujo normal
+                      if (shouldUseAfipMode && afipPaymentProcessor) {
+                        // Para AFIP, usar el hook AFIP
+                        console.log(
+                          "🔧 QR Dialog: Abriendo diálogo de contraseña AFIP"
+                        );
+                        afipPaymentProcessor.setManualQrPasswordDialogOpen(
+                          true
+                        );
+                      } else {
+                        // Para flujo normal, usar el hook normal
+                        console.log(
+                          "🔧 QR Dialog: Abriendo diálogo de contraseña normal"
+                        );
+                        paymentProcessor.setManualQrPasswordDialogOpen(true);
                       }
                     }}
                   >
-                    <Receipt className="h-4 w-4 mr-2" />
-                    {isAfipMode
-                      ? "Completar manualmente y generar factura"
-                      : "Completar manualmente"}
+                    {isManualCompletionLoading ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
+                        Procesando...
+                      </>
+                    ) : (
+                      <>
+                        <Receipt className="h-4 w-4 mr-2" />
+                        {isAfipMode
+                          ? "Completar manualmente y generar factura"
+                          : "Completar manualmente"}
+                      </>
+                    )}
                   </Button>
                 )}
               </div>
@@ -272,8 +281,13 @@ export const QRPaymentDialog = ({
         <DialogFooter>
           <Button
             variant="outline"
-            onClick={paymentProcessor.cancelQRPayment}
+            onClick={() => {
+              // ✅ PROTECCIÓN: Limpiar estado de loading al cancelar
+              setIsManualCompletionLoading(false);
+              paymentProcessor.cancelQRPayment();
+            }}
             className="w-full"
+            disabled={isManualCompletionLoading}
           >
             Cancelar
           </Button>

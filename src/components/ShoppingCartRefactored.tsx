@@ -1620,6 +1620,24 @@ export default function ShoppingCartRefactored() {
         onSubmit={() =>
           paymentProcessor.handleManualQrPasswordSubmit(isCurrentlyAfipFlow)
         }
+        isLoading={paymentProcessor.isManualPasswordSubmitting}
+      />
+
+      {/* NUEVO: Diálogo de contraseña QR manual para AFIP */}
+      <ManualQrDialog
+        open={afipPaymentProcessor.manualQrPasswordDialogOpen}
+        onOpenChange={(open: boolean) => {
+          if (!open) {
+            afipPaymentProcessor.setManualQrPasswordDialogOpen(false);
+            afipPaymentProcessor.setManualQrPassword("");
+          }
+        }}
+        password={afipPaymentProcessor.manualQrPassword}
+        onPasswordChange={(value: string) =>
+          afipPaymentProcessor.setManualQrPassword(value)
+        }
+        onSubmit={() => afipPaymentProcessor.handleManualQrPasswordSubmit()}
+        isLoading={afipPaymentProcessor.isManualPasswordSubmitting}
       />
 
       <SplitPaymentDialog

@@ -190,8 +190,23 @@ export function usePaymentProcessing({
         ...result,
         isDuplicate: false,
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error("❌ ANTI-DUPLICADOS: Error creando orden:", error);
+
+      // ✅ MANEJO ESPECIAL: Si es el error de "No valid items", el backend ya procesó todo
+      if (error.message?.includes("No valid items to create order payload")) {
+        console.warn(
+          "🔧 ANTI-DUPLICADOS: Error de items vacíos - backend ya procesó la orden"
+        );
+        console.warn("🔧 Retornando como orden ya existente");
+
+        return {
+          isDuplicate: true,
+          message: "Orden ya procesada por el backend",
+          id: "backend-processed",
+        };
+      }
+
       throw error;
     } finally {
       setIsProcessingOrder(false);
@@ -634,11 +649,11 @@ export function usePaymentProcessing({
         );
         console.log(
           "🌐 Haciendo petición a:",
-          `${API_URL}/api/mercadopago/check-status?orderId=${orderId}`
+          `${API_URL}/api/mercadopago/check-status/${orderId}`
         );
 
         const response = await fetch(
-          `${API_URL}/api/mercadopago/check-status?orderId=${orderId}`,
+          `${API_URL}/api/mercadopago/check-status/${orderId}`,
           {
             headers,
             credentials: "include",
@@ -786,77 +801,105 @@ export function usePaymentProcessing({
         return;
       }
 
-      if (paymentData.isCompleted && paymentData.cartData) {
+      if (paymentData.isCompleted) {
+        console.log("💰 Pago QR completado exitosamente por el backend");
+
+        // ✅ CORRECCIÓN: El backend refactorizado ya maneja todo automáticamente
+        // Pero aún necesitamos imprimir el ticket con los datos de la orden
+        console.log(
+          "✅ FINALIZE MP: Backend ya procesó la orden automáticamente"
+        );
+
         try {
-          console.log("💰 Pago completado, preparando para crear orden en BD");
+          // ✅ OBTENER DATOS DE LA ORDEN DESDE EL BACKEND PARA IMPRESIÓN
+          if (paymentData.orderData || paymentData.orderId) {
+            console.log("🖨️ FINALIZE MP: Obteniendo datos para impresión");
 
-          const orderItems = paymentData.cartData.items as any[];
+            let orderDataForPrint = paymentData.orderData;
 
-          const orderData = {
-            metodoPago: "qr",
-            total: paymentData.cartData.total,
-            items: orderItems,
-            vendedorId: user.id,
-            sucursalId: user.sucursalId,
-            vendedor: user.nombre,
-            businessName: await getBusinessName(),
-            createdAt: new Date().toISOString(),
-            referencia: paymentData.orderId?.toString() || "unknown",
-          };
+            // Si no tenemos datos completos pero sí tenemos un orderId, construir datos básicos
+            if (!orderDataForPrint && paymentData.orderId) {
+              console.log(
+                "🖨️ FINALIZE MP: Construyendo datos básicos para impresión"
+              );
 
-          // ✅ ANTI-DUPLICADOS: Crear orden con verificación de duplicados
-          const orderResult = await createOrderWithDuplicateCheck(orderData);
+              // Obtener datos del carrito actual/QR para impresión
+              const cartData = paymentData.cartData || {
+                items: qrDataRef.current?.items || [],
+                total: qrDataRef.current?.monto || 0,
+              };
 
-          if (!orderResult) {
-            console.log("⏳ FINALIZE MP: Orden cancelada por concurrencia");
-            return;
-          }
-
-          if (orderResult.isDuplicate) {
-            console.log(
-              "✅ FINALIZE MP: Orden duplicada detectada, usando existente"
-            );
-            // Mostrar éxito y limpiar estados
-            toast.success("Orden completada exitosamente");
-            if (setQrDialogOpenRef) {
-              setQrDialogOpenRef(false);
+              orderDataForPrint = {
+                id: paymentData.orderId,
+                idReal: paymentData.orderId,
+                metodoPago: "qr",
+                total: cartData.total,
+                items: cartData.items,
+                vendedorId: user.id,
+                sucursalId: user.sucursalId,
+                vendedor: user.nombre,
+                estado: "COMPLETADA",
+                createdAt: new Date().toISOString(),
+              };
             }
-            clearCart();
-            resetPaymentState();
-            return;
-          }
 
-          console.log("📋 FINALIZE MP: Nueva orden creada:", orderResult);
+            if (orderDataForPrint) {
+              console.log("🖨️ FINALIZE MP: Iniciando impresión de ticket QR");
 
-          // Añadir el idReal a los datos de la orden para impresión
-          const enrichedOrderData = {
-            ...orderData,
-            idReal: orderResult.idReal || orderResult.id || null,
-            id: orderResult.id || null,
-          };
+              // Mostrar toast de impresión
+              const printingToastId = toast.loading("Imprimiendo ticket...");
 
-          // Solo imprimir el ticket si no se indica saltar la impresión
-          if (!skipPrinting) {
-            // ✅ IMPRESIÓN SIMPLIFICADA: El hook useTicketPrinting ya maneja la doble impresión internamente
-            await handleTicketPrinting(enrichedOrderData);
+              try {
+                // Llamar a impresión
+                await handleTicketPrinting(orderDataForPrint);
+
+                // Cerrar toast de impresión
+                toast.dismiss(printingToastId);
+
+                console.log("✅ FINALIZE MP: Ticket impreso exitosamente");
+              } catch (printError) {
+                console.error(
+                  "❌ FINALIZE MP: Error en impresión:",
+                  printError
+                );
+                toast.dismiss(printingToastId);
+                toast.error(
+                  "Error al imprimir el ticket, pero el pago se completó correctamente"
+                );
+              }
+            } else {
+              console.warn(
+                "⚠️ FINALIZE MP: No se encontraron datos para impresión"
+              );
+            }
           } else {
-            console.log("🖨️ Impresión de ticket omitida (skipPrinting=true)");
+            console.warn(
+              "⚠️ FINALIZE MP: No hay datos de orden ni orderId para impresión"
+            );
           }
-
-          // ✅ Orden registrada - limpiar estados, cerrar diálogo y vaciar carrito
-          if (setQrDialogOpenRef) {
-            setQrDialogOpenRef(false);
-          }
-
-          toast.success("Orden completada exitosamente");
-
-          // Limpiar carrito y estados
-          clearCart();
-          resetPaymentState();
-        } catch (error: any) {
-          console.error("❌ Error al procesar orden:", error);
-          toast.error(`Error: ${error.message}`);
+        } catch (error) {
+          console.error(
+            "❌ FINALIZE MP: Error en proceso de impresión:",
+            error
+          );
+          toast.error(
+            "Error al imprimir el ticket, pero el pago se completó correctamente"
+          );
         }
+
+        // Mostrar éxito
+        toast.success("¡Pago completado exitosamente!");
+
+        // Cerrar diálogo QR
+        if (setQrDialogOpenRef) {
+          setQrDialogOpenRef(false);
+        }
+
+        // Limpiar carrito y estados
+        clearCart();
+        resetPaymentState();
+
+        console.log("✅ FINALIZE MP: Proceso completado con impresión");
       }
     } catch (error: any) {
       console.error("❌ Error al finalizar pago:", error);
@@ -936,6 +979,8 @@ export function usePaymentProcessing({
     setManualQrPasswordDialogOpen(false);
     setManualQrPassword("");
     setManualQrOrderDetails(null);
+    // ✅ NUEVO: limpiar estado de loading de contraseña manual
+    setIsManualPasswordSubmitting(false);
 
     // ✅ ANTI-DUPLICADOS: Resetear flag de procesamiento
     setIsProcessingOrder(false);
@@ -1267,9 +1312,11 @@ export function usePaymentProcessing({
         vendedorId: user.id,
         sucursalId: user.sucursalId,
         items: orderItems,
+        // ✅ CORRECCIÓN: Usar parámetros compatibles con backend refactorizado
+        requiresAfipInvoice: false, // F3 - Flujo sin AFIP
         isSplitPayment: true,
         cashAmount: cashAmountValue,
-        skipAfip: true,
+        afipData: null,
       };
 
       console.log(
@@ -1366,7 +1413,7 @@ export function usePaymentProcessing({
       try {
         console.log("🔄 Verificando estado del pago mixto...");
         const response = await fetch(
-          `${API_URL}/api/mercadopago/check-status?orderId=${orderId}`,
+          `${API_URL}/api/mercadopago/check-status/${orderId}`,
           {
             headers,
             credentials: "include",
@@ -1489,69 +1536,91 @@ export function usePaymentProcessing({
           itemsPreview: orderItems.slice(0, 2),
         });
 
-        if (!orderItems || orderItems.length === 0) {
-          console.warn(
-            "⚠️ MANUAL FINALIZE: No hay items válidos para crear orden"
-          );
-          console.warn(
-            "⚠️ Esto puede indicar que el backend ya procesó todo automáticamente"
+        // ✅ CORRECCIÓN: Con backend refactorizado, NO crear órdenes locales para QR mixtos
+        // Pero sí necesitamos imprimir el ticket con los datos de la orden
+        console.warn(
+          "✅ MANUAL FINALIZE: Backend refactorizado ya procesó todo automáticamente"
+        );
+
+        try {
+          // ✅ CONSTRUIR DATOS PARA IMPRESIÓN DE PAGO MIXTO MANUAL
+          console.log(
+            "🖨️ MANUAL FINALIZE: Construyendo datos para impresión mixta"
           );
 
-          // En lugar de fallar, simplemente completar el proceso
-          toast.success("¡Pago completado exitosamente!");
+          const cartData = {
+            items: qrDataRef.current?.items || [],
+            total: qrDataRef.current?.monto || 0,
+          };
+
+          const orderDataForPrint = {
+            id: orderId,
+            idReal: orderId,
+            metodoPago: "split", // Método mixto
+            total: totalAmount, // Total combinado
+            items: cartData.items,
+            vendedorId: user.id,
+            sucursalId: user.sucursalId,
+            vendedor: user.nombre,
+            estado: "COMPLETADA",
+            createdAt: new Date().toISOString(),
+            // ✅ DATOS ESPECÍFICOS PARA PAGO MIXTO MANUAL
+            pagos: [
+              {
+                metodoPago: "efectivo",
+                monto: cashAmount,
+              },
+              {
+                metodoPago: "qr",
+                monto: cartData.total,
+              },
+            ],
+          };
 
           console.log(
-            "✅ MANUAL FINALIZE: Completado sin crear orden local (sin items)"
+            "🖨️ MANUAL FINALIZE: Iniciando impresión de ticket mixto manual"
           );
-          return; // Salir temprano sin crear orden
-        }
 
-        const orderData = {
-          total: totalAmount,
-          items: orderItems,
-          vendedorId: user.id,
-          sucursalId: user.sucursalId,
-          vendedor: user.nombre,
-          businessName: await getBusinessName(),
-          createdAt: new Date().toISOString(),
-          pagos: [
-            {
-              metodoPago: "efectivo",
-              monto: cashAmount,
-            },
-            {
-              metodoPago: "qr",
-              monto: qrDataRef.current?.monto || 0,
-              referencia: orderId.toString(),
-            },
-          ],
-        };
+          // Mostrar toast de impresión
+          const printingToastId = toast.loading("Imprimiendo ticket...");
 
-        // ✅ ANTI-DUPLICADOS: Crear orden con verificación de duplicados
-        const orderResult = await createOrderWithDuplicateCheck(orderData);
+          try {
+            // Llamar a impresión
+            await handleTicketPrinting(orderDataForPrint);
 
-        if (!orderResult) {
-          console.log(
-            "⏳ FINALIZE MANUAL SPLIT: Orden cancelada por concurrencia"
+            // Cerrar toast de impresión
+            toast.dismiss(printingToastId);
+
+            console.log(
+              "✅ MANUAL FINALIZE: Ticket mixto impreso exitosamente"
+            );
+          } catch (printError) {
+            console.error(
+              "❌ MANUAL FINALIZE: Error en impresión:",
+              printError
+            );
+            toast.dismiss(printingToastId);
+            toast.error(
+              "Error al imprimir el ticket, pero el pago se completó correctamente"
+            );
+          }
+        } catch (error) {
+          console.error(
+            "❌ MANUAL FINALIZE: Error en proceso de impresión:",
+            error
           );
-          return;
+          toast.error(
+            "Error al imprimir el ticket, pero el pago se completó correctamente"
+          );
         }
 
-        if (orderResult.isDuplicate) {
-          console.log("✅ FINALIZE MANUAL SPLIT: Orden duplicada detectada");
-          return; // Ya existe, no hacer nada más
-        }
+        // Completar el proceso
+        toast.success("¡Pago mixto completado exitosamente!");
 
-        const enrichedOrderData = {
-          ...orderData,
-          idReal: orderResult.idReal || orderResult.id || null,
-          id: orderResult.id || null,
-        };
-
-        // Imprimir ticket
-        await handleTicketPrinting(enrichedOrderData);
-
-        console.log("✅ MANUAL FINALIZE: Pago mixto completado");
+        console.log(
+          "✅ MANUAL FINALIZE: Completado con impresión (backend ya procesó)"
+        );
+        return; // Salir temprano
       } else {
         // ✅ FINALIZACIÓN MANUAL QR: Procesar sin conflictos de estado
         console.log("🔄 MANUAL FINALIZE: Procesando pago QR manual");
@@ -1566,60 +1635,80 @@ export function usePaymentProcessing({
           itemsPreview: orderItems.slice(0, 2),
         });
 
-        if (!orderItems || orderItems.length === 0) {
-          console.warn(
-            "⚠️ MANUAL FINALIZE QR: No hay items válidos para crear orden"
-          );
-          console.warn(
-            "⚠️ Esto puede indicar que el backend ya procesó todo automáticamente"
+        // ✅ CORRECCIÓN: Con backend refactorizado, NO crear órdenes locales para QR
+        // Pero sí necesitamos imprimir el ticket con los datos de la orden
+        console.warn(
+          "✅ MANUAL FINALIZE QR: Backend refactorizado ya procesó todo automáticamente"
+        );
+
+        try {
+          // ✅ CONSTRUIR DATOS PARA IMPRESIÓN DE QR MANUAL
+          console.log(
+            "🖨️ MANUAL FINALIZE QR: Construyendo datos para impresión"
           );
 
-          // En lugar de fallar, simplemente completar el proceso
-          toast.success("¡Pago completado exitosamente!");
+          const cartData = {
+            items: qrDataRef.current?.items || [],
+            total: qrDataRef.current?.monto || 0,
+          };
+
+          const orderDataForPrint = {
+            id: orderId,
+            idReal: orderId,
+            metodoPago: "qr",
+            total: cartData.total,
+            items: cartData.items,
+            vendedorId: user.id,
+            sucursalId: user.sucursalId,
+            vendedor: user.nombre,
+            estado: "COMPLETADA",
+            createdAt: new Date().toISOString(),
+          };
 
           console.log(
-            "✅ MANUAL FINALIZE QR: Completado sin crear orden local (sin items)"
+            "🖨️ MANUAL FINALIZE QR: Iniciando impresión de ticket QR manual"
           );
-          return; // Salir temprano sin crear orden
-        }
 
-        const orderData = {
-          metodoPago: "qr",
-          total: qrDataRef.current?.monto || 0,
-          items: orderItems,
-          vendedorId: user.id,
-          sucursalId: user.sucursalId,
-          vendedor: user.nombre,
-          businessName: await getBusinessName(),
-          createdAt: new Date().toISOString(),
-          referencia: orderId.toString(),
-        };
+          // Mostrar toast de impresión
+          const printingToastId = toast.loading("Imprimiendo ticket...");
 
-        // ✅ ANTI-DUPLICADOS: Crear orden con verificación de duplicados
-        const orderResult = await createOrderWithDuplicateCheck(orderData);
+          try {
+            // Llamar a impresión
+            await handleTicketPrinting(orderDataForPrint);
 
-        if (!orderResult) {
-          console.log(
-            "⏳ FINALIZE MANUAL QR: Orden cancelada por concurrencia"
+            // Cerrar toast de impresión
+            toast.dismiss(printingToastId);
+
+            console.log(
+              "✅ MANUAL FINALIZE QR: Ticket QR impreso exitosamente"
+            );
+          } catch (printError) {
+            console.error(
+              "❌ MANUAL FINALIZE QR: Error en impresión:",
+              printError
+            );
+            toast.dismiss(printingToastId);
+            toast.error(
+              "Error al imprimir el ticket, pero el pago se completó correctamente"
+            );
+          }
+        } catch (error) {
+          console.error(
+            "❌ MANUAL FINALIZE QR: Error en proceso de impresión:",
+            error
           );
-          return;
+          toast.error(
+            "Error al imprimir el ticket, pero el pago se completó correctamente"
+          );
         }
 
-        if (orderResult.isDuplicate) {
-          console.log("✅ FINALIZE MANUAL QR: Orden duplicada detectada");
-          return; // Ya existe, no hacer nada más
-        }
+        // Completar el proceso
+        toast.success("¡Pago completado exitosamente!");
 
-        const enrichedOrderData = {
-          ...orderData,
-          idReal: orderResult.idReal || orderResult.id || null,
-          id: orderResult.id || null,
-        };
-
-        // Imprimir ticket
-        await handleTicketPrinting(enrichedOrderData);
-
-        console.log("✅ MANUAL FINALIZE: Pago QR completado");
+        console.log(
+          "✅ MANUAL FINALIZE QR: Completado con impresión (backend ya procesó)"
+        );
+        return; // Salir temprano
       }
 
       // ✅ FINALIZACIÓN EXITOSA: Limpiar todo de manera controlada
@@ -1671,7 +1760,17 @@ export function usePaymentProcessing({
   };
 
   // Función para manejar el envío de contraseña QR manual
+  // ✅ NUEVO: Estado para proteger contra envíos múltiples de contraseña manual
+  const [isManualPasswordSubmitting, setIsManualPasswordSubmitting] =
+    useState(false);
+
   const handleManualQrPasswordSubmit = async (isAfipFlow: boolean) => {
+    // ✅ PROTECCIÓN: Evitar envíos múltiples
+    if (isManualPasswordSubmitting) {
+      console.log("🛡️ Ignorando envío múltiple de contraseña manual");
+      return;
+    }
+
     if (!qrDataRef.current?.id) {
       toast.error("No hay una orden QR pendiente para completar.");
       return;
@@ -1681,6 +1780,9 @@ export function usePaymentProcessing({
     console.log(
       `🔧 Completando manualmente orden ${orderId}. ¿Requiere AFIP?: ${isAfipFlow}`
     );
+
+    // ✅ PROTECCIÓN: Marcar como enviando
+    setIsManualPasswordSubmitting(true);
 
     try {
       const headers: HeadersInit = {
@@ -1726,10 +1828,19 @@ export function usePaymentProcessing({
       }
       clearCart();
       resetPaymentState();
-      toast.success("Orden completada manualmente con éxito.");
+
+      // Mostrar éxito con mensaje específico
+      toast.success(
+        result.message || "¡Orden completada manualmente con éxito!"
+      );
     } catch (error: any) {
       console.error("Error en handleManualQrPasswordSubmit:", error);
       toast.error(error.message);
+      // ✅ MANTENER diálogos abiertos en caso de error para que el usuario pueda reintentar
+      // NO cerrar setManualQrPasswordDialogOpen ni setQrDialogOpen
+    } finally {
+      // ✅ PROTECCIÓN: Siempre limpiar el estado de loading
+      setIsManualPasswordSubmitting(false);
     }
   };
 
@@ -1850,81 +1961,121 @@ export function usePaymentProcessing({
       }
 
       if (paymentData.isCompleted) {
+        console.log("💰 Pago mixto QR completado exitosamente por el backend");
+
+        // ✅ CORRECCIÓN: El backend refactorizado ya maneja todo automáticamente
+        // Pero aún necesitamos imprimir el ticket con los datos de la orden
+        console.log(
+          "✅ FINALIZE SPLIT MP: Backend ya procesó la orden automáticamente"
+        );
+
         try {
-          const orderItems = qrDataRef.current?.items || [];
-
-          const totalAmount = (qrDataRef.current?.monto || 0) + cashAmount;
-
-          const orderData = {
-            total: totalAmount,
-            items: orderItems,
-            vendedorId: user.id,
-            sucursalId: user.sucursalId,
-            vendedor: user.nombre,
-            businessName: await getBusinessName(),
-            createdAt: new Date().toISOString(),
-            pagos: [
-              {
-                metodoPago: "efectivo",
-                monto: cashAmount,
-              },
-              {
-                metodoPago: "qr",
-                monto: qrDataRef.current?.monto || 0,
-                referencia: paymentData.orderId?.toString() || "unknown",
-              },
-            ],
-          };
-
-          // ✅ ANTI-DUPLICADOS: Crear orden con verificación de duplicados
-          const orderResult = await createOrderWithDuplicateCheck(orderData);
-
-          if (!orderResult) {
+          // ✅ OBTENER DATOS DE LA ORDEN DESDE EL BACKEND PARA IMPRESIÓN
+          if (paymentData.orderData || paymentData.orderId) {
             console.log(
-              "⏳ FINALIZE SPLIT MP: Orden cancelada por concurrencia"
+              "🖨️ FINALIZE SPLIT MP: Obteniendo datos para impresión"
             );
-            return;
-          }
 
-          if (orderResult.isDuplicate) {
-            console.log(
-              "✅ FINALIZE SPLIT MP: Orden duplicada detectada, usando existente"
-            );
-            toast.success("Orden completada exitosamente");
-            if (setQrDialogOpenRef) {
-              setQrDialogOpenRef(false);
+            let orderDataForPrint = paymentData.orderData;
+
+            // Si no tenemos datos completos pero sí tenemos un orderId, construir datos básicos
+            if (!orderDataForPrint && paymentData.orderId) {
+              console.log(
+                "🖨️ FINALIZE SPLIT MP: Construyendo datos básicos para impresión"
+              );
+
+              // Obtener datos del carrito actual/QR para impresión
+              const cartData = paymentData.cartData || {
+                items: qrDataRef.current?.items || [],
+                total: qrDataRef.current?.monto || 0,
+              };
+
+              orderDataForPrint = {
+                id: paymentData.orderId,
+                idReal: paymentData.orderId,
+                metodoPago: "split", // Método mixto
+                total: (cartData.total || 0) + (cashAmount || 0), // Total combinado
+                items: cartData.items,
+                vendedorId: user.id,
+                sucursalId: user.sucursalId,
+                vendedor: user.nombre,
+                estado: "COMPLETADA",
+                createdAt: new Date().toISOString(),
+                // ✅ DATOS ESPECÍFICOS PARA PAGO MIXTO
+                pagos: [
+                  {
+                    metodoPago: "efectivo",
+                    monto: cashAmount || 0,
+                  },
+                  {
+                    metodoPago: "qr",
+                    monto: cartData.total || 0,
+                  },
+                ],
+              };
             }
-            clearCart();
-            resetPaymentState();
-            return;
+
+            if (orderDataForPrint) {
+              console.log(
+                "🖨️ FINALIZE SPLIT MP: Iniciando impresión de ticket mixto"
+              );
+
+              // Mostrar toast de impresión
+              const printingToastId = toast.loading("Imprimiendo ticket...");
+
+              try {
+                // Llamar a impresión
+                await handleTicketPrinting(orderDataForPrint);
+
+                // Cerrar toast de impresión
+                toast.dismiss(printingToastId);
+
+                console.log(
+                  "✅ FINALIZE SPLIT MP: Ticket impreso exitosamente"
+                );
+              } catch (printError) {
+                console.error(
+                  "❌ FINALIZE SPLIT MP: Error en impresión:",
+                  printError
+                );
+                toast.dismiss(printingToastId);
+                toast.error(
+                  "Error al imprimir el ticket, pero el pago se completó correctamente"
+                );
+              }
+            } else {
+              console.warn(
+                "⚠️ FINALIZE SPLIT MP: No se encontraron datos para impresión"
+              );
+            }
+          } else {
+            console.warn(
+              "⚠️ FINALIZE SPLIT MP: No hay datos de orden ni orderId para impresión"
+            );
           }
-
-          console.log("📋 FINALIZE SPLIT MP: Nueva orden creada:", orderResult);
-
-          // Añadir el idReal a los datos de la orden para impresión
-          const enrichedOrderData = {
-            ...orderData,
-            idReal: orderResult.idReal || orderResult.id || null,
-            id: orderResult.id || null,
-          };
-
-          // ✅ IMPRESIÓN SIMPLIFICADA: El hook useTicketPrinting ya maneja la doble impresión internamente
-          await handleTicketPrinting(enrichedOrderData);
-
-          // ✅ Orden registrada - limpiar estados, cerrar diálogo y vaciar carrito
-          if (setQrDialogOpenRef) {
-            setQrDialogOpenRef(false);
-          }
-
-          toast.success("Orden completada exitosamente");
-
-          // Limpiar carrito y estados
-          clearCart();
-          resetPaymentState();
-        } catch (error: any) {
-          console.error("❌ Error al procesar orden:", error);
-          toast.error(`Error: ${error.message}`);
+        } catch (error) {
+          console.error(
+            "❌ FINALIZE SPLIT MP: Error en proceso de impresión:",
+            error
+          );
+          toast.error(
+            "Error al imprimir el ticket, pero el pago se completó correctamente"
+          );
         }
+
+        // Mostrar éxito
+        toast.success("¡Pago mixto completado exitosamente!");
+
+        // Cerrar diálogo QR
+        if (setQrDialogOpenRef) {
+          setQrDialogOpenRef(false);
+        }
+
+        // Limpiar carrito y estados
+        clearCart();
+        resetPaymentState();
+
+        console.log("✅ FINALIZE SPLIT MP: Proceso completado con impresión");
       }
     } catch (error: any) {
       console.error("❌ Error al finalizar pago:", error);
@@ -1956,6 +2107,8 @@ export function usePaymentProcessing({
     applyingDiscount,
     manualQrPasswordDialogOpen,
     manualQrPassword,
+    // NUEVO ESTADO: Loading para completado manual con contraseña
+    isManualPasswordSubmitting,
     // Nuevos estados para pago exacto
     exactPaymentDialogOpen,
     paidAmount,
