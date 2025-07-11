@@ -594,10 +594,14 @@ export function usePaymentProcessing({
       console.log("📲 Respuesta del backend (QR):", result);
 
       if (result.qrData) {
-        // Guardar la información del QR para el polling y la finalización manual
+        // ✅ CORRECCIÓN: Limpiar toast de loading ANTES de continuar
+        toast.dismiss("qr-loading");
+
+        // ✅ CORRECCIÓN: Guardar la información del QR INCLUYENDO los items originales para impresión
         const qrDataWithAmount = {
           ...result,
           monto: Number(calculateTotal().toFixed(2)),
+          items: orderItems, // ✅ CRITICAL FIX: Incluir items originales para impresión
         };
         updateQrData(qrDataWithAmount);
         setPaymentStatus("PENDIENTE");
@@ -618,6 +622,7 @@ export function usePaymentProcessing({
       }
     } catch (error: any) {
       console.error(`Error al generar QR: ${error.message}`);
+      // ✅ CORRECCIÓN: Asegurar que el toast se limpie SIEMPRE en caso de error
       toast.dismiss("qr-loading");
       toast.error(`Error al generar QR: ${error.message}`);
       setIsProcessingPayment(false);
@@ -756,19 +761,31 @@ export function usePaymentProcessing({
     console.log("✅ pollingInterval guardado en estado");
   };
 
-  // Cancelar el pago con QR
+  // Función para cancelar QR
   const cancelQRPayment = () => {
-    console.log("❌ Pago con QR cancelado por el usuario");
-    cleanupPolling();
+    console.log("🔴 Cancelando pago QR");
 
-    // Cerrar diálogo y limpiar estados
-    if (setQrDialogOpenRef) {
-      setQrDialogOpenRef(false);
+    // ✅ CORRECCIÓN: Limpiar toast de loading al cancelar
+    toast.dismiss("qr-loading");
+
+    // Limpiar polling
+    if (pollingInterval) {
+      clearInterval(pollingInterval);
+      setPollingInterval(null);
     }
-    updateQrData(null as any);
+
+    // Limpiar estados
+    setQrData(null);
     setPaymentStatus(null);
     setIsProcessingPayment(false);
     setSelectedPaymentMethod(null);
+
+    // Cerrar diálogo QR
+    if (setQrDialogOpenRef) {
+      setQrDialogOpenRef(false);
+    }
+
+    console.log("✅ Pago QR cancelado y estados limpiados");
   };
 
   // Limpiar el polling
@@ -845,6 +862,21 @@ export function usePaymentProcessing({
 
             if (orderDataForPrint) {
               console.log("🖨️ FINALIZE MP: Iniciando impresión de ticket QR");
+
+              // ✅ SIMULACIÓN: Log detallado de los datos que se van a imprimir
+              console.log("🎯 SIMULACIÓN DE TICKET QR AUTOMÁTICO SIN AFIP:");
+              console.log("📋 === DATOS PARA IMPRESIÓN ===");
+              console.log("🆔 ID:", orderDataForPrint.id);
+              console.log("🆔 ID Real:", orderDataForPrint.idReal);
+              console.log("💳 Método de Pago:", orderDataForPrint.metodoPago);
+              console.log("💰 Total:", orderDataForPrint.total);
+              console.log("🛒 Items:", orderDataForPrint.items);
+              console.log("👤 Vendedor ID:", orderDataForPrint.vendedorId);
+              console.log("🏢 Sucursal ID:", orderDataForPrint.sucursalId);
+              console.log("👤 Vendedor:", orderDataForPrint.vendedor);
+              console.log("🟢 Estado:", orderDataForPrint.estado);
+              console.log("📅 Creado:", orderDataForPrint.createdAt);
+              console.log("🎯 === FIN SIMULACIÓN DATOS IMPRESIÓN ===");
 
               // Mostrar toast de impresión
               const printingToastId = toast.loading("Imprimiendo ticket...");
@@ -954,52 +986,24 @@ export function usePaymentProcessing({
 
   // Resetear el estado del procesador de pagos
   const resetPaymentState = () => {
-    console.log("🧹 RESET: Limpiando estados del procesador de pagos");
-    console.log("🧹 RESET: Estados ANTES de limpiar:", {
-      selectedPaymentMethod,
-      isProcessingPayment,
-      qrData: !!qrData,
-      paymentStatus,
-      cashAmount,
-      roundedAmountDialogOpen,
-      manualQrPasswordDialogOpen,
-    });
+    console.log("🧹 Reseteando estados de pago");
 
-    // ✅ LIMPIEZA COMPLETA: Limpiar todos los estados de forma síncrona
-    setSelectedPaymentMethod(null);
+    // ✅ CORRECCIÓN: Limpiar toasts residuales al resetear
+    toast.dismiss("qr-loading");
+    toast.dismiss("processing-order");
+    toast.dismiss("printing-ticket");
+
     setIsProcessingPayment(false);
-    updateQrData(null as any);
+    setSelectedPaymentMethod(null);
+    setQrData(null);
     setPaymentStatus(null);
-    setCashAmount("");
-    setSecondPaymentMethod("tarjeta");
-    setRetryCount(0);
-    setPollingStartTime(null);
-    setRoundedAmountDialogOpen(false);
-    setApplyingDiscount(false);
     setManualQrPasswordDialogOpen(false);
     setManualQrPassword("");
     setManualQrOrderDetails(null);
-    // ✅ NUEVO: limpiar estado de loading de contraseña manual
-    setIsManualPasswordSubmitting(false);
-
-    // ✅ ANTI-DUPLICADOS: Resetear flag de procesamiento
-    setIsProcessingOrder(false);
-
-    // ✅ CONTROL DE IMPRESIÓN: Limpiar tracking de órdenes impresas
-    clearPrintedOrdersTracking();
-
-    // ✅ LIMPIEZA DE POLLING: Asegurar que se limpia completamente
+    setCashAmount("");
+    setSecondPaymentMethod("tarjeta");
+    // Limpiar polling
     cleanupPolling();
-
-    console.log("✅ RESET: Estados limpiados completamente");
-
-    // ✅ FORZAR RE-RENDER: Usar setTimeout para asegurar que el cambio de estado se propague
-    setTimeout(() => {
-      console.log("🔄 RESET: Verificando estados después de reset:", {
-        selectedPaymentMethod,
-        isProcessingPayment,
-      });
-    }, 100);
   };
 
   // Función para procesar pagos mixtos
@@ -1358,10 +1362,14 @@ export function usePaymentProcessing({
       console.log("📲 Respuesta del backend (QR Mixto):", result);
 
       if (result.qrData) {
-        // Guardar la información del QR para el polling y la finalización manual
+        // ✅ CORRECCIÓN: Limpiar toast de loading ANTES de continuar
+        toast.dismiss("qr-loading");
+
+        // ✅ CORRECCIÓN: Guardar la información del QR INCLUYENDO los items originales para impresión
         const qrDataWithAmount = {
           ...result,
           monto: qrAmount,
+          items: orderItems, // ✅ CRITICAL FIX: Incluir items originales para impresión mixta
         };
         updateQrData(qrDataWithAmount);
         setPaymentStatus("PENDIENTE");
@@ -1382,6 +1390,7 @@ export function usePaymentProcessing({
       }
     } catch (error: any) {
       console.error("❌ Error al generar QR de pago mixto:", error);
+      // ✅ CORRECCIÓN: Asegurar que el toast se limpie SIEMPRE en caso de error
       toast.dismiss("qr-loading");
       toast.error(`Error: ${error.message}`);
       resetPaymentState();
@@ -1553,6 +1562,21 @@ export function usePaymentProcessing({
             total: qrDataRef.current?.monto || 0,
           };
 
+          // ✅ SIMULACIÓN: Log detallado de los datos que se van a imprimir para PAGO MIXTO
+          console.log("🎯 SIMULACIÓN DE TICKET PAGO MIXTO MANUAL:");
+          console.log("📋 === DATOS DEL CARRITO MIXTO ===");
+          console.log("🛒 Items del carrito:", cartData.items);
+          console.log("💰 Total QR:", cartData.total);
+          console.log("💰 Monto efectivo:", cashAmount);
+          console.log(
+            "💰 Total combinado:",
+            (cartData.total || 0) + cashAmount
+          );
+          console.log("📋 === DATOS DEL QR MIXTO ===");
+          console.log("🔍 qrDataRef.current completo:", qrDataRef.current);
+          console.log("🆔 orderId:", orderId);
+          console.log("👤 user:", user);
+
           const orderDataForPrint = {
             id: orderId,
             idReal: orderId,
@@ -1576,6 +1600,60 @@ export function usePaymentProcessing({
               },
             ],
           };
+
+          // ✅ SIMULACIÓN: Log completo de los datos finales de impresión MIXTO
+          console.log(
+            "🎯 === DATOS FINALES PARA IMPRESIÓN PAGO MIXTO MANUAL ==="
+          );
+          console.log("🆔 ID:", orderDataForPrint.id);
+          console.log("🆔 ID Real:", orderDataForPrint.idReal);
+          console.log("💳 Método de Pago:", orderDataForPrint.metodoPago);
+          console.log("💰 Total COMBINADO:", orderDataForPrint.total);
+          console.log("🛒 Items:", orderDataForPrint.items);
+          console.log("👤 Vendedor ID:", orderDataForPrint.vendedorId);
+          console.log("🏢 Sucursal ID:", orderDataForPrint.sucursalId);
+          console.log("👤 Vendedor:", orderDataForPrint.vendedor);
+          console.log("🟢 Estado:", orderDataForPrint.estado);
+          console.log("📅 Creado:", orderDataForPrint.createdAt);
+          console.log("💵 === DESGLOSE DE PAGOS MIXTOS ===");
+          console.log("💳 Pagos array:", orderDataForPrint.pagos);
+          orderDataForPrint.pagos?.forEach((pago: any, index: number) => {
+            console.log(
+              `💳 Pago ${index + 1}: ${pago.metodoPago} - $${pago.monto}`
+            );
+          });
+          console.log("🎯 === FIN SIMULACIÓN DATOS IMPRESIÓN MIXTO ===");
+
+          // ✅ VALIDACIÓN: Verificar que los datos mixtos son válidos antes de imprimir
+          if (
+            !orderDataForPrint.items ||
+            orderDataForPrint.items.length === 0
+          ) {
+            console.error("❌ MANUAL FINALIZE MIXTO: Items vacíos o inválidos");
+            console.error("🔍 cartData.items:", cartData.items);
+            console.error(
+              "🔍 qrDataRef.current?.items:",
+              qrDataRef.current?.items
+            );
+            throw new Error("No hay items válidos para imprimir pago mixto");
+          }
+
+          if (!orderDataForPrint.total || orderDataForPrint.total <= 0) {
+            console.error("❌ MANUAL FINALIZE MIXTO: Total inválido");
+            console.error("🔍 Total calculado:", totalAmount);
+            console.error("🔍 cartData.total:", cartData.total);
+            console.error("🔍 cashAmount:", cashAmount);
+            throw new Error("Total de la orden mixta inválido");
+          }
+
+          if (
+            !orderDataForPrint.pagos ||
+            orderDataForPrint.pagos.length !== 2
+          ) {
+            console.error("❌ MANUAL FINALIZE MIXTO: Datos de pagos inválidos");
+            console.error("🔍 pagos array:", orderDataForPrint.pagos);
+            throw new Error("Datos de pagos mixtos incompletos");
+          }
 
           console.log(
             "🖨️ MANUAL FINALIZE: Iniciando impresión de ticket mixto manual"
@@ -1652,6 +1730,16 @@ export function usePaymentProcessing({
             total: qrDataRef.current?.monto || 0,
           };
 
+          // ✅ SIMULACIÓN: Log detallado de los datos que se van a imprimir
+          console.log("🎯 SIMULACIÓN DE TICKET QR SIN AFIP:");
+          console.log("📋 === DATOS DEL CARRITO ===");
+          console.log("🛒 Items del carrito:", cartData.items);
+          console.log("💰 Total del carrito:", cartData.total);
+          console.log("📋 === DATOS DEL QR ===");
+          console.log("🔍 qrDataRef.current completo:", qrDataRef.current);
+          console.log("🆔 orderId:", orderId);
+          console.log("👤 user:", user);
+
           const orderDataForPrint = {
             id: orderId,
             idReal: orderId,
@@ -1664,6 +1752,44 @@ export function usePaymentProcessing({
             estado: "COMPLETADA",
             createdAt: new Date().toISOString(),
           };
+
+          // ✅ SIMULACIÓN: Log completo de los datos finales de impresión
+          console.log("🎯 === DATOS FINALES PARA IMPRESIÓN QR SIN AFIP ===");
+          console.log("🆔 ID:", orderDataForPrint.id);
+          console.log("🆔 ID Real:", orderDataForPrint.idReal);
+          console.log("💳 Método de Pago:", orderDataForPrint.metodoPago);
+          console.log("💰 Total:", orderDataForPrint.total);
+          console.log("🛒 Items:", orderDataForPrint.items);
+          console.log("👤 Vendedor ID:", orderDataForPrint.vendedorId);
+          console.log("🏢 Sucursal ID:", orderDataForPrint.sucursalId);
+          console.log("👤 Vendedor:", orderDataForPrint.vendedor);
+          console.log("🟢 Estado:", orderDataForPrint.estado);
+          console.log("📅 Creado:", orderDataForPrint.createdAt);
+          console.log("🎯 === FIN SIMULACIÓN DATOS IMPRESIÓN ===");
+
+          // ✅ VALIDACIÓN: Verificar que los datos son válidos antes de imprimir
+          if (
+            !orderDataForPrint.items ||
+            orderDataForPrint.items.length === 0
+          ) {
+            console.error("❌ MANUAL FINALIZE QR: Items vacíos o inválidos");
+            console.error("🔍 cartData.items:", cartData.items);
+            console.error(
+              "🔍 qrDataRef.current?.items:",
+              qrDataRef.current?.items
+            );
+            throw new Error("No hay items válidos para imprimir");
+          }
+
+          if (!orderDataForPrint.total || orderDataForPrint.total <= 0) {
+            console.error("❌ MANUAL FINALIZE QR: Total inválido");
+            console.error("🔍 cartData.total:", cartData.total);
+            console.error(
+              "🔍 qrDataRef.current?.monto:",
+              qrDataRef.current?.monto
+            );
+            throw new Error("Total de la orden inválido");
+          }
 
           console.log(
             "🖨️ MANUAL FINALIZE QR: Iniciando impresión de ticket QR manual"
@@ -1990,6 +2116,21 @@ export function usePaymentProcessing({
                 total: qrDataRef.current?.monto || 0,
               };
 
+              // ✅ SIMULACIÓN: Log detallado de los datos que se van a imprimir para PAGO MIXTO AUTOMÁTICO
+              console.log("🎯 SIMULACIÓN DE TICKET PAGO MIXTO AUTOMÁTICO:");
+              console.log("📋 === DATOS DEL CARRITO MIXTO AUTOMÁTICO ===");
+              console.log("🛒 Items del carrito:", cartData.items);
+              console.log("💰 Total QR:", cartData.total);
+              console.log("💰 Monto efectivo:", cashAmount);
+              console.log(
+                "💰 Total combinado:",
+                (cartData.total || 0) + (cashAmount || 0)
+              );
+              console.log("📋 === DATOS DEL PAYMENT DATA ===");
+              console.log("🔍 paymentData completo:", paymentData);
+              console.log("🆔 orderId:", paymentData.orderId);
+              console.log("👤 user:", user);
+
               orderDataForPrint = {
                 id: paymentData.orderId,
                 idReal: paymentData.orderId,
@@ -2001,18 +2142,77 @@ export function usePaymentProcessing({
                 vendedor: user.nombre,
                 estado: "COMPLETADA",
                 createdAt: new Date().toISOString(),
-                // ✅ DATOS ESPECÍFICOS PARA PAGO MIXTO
+                // ✅ DATOS ESPECÍFICOS PARA PAGO MIXTO AUTOMÁTICO
                 pagos: [
                   {
                     metodoPago: "efectivo",
-                    monto: cashAmount || 0,
+                    monto: cashAmount,
                   },
                   {
                     metodoPago: "qr",
-                    monto: cartData.total || 0,
+                    monto: cartData.total,
                   },
                 ],
               };
+
+              // ✅ SIMULACIÓN: Log completo de los datos finales de impresión MIXTO AUTOMÁTICO
+              console.log(
+                "🎯 === DATOS FINALES PARA IMPRESIÓN PAGO MIXTO AUTOMÁTICO ==="
+              );
+              console.log("🆔 ID:", orderDataForPrint.id);
+              console.log("🆔 ID Real:", orderDataForPrint.idReal);
+              console.log("💳 Método de Pago:", orderDataForPrint.metodoPago);
+              console.log("💰 Total COMBINADO:", orderDataForPrint.total);
+              console.log("🛒 Items:", orderDataForPrint.items);
+              console.log("👤 Vendedor ID:", orderDataForPrint.vendedorId);
+              console.log("🏢 Sucursal ID:", orderDataForPrint.sucursalId);
+              console.log("👤 Vendedor:", orderDataForPrint.vendedor);
+              console.log("🟢 Estado:", orderDataForPrint.estado);
+              console.log("📅 Creado:", orderDataForPrint.createdAt);
+              console.log("💵 === DESGLOSE DE PAGOS MIXTOS AUTOMÁTICO ===");
+              console.log("💳 Pagos array:", orderDataForPrint.pagos);
+              orderDataForPrint.pagos?.forEach((pago: any, index: number) => {
+                console.log(
+                  `💳 Pago ${index + 1}: ${pago.metodoPago} - $${pago.monto}`
+                );
+              });
+              console.log(
+                "🎯 === FIN SIMULACIÓN DATOS IMPRESIÓN MIXTO AUTOMÁTICO ==="
+              );
+
+              // ✅ VALIDACIÓN: Verificar que los datos mixtos automáticos son válidos
+              if (
+                !orderDataForPrint.items ||
+                orderDataForPrint.items.length === 0
+              ) {
+                console.error("❌ FINALIZE SPLIT MP: Items vacíos o inválidos");
+                console.error("🔍 cartData.items:", cartData.items);
+                console.error(
+                  "🔍 qrDataRef.current?.items:",
+                  qrDataRef.current?.items
+                );
+                throw new Error(
+                  "No hay items válidos para imprimir pago mixto automático"
+                );
+              }
+
+              if (!orderDataForPrint.total || orderDataForPrint.total <= 0) {
+                console.error("❌ FINALIZE SPLIT MP: Total inválido");
+                console.error("🔍 cartData.total:", cartData.total);
+                console.error("🔍 cashAmount:", cashAmount);
+                throw new Error("Total de la orden mixta automática inválido");
+              }
+            } else if (orderDataForPrint) {
+              // ✅ SIMULACIÓN: Log para datos que ya vienen del backend
+              console.log(
+                "🎯 SIMULACIÓN DE TICKET PAGO MIXTO (DATOS DEL BACKEND):"
+              );
+              console.log("📋 === DATOS RECIBIDOS DEL BACKEND ===");
+              console.log("🆔 ID:", orderDataForPrint.id);
+              console.log("💳 Método de Pago:", orderDataForPrint.metodoPago);
+              console.log("💰 Total:", orderDataForPrint.total);
+              console.log("🛒 Items:", orderDataForPrint.items);
+              console.log("🎯 === FIN SIMULACIÓN BACKEND ===");
             }
 
             if (orderDataForPrint) {

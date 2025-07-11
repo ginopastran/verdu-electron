@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/dialog";
 import { Wallet, QrCode, Receipt } from "lucide-react";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 interface QRPaymentDialogProps {
   open: boolean;
@@ -117,6 +118,8 @@ export const QRPaymentDialog = ({
           console.log("🔄 Cerrando diálogo QR, cancelando pago");
           // ✅ PROTECCIÓN: Limpiar estado de loading al cerrar
           setIsManualCompletionLoading(false);
+          // ✅ CORRECCIÓN: Limpiar toast de loading al cerrar diálogo
+          toast.dismiss("qr-loading");
           onOpenChange(false);
           paymentProcessor.cancelQRPayment();
         }
@@ -284,6 +287,8 @@ export const QRPaymentDialog = ({
             onClick={() => {
               // ✅ PROTECCIÓN: Limpiar estado de loading al cancelar
               setIsManualCompletionLoading(false);
+              // ✅ CORRECCIÓN: Limpiar toast de loading al cancelar
+              toast.dismiss("qr-loading");
               paymentProcessor.cancelQRPayment();
             }}
             className="w-full"

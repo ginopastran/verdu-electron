@@ -944,9 +944,11 @@ export function useAfipPaymentProcessing({
       console.log("🧾 Respuesta del backend (QR AFIP):", result);
 
       if (result.qrData && result.id) {
+        // ✅ CORRECCIÓN: Incluir items originales para impresión AFIP
         const qrDataWithAmount = {
           ...result,
           monto: total,
+          items: orderItems, // ✅ CRITICAL FIX: Incluir items originales para impresión AFIP
         };
         updateQrData(qrDataWithAmount);
         console.log("🧾✅ Estado QR actualizado.");
@@ -1053,6 +1055,11 @@ export function useAfipPaymentProcessing({
         (headers as Record<string, string>)["X-App-ID"] = appId;
       }
 
+      // ✅ CORRECCIÓN: Mostrar toast de loading como en el QR normal
+      toast.loading("Generando código QR para pago mixto AFIP...", {
+        id: "qr-loading",
+      });
+
       console.log("🔥🔥🔥 ENVIANDO REQUEST...");
       const response = await fetch(`${API_URL}/api/mercadopago/generate-qr`, {
         method: "POST",
@@ -1077,12 +1084,17 @@ export function useAfipPaymentProcessing({
       console.log("🧾🔁 Respuesta del backend (QR mixto AFIP):", result);
 
       if (result.qrData && result.id) {
+        // ✅ CORRECCIÓN: Limpiar toast de loading ANTES de continuar
+        toast.dismiss("qr-loading");
+
         console.log("🧾🔁✅ Estado QR mixto actualizado.");
         console.log("🔍 CRÍTICO: QR creado, NO debería crear factura aún");
 
+        // ✅ CORRECCIÓN: Incluir items originales para impresión AFIP mixta
         const qrDataWithAmount = {
           ...result,
           monto: qrAmount,
+          items: orderItems, // ✅ CRITICAL FIX: Incluir items originales para impresión AFIP mixta
         };
         updateQrData(qrDataWithAmount);
         setPaymentStatus("PENDIENTE");
@@ -1108,7 +1120,8 @@ export function useAfipPaymentProcessing({
     } catch (error: any) {
       console.error("🔥🔥🔥 ERROR EN generateAfipSplitQRPayment:", error);
       console.error("🔥🔥🔥 ERROR STACK:", error.stack);
-      console.error("❌ Error en generateAfipSplitQRPayment:", error);
+      // ✅ CORRECCIÓN: Limpiar toast de loading en caso de error
+      toast.dismiss("qr-loading");
       toast.error(error.message);
       resetPaymentState();
     }
