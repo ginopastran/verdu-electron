@@ -1984,8 +1984,26 @@ export function usePaymentProcessing({
       try {
         // ✅ PASO 3: Detectar si es pago mixto y procesar correctamente
         const orderDetails = manualQrOrderDetails;
+
+        // ✅ CRITICAL DEBUG: Log completo para detectar por qué no se reconoce como mixto
+        console.log("🔍 MANUAL COMPLETE DEBUG: Verificando tipo de pago");
+        console.log("🔍 manualQrOrderDetails:", manualQrOrderDetails);
+        console.log("🔍 orderDetails:", orderDetails);
+        console.log(
+          "🔍 orderDetails?.isSplitPayment:",
+          orderDetails?.isSplitPayment
+        );
+        console.log("🔍 orderDetails?.cashAmount:", orderDetails?.cashAmount);
+        console.log("🔍 qrDataRef.current:", qrDataRef.current);
+
+        // ✅ CORRECCIÓN: Detectar pago mixto de MÚLTIPLES formas
         const isMixedPayment =
-          orderDetails?.isSplitPayment && orderDetails?.cashAmount;
+          (orderDetails?.isSplitPayment && orderDetails?.cashAmount) ||
+          (qrDataRef.current?.isSplitPayment &&
+            qrDataRef.current?.cashAmount) ||
+          (qrDataRef.current?.cashAmount && qrDataRef.current?.cashAmount > 0);
+
+        console.log("🔍 isMixedPayment DETECTADO:", isMixedPayment);
 
         if (isMixedPayment) {
           // ✅ PAGO MIXTO MANUAL: Usar los datos completos
@@ -1998,7 +2016,10 @@ export function usePaymentProcessing({
             total: qrDataRef.current?.monto || 0,
           };
 
-          const totalAmount = cartData.total + orderDetails.cashAmount;
+          // ✅ CORRECCIÓN: Obtener cashAmount de múltiples fuentes posibles
+          const cashAmount =
+            orderDetails?.cashAmount || qrDataRef.current?.cashAmount || 0;
+          const totalAmount = cartData.total + cashAmount;
 
           // ✅ CRITICAL FIX: Incluir nombre del business para pagos mixtos
           const businessName =
@@ -2020,7 +2041,7 @@ export function usePaymentProcessing({
             pagos: [
               {
                 metodoPago: "efectivo",
-                monto: orderDetails.cashAmount,
+                monto: cashAmount,
               },
               {
                 metodoPago: "qr",
@@ -2035,7 +2056,7 @@ export function usePaymentProcessing({
           console.log("🆔 ID:", orderDataForPrint.id);
           console.log("💳 Método:", orderDataForPrint.metodoPago);
           console.log("💰 Total combinado:", orderDataForPrint.total);
-          console.log("💰 Efectivo:", orderDetails.cashAmount);
+          console.log("💰 Efectivo:", cashAmount);
           console.log("💰 QR:", cartData.total);
           console.log("🛒 Items:", orderDataForPrint.items);
           console.log("💳 Pagos:", orderDataForPrint.pagos);
