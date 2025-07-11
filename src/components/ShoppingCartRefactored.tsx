@@ -182,22 +182,24 @@ export default function ShoppingCartRefactored() {
     searchInputRef,
     // NUEVO: pasar referencia para abrir diálogo mixto
     setSplitPaymentDialogOpen: setAfipSplitPaymentDialogOpen,
+    setQrDialogOpen: setQrDialogOpen,
+    getCurrentItems: cartState.getCurrentItems, // ✅ AGREGADO
   });
 
   // 🔄 SYNC: Mantener los estados locales de pago en línea con el hook
   useEffect(() => {
-    console.log(
-      "🔄 SYNC: Actualizando isProcessingPayment local:",
-      paymentProcessor.isProcessingPayment
-    );
+    // console.log(
+    //   "🔄 SYNC: Actualizando isProcessingPayment local:",
+    //   paymentProcessor.isProcessingPayment
+    // );
     setIsProcessingPayment(paymentProcessor.isProcessingPayment);
   }, [paymentProcessor.isProcessingPayment]);
 
   useEffect(() => {
-    console.log(
-      "🔄 SYNC: Actualizando selectedPaymentMethod local:",
-      paymentProcessor.selectedPaymentMethod
-    );
+    // console.log(
+    //   "🔄 SYNC: Actualizando selectedPaymentMethod local:",
+    //   paymentProcessor.selectedPaymentMethod
+    // );
     setSelectedPaymentMethod(paymentProcessor.selectedPaymentMethod);
   }, [paymentProcessor.selectedPaymentMethod]);
 
@@ -208,7 +210,7 @@ export default function ShoppingCartRefactored() {
       !paymentProcessor.selectedPaymentMethod &&
       !paymentProcessor.isProcessingPayment
     ) {
-      console.log("🧹 SYNC: Hook reseteado, limpiando estados locales");
+      // console.log("🧹 SYNC: Hook reseteado, limpiando estados locales");
       setSelectedPaymentMethod(null);
       setIsProcessingPayment(false);
     }
@@ -598,7 +600,21 @@ export default function ShoppingCartRefactored() {
 
     // Si es pago dividido, preparar pago mixto. Pasa el control.
     if (method === "split") {
-      console.log("🔄 Iniciando pago mixto desde ShoppingCartRefactored");
+      console.log(
+        "🔄 Iniciando pago mixto desde ShoppingCartRefactored (F3 - Sin AFIP)"
+      );
+      console.log(
+        "🔄 Estado isCurrentlyAfipFlow ANTES de mixto:",
+        isCurrentlyAfipFlow
+      );
+
+      // ✅ ASEGURAR: En F3, el pago mixto NO debe activar AFIP
+      if (!isCurrentlyAfipFlow) {
+        console.log(
+          "✅ Confirmando que pago mixto permanece en modo F3 (sin AFIP)"
+        );
+      }
+
       paymentProcessor.handleSplitPayment();
 
       // Cerrar el diálogo principal después de un pequeño delay
@@ -693,31 +709,8 @@ export default function ShoppingCartRefactored() {
           const printingToastId = toast.loading("Imprimiendo ticket...");
 
           try {
-            // Imprimir ticket
+            // ✅ IMPRESIÓN SIMPLIFICADA: El hook useTicketPrinting ya maneja la doble impresión internamente
             await handleTicketPrinting(enrichedOrderData, API_URL, getAppId());
-
-            // 🆕 DOBLE IMPRESIÓN QR/MP DESHABILITADO: Si está habilitada, imprimir segunda vez
-            if (businessInfo?.dobleImpresionEnabled === true) {
-              console.log(
-                "🖨️🖨️ QR/MP DESHABILITADO DOBLE IMPRESIÓN: Imprimiendo segunda copia..."
-              );
-              try {
-                await handleTicketPrinting(
-                  enrichedOrderData,
-                  API_URL,
-                  getAppId()
-                );
-                console.log(
-                  "✅ QR/MP DESHABILITADO DOBLE IMPRESIÓN: Segunda copia impresa exitosamente"
-                );
-              } catch (error) {
-                console.error(
-                  "❌ QR/MP DESHABILITADO DOBLE IMPRESIÓN: Error en segunda copia:",
-                  error
-                );
-                // No fallar la orden si la segunda impresión falla
-              }
-            }
           } catch (printError) {
             console.error("Error en impresión:", printError);
           } finally {
@@ -1602,6 +1595,14 @@ export default function ShoppingCartRefactored() {
         afipPaymentProcessor={afipPaymentProcessor}
         isAfipMode={isCurrentlyAfipFlow}
         cartItems={cartState.getCurrentItems()}
+        businessInfo={businessInfo}
+        // ✅ DEBUGGING: Pasar estado adicional para logging
+        debugInfo={{
+          isCurrentlyAfipFlow,
+          facturacionHabilitada: businessInfo?.facturacionHabilitada,
+          activeScreen: cartState.activeScreen,
+          componentName: "ShoppingCartRefactored",
+        }}
       />
 
       <ManualQrDialog
@@ -1616,7 +1617,9 @@ export default function ShoppingCartRefactored() {
         onPasswordChange={(value: string) =>
           paymentProcessor.setManualQrPassword(value)
         }
-        onSubmit={paymentProcessor.handleManualQrPasswordSubmit}
+        onSubmit={() =>
+          paymentProcessor.handleManualQrPasswordSubmit(isCurrentlyAfipFlow)
+        }
       />
 
       <SplitPaymentDialog

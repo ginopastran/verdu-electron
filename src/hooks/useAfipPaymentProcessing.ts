@@ -1,8 +1,9 @@
-import { useState, RefObject } from "react";
+import { useState, RefObject, useRef } from "react";
 import { toast } from "sonner";
 import { Product } from "./useCartState";
 import { getBusinessName } from "@/utils/businessHelpers";
 import { useBusinessInfo } from "./useBusinessInfo";
+import QRCode from "qrcode";
 
 interface AfipPaymentOptions {
   user: any;
@@ -13,6 +14,16 @@ interface AfipPaymentOptions {
   setPaymentDialogOpen: (open: boolean) => void;
   searchInputRef?: RefObject<HTMLInputElement | null>;
   setSplitPaymentDialogOpen?: (open: boolean) => void;
+  setQrDialogOpen?: (open: boolean) => void;
+  getCurrentItems?: () => any[]; // ✅ AGREGADO
+}
+
+interface ManualQrDetails {
+  orderId: number;
+  paymentId: string;
+  totalAmount: number;
+  cashAmount: number;
+  qrAmount: number;
 }
 
 export function useAfipPaymentProcessing({
@@ -24,6 +35,8 @@ export function useAfipPaymentProcessing({
   setPaymentDialogOpen,
   searchInputRef,
   setSplitPaymentDialogOpen,
+  setQrDialogOpen,
+  getCurrentItems, // ✅ AGREGADO
 }: AfipPaymentOptions) {
   // 🆕 MEJORA: Usar businessInfo desde el hook
   const { businessInfo } = useBusinessInfo(API_URL, appId);
@@ -48,6 +61,23 @@ export function useAfipPaymentProcessing({
   const [cashAmount, setCashAmount] = useState<string>("");
   const [secondPaymentMethod, setSecondPaymentMethod] =
     useState<string>("tarjeta");
+
+  // Estados para QR
+  const [qrData, setQrData] = useState<any>(null);
+  const qrDataRef = useRef<any>(null);
+  const updateQrData = (data: any) => {
+    qrDataRef.current = data;
+    setQrData(data);
+  };
+  const [paymentStatus, setPaymentStatus] = useState<string | null>(null);
+  const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(
+    null
+  );
+  const [manualQrPasswordDialogOpen, setManualQrPasswordDialogOpen] =
+    useState(false);
+  const [manualQrPassword, setManualQrPassword] = useState("");
+  const [manualQrOrderDetails, setManualQrOrderDetails] =
+    useState<ManualQrDetails | null>(null);
 
   // Función para redondear a los 50 pesos más cercanos hacia abajo (igual que hook normal)
   const roundToNearest50 = (amount: number): number => {
@@ -306,6 +336,13 @@ export function useAfipPaymentProcessing({
     // NUEVO: limpiar estados mixtos
     setCashAmount("");
     setSecondPaymentMethod("tarjeta");
+    // Limpiar estados de QR
+    setQrData(null);
+    setPaymentStatus(null);
+    setPollingInterval(null);
+    setManualQrPasswordDialogOpen(false);
+    setManualQrPassword("");
+    setManualQrOrderDetails(null);
   };
 
   const processAfipPayment = async (
@@ -313,7 +350,16 @@ export function useAfipPaymentProcessing({
     items: Product[],
     totalAmount?: number
   ) => {
+    console.log("🔥🔥🔥 PROCESS AFIP PAYMENT: INICIANDO");
+    console.log("🔥🔥🔥 STACK TRACE:", new Error().stack);
+    console.log("🔥🔥🔥 method:", method);
+    console.log("🔥🔥🔥 items count:", items.length);
+    console.log("🔥🔥🔥 totalAmount:", totalAmount);
+    console.log("🔥🔥🔥 ⚠️⚠️⚠️ ESTA FUNCIÓN CREA FACTURA INMEDIATAMENTE");
+    console.log("🔥🔥🔥 ⚠️⚠️⚠️ NO DEBERÍA LLAMARSE PARA QR SIN CONFIRMAR PAGO");
+
     if (!user) {
+      console.error("❌ Usuario no encontrado");
       toast.error("Debes iniciar sesión para realizar una factura");
       return;
     }
@@ -778,80 +824,52 @@ export function useAfipPaymentProcessing({
     totalAmount: number,
     businessInfo?: any
   ) => {
-    if (!user) {
-      toast.error("Debes iniciar sesión para realizar una factura");
-      return;
-    }
-
-    // Evitar duplicados
-    if (isProcessingPayment) {
-      console.log("⚠️ Pago mixto AFIP ya en proceso");
-      return;
-    }
+    console.log("🧾 SPLIT PAYMENT: Iniciando processSplitPayment");
+    console.log("🧾 SPLIT PAYMENT: cashAmount:", cashAmount);
+    console.log("🧾 SPLIT PAYMENT: secondPaymentMethod:", secondPaymentMethod);
 
     const cashAmountValue = parseFloat(cashAmount);
-    if (isNaN(cashAmountValue) || cashAmountValue <= 0) {
-      toast.error("Ingresa un monto válido para el pago en efectivo");
+
+    if (
+      isNaN(cashAmountValue) ||
+      cashAmountValue <= 0 ||
+      cashAmountValue >= totalAmount
+    ) {
+      toast.error("El monto en efectivo no es válido.");
       return;
     }
-
-    if (cashAmountValue >= totalAmount) {
-      toast.error("El monto en efectivo no puede ser mayor o igual al total");
-      return;
-    }
-
-    const secondAmount = parseFloat((totalAmount - cashAmountValue).toFixed(2));
 
     setIsProcessingPayment(true);
+    setSelectedPaymentMethod("split");
 
-    try {
-      // ⚠️ CORRECCIÓN: Solo procesar factura AFIP si es el flujo AFIP real
-      // Si no hay businessInfo o facturación AFIP no está habilitada, es probable que sea un error
-      if (!businessInfo?.facturacionHabilitada) {
-        console.log(
-          "❌ AFIP: processSplitPayment llamado sin facturación AFIP habilitada"
-        );
-        throw new Error(
-          "Este método solo debe usarse con facturación AFIP habilitada"
-        );
-      }
-
-      // Intentar procesar la factura AFIP como "split" (backend debe soportarlo)
-      await processAfipPayment("split", items, totalAmount);
-
-      // Cerrar diálogo
-      if (setSplitPaymentDialogOpen) {
-        setSplitPaymentDialogOpen(false);
-      }
-
-      clearCart();
-      resetPaymentState();
-      toast.success("Factura AFIP creada exitosamente (pago mixto)");
-    } catch (error: any) {
-      console.error("❌ Error en pago mixto AFIP:", error);
-      toast.error(`Error en factura AFIP mixta: ${error.message}`);
-      resetPaymentState();
-    } finally {
-      setIsProcessingPayment(false);
-      setSelectedPaymentMethod(null);
+    if (secondPaymentMethod === "qr") {
+      console.log(
+        "🧾 SPLIT PAYMENT: Proceso de pago mixto AFIP iniciado con QR."
+      );
+      console.log("🔍 CRÍTICO: Debería SOLO generar QR, NO crear factura");
+      const qrAmount = totalAmount - cashAmountValue;
+      await generateAfipSplitQRPayment(cashAmountValue, qrAmount, items);
+    } else {
+      // Flujo para tarjeta de crédito/débito
+      console.log(
+        "🧾 SPLIT PAYMENT: Procesando pago mixto AFIP con tarjeta..."
+      );
+      console.log("🔍 CRÍTICO: Tarjeta puede crear factura inmediatamente");
+      await processAfipPayment("split", items);
+      setIsProcessingPayment(false); // Limpiar solo si no es QR
     }
   };
 
   // 🆕 NUEVA FUNCIÓN: Manejar QR con AFIP (generar QR primero, factura después)
   const handleAfipQrPayment = async (items: Product[]) => {
-    if (!user) {
-      toast.error("Debes iniciar sesión para realizar una factura");
-      return;
-    }
-
-    console.log("🧾📱 AFIP QR: Iniciando flujo QR con facturación AFIP");
-
-    // Marcar como procesando
+    console.log("🔥🔥🔥 HANDLE AFIP QR PAYMENT: INICIANDO");
+    console.log("🔥🔥🔥 STACK TRACE:", new Error().stack);
+    console.log("🔥🔥🔥 items count:", items.length);
+    console.log("🧾 Iniciando generación de QR para pago normal con AFIP...");
     setIsProcessingPayment(true);
     setSelectedPaymentMethod("qr");
 
     try {
-      // 1. Preparar datos para generar QR (igual que flujo normal)
       const orderItems = items.map((item) => ({
         productoId: item.id,
         nombre: item.name,
@@ -861,143 +879,481 @@ export function useAfipPaymentProcessing({
         costo: Number(item.costo),
       }));
 
+      const total = calculateTotal();
+
       const orderData = {
-        monto: Number(calculateTotal().toFixed(2)),
-        descripcion: `Compra de ${orderItems.length} productos`,
+        monto: Number(total.toFixed(2)),
+        descripcion: `Compra de ${orderItems.length} productos con Factura AFIP`,
         vendedorId: user.id,
         sucursalId: user.sucursalId,
-        externalPosId: import.meta.env.VITE_POS_ID,
         items: orderItems,
-        // 🆕 IMPORTANTE: Marcar que necesita factura AFIP
         requiresAfipInvoice: true,
-        afipData: {
-          tipoFactura: "B",
-          esConsumidorFinal: true,
-          metodoPago: "qr",
-          vendedorId: user.id,
-          sucursalId: user.sucursalId,
-        },
+        isSplitPayment: false,
+        cashAmount: 0,
+        // TODO: Implementar la captura de datos del cliente para facturas que no son a Consumidor Final
+        afipData: null,
       };
 
-      console.log("🧾📱 AFIP QR: Generando QR con datos:", orderData);
+      console.log("🔥🔥🔥 HANDLE AFIP QR - PAYLOAD COMPLETO:");
+      console.log("🔥🔥🔥", JSON.stringify(orderData, null, 2));
+      console.log("🔥🔥🔥 requiresAfipInvoice:", orderData.requiresAfipInvoice);
+      console.log("🔥🔥🔥 isSplitPayment:", orderData.isSplitPayment);
+      console.log("🔥🔥🔥 cashAmount:", orderData.cashAmount);
+      console.log("🔥🔥🔥 ATENCIÓN: Enviando a /api/mercadopago/generate-qr");
+      console.log("🔥🔥🔥 ESTE ENDPOINT SOLO DEBERÍA CREAR QR, NO FACTURA");
+      console.log("📲 Generando QR (F2 - Con AFIP) con payload:", orderData);
 
-      // Cerrar diálogo de pagos y mostrar cargando
-      setPaymentDialogOpen(false);
-      toast.loading("Generando código QR para facturación...", {
-        id: "afip-qr-loading",
-      });
+      const headers: HeadersInit = {
+        "Content-Type": "application/json",
+      };
+      if (appId) {
+        (headers as Record<string, string>)["X-App-ID"] = appId;
+      }
 
-      // 2. Generar QR (igual que flujo normal)
+      console.log("🔥🔥🔥 HANDLE AFIP QR - ENVIANDO REQUEST...");
       const response = await fetch(`${API_URL}/api/mercadopago/generate-qr`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(appId && { "X-App-ID": appId }),
-        },
-        credentials: "include",
+        headers,
         body: JSON.stringify(orderData),
       });
 
+      console.log(
+        "🔥🔥🔥 HANDLE AFIP QR - RESPUESTA RECIBIDA, status:",
+        response.status
+      );
+      console.log("🔥🔥🔥 HANDLE AFIP QR - RESPUESTA ok:", response.ok);
+
       if (!response.ok) {
-        throw new Error("Error al generar el código QR para facturación");
+        const errorData = await response.json().catch(() => ({}));
+        console.error("🔥🔥🔥 HANDLE AFIP QR - ERROR EN RESPUESTA:", errorData);
+        throw new Error(
+          errorData.message || "Error al generar el QR para pago AFIP"
+        );
       }
 
-      const data = await response.json();
-      console.log("✅ QR AFIP generado:", data);
+      const result = await response.json();
+      console.log("🔥🔥🔥 HANDLE AFIP QR - RESULTADO COMPLETO:");
+      console.log("🔥🔥🔥", JSON.stringify(result, null, 2));
+      console.log("🧾 Respuesta del backend (QR AFIP):", result);
 
-      // Actualizar toast
-      toast.dismiss("afip-qr-loading");
-      toast.success("QR generado - Esperando pago para crear factura", {
-        duration: 3000,
-      });
+      if (result.qrData && result.id) {
+        const qrDataWithAmount = {
+          ...result,
+          monto: total,
+        };
+        updateQrData(qrDataWithAmount);
+        console.log("🧾✅ Estado QR actualizado.");
+        setPaymentStatus("PENDIENTE");
 
-      // ✅ IMPORTANTE: Mantener el estado de procesamiento para el QR
-      // NO resetear aquí, se resetea cuando se completa o cancela el pago
-      console.log(
-        "🧾📱 AFIP QR: Manteniendo estado de procesamiento para el QR"
-      );
+        if (setQrDialogOpen) {
+          console.log("🧾✅ Abriendo diálogo QR...");
+          setQrDialogOpen(true);
+        }
+        if (setPaymentDialogOpen) {
+          console.log("🧾✅ Cerrando diálogo de pago principal...");
+          setPaymentDialogOpen(false);
+        }
 
-      return data;
+        console.log(`🧾✅ Iniciando polling para orderId: ${result.id}`);
+        console.log("🔍 CRÍTICO: Solo debería hacer polling, NO crear factura");
+        startPaymentStatusPolling(String(result.id), true);
+
+        // ✅ CORREGIDO: Retornar los datos del QR
+        return qrDataWithAmount;
+      } else {
+        console.error("🔥🔥🔥 HANDLE AFIP QR - DATOS FALTANTES:");
+        console.error("🔥🔥🔥 result.qrData:", result.qrData);
+        console.error("🔥🔥🔥 result.id:", result.id);
+        throw new Error("La respuesta del backend no incluyó 'qrData' o 'id'.");
+      }
     } catch (error: any) {
-      console.error("❌ Error en QR AFIP:", error);
-      toast.dismiss("afip-qr-loading");
-      toast.error(`Error al generar QR para facturación: ${error.message}`);
-
+      console.error("🔥🔥🔥 HANDLE AFIP QR - ERROR:", error);
+      console.error("🔥🔥🔥 HANDLE AFIP QR - ERROR STACK:", error.stack);
+      console.error("❌ Error en handleAfipQrPayment:", error);
+      toast.error(error.message);
       resetPaymentState();
-      setPaymentDialogOpen(false);
+      // ✅ CORREGIDO: Retornar null en caso de error
+      return null;
     }
   };
 
   // 🆕 NUEVA FUNCIÓN: Crear factura AFIP después de confirmación de pago
   const createAfipInvoiceAfterPayment = async (
-    orderId: number,
+    orderId: string,
     items: Product[],
-    paymentData: any
+    paymentData?: any
   ) => {
-    console.log("🧾✅ AFIP: Creando factura después de pago confirmado", {
-      orderId,
-      paymentData,
+    console.log(
+      "🔥 CREAR FACTURA AFIP: Iniciando createAfipInvoiceAfterPayment"
+    );
+    console.log("🔥 CREAR FACTURA AFIP: orderId:", orderId);
+    console.log("🔥 CREAR FACTURA AFIP: paymentData:", paymentData);
+    console.log("🔥 CREAR FACTURA AFIP: items count:", items.length);
+    console.log("🔥 CREAR FACTURA AFIP: Stack trace:", new Error().stack);
+
+    if (!user) {
+      console.error("❌ CREAR FACTURA AFIP: Usuario no encontrado");
+      toast.error("Error: Usuario no encontrado para crear la factura.");
+      return;
+    }
+
+    try {
+      console.log("🔥 CREAR FACTURA AFIP: Preparando datos...");
+      const businessName = await getBusinessName();
+      const headers: HeadersInit = {
+        "Content-Type": "application/json",
+      };
+      if (appId) {
+        (headers as Record<string, string>)["X-App-ID"] = appId;
+      }
+
+      const facturaData = {
+        orderId,
+        vendedor: user.nombre,
+        businessName,
+        items: items.map((item) => ({
+          productoId: item.id,
+          nombre: item.name,
+          cantidad: item.quantity,
+          subtotal: Number(item.subtotal.toFixed(2)),
+          precioHistorico: item.pricePerUnit,
+          costo: Number(item.costo),
+        })),
+        paymentData,
+      };
+
+      console.log("🔥 CREAR FACTURA AFIP: Enviando a /api/facturas/crear-afip");
+      console.log("🔥 CREAR FACTURA AFIP: Datos:", facturaData);
+
+      const response = await fetch(`${API_URL}/api/facturas/crear-afip`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(facturaData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || "Error al crear la factura AFIP");
+      }
+
+      const result = await response.json();
+      console.log(
+        "✅ CREAR FACTURA AFIP: Factura creada exitosamente:",
+        result
+      );
+
+      // Limpiar estados solo después del éxito
+      if (setQrDialogOpen) {
+        setQrDialogOpen(false);
+      }
+      clearCart();
+      resetPaymentState();
+
+      toast.success("Factura AFIP creada y ticket impreso exitosamente");
+    } catch (error: any) {
+      console.error("❌ CREAR FACTURA AFIP: Error:", error);
+      console.error("❌ CREAR FACTURA AFIP: Stack:", error.stack);
+      toast.error(`Error al crear factura AFIP: ${error.message}`);
+      // No limpiar aquí para que el usuario pueda reintentar
+    }
+  };
+
+  // 🆕 IMPLEMENTACIÓN CORREGIDA: Generar QR para pago mixto AFIP
+  const generateAfipSplitQRPayment = async (
+    cashAmountValue: number,
+    qrAmount: number,
+    items: Product[]
+  ) => {
+    console.log("🔥🔥🔥 GENERATE AFIP SPLIT QR: INICIANDO");
+    console.log("🔥🔥🔥 STACK TRACE:", new Error().stack);
+    console.log("🔥🔥🔥 cashAmountValue:", cashAmountValue);
+    console.log("🔥🔥🔥 qrAmount:", qrAmount);
+    console.log("🔥🔥🔥 items count:", items.length);
+
+    if (!user) {
+      console.error("❌ Usuario no encontrado");
+      toast.error("Debes iniciar sesión para realizar una orden");
+      return;
+    }
+
+    console.log("🧾🔁 Generando QR para pago mixto AFIP...", {
+      cashAmountValue,
+      qrAmount,
     });
 
     try {
-      // Preparar datos para factura AFIP
       const orderItems = items.map((item) => ({
         productoId: item.id,
-        cantidad: item.quantity,
-        precio: item.pricePerUnit,
-        subtotal: Number(item.subtotal.toFixed(2)),
         nombre: item.name,
+        cantidad: item.quantity,
+        subtotal: Number(item.subtotal.toFixed(2)),
+        precioHistorico: item.pricePerUnit,
+        costo: Number(item.costo),
       }));
 
-      // Crear la factura AFIP
-      const afipResponse = await fetch(`${API_URL}/api/facturas/crear-afip`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(appId && { "X-App-ID": appId }),
-        },
-        body: JSON.stringify({
-          tipoFactura: "B",
-          esConsumidorFinal: true,
-          clienteId: null,
-          productos: orderItems,
-          metodoPago: "qr",
-          vendedorId: user.id,
-          sucursalId: user.sucursalId,
-          observaciones: `Factura para orden QR #${orderId}`,
-          // 🆕 VINCULAR con la orden de QR ya pagada
-          ordenQrId: orderId,
-          paymentReference: paymentData.payment_id || paymentData.id,
-        }),
-      });
+      const totalAmount = cashAmountValue + qrAmount;
 
-      if (!afipResponse.ok) {
-        const errorData = await afipResponse.json().catch(() => ({}));
-        throw new Error(errorData.error || "Error al crear la factura AFIP");
+      const orderData = {
+        monto: Number(totalAmount.toFixed(2)),
+        descripcion: `Pago mixto AFIP: QR $${qrAmount.toFixed(
+          2
+        )} + Efectivo $${cashAmountValue.toFixed(2)}`,
+        vendedorId: user.id,
+        sucursalId: user.sucursalId,
+        items: orderItems,
+        // ✅ CRÍTICO: Estos parámetros controlan el flujo
+        requiresAfipInvoice: true,
+        isSplitPayment: true,
+        cashAmount: cashAmountValue,
+        afipData: null, // Consumidor final
+      };
+
+      console.log("🔥🔥🔥 PAYLOAD COMPLETO A ENVIAR:");
+      console.log("🔥🔥🔥", JSON.stringify(orderData, null, 2));
+      console.log("🔥🔥🔥 requiresAfipInvoice:", orderData.requiresAfipInvoice);
+      console.log("🔥🔥🔥 isSplitPayment:", orderData.isSplitPayment);
+      console.log("🔥🔥🔥 cashAmount:", orderData.cashAmount);
+      console.log("🔥🔥🔥 ATENCIÓN: Enviando a /api/mercadopago/generate-qr");
+      console.log("🔥🔥🔥 ESTE ENDPOINT SOLO DEBERÍA CREAR QR, NO FACTURA");
+
+      const headers: HeadersInit = {
+        "Content-Type": "application/json",
+      };
+      if (appId) {
+        (headers as Record<string, string>)["X-App-ID"] = appId;
       }
 
-      const afipResult = await afipResponse.json();
-      console.log("✅ Factura AFIP creada después de pago QR:", afipResult);
-
-      // Mostrar éxito
-      toast.success(`Factura AFIP creada exitosamente`, {
-        description: `CAE: ${afipResult.afip.cae} - Orden QR #${orderId}`,
-        duration: 5000,
+      console.log("🔥🔥🔥 ENVIANDO REQUEST...");
+      const response = await fetch(`${API_URL}/api/mercadopago/generate-qr`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(orderData),
       });
 
-      // Aquí podrías imprimir la factura si es necesario
-      // await handleAfipTicketPrinting(printData);
+      console.log("🔥🔥🔥 RESPUESTA RECIBIDA, status:", response.status);
+      console.log("🔥🔥🔥 RESPUESTA ok:", response.ok);
 
-      return afipResult;
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error("🔥🔥🔥 ERROR EN RESPUESTA:", errorData);
+        throw new Error(
+          errorData.message || "Error al generar el QR para pago mixto AFIP"
+        );
+      }
+
+      const result = await response.json();
+      console.log("🔥🔥🔥 RESULTADO COMPLETO:");
+      console.log("🔥🔥🔥", JSON.stringify(result, null, 2));
+      console.log("🧾🔁 Respuesta del backend (QR mixto AFIP):", result);
+
+      if (result.qrData && result.id) {
+        console.log("🧾🔁✅ Estado QR mixto actualizado.");
+        console.log("🔍 CRÍTICO: QR creado, NO debería crear factura aún");
+
+        const qrDataWithAmount = {
+          ...result,
+          monto: qrAmount,
+        };
+        updateQrData(qrDataWithAmount);
+        setPaymentStatus("PENDIENTE");
+
+        if (setQrDialogOpen) {
+          console.log("🧾🔁✅ Abriendo diálogo de QR...");
+          setQrDialogOpen(true);
+        }
+        if (setSplitPaymentDialogOpen) {
+          console.log("🧾🔁✅ Cerrando diálogo de pago mixto...");
+          setSplitPaymentDialogOpen(false);
+        }
+
+        console.log(`🧾🔁✅ Iniciando polling para orderId: ${result.id}`);
+        console.log("🔍 CRÍTICO: Solo debería hacer polling, NO crear factura");
+        startPaymentStatusPolling(String(result.id), true); // true for AFIP flow
+      } else {
+        console.error("🔥🔥🔥 DATOS FALTANTES EN RESPUESTA:");
+        console.error("🔥🔥🔥 result.qrData:", result.qrData);
+        console.error("🔥🔥🔥 result.id:", result.id);
+        throw new Error("La respuesta del backend no incluyó 'qrData' o 'id'.");
+      }
     } catch (error: any) {
-      console.error("❌ Error al crear factura AFIP después de pago:", error);
-      toast.error("Error al crear factura AFIP", {
-        description: `El pago fue exitoso pero falló la facturación: ${error.message}`,
-        duration: 8000,
-      });
-      throw error;
+      console.error("🔥🔥🔥 ERROR EN generateAfipSplitQRPayment:", error);
+      console.error("🔥🔥🔥 ERROR STACK:", error.stack);
+      console.error("❌ Error en generateAfipSplitQRPayment:", error);
+      toast.error(error.message);
+      resetPaymentState();
     }
   };
+
+  // 🆕 AGREGAR: Funciones de polling similares a usePaymentProcessing
+  const startPaymentStatusPolling = (
+    orderId: string,
+    isAfip: boolean = false
+  ) => {
+    console.log("🔄 POLLING: Iniciando polling para orden:", orderId);
+    console.log("🔄 POLLING: isAfip:", isAfip);
+    console.log(
+      "🔍 CRÍTICO: Polling debería SOLO verificar estado, NO crear factura"
+    );
+
+    cleanupPolling();
+    const interval = setInterval(async () => {
+      try {
+        const response = await fetch(
+          `${API_URL}/api/mercadopago/check-status/${orderId}`,
+          {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+              ...(appId && { "X-App-ID": appId }),
+            },
+          }
+        );
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(
+            errorData.message || "Error al verificar el estado del pago"
+          );
+        }
+
+        const statusData = await response.json();
+        console.log(
+          "🔄 POLLING: Estado actualizado para orden:",
+          orderId,
+          statusData
+        );
+
+        if (statusData.status === "completed") {
+          console.log("🔄 POLLING: Orden completada, finalizando polling.");
+          clearInterval(interval);
+          setPollingInterval(null);
+
+          // Si es un flujo AFIP, llamar a finalizeAfipPayment
+          if (isAfip) {
+            await finalizeAfipPayment(statusData);
+          }
+        } else if (statusData.status === "failed") {
+          console.log("🔄 POLLING: Orden fallida, finalizando polling.");
+          clearInterval(interval);
+          setPollingInterval(null);
+          toast.error("Error en el pago AFIP: Estado de la orden fallida.");
+          resetPaymentState();
+        } else if (statusData.status === "cancelled") {
+          console.log("🔄 POLLING: Orden cancelada, finalizando polling.");
+          clearInterval(interval);
+          setPollingInterval(null);
+          toast.error("Pago AFIP cancelado.");
+          resetPaymentState();
+        }
+      } catch (error: any) {
+        console.error("❌ Error en polling:", error);
+        clearInterval(interval);
+        setPollingInterval(null);
+        toast.error(`Error en el estado del pago AFIP: ${error.message}`);
+        resetPaymentState();
+      }
+    }, 2000); // Polling cada 2 segundos
+    setPollingInterval(interval);
+  };
+
+  const cleanupPolling = () => {
+    if (pollingInterval) {
+      clearInterval(pollingInterval);
+      setPollingInterval(null);
+    }
+  };
+
+  // 🆕 FINALIZAR PAGO AFIP después de QR
+  const finalizeAfipPayment = async (statusData: any) => {
+    console.log("🔥 FINALIZAR PAGO AFIP: Iniciando finalizeAfipPayment");
+    console.log("🔥 FINALIZAR PAGO AFIP: statusData:", statusData);
+
+    if (!user) {
+      console.error("❌ FINALIZAR PAGO AFIP: Usuario no encontrado");
+      toast.error("Error: Usuario no encontrado para finalizar el pago.");
+      return;
+    }
+
+    try {
+      console.log(
+        "🔥 FINALIZAR PAGO AFIP: Preparando datos para crear factura..."
+      );
+      const orderId = statusData.orderId;
+      const paymentId = statusData.paymentId;
+      const totalAmount = statusData.totalAmount;
+      const cashAmount = statusData.cashAmount;
+      const qrAmount = statusData.qrAmount;
+
+      // ✅ CORREGIDO: Usar los items del carrito actual
+      const items = getCurrentItems ? getCurrentItems() : [];
+
+      console.log("🔥 FINALIZAR PAGO AFIP: Items para factura:", items);
+
+      const businessName = await getBusinessName();
+      const headers: HeadersInit = {
+        "Content-Type": "application/json",
+      };
+      if (appId) {
+        (headers as Record<string, string>)["X-App-ID"] = appId;
+      }
+
+      const facturaData = {
+        orderId,
+        vendedor: user.nombre,
+        businessName,
+        items: items.map((item: any) => ({
+          productoId: item.id,
+          nombre: item.name,
+          cantidad: item.quantity,
+          subtotal: Number(item.subtotal.toFixed(2)),
+          precioHistorico: item.pricePerUnit,
+          costo: Number(item.costo),
+        })),
+        paymentId,
+        totalAmount,
+        cashAmount,
+        qrAmount,
+      };
+
+      console.log(
+        "🔥 FINALIZAR PAGO AFIP: Enviando a /api/facturas/crear-afip"
+      );
+      console.log("🔥 FINALIZAR PAGO AFIP: Datos:", facturaData);
+
+      const response = await fetch(`${API_URL}/api/facturas/crear-afip`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(facturaData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || "Error al crear la factura AFIP");
+      }
+
+      const result = await response.json();
+      console.log(
+        "✅ FINALIZAR PAGO AFIP: Factura creada exitosamente:",
+        result
+      );
+
+      // Limpiar estados solo después del éxito
+      if (setQrDialogOpen) {
+        setQrDialogOpen(false);
+      }
+      clearCart();
+      resetPaymentState();
+
+      toast.success("Factura AFIP creada y ticket impreso exitosamente");
+    } catch (error: any) {
+      console.error("❌ FINALIZAR PAGO AFIP: Error:", error);
+      console.error("❌ FINALIZAR PAGO AFIP: Stack:", error.stack);
+      toast.error(`Error al finalizar el pago AFIP: ${error.message}`);
+      // No limpiar aquí para que el usuario pueda reintentar
+    }
+  };
+
+  // Agregar funciones para polling, finalize, etc. similares a usePaymentProcessing pero adaptadas para AFIP (imprimir ticket AFIP al final)
 
   return {
     processAfipPayment,
@@ -1032,5 +1388,18 @@ export function useAfipPaymentProcessing({
     handleAfipQrPayment,
     // NUEVA FUNCIÓN: Crear factura AFIP después de confirmación de pago
     createAfipInvoiceAfterPayment,
+    // Estados de QR
+    qrData,
+    updateQrData,
+    paymentStatus,
+    setPaymentStatus,
+    pollingInterval,
+    setPollingInterval,
+    manualQrPasswordDialogOpen,
+    setManualQrPasswordDialogOpen,
+    manualQrPassword,
+    setManualQrPassword,
+    manualQrOrderDetails,
+    setManualQrOrderDetails,
   };
 }

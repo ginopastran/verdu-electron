@@ -25,12 +25,12 @@ export function PaymentDialog({
   selectedPaymentMethod,
   isAfipMode = false,
 }: PaymentDialogProps) {
-  console.log("🎯 PaymentDialog render:", {
-    isOpen,
-    isProcessingPayment,
-    selectedPaymentMethod,
-    isAfipMode,
-  });
+  // console.log("🎯 PaymentDialog render:", {
+  //   isOpen,
+  //   isProcessingPayment,
+  //   selectedPaymentMethod,
+  //   isAfipMode,
+  // });
 
   return (
     <Dialog

@@ -50,31 +50,31 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    console.log("🚀 BusinessContext useEffect ejecutándose");
+    // console.log("🚀 BusinessContext useEffect ejecutándose");
     let isMounted = true;
 
     const loadData = async () => {
       try {
-        console.log("🔄 BusinessContext: Iniciando carga de datos admin...");
+        // console.log("🔄 BusinessContext: Iniciando carga de datos admin...");
 
         // Verificar si estamos en Electron
         if (typeof window !== "undefined" && window.electronStore) {
-          console.log("📱 Usando electronStore...");
+          // console.log("📱 Usando electronStore...");
           try {
             const storedAdmin = await window.electronStore.get("adminData");
-            console.log("📋 Resultado de electronStore.get:", storedAdmin);
+            // console.log("📋 Resultado de electronStore.get:", storedAdmin);
 
             if (storedAdmin && isMounted) {
-              console.log(
-                "✅ Datos admin encontrados en electronStore:",
-                storedAdmin
-              );
+              // console.log(
+              //   "✅ Datos admin encontrados en electronStore:",
+              //   storedAdmin
+              // );
 
               // Verificar que los datos son válidos
               if (storedAdmin.businessId && storedAdmin.businessId > 0) {
                 setAdminDataState(storedAdmin);
                 setBusinessId(storedAdmin.businessId);
-                console.log("✅ Datos admin válidos cargados");
+                // console.log("✅ Datos admin válidos cargados");
               } else {
                 console.log("⚠️ Datos admin inválidos, limpiando...");
                 await window.electronStore.delete("adminData");
@@ -96,9 +96,9 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
               if (parsed.businessId && parsed.businessId > 0) {
                 setAdminDataState(parsed);
                 setBusinessId(parsed.businessId);
-                console.log(
-                  "✅ Datos admin válidos cargados desde localStorage"
-                );
+                // console.log(
+                //   "✅ Datos admin válidos cargados desde localStorage"
+                // );
               } else {
                 console.log(
                   "⚠️ Datos admin inválidos, limpiando localStorage..."
@@ -120,7 +120,7 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
             if (parsed.businessId && parsed.businessId > 0) {
               setAdminDataState(parsed);
               setBusinessId(parsed.businessId);
-              console.log("✅ Datos admin válidos cargados");
+              // console.log("✅ Datos admin válidos cargados");
             } else {
               console.log(
                 "⚠️ Datos admin inválidos, limpiando localStorage..."
@@ -135,7 +135,7 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
         console.error("❌ Error al cargar datos del admin:", error);
       } finally {
         if (isMounted) {
-          console.log("✅ BusinessContext: Finalizando loading");
+          // console.log("✅ BusinessContext: Finalizando loading");
           setLoading(false);
         }
       }
@@ -144,7 +144,7 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
     loadData();
 
     return () => {
-      console.log("🧹 BusinessContext cleanup");
+      // console.log("🧹 BusinessContext cleanup");
       isMounted = false;
     };
   }, []);

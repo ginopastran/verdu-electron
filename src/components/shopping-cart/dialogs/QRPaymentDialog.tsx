@@ -18,6 +18,10 @@ interface QRPaymentDialogProps {
   afipPaymentProcessor?: any;
   isAfipMode?: boolean;
   cartItems?: any[];
+  // ✅ NUEVO: Agregar businessInfo para verificar facturación
+  businessInfo?: any;
+  // ✅ DEBUGGING: Info adicional para logging
+  debugInfo?: any;
 }
 
 export const QRPaymentDialog = ({
@@ -27,9 +31,27 @@ export const QRPaymentDialog = ({
   afipPaymentProcessor,
   isAfipMode = false,
   cartItems = [],
+  businessInfo,
+  debugInfo,
 }: QRPaymentDialogProps) => {
   // ✅ DEBUG: Verificar estado del flujo AFIP
-  console.log("🔍 QRPaymentDialog - isAfipMode:", isAfipMode);
+  // console.log("🔍 QRPaymentDialog - isAfipMode:", isAfipMode);
+  // console.log(
+  //   "🔍 QRPaymentDialog - facturacionHabilitada:",
+  //   businessInfo?.facturacionHabilitada
+  // );
+
+  // ✅ NUEVA VERIFICACIÓN: Solo activar AFIP si está realmente habilitado
+  const shouldUseAfipMode =
+    isAfipMode && businessInfo?.facturacionHabilitada === true;
+  // console.log("🔍 QRPaymentDialog - shouldUseAfipMode:", shouldUseAfipMode);
+
+  const qrData = isAfipMode
+    ? afipPaymentProcessor?.qrData
+    : paymentProcessor.qrData;
+  const paymentStatus = isAfipMode
+    ? afipPaymentProcessor?.paymentStatus
+    : paymentProcessor.paymentStatus;
 
   // ✅ NUEVO: Iniciar polling automáticamente cuando se abre el diálogo con datos de QR
   useEffect(() => {
@@ -56,7 +78,20 @@ export const QRPaymentDialog = ({
 
   // 🆕 NUEVO: Manejar finalización de pago con AFIP
   const handlePaymentSuccess = async (paymentData: any) => {
-    if (isAfipMode && afipPaymentProcessor && cartItems.length > 0) {
+    console.log("🔔 PAYMENT SUCCESS TRIGGERED - Estado completo:", {
+      isAfipMode,
+      facturacionHabilitada: businessInfo?.facturacionHabilitada,
+      shouldUseAfipMode,
+      afipPaymentProcessorExists: !!afipPaymentProcessor,
+      cartItemsLength: cartItems.length,
+      paymentData: {
+        orderId: paymentData.orderId,
+        isCompleted: paymentData.isCompleted,
+      },
+    });
+
+    // ✅ VERIFICACIÓN ROBUSTA: Solo crear factura AFIP si está realmente habilitado
+    if (shouldUseAfipMode && afipPaymentProcessor && cartItems.length > 0) {
       console.log(
         "🧾✅ QR Dialog: Pago exitoso en modo AFIP, creando factura..."
       );
@@ -73,6 +108,7 @@ export const QRPaymentDialog = ({
       }
     }
   };
+
   return (
     <Dialog
       open={open}
@@ -100,10 +136,10 @@ export const QRPaymentDialog = ({
         </DialogHeader>
 
         <div className="flex flex-col items-center justify-center py-4">
-          {paymentProcessor.qrData ? (
+          {qrData ? (
             <div className="space-y-4 text-center">
               <img
-                src={paymentProcessor.qrData.qrImageUrl}
+                src={qrData.qrImageUrl}
                 alt="Código QR de Mercado Pago"
                 className="mx-auto w-64 h-64 border border-gray-200 p-2"
                 onError={(e) => {
@@ -113,7 +149,7 @@ export const QRPaymentDialog = ({
               />
 
               <div className="font-medium text-lg">
-                {paymentProcessor.qrData.isSplitPayment ? (
+                {qrData.isSplitPayment ? (
                   <div className="space-y-1">
                     <div className="text-sm text-muted-foreground">
                       Pago mixto:
@@ -124,10 +160,7 @@ export const QRPaymentDialog = ({
                         Efectivo:
                       </span>
                       <span>
-                        $
-                        {Number(
-                          paymentProcessor.qrData.cashAmount || 0
-                        ).toLocaleString()}
+                        ${Number(qrData.cashAmount || 0).toLocaleString()}
                       </span>
                     </div>
                     <div className="flex justify-between items-center font-semibold">
@@ -135,20 +168,13 @@ export const QRPaymentDialog = ({
                         <QrCode className="h-4 w-4 mr-1" />
                         QR:
                       </span>
-                      <span>
-                        $
-                        {Number(
-                          paymentProcessor.qrData.monto || 0
-                        ).toLocaleString()}
-                      </span>
+                      <span>${Number(qrData.monto || 0).toLocaleString()}</span>
                     </div>
                   </div>
                 ) : (
                   <span>
                     Monto a pagar: $
-                    {Number(
-                      paymentProcessor.qrData.monto || 0
-                    ).toLocaleString()}
+                    {Number(qrData?.monto || 0).toLocaleString()}
                   </span>
                 )}
               </div>
@@ -156,24 +182,24 @@ export const QRPaymentDialog = ({
               <div className="space-y-2">
                 <div
                   className={`text-center py-2 px-4 rounded-full font-medium ${
-                    paymentProcessor.paymentStatus === "PENDIENTE"
+                    paymentStatus === "PENDIENTE"
                       ? "bg-yellow-100 text-yellow-800"
-                      : paymentProcessor.paymentStatus === "COMPLETADA"
+                      : paymentStatus === "COMPLETADA"
                       ? "bg-green-100 text-green-800"
-                      : paymentProcessor.paymentStatus === "CANCELADA"
+                      : paymentStatus === "CANCELADA"
                       ? "bg-red-100 text-red-800"
                       : "bg-gray-100 text-gray-800"
                   }`}
                 >
                   Estado:{" "}
-                  {paymentProcessor.paymentStatus === "PENDIENTE"
+                  {paymentStatus === "PENDIENTE"
                     ? "Esperando pago..."
-                    : paymentProcessor.paymentStatus === "COMPLETADA"
+                    : paymentStatus === "COMPLETADA"
                     ? "¡Pago completado!"
-                    : paymentProcessor.paymentStatus === "CANCELADA"
+                    : paymentStatus === "CANCELADA"
                     ? "Pago cancelado"
                     : "Desconocido"}
-                  {paymentProcessor.paymentStatus === "PENDIENTE" && (
+                  {paymentStatus === "PENDIENTE" && (
                     <span className="inline-block ml-2">
                       <div className="animate-pulse w-2 h-2 bg-yellow-500 rounded-full inline-block mx-0.5"></div>
                       <div className="animate-pulse delay-150 w-2 h-2 bg-yellow-500 rounded-full inline-block mx-0.5"></div>
@@ -187,21 +213,21 @@ export const QRPaymentDialog = ({
                 </p>
 
                 {/* Botón para completar manualmente */}
-                {paymentProcessor.paymentStatus === "PENDIENTE" && (
+                {paymentStatus === "PENDIENTE" && (
                   <Button
                     variant="outline"
                     className="w-full mt-4 bg-emerald-50 border-emerald-200 hover:bg-emerald-100 hover:text-emerald-700"
                     onClick={async () => {
                       // Completar orden manualmente
                       await paymentProcessor.completarOrdenManualmente(
-                        paymentProcessor.qrData.orderId,
-                        paymentProcessor.qrData.isSplitPayment,
-                        paymentProcessor.qrData.cashAmount
+                        qrData.orderId,
+                        qrData.isSplitPayment,
+                        qrData.cashAmount
                       );
 
-                      // 🆕 NUEVO: Si es modo AFIP, crear factura después
+                      // 🆕 NUEVO: Si es modo AFIP Y facturación está habilitada, crear factura después
                       if (
-                        isAfipMode &&
+                        shouldUseAfipMode &&
                         afipPaymentProcessor &&
                         cartItems.length > 0
                       ) {
@@ -210,11 +236,11 @@ export const QRPaymentDialog = ({
                         );
                         try {
                           await afipPaymentProcessor.createAfipInvoiceAfterPayment(
-                            paymentProcessor.qrData.orderId,
+                            qrData.orderId,
                             cartItems,
                             {
-                              payment_id: `manual_${paymentProcessor.qrData.orderId}`,
-                              orderId: paymentProcessor.qrData.orderId,
+                              payment_id: `manual_${qrData.orderId}`,
+                              orderId: qrData.orderId,
                               isManual: true,
                             }
                           );

@@ -146,42 +146,42 @@ export const getBusinessInfo = async (
     console.log("✅ Información del business obtenida:", businessInfo);
 
     // ✅ NUEVO: Debug específico para doble impresión
-    console.log("🖨️ DEBUG DOBLE IMPRESIÓN:");
-    console.log(
-      "- dobleImpresionEnabled existe:",
-      "dobleImpresionEnabled" in businessInfo
-    );
-    console.log(
-      "- dobleImpresionEnabled valor:",
-      businessInfo.dobleImpresionEnabled
-    );
-    console.log(
-      "- dobleImpresionEnabled tipo:",
-      typeof businessInfo.dobleImpresionEnabled
-    );
-    console.log(
-      "- Comparación === true:",
-      businessInfo.dobleImpresionEnabled === true
-    );
-    console.log(
-      "- Comparación == true:",
-      businessInfo.dobleImpresionEnabled == true
-    );
-    console.log(
-      "- Comparación === 'true':",
-      businessInfo.dobleImpresionEnabled === "true"
-    );
-    console.log("- Valor truthy:", !!businessInfo.dobleImpresionEnabled);
+    // console.log("🖨️ DEBUG DOBLE IMPRESIÓN:");
+    // console.log(
+    //   "- dobleImpresionEnabled existe:",
+    //   "dobleImpresionEnabled" in businessInfo
+    // );
+    // console.log(
+    //   "- dobleImpresionEnabled valor:",
+    //   businessInfo.dobleImpresionEnabled
+    // );
+    // console.log(
+    //   "- dobleImpresionEnabled tipo:",
+    //   typeof businessInfo.dobleImpresionEnabled
+    // );
+    // console.log(
+    //   "- Comparación === true:",
+    //   businessInfo.dobleImpresionEnabled === true
+    // );
+    // console.log(
+    //   "- Comparación == true:",
+    //   businessInfo.dobleImpresionEnabled == true
+    // );
+    // console.log(
+    //   "- Comparación === 'true':",
+    //   businessInfo.dobleImpresionEnabled === "true"
+    // );
+    // console.log("- Valor truthy:", !!businessInfo.dobleImpresionEnabled);
 
-    // ✅ NUEVO: Mostrar todos los campos del business para debug
-    console.log("🔍 DEBUG: Todos los campos del business:", {
-      id: businessInfo.id,
-      nombre: businessInfo.nombre,
-      dobleImpresionEnabled: businessInfo.dobleImpresionEnabled,
-      descuentoEfectivo: businessInfo.descuentoEfectivo,
-      sistemaPago: businessInfo.sistemaPago,
-      todosLosCampos: Object.keys(businessInfo).sort(),
-    });
+    // // ✅ NUEVO: Mostrar todos los campos del business para debug
+    // console.log("🔍 DEBUG: Todos los campos del business:", {
+    //   id: businessInfo.id,
+    //   nombre: businessInfo.nombre,
+    //   dobleImpresionEnabled: businessInfo.dobleImpresionEnabled,
+    //   descuentoEfectivo: businessInfo.descuentoEfectivo,
+    //   sistemaPago: businessInfo.sistemaPago,
+    //   todosLosCampos: Object.keys(businessInfo).sort(),
+    // });
 
     return businessInfo;
   } catch (error) {

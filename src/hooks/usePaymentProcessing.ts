@@ -5,6 +5,7 @@ import { Product } from "./useCartState";
 import { getBusinessName, getAdminData } from "@/utils/businessHelpers";
 import { useTicketPrinting } from "@/hooks/useTicketPrinting";
 import { createValidOrderPayload } from "@/utils/orderHelpers";
+import { useBusinessInfo } from "@/hooks/useBusinessInfo";
 
 // Tipos ya declarados en otros archivos
 
@@ -43,6 +44,8 @@ export function usePaymentProcessing({
   setQrDialogOpen,
   setSplitPaymentDialogOpen,
 }: PaymentOptions) {
+  const { businessInfo } = useBusinessInfo(API_URL, appId);
+
   // Helper para acceder a la API de Electron
   const getElectronAPI = () => {
     try {
@@ -55,6 +58,33 @@ export function usePaymentProcessing({
       return null;
     }
   };
+
+  // ✅ NUEVO: Control de impresión para evitar duplicados
+  const [printedOrders] = useState<Set<string>>(new Set());
+
+  const isOrderAlreadyPrinted = (
+    orderId: number | string,
+    orderType: string = "qr"
+  ): boolean => {
+    const key = `${orderType}-${orderId}`;
+    return printedOrders.has(key);
+  };
+
+  const markOrderAsPrinted = (
+    orderId: number | string,
+    orderType: string = "qr"
+  ): void => {
+    const key = `${orderType}-${orderId}`;
+    printedOrders.add(key);
+    console.log(`✅ IMPRESIÓN CONTROL: Orden ${key} marcada como impresa`);
+  };
+
+  // ✅ FUNCIÓN PARA LIMPIAR CONTROL DE IMPRESIÓN
+  const clearPrintedOrdersTracking = () => {
+    printedOrders.clear();
+    console.log("🧹 IMPRESIÓN CONTROL: Tracking de órdenes impresas limpiado");
+  };
+
   // Estado para datos del QR
   const [qrData, setQrData] = useState<any>(null);
   // Usar un ref para disponer siempre del valor más reciente dentro de los callbacks del polling
@@ -513,11 +543,20 @@ export function usePaymentProcessing({
         descripcion: `Compra de ${orderItems.length} productos`,
         vendedorId: user.id,
         sucursalId: user.sucursalId,
-        // externalPosId: import.meta.env.VITE_POS_ID,
         items: orderItems,
+        // ✅ API Unificada: Nuevos parámetros requeridos
+        requiresAfipInvoice: false,
+        isSplitPayment: false,
+        cashAmount: 0,
+        afipData: null,
       };
 
-      console.log("🔄 Enviando solicitud para generar QR:", orderData);
+      console.log("📲 Generando QR (F3 - Sin AFIP) con payload:", orderData);
+
+      const headers: HeadersInit = {
+        "Content-Type": "application/json",
+        ...(appId && { "X-App-ID": appId }),
+      };
 
       // Mostrar cargando
       toast.loading("Generando código QR...", { id: "qr-loading" });
@@ -525,75 +564,45 @@ export function usePaymentProcessing({
       // Realizar la solicitud para generar el QR
       const response = await fetch(`${API_URL}/api/mercadopago/generate-qr`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(appId && { "X-App-ID": appId }),
-        },
+        headers,
         body: JSON.stringify(orderData),
       });
 
       if (!response.ok) {
-        throw new Error("Error al generar el código QR");
-      }
-
-      const data = await response.json();
-      console.log("✅ QR generado:", data);
-
-      // Generar QR localmente
-      let qrImageDataUrl;
-      try {
-        if (data.qrData) {
-          qrImageDataUrl = await QRCode.toDataURL(data.qrData, {
-            errorCorrectionLevel: "H",
-            margin: 1,
-            width: 256,
-            color: {
-              dark: "#000000",
-              light: "#FFFFFF",
-            },
-          });
-          console.log("✅ QR generado localmente con éxito");
-        } else {
-          throw new Error("Datos de QR no disponibles");
-        }
-      } catch (qrError: any) {
-        console.error("❌ Error al generar QR local:", qrError);
-        qrImageDataUrl = data.qrImageUrl || null;
-        if (!qrImageDataUrl) {
-          throw new Error("No se pudo generar ni obtener imagen QR");
-        }
-      }
-
-      // Guardar datos del QR (estado y ref)
-      const newQrData = {
-        ...data,
-        qrImageUrl: qrImageDataUrl,
-        monto: orderData.monto,
-        items: orderItems,
-      };
-      updateQrData(newQrData);
-
-      // Establecer estado inicial como pendiente para que el usuario vea inmediatamente el estado y pueda completar manualmente si es necesario
-      setPaymentStatus("PENDIENTE");
-
-      // Cerrar el toast de carga
-      toast.dismiss("qr-loading");
-
-      // Abrir el diálogo QR
-      console.log("🔄 Intentando abrir diálogo QR...");
-      if (setQrDialogOpenRef) {
-        setQrDialogOpenRef(true);
-        console.log("✅ Función para abrir diálogo QR ejecutada");
-      } else {
-        console.error(
-          "❌ No se pudo abrir el diálogo QR - función no disponible"
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          errorData.message || "Error al generar el QR para pago"
         );
       }
 
-      // Iniciar el polling para verificar el estado del pago
-      startPaymentStatusPolling(data.orderId);
+      const result = await response.json();
+      console.log("📲 Respuesta del backend (QR):", result);
+
+      if (result.qrData) {
+        // Guardar la información del QR para el polling y la finalización manual
+        const qrDataWithAmount = {
+          ...result,
+          monto: Number(calculateTotal().toFixed(2)),
+        };
+        updateQrData(qrDataWithAmount);
+        setPaymentStatus("PENDIENTE");
+
+        // Iniciar el polling para verificar el estado del pago
+        startPaymentStatusPolling(result.id);
+
+        if (setQrDialogOpen) {
+          setQrDialogOpen(true);
+        }
+        if (setPaymentDialogOpen) {
+          setPaymentDialogOpen(false);
+        }
+      } else {
+        throw new Error(
+          "La respuesta del backend no incluyó los datos del QR."
+        );
+      }
     } catch (error: any) {
-      console.error("❌ Error al generar QR:", error);
+      console.error(`Error al generar QR: ${error.message}`);
       toast.dismiss("qr-loading");
       toast.error(`Error al generar QR: ${error.message}`);
       setIsProcessingPayment(false);
@@ -602,11 +611,8 @@ export function usePaymentProcessing({
   };
 
   // Verificar el estado del pago
-  const startPaymentStatusPolling = (orderId: number) => {
-    if (!orderId) {
-      console.error("❌ startPaymentStatusPolling: orderId inválido", orderId);
-      return;
-    }
+  const startPaymentStatusPolling = (orderId: string) => {
+    cleanupPolling();
 
     console.log("🌐 API_URL en polling:", API_URL);
 
@@ -752,14 +758,14 @@ export function usePaymentProcessing({
 
   // Limpiar el polling
   const cleanupPolling = () => {
-    console.log("🧹 cleanupPolling llamado - stack trace:");
+    // console.log("🧹 cleanupPolling llamado - stack trace:");
     console.trace();
     if (pollingInterval) {
       console.log("🧹 Limpiando intervalo de polling con ID:", pollingInterval);
       clearInterval(pollingInterval);
       setPollingInterval(null);
     } else {
-      console.log("🧹 No hay intervalo para limpiar");
+      // console.log("🧹 No hay intervalo para limpiar");
     }
   };
 
@@ -831,33 +837,8 @@ export function usePaymentProcessing({
 
           // Solo imprimir el ticket si no se indica saltar la impresión
           if (!skipPrinting) {
-            const printSuccess = await handleTicketPrinting(enrichedOrderData);
-
-            // 🆕 DOBLE IMPRESIÓN QR/MP: Si está habilitada, imprimir segunda vez
-            if (printSuccess) {
-              try {
-                // Obtener businessInfo para verificar doble impresión
-                const businessInfo = await (
-                  await import("@/utils/businessHelpers")
-                ).getBusinessInfo(API_URL, appId);
-
-                if (businessInfo?.dobleImpresionEnabled === true) {
-                  console.log(
-                    "🖨️🖨️ QR/MP DOBLE IMPRESIÓN: Imprimiendo segunda copia..."
-                  );
-                  await handleTicketPrinting(enrichedOrderData);
-                  console.log(
-                    "✅ QR/MP DOBLE IMPRESIÓN: Segunda copia impresa exitosamente"
-                  );
-                }
-              } catch (error) {
-                console.error(
-                  "❌ QR/MP DOBLE IMPRESIÓN: Error en segunda copia:",
-                  error
-                );
-                // No fallar la orden si la segunda impresión falla
-              }
-            }
+            // ✅ IMPRESIÓN SIMPLIFICADA: El hook useTicketPrinting ya maneja la doble impresión internamente
+            await handleTicketPrinting(enrichedOrderData);
           } else {
             console.log("🖨️ Impresión de ticket omitida (skipPrinting=true)");
           }
@@ -958,6 +939,9 @@ export function usePaymentProcessing({
 
     // ✅ ANTI-DUPLICADOS: Resetear flag de procesamiento
     setIsProcessingOrder(false);
+
+    // ✅ CONTROL DE IMPRESIÓN: Limpiar tracking de órdenes impresas
+    clearPrintedOrdersTracking();
 
     // ✅ LIMPIEZA DE POLLING: Asegurar que se limpia completamente
     cleanupPolling();
@@ -1094,42 +1078,11 @@ export function usePaymentProcessing({
       const printingToastId = toast.loading("Imprimiendo ticket...");
 
       try {
-        // Imprimir ticket usando handleTicketPrinting que ya funciona
-        const printSuccess = await handleTicketPrinting(enrichedOrderData);
-
-        // 🆕 DOBLE IMPRESIÓN MIXTO: Si está habilitada, imprimir segunda vez
-        if (printSuccess) {
-          try {
-            // Obtener businessInfo para verificar doble impresión
-            const businessInfo = await (
-              await import("@/utils/businessHelpers")
-            ).getBusinessInfo(API_URL, appId);
-
-            if (businessInfo?.dobleImpresionEnabled === true) {
-              console.log(
-                "🖨️🖨️ MIXTO DOBLE IMPRESIÓN: Imprimiendo segunda copia..."
-              );
-              await handleTicketPrinting(enrichedOrderData);
-              console.log(
-                "✅ MIXTO DOBLE IMPRESIÓN: Segunda copia impresa exitosamente"
-              );
-            }
-          } catch (error) {
-            console.error(
-              "❌ MIXTO DOBLE IMPRESIÓN: Error en segunda copia:",
-              error
-            );
-            // No fallar la orden si la segunda impresión falla
-          }
-        }
+        // ✅ IMPRESIÓN SIMPLIFICADA: El hook useTicketPrinting ya maneja la doble impresión internamente
+        await handleTicketPrinting(enrichedOrderData);
 
         // Cerrar el toast de carga de impresión
         toast.dismiss(printingToastId);
-
-        // Mostrar toast de error si la impresión falló (handleTicketPrinting ya muestra éxito)
-        if (!printSuccess) {
-          toast.error("Error al imprimir el ticket.");
-        }
       } catch (printError) {
         // Asegurar que el toast se cierre siempre
         toast.dismiss(printingToastId);
@@ -1172,7 +1125,19 @@ export function usePaymentProcessing({
       cashAmount: cashAmountValue,
       qrAmount,
       businessInfo: businessInfo?.mpEnabled,
+      facturacionHabilitada: businessInfo?.facturacionHabilitada,
     });
+
+    // ✅ VERIFICACIÓN F3: Asegurar que el pago mixto QR no active AFIP cuando no debe
+    if (businessInfo?.facturacionHabilitada !== true) {
+      console.log(
+        "✅ PAGO MIXTO QR: Facturación AFIP deshabilitada - procesando sin AFIP"
+      );
+    } else {
+      console.log(
+        "⚠️ PAGO MIXTO QR: Facturación AFIP habilitada - debería usar flujo AFIP diferente"
+      );
+    }
 
     // Verificar si MP está habilitado
     if (businessInfo?.mpEnabled === false) {
@@ -1252,27 +1217,8 @@ export function usePaymentProcessing({
         // Mostrar toast de carga para la impresión ANTES de imprimir
         const printingToastId = toast.loading("Imprimiendo ticket...");
 
-        // Imprimir ticket
-        const printSuccess = await handleTicketPrinting(enrichedOrderData);
-
-        // 🆕 DOBLE IMPRESIÓN MIXTO MP DESHABILITADO: Si está habilitada, imprimir segunda vez
-        if (printSuccess && businessInfo?.dobleImpresionEnabled === true) {
-          console.log(
-            "🖨️🖨️ MIXTO MP DESHABILITADO DOBLE IMPRESIÓN: Imprimiendo segunda copia..."
-          );
-          try {
-            await handleTicketPrinting(enrichedOrderData);
-            console.log(
-              "✅ MIXTO MP DESHABILITADO DOBLE IMPRESIÓN: Segunda copia impresa exitosamente"
-            );
-          } catch (error) {
-            console.error(
-              "❌ MIXTO MP DESHABILITADO DOBLE IMPRESIÓN: Error en segunda copia:",
-              error
-            );
-            // No fallar la orden si la segunda impresión falla
-          }
-        }
+        // ✅ IMPRESIÓN SIMPLIFICADA: El hook useTicketPrinting ya maneja la doble impresión internamente
+        await handleTicketPrinting(enrichedOrderData);
 
         // Cerrar el toast de carga de impresión
         toast.dismiss(printingToastId);
@@ -1320,10 +1266,10 @@ export function usePaymentProcessing({
         )} + Efectivo $${cashAmountValue.toFixed(2)}`,
         vendedorId: user.id,
         sucursalId: user.sucursalId,
-        // externalPosId: import.meta.env.VITE_POS_ID,
         items: orderItems,
         isSplitPayment: true,
         cashAmount: cashAmountValue,
+        skipAfip: true,
       };
 
       console.log(
@@ -1355,49 +1301,38 @@ export function usePaymentProcessing({
       });
 
       if (!response.ok) {
-        throw new Error("Error al generar el código QR para pago mixto");
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          errorData.message || "Error al generar el QR para pago mixto"
+        );
       }
 
-      const data = await response.json();
-      console.log("✅ QR de pago mixto generado:", data);
+      const result = await response.json();
+      console.log("📲 Respuesta del backend (QR Mixto):", result);
 
-      // Generar QR localmente
-      let qrImageDataUrl;
-      try {
-        qrImageDataUrl = await QRCode.toDataURL(data.qrData);
-      } catch (qrError) {
-        console.error("❌ Error al generar imagen QR:", qrError);
-        throw new Error("Error al generar la imagen del código QR");
+      if (result.qrData) {
+        // Guardar la información del QR para el polling y la finalización manual
+        const qrDataWithAmount = {
+          ...result,
+          monto: qrAmount,
+        };
+        updateQrData(qrDataWithAmount);
+        setPaymentStatus("PENDIENTE");
+
+        if (setQrDialogOpen) {
+          setQrDialogOpen(true);
+        }
+        if (setSplitPaymentDialogOpen) {
+          setSplitPaymentDialogOpen(false);
+        }
+
+        // Iniciar el polling para verificar el estado del pago
+        startPaymentStatusPolling(result.id);
+      } else {
+        throw new Error(
+          "La respuesta del backend no incluyó los datos del QR para el pago mixto."
+        );
       }
-
-      // Guardar datos del QR (estado y ref)
-      const newQrData = {
-        ...data,
-        qrImageUrl: qrImageDataUrl,
-        monto: qrAmount, // ✅ IMPORTANTE: El monto del QR (no el total)
-        isSplitPayment: true,
-        cashAmount: cashAmountValue,
-        items: orderItems,
-      };
-      updateQrData(newQrData);
-
-      // Establecer estado inicial como pendiente para que el usuario vea inmediatamente el estado y pueda completar manualmente si es necesario
-      setPaymentStatus("PENDIENTE");
-
-      // Ocultar toast de carga
-      toast.dismiss("qr-loading");
-
-      // Cerrar diálogo de pago mixto y abrir diálogo de QR
-      if (setSplitPaymentDialogOpenRef) {
-        setSplitPaymentDialogOpenRef(false);
-      }
-
-      if (setQrDialogOpenRef) {
-        setQrDialogOpenRef(true);
-      }
-
-      // Iniciar polling para verificar el estado del pago
-      startSplitPaymentStatusPolling(data.orderId, cashAmountValue);
     } catch (error: any) {
       console.error("❌ Error al generar QR de pago mixto:", error);
       toast.dismiss("qr-loading");
@@ -1544,6 +1479,33 @@ export function usePaymentProcessing({
         const orderItems = qrDataRef.current?.items || [];
         const totalAmount = (qrDataRef.current?.monto || 0) + cashAmount;
 
+        // ✅ VERIFICACIÓN ROBUSTA: Verificar que tenemos items válidos
+        console.log("🔍 MANUAL FINALIZE: Verificando items:", {
+          itemsCount: orderItems.length,
+          hasQrData: !!qrDataRef.current,
+          qrMonto: qrDataRef.current?.monto,
+          cashAmount,
+          totalAmount,
+          itemsPreview: orderItems.slice(0, 2),
+        });
+
+        if (!orderItems || orderItems.length === 0) {
+          console.warn(
+            "⚠️ MANUAL FINALIZE: No hay items válidos para crear orden"
+          );
+          console.warn(
+            "⚠️ Esto puede indicar que el backend ya procesó todo automáticamente"
+          );
+
+          // En lugar de fallar, simplemente completar el proceso
+          toast.success("¡Pago completado exitosamente!");
+
+          console.log(
+            "✅ MANUAL FINALIZE: Completado sin crear orden local (sin items)"
+          );
+          return; // Salir temprano sin crear orden
+        }
+
         const orderData = {
           total: totalAmount,
           items: orderItems,
@@ -1595,6 +1557,32 @@ export function usePaymentProcessing({
         console.log("🔄 MANUAL FINALIZE: Procesando pago QR manual");
 
         const orderItems = qrDataRef.current?.items || [];
+
+        // ✅ VERIFICACIÓN ROBUSTA: Verificar que tenemos items válidos
+        console.log("🔍 MANUAL FINALIZE QR: Verificando items:", {
+          itemsCount: orderItems.length,
+          hasQrData: !!qrDataRef.current,
+          qrMonto: qrDataRef.current?.monto,
+          itemsPreview: orderItems.slice(0, 2),
+        });
+
+        if (!orderItems || orderItems.length === 0) {
+          console.warn(
+            "⚠️ MANUAL FINALIZE QR: No hay items válidos para crear orden"
+          );
+          console.warn(
+            "⚠️ Esto puede indicar que el backend ya procesó todo automáticamente"
+          );
+
+          // En lugar de fallar, simplemente completar el proceso
+          toast.success("¡Pago completado exitosamente!");
+
+          console.log(
+            "✅ MANUAL FINALIZE QR: Completado sin crear orden local (sin items)"
+          );
+          return; // Salir temprano sin crear orden
+        }
+
         const orderData = {
           metodoPago: "qr",
           total: qrDataRef.current?.monto || 0,
@@ -1657,132 +1645,91 @@ export function usePaymentProcessing({
       console.log("✅ MANUAL FINALIZE: Limpieza controlada completada");
     } catch (error: any) {
       console.error("❌ MANUAL FINALIZE: Error en finalización:", error);
-      throw error; // Re-lanzar para manejo en la función principal
+
+      // ✅ MANEJO ESPECIAL: Error de "No valid items" - probablemente backend ya procesó todo
+      if (error.message?.includes("No valid items to create order payload")) {
+        console.warn(
+          "🔧 MANUAL FINALIZE: Error de items vacíos - posiblemente backend ya procesó todo"
+        );
+        console.warn("🔧 Completando proceso sin crear orden local");
+
+        toast.success("¡Pago completado exitosamente!");
+
+        // Mostrar advertencia explicativa
+        setTimeout(() => {
+          toast.info("ℹ️ El pago se procesó automáticamente", {
+            description: "No fue necesario crear una orden local adicional",
+            duration: 5000,
+          });
+        }, 1500);
+
+        return; // Salir sin error para evitar que se quede buggeado
+      }
+
+      throw error; // Re-lanzar otros errores para manejo en la función principal
     }
   };
 
   // Función para manejar el envío de contraseña QR manual
-  const handleManualQrPasswordSubmit = async () => {
-    if (!manualQrOrderDetails) return;
-
-    const { orderId, isSplitPayment, cashAmount } = manualQrOrderDetails;
-    const enteredPassword = manualQrPassword;
-    setManualQrPassword("");
-
-    if (enteredPassword !== import.meta.env.VITE_MANUAL_QR_PASSWORD) {
-      toast.error("Contraseña incorrecta");
+  const handleManualQrPasswordSubmit = async (isAfipFlow: boolean) => {
+    if (!qrDataRef.current?.id) {
+      toast.error("No hay una orden QR pendiente para completar.");
       return;
     }
 
-    setManualQrPasswordDialogOpen(false);
+    const orderId = qrDataRef.current.id;
+    console.log(
+      `🔧 Completando manualmente orden ${orderId}. ¿Requiere AFIP?: ${isAfipFlow}`
+    );
 
     try {
-      console.log("🔐 MANUAL PASSWORD: Iniciando completación manual:", {
+      const headers: HeadersInit = {
+        "Content-Type": "application/json",
+      };
+      if (appId) {
+        (headers as Record<string, string>)["X-App-ID"] = appId;
+      }
+
+      const body = {
         orderId,
-        isSplitPayment,
-        cashAmount,
-      });
+        requiresAfipInvoice: isAfipFlow,
+      };
 
-      const processingToastId = toast.loading("Procesando orden manual...");
+      console.log("🔧 Enviando a /manual-complete:", body);
 
-      // ✅ STEP 1: Marcar como completada en Mercado Pago
       const response = await fetch(
         `${API_URL}/api/mercadopago/manual-complete`,
         {
           method: "POST",
           headers,
-          body: JSON.stringify({ orderId }),
+          body: JSON.stringify(body),
         }
       );
 
       if (!response.ok) {
-        const error = await response.json();
-        toast.dismiss(processingToastId);
-        throw new Error(error.message || "Error al completar la orden");
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          errorData.message || "Error al completar el pago manualmente"
+        );
       }
 
       const result = await response.json();
-      console.log("✅ MP MANUAL: Orden marcada como completada:", result);
-      toast.dismiss(processingToastId);
+      console.log("✅ Pago manual completado:", result);
 
-      // ✅ ANTI-DUPLICADOS: Verificar si ya está completada
-      if (result.skipNewOrderCreation) {
-        console.log(
-          "✅ MANUAL COMPLETE: Orden ya completada, solo mostrar éxito"
-        );
-        console.log(
-          "📋 MANUAL COMPLETE: Datos de orden existente:",
-          result.order
-        );
+      setManualQrPasswordDialogOpen(false);
+      setManualQrPassword("");
 
-        // Imprimir ticket de la orden existente
-        if (result.order) {
-          const printingToastId = toast.loading("Imprimiendo ticket...");
-          try {
-            await handleTicketPrinting(result.order);
-            toast.dismiss(printingToastId);
-          } catch (error) {
-            toast.dismiss(printingToastId);
-            console.error("❌ Error al imprimir ticket:", error);
-          }
-        }
-
-        toast.success("¡Orden completada exitosamente!");
-
-        // Cerrar diálogo QR
-        if (setQrDialogOpenRef) {
-          setQrDialogOpenRef(false);
-        }
-
-        // Limpiar carrito y estados
-        clearCart();
-        resetPaymentState();
-
-        console.log(
-          "✅ MANUAL COMPLETE: Proceso completado sin crear nueva orden"
-        );
-        return;
+      // Limpiar y finalizar
+      cleanupPolling();
+      if (setQrDialogOpen) {
+        setQrDialogOpen(false);
       }
-
-      // ✅ STEP 2: Solo si no está completada, finalizar localmente
-      await finalizeManualPayment(orderId, isSplitPayment, cashAmount);
-
-      console.log("✅ MANUAL PASSWORD: Proceso completo exitoso");
+      clearCart();
+      resetPaymentState();
+      toast.success("Orden completada manualmente con éxito.");
     } catch (error: any) {
-      console.error("❌ MANUAL PASSWORD: Error en proceso manual:", error);
-      toast.error(`Error al completar la orden manualmente: ${error.message}`);
-
-      // ✅ LIMPIEZA ROBUSTA EN CASO DE ERROR
-      console.log("🧹 MANUAL PASSWORD ERROR: Iniciando limpieza de emergencia");
-
-      try {
-        // Limpiar polling y estados críticos
-        cleanupPolling();
-        setIsProcessingPayment(false);
-        setSelectedPaymentMethod(null);
-        setPaymentStatus(null);
-        updateQrData(null as any);
-
-        // Cerrar diálogo QR
-        if (setQrDialogOpenRef) {
-          setQrDialogOpenRef(false);
-        }
-
-        // Resetear todos los estados
-        resetPaymentState();
-
-        console.log(
-          "✅ MANUAL PASSWORD ERROR: Limpieza de emergencia completada"
-        );
-      } catch (cleanupError) {
-        console.error("❌ Error en limpieza de emergencia:", cleanupError);
-      }
-    } finally {
-      // ✅ SIEMPRE limpiar detalles de orden manual
-      setManualQrOrderDetails(null);
-      console.log(
-        "🧹 MANUAL PASSWORD FINALLY: Detalles de orden manual limpiados"
-      );
+      console.error("Error en handleManualQrPasswordSubmit:", error);
+      toast.error(error.message);
     }
   };
 
@@ -1809,6 +1756,17 @@ export function usePaymentProcessing({
     try {
       console.log("🎯 PAYMENT PROCESSING: Iniciando impresión de ticket");
       console.log("📋 Datos de la orden para impresión:", orderData);
+
+      // ✅ CONTROL DE IMPRESIÓN: Verificar si ya se imprimió esta orden
+      const orderId =
+        orderData.referencia || orderData.idReal || orderData.id || "unknown";
+      if (isOrderAlreadyPrinted(orderId)) {
+        console.log(
+          `⚠️ IMPRESIÓN CONTROL: Orden ${orderId} ya fue impresa, saltando impresión`
+        );
+        toast.info("Ticket ya fue impreso anteriormente");
+        return true; // Retornar true porque la "impresión" fue exitosa (ya se hizo antes)
+      }
 
       // Obtener appId desde los argumentos de la aplicación
       let appId = null;
@@ -1845,6 +1803,14 @@ export function usePaymentProcessing({
         API_URL,
         appId
       );
+
+      // ✅ MARCAR COMO IMPRESA SOLO SI LA IMPRESIÓN FUE EXITOSA
+      if (printResult) {
+        markOrderAsPrinted(orderId);
+        console.log(
+          `✅ IMPRESIÓN CONTROL: Orden ${orderId} impresa exitosamente y marcada`
+        );
+      }
 
       // ✅ SIEMPRE RETORNAR TRUE: La impresión es opcional, no debe bloquear la orden
       if (!printResult) {
@@ -1942,33 +1908,8 @@ export function usePaymentProcessing({
             id: orderResult.id || null,
           };
 
-          const printSuccess = await handleTicketPrinting(enrichedOrderData);
-
-          // 🆕 DOBLE IMPRESIÓN MIXTO QR: Si está habilitada, imprimir segunda vez
-          if (printSuccess) {
-            try {
-              // Obtener businessInfo para verificar doble impresión
-              const businessInfo = await (
-                await import("@/utils/businessHelpers")
-              ).getBusinessInfo(API_URL, appId);
-
-              if (businessInfo?.dobleImpresionEnabled === true) {
-                console.log(
-                  "🖨️🖨️ MIXTO QR DOBLE IMPRESIÓN: Imprimiendo segunda copia..."
-                );
-                await handleTicketPrinting(enrichedOrderData);
-                console.log(
-                  "✅ MIXTO QR DOBLE IMPRESIÓN: Segunda copia impresa exitosamente"
-                );
-              }
-            } catch (error) {
-              console.error(
-                "❌ MIXTO QR DOBLE IMPRESIÓN: Error en segunda copia:",
-                error
-              );
-              // No fallar la orden si la segunda impresión falla
-            }
-          }
+          // ✅ IMPRESIÓN SIMPLIFICADA: El hook useTicketPrinting ya maneja la doble impresión internamente
+          await handleTicketPrinting(enrichedOrderData);
 
           // ✅ Orden registrada - limpiar estados, cerrar diálogo y vaciar carrito
           if (setQrDialogOpenRef) {

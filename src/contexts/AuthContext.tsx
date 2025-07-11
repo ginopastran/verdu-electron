@@ -39,12 +39,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    console.log("🔄 AuthContext: Iniciando carga de usuario...");
+    // console.log("🔄 AuthContext: Iniciando carga de usuario...");
     try {
       // Intentar recuperar el usuario del localStorage al cargar
       const storedUser = localStorage.getItem("user");
       if (storedUser) {
-        console.log("✅ Usuario encontrado en localStorage");
+        // console.log("✅ Usuario encontrado en localStorage");
         setUser(JSON.parse(storedUser));
       } else {
         console.log("ℹ️ No hay usuario en localStorage");
@@ -52,7 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error("❌ Error al cargar usuario:", error);
     } finally {
-      console.log("✅ AuthContext: Finalizando loading");
+      // console.log("✅ AuthContext: Finalizando loading");
       setLoading(false);
     }
 
@@ -75,7 +75,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
-    console.log("🚪 AuthContext: Iniciando logout...");
+    // console.log("🚪 AuthContext: Iniciando logout...");
 
     // Limpiar datos del usuario
     localStorage.removeItem("user");
@@ -92,7 +92,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       })
     );
 
-    console.log("✅ AuthContext: Logout completado y evento emitido");
+    // console.log("✅ AuthContext: Logout completado y evento emitido");
   };
 
   const refreshUserData = async () => {

@@ -30,9 +30,9 @@ export const useAutoUpdater = () => {
   const [checking, setChecking] = useState(false);
 
   // Debug: Log cuando cambia el estado checking
-  useEffect(() => {
-    console.log("🔍 Estado checking cambiado a:", checking);
-  }, [checking]);
+  // useEffect(() => {
+  //   console.log("🔍 Estado checking cambiado a:", checking);
+  // }, [checking]);
 
   const checkForUpdates = useCallback(async () => {
     if (!window.autoUpdater) {

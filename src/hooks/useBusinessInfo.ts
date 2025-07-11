@@ -9,14 +9,14 @@ const saveBusinessInfo = async (businessId: number, businessInfo: any) => {
     const key = getStorageKey(businessId);
 
     if (typeof window !== "undefined" && window.electronStore) {
-      console.log("💾 Guardando businessInfo en electronStore:", key);
+      // console.log("💾 Guardando businessInfo en electronStore:", key);
       await window.electronStore.set(key, businessInfo);
     } else {
       console.log("💾 Guardando businessInfo en localStorage:", key);
       localStorage.setItem(key, JSON.stringify(businessInfo));
     }
 
-    console.log("✅ BusinessInfo guardado:", businessInfo);
+    // console.log("✅ BusinessInfo guardado:", businessInfo);
   } catch (error) {
     console.error("❌ Error al guardar businessInfo:", error);
     // Fallback a localStorage en caso de error
@@ -37,11 +37,11 @@ const loadBusinessInfo = async (businessId: number): Promise<any | null> => {
     const key = getStorageKey(businessId);
 
     if (typeof window !== "undefined" && window.electronStore) {
-      console.log("📂 Cargando businessInfo desde electronStore:", key);
+      // console.log("📂 Cargando businessInfo desde electronStore:", key);
       const stored = await window.electronStore.get(key);
-      console.log("📋 Resultado de electronStore.get:", stored);
+      // console.log("📋 Resultado de electronStore.get:", stored);
       if (stored) {
-        console.log("✅ BusinessInfo encontrado en electronStore:", stored);
+        // console.log("✅ BusinessInfo encontrado en electronStore:", stored);
         return stored;
       }
     } else {
@@ -90,17 +90,17 @@ export const useBusinessInfo = (API_URL: string, appId: string | null) => {
         return;
       }
 
-      console.log("🏢 Iniciando carga de información del negocio...");
+      // console.log("🏢 Iniciando carga de información del negocio...");
 
       // Primero intentar cargar desde storage local
       const cachedBusinessInfo = await loadBusinessInfo(businessId);
       if (cachedBusinessInfo) {
-        console.log("🚀 Usando businessInfo desde cache:", cachedBusinessInfo);
+        // console.log("🚀 Usando businessInfo desde cache:", cachedBusinessInfo);
         setBusinessInfo(cachedBusinessInfo);
         setLoading(false);
 
         // Hacer fetch en background para actualizar el cache si es necesario
-        console.log("🔄 Verificando actualizaciones en background...");
+        // console.log("🔄 Verificando actualizaciones en background...");
       }
 
       try {
@@ -129,7 +129,7 @@ export const useBusinessInfo = (API_URL: string, appId: string | null) => {
         }
 
         const data = await response.json();
-        console.log("✅ Información del negocio cargada desde API:", data);
+        // console.log("✅ Información del negocio cargada desde API:", data);
 
         // 🆕 PROCESAMIENTO MEJORADO: Incluir datos de sucursal si están disponibles
         if (data.sucursales && data.sucursales.length > 0) {
@@ -143,11 +143,11 @@ export const useBusinessInfo = (API_URL: string, appId: string | null) => {
           data.telefono = sucursalPrincipal.telefono || data.telefono;
           data.sucursalActiva = sucursalPrincipal;
 
-          console.log("✅ Datos de sucursal incluidos:", {
-            direccion: data.direccion,
-            telefono: data.telefono,
-            sucursal: sucursalPrincipal.nombre,
-          });
+          // console.log("✅ Datos de sucursal incluidos:", {
+          //   direccion: data.direccion,
+          //   telefono: data.telefono,
+          //   sucursal: sucursalPrincipal.nombre,
+          // });
         } else {
           console.log(
             "ℹ️ No hay sucursales configuradas, usando datos del business principal"

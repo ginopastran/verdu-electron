@@ -1,11 +1,11 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
-console.log("🔧 Preload script iniciado correctamente");
-console.log("🔧 Proceso de preload - Entorno:", process.versions);
-console.log(
-  "🔧 Proceso de preload - Node integración disponible:",
-  process.versions.node
-);
+// console.log("🔧 Preload script iniciado correctamente");
+// console.log("🔧 Proceso de preload - Entorno:", process.versions);
+// console.log(
+//   "🔧 Proceso de preload - Node integración disponible:",
+//   process.versions.node
+// );
 
 // Exponer funciones de electron-store al renderer
 contextBridge.exposeInMainWorld("electronStore", {

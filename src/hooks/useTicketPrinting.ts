@@ -69,13 +69,13 @@ export const useTicketPrinting = () => {
         try {
           businessInfo = await getBusinessInfo(API_URL, appId);
 
-          console.log("🔍 DEBUG: RESULTADO DE getBusinessInfo:", {
-            businessInfo_existe: !!businessInfo,
-            businessInfo_completo: businessInfo,
-            dobleImpresionEnabled_raw: businessInfo?.dobleImpresionEnabled,
-            dobleImpresionEnabled_tipo:
-              typeof businessInfo?.dobleImpresionEnabled,
-          });
+          // console.log("🔍 DEBUG: RESULTADO DE getBusinessInfo:", {
+          //   businessInfo_existe: !!businessInfo,
+          //   businessInfo_completo: businessInfo,
+          //   dobleImpresionEnabled_raw: businessInfo?.dobleImpresionEnabled,
+          //   dobleImpresionEnabled_tipo:
+          //     typeof businessInfo?.dobleImpresionEnabled,
+          // });
 
           // Evaluar dobleImpresionEnabled con diferentes comparaciones
           const comparaciones = {
@@ -94,11 +94,11 @@ export const useTicketPrinting = () => {
           // Usar la comparación estricta por defecto
           dobleImpresionEnabled = businessInfo?.dobleImpresionEnabled === true;
 
-          console.log("📋 Business info obtenida:", {
-            businessInfo: !!businessInfo,
-            dobleImpresionEnabled_final: dobleImpresionEnabled,
-            valor_original: businessInfo?.dobleImpresionEnabled,
-          });
+          // console.log("📋 Business info obtenida:", {
+          //   businessInfo: !!businessInfo,
+          //   dobleImpresionEnabled_final: dobleImpresionEnabled,
+          //   valor_original: businessInfo?.dobleImpresionEnabled,
+          // });
         } catch (error) {
           console.error("❌ Error al obtener business info:", error);
           dobleImpresionEnabled = false;
@@ -219,11 +219,11 @@ export const useTicketPrinting = () => {
       };
 
       // ✅ LÓGICA SÚPER SIMPLE: Si dobleImpresionEnabled = true, hacer 2 llamadas
-      console.log("🔍 DEBUG DOBLE IMPRESIÓN:", {
-        dobleImpresionEnabled,
-        businessInfoExists: !!businessInfo,
-        valorOriginal: businessInfo?.dobleImpresionEnabled,
-      });
+      // console.log("🔍 DEBUG DOBLE IMPRESIÓN:", {
+      //   dobleImpresionEnabled,
+      //   businessInfoExists: !!businessInfo,
+      //   valorOriginal: businessInfo?.dobleImpresionEnabled,
+      // });
 
       try {
         if (dobleImpresionEnabled === true) {

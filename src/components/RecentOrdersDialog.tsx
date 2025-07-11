@@ -69,19 +69,19 @@ export function RecentOrdersDialog({
   const currentOrders = allOrders.slice(startIndex, endIndex);
 
   // ✅ AGREGADO: Debug de paginación
-  console.log("🔍 Debug paginación:", {
-    totalOrders,
-    itemsPerPage,
-    totalPages,
-    currentPage,
-    startIndex,
-    endIndex,
-    currentOrdersCount: currentOrders.length,
-  });
+  // console.log("🔍 Debug paginación:", {
+  //   totalOrders,
+  //   itemsPerPage,
+  //   totalPages,
+  //   currentPage,
+  //   startIndex,
+  //   endIndex,
+  //   currentOrdersCount: currentOrders.length,
+  // });
 
   // ✅ AGREGADO: Función para limpiar cache y resetear estados
   const clearCache = () => {
-    console.log("🧹 Limpiando cache de órdenes...");
+    // console.log("🧹 Limpiando cache de órdenes...");
     setAllOrders([]);
     setCurrentPage(1);
     setIsLoadingOrders(false);
@@ -91,11 +91,11 @@ export function RecentOrdersDialog({
   // ✅ AGREGADO: useEffect para detectar cambios de usuario y limpiar cache
   useEffect(() => {
     if (user?.id && user.id !== currentUserId) {
-      console.log("👤 Cambio de usuario detectado:", {
-        anteriorUserId: currentUserId,
-        nuevoUserId: user.id,
-        nombreUsuario: user.nombre,
-      });
+      // console.log("👤 Cambio de usuario detectado:", {
+      //   anteriorUserId: currentUserId,
+      //   nuevoUserId: user.id,
+      //   nombreUsuario: user.nombre,
+      // });
 
       // Limpiar cache cuando cambia el usuario
       clearCache();
@@ -183,9 +183,9 @@ export function RecentOrdersDialog({
   // ✅ AGREGADO: useEffect para limpiar al cerrar el diálogo
   useEffect(() => {
     if (!isOpen) {
-      console.log(
-        "🚪 Diálogo cerrado, manteniendo cache para próxima apertura"
-      );
+      // console.log(
+      //   "🚪 Diálogo cerrado, manteniendo cache para próxima apertura"
+      // );
       // No limpiar cache al cerrar, solo resetear estado de carga
       setIsLoadingOrders(false);
       setIsPrinting(false);

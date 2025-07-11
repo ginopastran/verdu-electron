@@ -41,13 +41,13 @@ export function CashPaymentDialog({
   const hasDiscount = roundedAmount < originalAmount;
 
   // Debug logging
-  console.log("💰 CashPaymentDialog - Valores recibidos:", {
-    originalAmount,
-    roundedAmount,
-    hasDiscount,
-    applyingDiscount,
-    diferencia: originalAmount - roundedAmount,
-  });
+  // console.log("💰 CashPaymentDialog - Valores recibidos:", {
+  //   originalAmount,
+  //   roundedAmount,
+  //   hasDiscount,
+  //   applyingDiscount,
+  //   diferencia: originalAmount - roundedAmount,
+  // });
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

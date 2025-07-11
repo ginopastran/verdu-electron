@@ -17,7 +17,7 @@ export function SearchInputProvider({
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const focusSearchInput = (source: string) => {
-    console.log(`🔍 Intentando enfocar la barra de búsqueda desde: ${source}`);
+    // console.log(`🔍 Intentando enfocar la barra de búsqueda desde: ${source}`);
     // Usar un delay más agresivo para asegurar que el DOM esté listo
     setTimeout(() => {
       if (searchInputRef.current) {
@@ -27,7 +27,7 @@ export function SearchInputProvider({
             behavior: "smooth",
             block: "center",
           });
-          console.log(`🎯 Foco establecido desde: ${source}`);
+          // console.log(`🎯 Foco establecido desde: ${source}`);
         } catch (error) {
           console.warn(`⚠️ Error al enfocar desde ${source}:`, error);
         }

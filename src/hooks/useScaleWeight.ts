@@ -35,7 +35,7 @@ export function useScaleWeight() {
       try {
         // Intentar usar el nuevo IPC handler que funciona tanto en desarrollo como producción
         if (typeof window !== "undefined" && window.pesoReader) {
-          console.log("📏 Leyendo peso usando pesoReader IPC...");
+          // console.log("📏 Leyendo peso usando pesoReader IPC...");
           const result = await window.pesoReader.readPeso();
 
           if (result.success) {
