@@ -132,6 +132,9 @@ export function usePaymentProcessing({
   // ✅ ANTI-DUPLICADOS: Flag para evitar llamadas concurrentes
   const [isProcessingOrder, setIsProcessingOrder] = useState(false);
 
+  // ✅ NUEVO: Flag para prevenir doble impresión cuando se procesa manualmente
+  const isProcessingManualPayment = useRef<boolean>(false);
+
   // Referencias para controles externos - Usar las funciones pasadas como parámetros
   const setQrDialogOpenRef = setQrDialogOpen;
   const setSplitPaymentDialogOpenRef = setSplitPaymentDialogOpen;
@@ -809,6 +812,14 @@ export function usePaymentProcessing({
     try {
       console.log("🔄 Finalizando pago con datos:", paymentData);
 
+      // ✅ CRITICAL FIX: No ejecutar si se está procesando manualmente
+      if (isProcessingManualPayment.current) {
+        console.log(
+          "🛑 FINALIZE MP: Cancelando flujo automático - procesamiento manual en curso"
+        );
+        return;
+      }
+
       if (!user) {
         toast.error("Se perdió la sesión. Por favor inicia sesión nuevamente.");
         if (setQrDialogOpenRef) {
@@ -846,6 +857,10 @@ export function usePaymentProcessing({
                 total: qrDataRef.current?.monto || 0,
               };
 
+              // ✅ CRITICAL FIX: Incluir nombre del business para evitar fallback "Verdulería"
+              const businessName =
+                businessInfo?.nombre || businessInfo?.name || "Verdulería";
+
               orderDataForPrint = {
                 id: paymentData.orderId,
                 idReal: paymentData.orderId,
@@ -855,6 +870,7 @@ export function usePaymentProcessing({
                 vendedorId: user.id,
                 sucursalId: user.sucursalId,
                 vendedor: user.nombre,
+                businessName: businessName, // ✅ CRITICAL FIX
                 estado: "COMPLETADA",
                 createdAt: new Date().toISOString(),
               };
@@ -987,6 +1003,9 @@ export function usePaymentProcessing({
   // Resetear el estado del procesador de pagos
   const resetPaymentState = () => {
     console.log("🧹 Reseteando estados de pago");
+
+    // ✅ CORRECCIÓN: Limpiar bandera de procesamiento manual al resetear
+    isProcessingManualPayment.current = false;
 
     // ✅ CORRECCIÓN: Limpiar toasts residuales al resetear
     toast.dismiss("qr-loading");
@@ -1907,6 +1926,12 @@ export function usePaymentProcessing({
       `🔧 Completando manualmente orden ${orderId}. ¿Requiere AFIP?: ${isAfipFlow}`
     );
 
+    // ✅ CRITICAL FIX: Marcar INMEDIATAMENTE que estamos procesando manualmente
+    isProcessingManualPayment.current = true;
+    console.log(
+      "🛑 MANUAL COMPLETE: Marcado como procesamiento manual para prevenir doble impresión"
+    );
+
     // ✅ PROTECCIÓN: Marcar como enviando
     setIsManualPasswordSubmitting(true);
 
@@ -1957,41 +1982,112 @@ export function usePaymentProcessing({
       );
 
       try {
-        // ✅ PASO 3: Ejecutar impresión manualmente en lugar de esperar al polling
-        console.log("🖨️ MANUAL COMPLETE: Iniciando impresión inmediata");
+        // ✅ PASO 3: Detectar si es pago mixto y procesar correctamente
+        const orderDetails = manualQrOrderDetails;
+        const isMixedPayment =
+          orderDetails?.isSplitPayment && orderDetails?.cashAmount;
 
-        const cartData = {
-          items: qrDataRef.current?.items || [],
-          total: qrDataRef.current?.monto || 0,
-        };
+        if (isMixedPayment) {
+          // ✅ PAGO MIXTO MANUAL: Usar los datos completos
+          console.log(
+            "🖨️ MANUAL COMPLETE: Iniciando impresión mixta inmediata"
+          );
 
-        const orderDataForPrint = {
-          id: qrDataRef.current?.id || orderId,
-          idReal: qrDataRef.current?.id || orderId,
-          metodoPago: "qr",
-          total: cartData.total,
-          items: cartData.items,
-          vendedorId: user.id,
-          sucursalId: user.sucursalId,
-          vendedor: user.nombre,
-          estado: "COMPLETADA",
-          createdAt: new Date().toISOString(),
-        };
+          const cartData = {
+            items: qrDataRef.current?.items || [],
+            total: qrDataRef.current?.monto || 0,
+          };
 
-        // ✅ SIMULACIÓN: Log detallado de impresión manual
-        console.log("🎯 SIMULACIÓN DE TICKET QR MANUAL SINCRONIZADO:");
-        console.log("📋 === DATOS PARA IMPRESIÓN MANUAL ===");
-        console.log("🆔 ID:", orderDataForPrint.id);
-        console.log("💳 Método:", orderDataForPrint.metodoPago);
-        console.log("💰 Total:", orderDataForPrint.total);
-        console.log("🛒 Items:", orderDataForPrint.items);
+          const totalAmount = cartData.total + orderDetails.cashAmount;
 
-        // Ejecutar impresión
-        await handleTicketPrinting(orderDataForPrint);
+          // ✅ CRITICAL FIX: Incluir nombre del business para pagos mixtos
+          const businessName =
+            businessInfo?.nombre || businessInfo?.name || "Verdulería";
 
-        // ✅ PASO 4: Cerrar toast de impresión y mostrar éxito
-        toast.dismiss(printingToastId);
-        toast.success("¡Pago completado e impreso exitosamente!");
+          const orderDataForPrint = {
+            id: qrDataRef.current?.id || orderId,
+            idReal: qrDataRef.current?.id || orderId,
+            metodoPago: "split", // Método mixto
+            total: totalAmount,
+            items: cartData.items,
+            vendedorId: user.id,
+            sucursalId: user.sucursalId,
+            vendedor: user.nombre,
+            businessName: businessName, // ✅ CRITICAL FIX
+            estado: "COMPLETADA",
+            createdAt: new Date().toISOString(),
+            // ✅ DATOS ESPECÍFICOS PARA PAGO MIXTO MANUAL
+            pagos: [
+              {
+                metodoPago: "efectivo",
+                monto: orderDetails.cashAmount,
+              },
+              {
+                metodoPago: "qr",
+                monto: cartData.total,
+              },
+            ],
+          };
+
+          // ✅ SIMULACIÓN: Log detallado de impresión mixta manual
+          console.log("🎯 SIMULACIÓN DE TICKET MIXTO MANUAL SINCRONIZADO:");
+          console.log("📋 === DATOS PARA IMPRESIÓN MIXTA MANUAL ===");
+          console.log("🆔 ID:", orderDataForPrint.id);
+          console.log("💳 Método:", orderDataForPrint.metodoPago);
+          console.log("💰 Total combinado:", orderDataForPrint.total);
+          console.log("💰 Efectivo:", orderDetails.cashAmount);
+          console.log("💰 QR:", cartData.total);
+          console.log("🛒 Items:", orderDataForPrint.items);
+          console.log("💳 Pagos:", orderDataForPrint.pagos);
+
+          // Ejecutar impresión mixta
+          await handleTicketPrinting(orderDataForPrint);
+
+          toast.dismiss(printingToastId);
+          toast.success("¡Pago mixto completado e impreso exitosamente!");
+        } else {
+          // ✅ PAGO QR SIMPLE MANUAL
+          console.log(
+            "🖨️ MANUAL COMPLETE: Iniciando impresión QR simple inmediata"
+          );
+
+          const cartData = {
+            items: qrDataRef.current?.items || [],
+            total: qrDataRef.current?.monto || 0,
+          };
+
+          // ✅ CRITICAL FIX: Incluir nombre del business para evitar fallback "Verdulería"
+          const businessName =
+            businessInfo?.nombre || businessInfo?.name || "Verdulería";
+
+          const orderDataForPrint = {
+            id: qrDataRef.current?.id || orderId,
+            idReal: qrDataRef.current?.id || orderId,
+            metodoPago: "qr",
+            total: cartData.total,
+            items: cartData.items,
+            vendedorId: user.id,
+            sucursalId: user.sucursalId,
+            vendedor: user.nombre,
+            businessName: businessName, // ✅ CRITICAL FIX
+            estado: "COMPLETADA",
+            createdAt: new Date().toISOString(),
+          };
+
+          // ✅ SIMULACIÓN: Log detallado de impresión manual
+          console.log("🎯 SIMULACIÓN DE TICKET QR MANUAL SINCRONIZADO:");
+          console.log("📋 === DATOS PARA IMPRESIÓN MANUAL ===");
+          console.log("🆔 ID:", orderDataForPrint.id);
+          console.log("💳 Método:", orderDataForPrint.metodoPago);
+          console.log("💰 Total:", orderDataForPrint.total);
+          console.log("🛒 Items:", orderDataForPrint.items);
+
+          // Ejecutar impresión
+          await handleTicketPrinting(orderDataForPrint);
+
+          toast.dismiss(printingToastId);
+          toast.success("¡Pago completado e impreso exitosamente!");
+        }
       } catch (printError) {
         console.error("❌ Error en impresión manual:", printError);
         toast.dismiss(printingToastId);
@@ -2015,6 +2111,12 @@ export function usePaymentProcessing({
     } finally {
       // ✅ PROTECCIÓN: Siempre limpiar el estado de loading
       setIsManualPasswordSubmitting(false);
+
+      // ✅ CRITICAL FIX: Limpiar bandera de procesamiento manual
+      isProcessingManualPayment.current = false;
+      console.log(
+        "✅ MANUAL COMPLETE: Bandera de procesamiento manual limpiada"
+      );
     }
   };
 
@@ -2179,6 +2281,10 @@ export function usePaymentProcessing({
               console.log("🆔 orderId:", paymentData.orderId);
               console.log("👤 user:", user);
 
+              // ✅ CRITICAL FIX: Incluir nombre del business para pagos mixtos automáticos
+              const businessName =
+                businessInfo?.nombre || businessInfo?.name || "Verdulería";
+
               orderDataForPrint = {
                 id: paymentData.orderId,
                 idReal: paymentData.orderId,
@@ -2188,6 +2294,7 @@ export function usePaymentProcessing({
                 vendedorId: user.id,
                 sucursalId: user.sucursalId,
                 vendedor: user.nombre,
+                businessName: businessName, // ✅ CRITICAL FIX
                 estado: "COMPLETADA",
                 createdAt: new Date().toISOString(),
                 // ✅ DATOS ESPECÍFICOS PARA PAGO MIXTO AUTOMÁTICO
@@ -2311,17 +2418,20 @@ export function usePaymentProcessing({
           );
         }
 
-        // Mostrar éxito
-        toast.success("¡Pago mixto completado exitosamente!");
+        // ✅ MEJORA: Toast más específico y sincronizado para pago mixto automático
+        toast.success("¡Pago mixto completado e impreso exitosamente!");
 
-        // Cerrar diálogo QR
-        if (setQrDialogOpenRef) {
-          setQrDialogOpenRef(false);
-        }
+        // ✅ MEJORA: Breve pausa para mejor UX antes de cerrar diálogo
+        setTimeout(() => {
+          // Cerrar diálogo QR
+          if (setQrDialogOpenRef) {
+            setQrDialogOpenRef(false);
+          }
 
-        // Limpiar carrito y estados
-        clearCart();
-        resetPaymentState();
+          // Limpiar carrito y estados
+          clearCart();
+          resetPaymentState();
+        }, 500);
 
         console.log("✅ FINALIZE SPLIT MP: Proceso completado con impresión");
       }
