@@ -1010,6 +1010,18 @@ export default function ShoppingCartRefactored() {
     businessInfo,
   });
 
+  // 🆕 NUEVO: Limpiar tracking de órdenes procesadas cuando se cierre el diálogo QR
+  useEffect(() => {
+    if (!qrDialogOpen) {
+      console.log(
+        "🧹 QR Dialog cerrado - limpiando tracking de órdenes procesadas"
+      );
+      // Limpiar tracking en ambos hooks
+      paymentProcessor.clearProcessedOrdersTracking?.();
+      afipPaymentProcessor.clearProcessedOrdersTracking?.();
+    }
+  }, [qrDialogOpen, paymentProcessor, afipPaymentProcessor]);
+
   // Limpiar intervalos al desmontar o cuando cambia el estado del diálogo QR
   useEffect(() => {
     if (!qrDialogOpen) {

@@ -320,36 +320,28 @@ export function useAfipPaymentProcessing({
   };
 
   const resetPaymentState = () => {
-    console.log(
-      "🧹 AFIP RESET: Limpiando estados del procesador de pagos AFIP"
-    );
-
-    // ✅ CORRECCIÓN: Limpiar polling PRIMERO antes de resetear otros estados
-    cleanupPolling();
-
+    console.log("🧹 Reseteando estados del hook de procesamiento AFIP");
+    setQrData(null);
+    setPaymentStatus(null);
     setIsProcessingPayment(false);
     setSelectedPaymentMethod(null);
-    // Limpiar también estados de efectivo y mixto
+    setManualQrPassword("");
+    setManualQrPasswordDialogOpen(false);
+    setIsManualPasswordSubmitting(false);
     setRoundedAmountDialogOpen(false);
-    setOriginalAmount(0);
-    setRoundedAmount(0);
-    setApplyingDiscount(false);
     setExactPaymentDialogOpen(false);
     setPaidAmount(0);
     setChangeAmount(0);
-    // NUEVO: limpiar estados mixtos
     setCashAmount("");
     setSecondPaymentMethod("tarjeta");
-    // Limpiar estados de QR
-    setQrData(null);
-    setPaymentStatus(null);
-    // ✅ YA NO necesario - cleanupPolling() ya maneja esto
-    // setPollingInterval(null);
-    setManualQrPasswordDialogOpen(false);
-    setManualQrPassword("");
-    setManualQrOrderDetails(null);
-    // ✅ NUEVO: limpiar estado de loading de contraseña manual
-    setIsManualPasswordSubmitting(false);
+
+    // ✅ TOAST CONTROL: Limpiar tracking de órdenes procesadas
+    clearProcessedOrdersTracking();
+
+    // Limpiar polling
+    cleanupPolling();
+
+    console.log("✅ Estados del hook de procesamiento AFIP reseteados");
   };
 
   const processAfipPayment = async (
@@ -1280,6 +1272,17 @@ export function useAfipPaymentProcessing({
       clearInterval(interval);
       setPollingInterval(null);
 
+      // ✅ TOAST CONTROL: Verificar si ya se procesó esta orden
+      if (isOrderAlreadyProcessed(orderId)) {
+        console.log(
+          `🛡️ TOAST CONTROL AFIP: Orden ${orderId} ya fue procesada en polling, saltando`
+        );
+        return;
+      }
+
+      // ✅ TOAST CONTROL: Marcar como procesada ANTES de continuar
+      markOrderAsProcessed(orderId);
+
       // ✅ FLUJO CORRECTO: El backend ya debería haber creado la factura AFIP automáticamente
       if (statusData.afipInvoice?.created) {
         console.log(
@@ -1328,20 +1331,19 @@ export function useAfipPaymentProcessing({
       status === "cancelled" ||
       status === "rejected"
     ) {
-      console.log("🔄 AFIP POLLING: ❌ Pago falló/cancelado:", status);
+      console.log("🔄 AFIP POLLING: ❌ Pago cancelado o rechazado");
       clearInterval(interval);
       setPollingInterval(null);
 
-      const message =
-        status === "cancelled"
-          ? "Pago AFIP cancelado"
-          : "Error en el pago AFIP";
-      toast.error(message);
+      toast.error("El pago ha sido cancelado o rechazado");
+      if (setQrDialogOpen) {
+        setQrDialogOpen(false);
+      }
       resetPaymentState();
     } else {
-      // Pago aún pendiente, continuar polling
-      console.log("🔄 AFIP POLLING: ⏳ Pago pendiente, continuando polling...");
-      setPaymentStatus("PENDIENTE");
+      console.log(
+        "🔄 AFIP POLLING: ⏳ Pago aún pendiente, continuando polling..."
+      );
     }
   };
 
@@ -1455,6 +1457,14 @@ export function useAfipPaymentProcessing({
       `🔧 AFIP: Completando manualmente orden ${orderId} con requiresAfipInvoice: true`
     );
 
+    // ✅ TOAST CONTROL: Verificar si ya se procesó esta orden
+    if (isOrderAlreadyProcessed(orderId)) {
+      console.log(
+        `🛡️ TOAST CONTROL AFIP: Orden ${orderId} ya fue procesada manualmente, saltando`
+      );
+      return;
+    }
+
     // ✅ CORRECCIÓN: Limpiar polling INMEDIATAMENTE para evitar 404s
     console.log("🧹 AFIP: Limpiando polling antes del pago manual");
     cleanupPolling();
@@ -1495,6 +1505,9 @@ export function useAfipPaymentProcessing({
 
       const result = await response.json();
       console.log("✅ AFIP: Pago manual completado:", result);
+
+      // ✅ TOAST CONTROL: Marcar como procesada ANTES de mostrar toasts
+      markOrderAsProcessed(orderId);
 
       // ✅ CORRECCIÓN: NO cerrar diálogos inmediatamente, esperar sincronización
       setManualQrPasswordDialogOpen(false);
@@ -1555,6 +1568,29 @@ export function useAfipPaymentProcessing({
 
   // Agregar funciones para polling, finalize, etc. similares a usePaymentProcessing pero adaptadas para AFIP (imprimir ticket AFIP al final)
 
+  // ✅ NUEVO: Control de toasts para evitar duplicados
+  const [processedOrders] = useState<Set<string>>(new Set());
+
+  const isOrderAlreadyProcessed = (orderId: string): boolean => {
+    return processedOrders.has(orderId);
+  };
+
+  const markOrderAsProcessed = (orderId: string): void => {
+    processedOrders.add(orderId);
+    console.log(
+      `✅ TOAST CONTROL AFIP: Orden ${orderId} marcada como procesada`
+    );
+  };
+
+  const clearProcessedOrdersTracking = () => {
+    processedOrders.clear();
+    console.log(
+      "🧹 TOAST CONTROL AFIP: Tracking de órdenes procesadas limpiado"
+    );
+  };
+
+  // Estado para datos del QR
+
   return {
     processAfipPayment,
     handleAfipCashPayment,
@@ -1605,5 +1641,7 @@ export function useAfipPaymentProcessing({
     isManualPasswordSubmitting,
     // Función de limpieza
     cleanupPolling,
+    // ✅ NUEVO: Control de toasts para evitar duplicados
+    clearProcessedOrdersTracking,
   };
 }

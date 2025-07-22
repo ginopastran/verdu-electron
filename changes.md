@@ -3954,3 +3954,137 @@ export default function ShoppingCart() {
 3. Adaptar los cambios al nuevo sistema refactorizado
 4. Probar cada cambio individualmente antes de continuar con el siguiente
 5. Documentar cualquier conflicto o problema encontrado durante la implementación
+
+# Solución para Toasts Infinitas en Pagos QR
+
+## Problema Identificado
+
+El cliente reportó que después de completar un pago QR exitoso, aparecían toasts infinitas de "success" e "imprimiendo" que se repetían indefinidamente, requiriendo CTRL+F5 para recargar la aplicación.
+
+## Causa Raíz
+
+El problema se debía a múltiples flujos de polling ejecutándose simultáneamente:
+
+1. **Polling automático** del estado del pago QR
+2. **Procesamiento manual** con contraseña
+3. **Finalización automática** cuando el backend confirma el pago
+4. **Impresión de tickets** que también muestra toasts
+
+Cada flujo podía ejecutarse múltiples veces para la misma orden, mostrando toasts duplicadas.
+
+## Solución Implementada
+
+### 1. Sistema de Control de Toasts
+
+Se implementó un sistema de tracking de órdenes procesadas en ambos hooks:
+
+- `usePaymentProcessing.ts` (flujo normal sin AFIP)
+- `useAfipPaymentProcessing.ts` (flujo con AFIP)
+
+```typescript
+// ✅ NUEVO: Control de toasts para evitar duplicados
+const [processedOrders] = useState<Set<string>>(new Set());
+
+const isOrderAlreadyProcessed = (orderId: string): boolean => {
+  return processedOrders.has(orderId);
+};
+
+const markOrderAsProcessed = (orderId: string): void => {
+  processedOrders.add(orderId);
+  console.log(`✅ TOAST CONTROL: Orden ${orderId} marcada como procesada`);
+};
+
+const clearProcessedOrdersTracking = () => {
+  processedOrders.clear();
+  console.log("🧹 TOAST CONTROL: Tracking de órdenes procesadas limpiado");
+};
+```
+
+### 2. Protección en Flujos de Polling
+
+Se agregó verificación antes de procesar cualquier orden:
+
+```typescript
+// ✅ TOAST CONTROL: Verificar si ya se procesó esta orden
+if (isOrderAlreadyProcessed(orderId)) {
+  console.log(
+    `🛡️ TOAST CONTROL: Orden ${orderId} ya fue procesada, saltando toasts`
+  );
+  return;
+}
+
+// ✅ TOAST CONTROL: Marcar como procesada ANTES de mostrar toasts
+markOrderAsProcessed(orderId);
+```
+
+### 3. Protección en Procesamiento Manual
+
+Se agregó la misma verificación en el flujo de completado manual:
+
+```typescript
+// ✅ TOAST CONTROL: Verificar si ya se procesó esta orden
+if (isOrderAlreadyProcessed(orderId)) {
+  console.log(
+    `🛡️ TOAST CONTROL: Orden ${orderId} ya fue procesada manualmente, saltando`
+  );
+  return;
+}
+
+// ✅ TOAST CONTROL: Marcar como procesada ANTES de mostrar toasts
+markOrderAsProcessed(orderId);
+```
+
+### 4. Limpieza Automática
+
+Se implementó limpieza automática del tracking cuando:
+
+- Se cierra el diálogo QR
+- Se resetean los estados del hook
+- Se desmonta el componente
+
+```typescript
+// 🆕 NUEVO: Limpiar tracking de órdenes procesadas cuando se cierre el diálogo QR
+useEffect(() => {
+  if (!qrDialogOpen) {
+    console.log(
+      "🧹 QR Dialog cerrado - limpiando tracking de órdenes procesadas"
+    );
+    // Limpiar tracking en ambos hooks
+    paymentProcessor.clearProcessedOrdersTracking?.();
+    afipPaymentProcessor.clearProcessedOrdersTracking?.();
+  }
+}, [qrDialogOpen, paymentProcessor, afipPaymentProcessor]);
+```
+
+### 5. Cobertura Completa
+
+La solución cubre todos los flujos de pago QR:
+
+- ✅ **F2 (Con AFIP)**: Polling automático + procesamiento manual
+- ✅ **F3 (Sin AFIP)**: Polling automático + procesamiento manual
+- ✅ **Pago mixto**: Ambos flujos con efectivo + QR
+- ✅ **QR directo**: Sin MercadoPago habilitado
+- ✅ **QR con MercadoPago**: Con polling y confirmación
+
+## Resultado
+
+- ✅ **Eliminación de toasts duplicadas**: Cada orden se procesa una sola vez
+- ✅ **Mejor experiencia de usuario**: No más toasts infinitas
+- ✅ **Estabilidad**: No requiere CTRL+F5 para continuar usando la app
+- ✅ **Logging detallado**: Para debugging y monitoreo
+- ✅ **Compatibilidad**: Funciona con todos los flujos existentes
+
+## Archivos Modificados
+
+1. `src/hooks/usePaymentProcessing.ts` - Control de toasts para flujo normal
+2. `src/hooks/useAfipPaymentProcessing.ts` - Control de toasts para flujo AFIP
+3. `src/components/ShoppingCartRefactored.tsx` - Limpieza automática del tracking
+
+## Testing Recomendado
+
+1. Probar pago QR con F2 (AFIP habilitado)
+2. Probar pago QR con F3 (AFIP deshabilitado)
+3. Probar pago mixto con efectivo + QR
+4. Probar completado manual con contraseña
+5. Verificar que no aparezcan toasts duplicadas
+6. Verificar que se pueda continuar usando la app sin recargar

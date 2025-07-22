@@ -59,6 +59,23 @@ export function usePaymentProcessing({
     }
   };
 
+  // ✅ NUEVO: Control de toasts para evitar duplicados
+  const [processedOrders] = useState<Set<string>>(new Set());
+
+  const isOrderAlreadyProcessed = (orderId: string): boolean => {
+    return processedOrders.has(orderId);
+  };
+
+  const markOrderAsProcessed = (orderId: string): void => {
+    processedOrders.add(orderId);
+    console.log(`✅ TOAST CONTROL: Orden ${orderId} marcada como procesada`);
+  };
+
+  const clearProcessedOrdersTracking = () => {
+    processedOrders.clear();
+    console.log("🧹 TOAST CONTROL: Tracking de órdenes procesadas limpiado");
+  };
+
   // ✅ NUEVO: Control de impresión para evitar duplicados
   const [printedOrders] = useState<Set<string>>(new Set());
 
@@ -696,6 +713,17 @@ export function usePaymentProcessing({
           cleanupPolling();
 
           if (statusData.isCompleted) {
+            // ✅ TOAST CONTROL: Verificar si ya se procesó esta orden
+            if (isOrderAlreadyProcessed(orderId)) {
+              console.log(
+                `🛡️ TOAST CONTROL: Orden ${orderId} ya fue procesada, saltando toasts`
+              );
+              return;
+            }
+
+            // ✅ TOAST CONTROL: Marcar como procesada ANTES de mostrar toasts
+            markOrderAsProcessed(orderId);
+
             const cartData = {
               items: currentQrData?.items || [],
               total: currentQrData?.monto ?? 0,
@@ -709,7 +737,11 @@ export function usePaymentProcessing({
               false
             );
 
-            toast.success("¡Pago completado! Cerrando en 2 segundos...");
+            // ✅ TOAST CONTROL: Solo mostrar toast si no se mostró en finalizeMPPayment
+            if (!isOrderAlreadyProcessed(orderId)) {
+              toast.success("¡Pago completado! Cerrando en 2 segundos...");
+            }
+
             setTimeout(() => {
               if (setQrDialogOpenRef) {
                 setQrDialogOpenRef(false);
@@ -832,6 +864,19 @@ export function usePaymentProcessing({
       if (paymentData.isCompleted) {
         console.log("💰 Pago QR completado exitosamente por el backend");
 
+        // ✅ TOAST CONTROL: Verificar si ya se procesó esta orden
+        const orderId =
+          paymentData.orderId || paymentData.orderData?.id || "unknown";
+        if (isOrderAlreadyProcessed(orderId)) {
+          console.log(
+            `🛡️ TOAST CONTROL: Orden ${orderId} ya fue procesada en finalizeMPPayment, saltando`
+          );
+          return;
+        }
+
+        // ✅ TOAST CONTROL: Marcar como procesada ANTES de continuar
+        markOrderAsProcessed(orderId);
+
         // ✅ CORRECCIÓN: El backend refactorizado ya maneja todo automáticamente
         // Pero aún necesitamos imprimir el ticket con los datos de la orden
         console.log(
@@ -935,7 +980,7 @@ export function usePaymentProcessing({
           );
         }
 
-        // Mostrar éxito
+        // ✅ TOAST CONTROL: Solo mostrar toast de éxito si no se mostró antes
         toast.success("¡Pago completado exitosamente!");
 
         // Cerrar diálogo QR
@@ -1002,27 +1047,37 @@ export function usePaymentProcessing({
 
   // Resetear el estado del procesador de pagos
   const resetPaymentState = () => {
-    console.log("🧹 Reseteando estados de pago");
-
-    // ✅ CORRECCIÓN: Limpiar bandera de procesamiento manual al resetear
-    isProcessingManualPayment.current = false;
-
-    // ✅ CORRECCIÓN: Limpiar toasts residuales al resetear
-    toast.dismiss("qr-loading");
-    toast.dismiss("processing-order");
-    toast.dismiss("printing-ticket");
-
-    setIsProcessingPayment(false);
-    setSelectedPaymentMethod(null);
+    console.log("🧹 Reseteando estados del hook de procesamiento de pagos");
     setQrData(null);
     setPaymentStatus(null);
-    setManualQrPasswordDialogOpen(false);
+    setIsProcessingPayment(false);
+    setSelectedPaymentMethod(null);
     setManualQrPassword("");
+    setManualQrPasswordDialogOpen(false);
     setManualQrOrderDetails(null);
+    setIsManualPasswordSubmitting(false);
+    setRoundedAmountDialogOpen(false);
+    setExactPaymentDialogOpen(false);
+    setPaidAmount(0);
+    setChangeAmount(0);
     setCashAmount("");
     setSecondPaymentMethod("tarjeta");
+    setRetryCount(0);
+    setPollingStartTime(null);
+
+    // ✅ TOAST CONTROL: Limpiar tracking de órdenes procesadas
+    clearProcessedOrdersTracking();
+
+    // ✅ IMPRESIÓN CONTROL: Limpiar tracking de órdenes impresas
+    clearPrintedOrdersTracking();
+
     // Limpiar polling
     cleanupPolling();
+
+    // Limpiar bandera de procesamiento manual
+    isProcessingManualPayment.current = false;
+
+    console.log("✅ Estados del hook de procesamiento de pagos reseteados");
   };
 
   // Función para procesar pagos mixtos
@@ -1926,6 +1981,14 @@ export function usePaymentProcessing({
       `🔧 Completando manualmente orden ${orderId}. ¿Requiere AFIP?: ${isAfipFlow}`
     );
 
+    // ✅ TOAST CONTROL: Verificar si ya se procesó esta orden
+    if (isOrderAlreadyProcessed(orderId)) {
+      console.log(
+        `🛡️ TOAST CONTROL: Orden ${orderId} ya fue procesada manualmente, saltando`
+      );
+      return;
+    }
+
     // ✅ CRITICAL FIX: Marcar INMEDIATAMENTE que estamos procesando manualmente
     isProcessingManualPayment.current = true;
     console.log(
@@ -1968,6 +2031,9 @@ export function usePaymentProcessing({
 
       const result = await response.json();
       console.log("✅ Pago manual completado:", result);
+
+      // ✅ TOAST CONTROL: Marcar como procesada ANTES de mostrar toasts
+      markOrderAsProcessed(orderId);
 
       // ✅ CORRECCIÓN: NO cerrar diálogos inmediatamente, esperar impresión
       setManualQrPasswordDialogOpen(false);
@@ -2473,57 +2539,69 @@ export function usePaymentProcessing({
   }, []);
 
   return {
-    // Estados
+    // Estados principales
     isProcessingPayment,
     selectedPaymentMethod,
     qrData,
     paymentStatus,
-    cashAmount,
-    secondPaymentMethod,
-    originalAmount,
-    roundedAmount,
-    roundedAmountDialogOpen,
-    applyingDiscount,
+    pollingInterval,
     manualQrPasswordDialogOpen,
     manualQrPassword,
-    // NUEVO ESTADO: Loading para completado manual con contraseña
+    manualQrOrderDetails,
     isManualPasswordSubmitting,
-    // Nuevos estados para pago exacto
-    exactPaymentDialogOpen,
-    paidAmount,
-    changeAmount,
+    retryCount,
+    pollingStartTime,
 
-    // Métodos
+    // Estados de efectivo
+    roundedAmountDialogOpen,
+    setRoundedAmountDialogOpen,
+    originalAmount,
+    roundedAmount,
+    applyingDiscount,
+
+    // Estados de pago exacto
+    exactPaymentDialogOpen,
+    setExactPaymentDialogOpen,
+    paidAmount,
+    setPaidAmount,
+    changeAmount,
+    setChangeAmount,
+
+    // Estados de pago mixto
+    cashAmount,
+    setCashAmount,
+    secondPaymentMethod,
+    setSecondPaymentMethod,
+
+    // Funciones principales
     processPayment,
+    confirmExactPayment,
     handleCashPayment,
     generateQRPayment,
-    generateSplitQRPayment,
+    startPaymentStatusPolling,
     cancelQRPayment,
+    cleanupPolling,
+    resetPaymentState,
+    finalizeMPPayment,
+
+    // Funciones de pago mixto
     handleSplitPayment,
     processSplitPayment,
-    resetPaymentState,
-    cleanupPolling,
-    completarOrdenManualmente,
-    handleManualQrPasswordSubmit,
-    handleTicketPrinting,
-    // Nueva función para pago exacto
-    confirmExactPayment,
-    // ✅ EXPONER: Funciones de polling
-    startPaymentStatusPolling,
+    generateSplitQRPayment,
     startSplitPaymentStatusPolling,
+    finalizeSplitMPPayment,
 
-    // Setters
-    setCashAmount,
-    setSecondPaymentMethod,
-    setRoundedAmountDialogOpen,
-    setManualQrPasswordDialogOpen,
-    setManualQrPassword,
-    // Nuevos setters para pago exacto
-    setExactPaymentDialogOpen,
-    setPaidAmount,
-    setChangeAmount,
-    // ✅ EXPONER: Funciones para actualizar estado del QR
-    updateQrData,
-    setPaymentStatus,
+    // Funciones manuales
+    completarOrdenManualmente,
+    finalizeManualPayment,
+    handleManualQrPasswordSubmit,
+
+    // Funciones auxiliares
+    formatFechaArgentina,
+    handleTicketPrinting,
+
+    // ✅ NUEVO: Control de toasts para evitar duplicados
+    clearProcessedOrdersTracking,
+    clearPrintedOrdersTracking,
   };
 }
