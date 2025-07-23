@@ -6,9 +6,14 @@ import { Product } from "@/hooks/useCartState";
 interface CartItemProps {
   item: Product;
   onRemove: (id: number) => void;
+  isCancellationEnabled?: boolean;
 }
 
-export function CartItem({ item, onRemove }: CartItemProps) {
+export function CartItem({
+  item,
+  onRemove,
+  isCancellationEnabled = false,
+}: CartItemProps) {
   return (
     <Card className="bg-background border p-4 flex items-center justify-between shadow-sm rounded-xl border-[#A7A7A7]">
       <div className="flex justify-between w-full items-center">
@@ -26,14 +31,18 @@ export function CartItem({ item, onRemove }: CartItemProps) {
           </div>
         </div>
 
-        <Button
-          variant="destructive"
-          size="icon"
-          className="h-8 w-8 rounded-lg bg-cancel-gradient"
-          onClick={() => onRemove(item.id)}
-        >
-          <Trash2 className="h-6 w-6" />
-        </Button>
+        {/* Solo mostrar botón de eliminar si las cancelaciones NO están habilitadas */}
+        {!isCancellationEnabled && (
+          <Button
+            variant="destructive"
+            size="icon"
+            className="h-8 w-8 rounded-lg bg-cancel-gradient"
+            onClick={() => onRemove(item.id)}
+            title="Eliminar producto"
+          >
+            <Trash2 className="h-6 w-6" />
+          </Button>
+        )}
       </div>
     </Card>
   );

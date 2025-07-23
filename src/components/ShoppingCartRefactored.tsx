@@ -43,6 +43,7 @@ import { useProducts } from "@/hooks/useProducts";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useClosing } from "@/hooks/useClosing";
 import { useTicketPrinting } from "@/hooks/useTicketPrinting";
+import { useCancellationControl } from "@/hooks/useCancellationControl";
 import { AvailableProduct } from "@/hooks/useProductSearch";
 import { getBusinessName } from "@/utils/businessHelpers";
 
@@ -64,6 +65,7 @@ import {
 // Componentes de diálogo
 import { CashPaymentDialog, CancelDialog } from "./shopping-cart/dialogs";
 import { ExactPaymentDialog } from "./shopping-cart/dialogs/ExactPaymentDialog";
+import { CancellationDialog } from "./shopping-cart/dialogs/CancellationDialog";
 
 // Importar el nuevo componente de diálogo de órdenes recientes
 import { RecentOrdersDialog } from "./RecentOrdersDialog";
@@ -157,6 +159,12 @@ export default function ShoppingCartRefactored() {
   const { availableProducts } = useProducts(API_URL, getAppId());
   const closing = useClosing(user, API_URL, getAppId());
   const { handleTicketPrinting, formatFechaArgentina } = useTicketPrinting();
+  const cancellationControl = useCancellationControl({
+    user,
+    API_URL,
+    appId: getAppId(),
+    businessInfo,
+  });
 
   const paymentProcessor = usePaymentProcessing({
     user,
@@ -389,7 +397,50 @@ export default function ShoppingCartRefactored() {
   };
 
   // Handler para cancelar el carrito
-  const handleCancelCart = () => {
+  const handleCancelCart = async () => {
+    // Si las cancelaciones están habilitadas, usar el flujo controlado
+    if (cancellationControl.isCancellationEnabled) {
+      console.log("🔄 Cancelaciones habilitadas - usando flujo controlado");
+
+      // Calcular monto total del carrito
+      const montoTotal = cartState.calculateTotal();
+
+      // Obtener productos del carrito para la cancelación
+      const productosCarrito = cartState.getCurrentItems();
+
+      // Preparar productos para la API de cancelación
+      const productosCancelacion = productosCarrito.map((item) => ({
+        productoId: item.id,
+        nombreProducto: item.name,
+        cantidad: item.quantity,
+        precioUnitario: item.pricePerUnit,
+        subtotal: Number(item.subtotal.toFixed(2)),
+      }));
+
+      console.log(
+        "📋 Productos preparados para cancelación:",
+        productosCancelacion
+      );
+
+      // Generar un ID temporal para la orden (en un caso real, esto sería el ID de la orden)
+      const tempReferenciaId = `TEMP-${Date.now()}`;
+
+      // Iniciar el proceso de cancelación controlada
+      const usingControlledFlow = cancellationControl.initiateCancellation(
+        "orden",
+        tempReferenciaId,
+        montoTotal,
+        productosCancelacion
+      );
+
+      if (usingControlledFlow) {
+        // El diálogo de cancelación se abrirá automáticamente
+        return;
+      }
+    }
+
+    // Flujo normal (cancelaciones deshabilitadas o fallback)
+    console.log("🔄 Usando flujo normal de cancelación");
     cartState.clearCart();
     setCancelDialogOpen(false);
 
@@ -397,6 +448,30 @@ export default function ShoppingCartRefactored() {
     focusSearchInput("carrito cancelado");
 
     toast.success("Carrito cancelado");
+  };
+
+  // Handler para confirmar cancelación controlada
+  const handleConfirmCancellation = async (): Promise<boolean> => {
+    const success = await cancellationControl.confirmCancellation();
+
+    if (success) {
+      // Limpiar el carrito después del registro exitoso
+      cartState.clearCart();
+      setCancelDialogOpen(false);
+
+      // Enfocar el input de búsqueda
+      focusSearchInput("carrito cancelado con registro");
+
+      console.log("✅ Cancelación registrada y carrito limpiado");
+    }
+
+    return success || false;
+  };
+
+  // Handler para cancelar el proceso de cancelación controlada
+  const handleCancelCancellationProcess = () => {
+    cancellationControl.cancelCancellationProcess();
+    console.log("❌ Proceso de cancelación cancelado por el usuario");
   };
 
   // Handler para mostrar diálogo de pago
@@ -1022,6 +1097,19 @@ export default function ShoppingCartRefactored() {
     }
   }, [qrDialogOpen, paymentProcessor, afipPaymentProcessor]);
 
+  // 🆕 NUEVO: Monitorear estado de diálogos de contraseña manual
+  useEffect(() => {
+    console.log("🔧 Estado de diálogos de contraseña manual:", {
+      normalDialogOpen: paymentProcessor.manualQrPasswordDialogOpen,
+      afipDialogOpen: afipPaymentProcessor.manualQrPasswordDialogOpen,
+      isCurrentlyAfipFlow,
+    });
+  }, [
+    paymentProcessor.manualQrPasswordDialogOpen,
+    afipPaymentProcessor.manualQrPasswordDialogOpen,
+    isCurrentlyAfipFlow,
+  ]);
+
   // Limpiar intervalos al desmontar o cuando cambia el estado del diálogo QR
   useEffect(() => {
     if (!qrDialogOpen) {
@@ -1162,8 +1250,8 @@ export default function ShoppingCartRefactored() {
           }
         }
 
-        // 2. PLU + peso: 0 + 3 dígitos PLU + 8 dígitos gramos + 1 checksum (13 dígitos)
-        const pluWeightRegex = /^0(\d{3})(\d{8})\d$/;
+        // 2. PLU + peso: 3 dígitos PLU + 8 dígitos gramos + 1 dígito adicional (12 dígitos total)
+        const pluWeightRegex = /^(\d{3})(\d{8})(\d{1})$/;
         const match = currentValue.match(pluWeightRegex);
         if (match) {
           const plu = match[1];
@@ -1173,6 +1261,14 @@ export default function ShoppingCartRefactored() {
           console.log(
             `🔍 DEBUG: PLU + peso detectado - PLU: ${plu}, gramos: ${grams}, kg: ${kgQuantity}`
           );
+
+          // ✅ CORRECCIÓN: Validar que el peso sea razonable (entre 0.001 y 999.999 kg)
+          if (kgQuantity < 0.001 || kgQuantity > 999.999) {
+            console.log(
+              `🔍 DEBUG: Peso fuera de rango válido: ${kgQuantity} kg`
+            );
+            return;
+          }
 
           const productByPlu: any = availableProducts.find((p: any) => {
             if (p.plu === null || p.plu === undefined) return false;
@@ -1304,11 +1400,26 @@ export default function ShoppingCartRefactored() {
 
       {/* Items list */}
       <div className="flex-1 space-y-2 overflow-auto mb-4">
+        {/* {cancellationControl.isCancellationEnabled &&
+          cartState.getCurrentItems().length > 0 && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                <p className="text-sm text-blue-700">
+                  <strong>Modo de cancelación controlada:</strong> Solo puedes
+                  cancelar toda la orden. Los items individuales no se pueden
+                  eliminar.
+                </p>
+              </div>
+            </div>
+          )} */}
+
         {cartState.getCurrentItems().map((item) => (
           <CartItem
             key={item.cartId}
             item={item}
             onRemove={cartState.removeFromCart}
+            isCancellationEnabled={cancellationControl.isCancellationEnabled}
           />
         ))}
       </div>
@@ -1586,6 +1697,17 @@ export default function ShoppingCartRefactored() {
         }}
       />
 
+      <CancellationDialog
+        open={cancellationControl.cancellationDialogOpen}
+        onOpenChange={cancellationControl.setCancellationDialogOpen}
+        onConfirm={handleConfirmCancellation}
+        onCancel={handleCancelCancellationProcess}
+        reason={cancellationControl.cancellationReason}
+        onReasonChange={cancellationControl.setCancellationReason}
+        isCancelling={cancellationControl.isCancelling}
+        pendingCancellation={cancellationControl.pendingCancellation}
+      />
+
       <ClosingDialog
         open={closing.closingDialogOpen}
         onOpenChange={closing.setClosingDialogOpen}
@@ -1620,6 +1742,7 @@ export default function ShoppingCartRefactored() {
       <ManualQrDialog
         open={paymentProcessor.manualQrPasswordDialogOpen}
         onOpenChange={(open: boolean) => {
+          console.log("🔧 ManualQrDialog (normal) onOpenChange:", open);
           if (!open) {
             paymentProcessor.setManualQrPasswordDialogOpen(false);
             paymentProcessor.setManualQrPassword("");
@@ -1639,6 +1762,7 @@ export default function ShoppingCartRefactored() {
       <ManualQrDialog
         open={afipPaymentProcessor.manualQrPasswordDialogOpen}
         onOpenChange={(open: boolean) => {
+          console.log("🔧 ManualQrDialog (AFIP) onOpenChange:", open);
           if (!open) {
             afipPaymentProcessor.setManualQrPasswordDialogOpen(false);
             afipPaymentProcessor.setManualQrPassword("");

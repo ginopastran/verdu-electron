@@ -2603,5 +2603,11 @@ export function usePaymentProcessing({
     // ✅ NUEVO: Control de toasts para evitar duplicados
     clearProcessedOrdersTracking,
     clearPrintedOrdersTracking,
+
+    // ✅ NUEVO: Funciones para actualizar estados del QR
+    updateQrData,
+    setPaymentStatus,
+    setManualQrPasswordDialogOpen,
+    setManualQrPassword,
   };
 }

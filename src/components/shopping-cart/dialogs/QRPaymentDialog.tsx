@@ -244,15 +244,35 @@ export const QRPaymentDialog = ({
                         console.log(
                           "🔧 QR Dialog: Abriendo diálogo de contraseña AFIP"
                         );
+                        console.log("🔧 QR Dialog: Estado antes de abrir:", {
+                          manualQrPasswordDialogOpen:
+                            afipPaymentProcessor.manualQrPasswordDialogOpen,
+                          isManualPasswordSubmitting:
+                            afipPaymentProcessor.isManualPasswordSubmitting,
+                        });
                         afipPaymentProcessor.setManualQrPasswordDialogOpen(
                           true
                         );
+                        console.log("🔧 QR Dialog: Estado después de abrir:", {
+                          manualQrPasswordDialogOpen:
+                            afipPaymentProcessor.manualQrPasswordDialogOpen,
+                        });
                       } else {
                         // Para flujo normal, usar el hook normal
                         console.log(
                           "🔧 QR Dialog: Abriendo diálogo de contraseña normal"
                         );
+                        console.log("🔧 QR Dialog: Estado antes de abrir:", {
+                          manualQrPasswordDialogOpen:
+                            paymentProcessor.manualQrPasswordDialogOpen,
+                          isManualPasswordSubmitting:
+                            paymentProcessor.isManualPasswordSubmitting,
+                        });
                         paymentProcessor.setManualQrPasswordDialogOpen(true);
+                        console.log("🔧 QR Dialog: Estado después de abrir:", {
+                          manualQrPasswordDialogOpen:
+                            paymentProcessor.manualQrPasswordDialogOpen,
+                        });
                       }
                     }}
                   >
