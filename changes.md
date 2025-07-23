@@ -334,6 +334,72 @@ Ahora el sistema:
 
 - `src/components/ShoppingCartRefactored.tsx`: Limpieza completa del buffer implementada
 
+## Corrección Crítica - Procesamiento de Códigos Parciales
+
+### Problema Identificado
+
+El sistema estaba procesando códigos **parciales** que coincidían con PLUs existentes, causando que se agregaran productos con cantidades incorrectas antes de que se completara el código completo.
+
+**Síntomas observados**:
+
+```
+🔍 DEBUG: Input event detectado, valor: "1"
+🔍 DEBUG: Input event detectado, valor: "10"
+🔍 DEBUG: Input event detectado, valor: "105"
+Producto seleccionado: Blanda  // ← Se agregó con cantidad incorrecta
+🔍 DEBUG: Input event detectado, valor: "0"  // ← Procesó el resto como nuevo código
+```
+
+**Problema**: El código `105` coincidía con un PLU existente y se agregaba inmediatamente, sin esperar el código completo `0105000013552`.
+
+### Solución Implementada
+
+1. **Procesamiento Solo de Códigos Completos**: El sistema ahora **solo procesa** códigos que tengan el formato exacto de PLU + peso:
+
+   - **12 dígitos**: `XXX + 8 dígitos peso + 1 dígito adicional`
+   - **13 dígitos**: `0 + XXX + 8 dígitos peso + 1 dígito adicional`
+
+2. **Ignorar Códigos Parciales**: Los códigos que no coincidan con estos formatos se ignoran completamente:
+
+   ```
+   🔍 DEBUG: Código ignorado - no es un código completo PLU + peso: "105"
+   ```
+
+3. **Logs Mejorados**: Se agregaron logs específicos para identificar cuando se ignoran códigos:
+   ```
+   🔍 DEBUG: No coincide con ningún patrón PLU + peso
+   🔍 DEBUG: ⚠️ Código ignorado: Solo se procesan códigos completos con formato PLU + peso
+   ```
+
+### Resultado
+
+Ahora el sistema:
+
+- ✅ **Espera** a que se complete todo el código antes de procesar
+- ✅ **Ignora** códigos parciales que coincidan con PLUs existentes
+- ✅ **Solo procesa** códigos con formato PLU + peso completo
+- ✅ **Calcula** correctamente el peso (1.355 kg en lugar de 13.552 kg)
+
+### Ejemplo de Comportamiento Correcto
+
+**Antes (incorrecto)**:
+
+```
+"105" → Encuentra PLU 105 → Agrega producto con cantidad incorrecta
+"0" → Procesa como nuevo código
+```
+
+**Ahora (correcto)**:
+
+```
+"105" → Código ignorado (no es formato completo)
+"0105000013552" → Código completo → PLU: 105, Peso: 1.355kg → Agrega correctamente
+```
+
+### Archivos Modificados
+
+- `src/components/ShoppingCartRefactored.tsx`: Lógica de procesamiento de códigos corregida
+
 ## Problema de Diálogo QR Manual
 
 ### Problema Reportado

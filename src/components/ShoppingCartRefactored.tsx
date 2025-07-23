@@ -962,7 +962,7 @@ export default function ShoppingCartRefactored() {
       }
     }
 
-    // Detectar múltiples formatos PLU + peso
+    // Detectar múltiples formatos PLU + peso (SOLO códigos completos)
     // Formato 1: 3 dígitos PLU + 8 dígitos gramos + 1 dígito adicional (12 dígitos total)
     // Formato 2: 0 + 3 dígitos PLU + 8 dígitos gramos + 1 dígito adicional (13 dígitos total)
 
@@ -1018,6 +1018,11 @@ export default function ShoppingCartRefactored() {
       } else {
         console.log(`🔍 DEBUG: No se encontró producto con PLU: ${plu}`);
       }
+    } else {
+      // ✅ NUEVO: Solo procesar códigos completos, ignorar códigos parciales
+      console.log(
+        `🔍 DEBUG: Código ignorado - no es un código completo PLU + peso: "${value}"`
+      );
     }
   };
 
@@ -1424,11 +1429,16 @@ export default function ShoppingCartRefactored() {
           );
         }
       } else {
+        // ✅ NUEVO: Solo procesar códigos que tengan el formato correcto
+        // NO procesar códigos parciales que coincidan con PLUs existentes
         console.log("🔍 DEBUG: No coincide con ningún patrón PLU + peso");
         console.log(`   - Código ingresado: ${completeCode}`);
         console.log(`   - Longitud: ${completeCode.length} dígitos`);
         console.log(
           `   - Formatos soportados: 12 dígitos (XXX + 8 dígitos peso + 1) o 13 dígitos (0 + XXX + 8 dígitos peso + 1)`
+        );
+        console.log(
+          `   - ⚠️ Código ignorado: Solo se procesan códigos completos con formato PLU + peso`
         );
       }
     };
