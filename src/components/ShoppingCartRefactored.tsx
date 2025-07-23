@@ -962,23 +962,61 @@ export default function ShoppingCartRefactored() {
       }
     }
 
-    // Detectar formato 0 + 3 dígitos PLU + 8 dígitos peso(g) + 1 dígito checksum (13 dígitos)
-    const pluWeightRegex = /^0(\d{3})(\d{8})\d$/;
-    const match = value.match(pluWeightRegex);
-    if (match) {
-      const plu = match[1];
-      const grams = parseInt(match[2], 10);
-      const kgQuantity = grams / 1000; // convertir a kilos
+    // Detectar múltiples formatos PLU + peso
+    // Formato 1: 3 dígitos PLU + 8 dígitos gramos + 1 dígito adicional (12 dígitos total)
+    // Formato 2: 0 + 3 dígitos PLU + 8 dígitos gramos + 1 dígito adicional (13 dígitos total)
+
+    let plu = null;
+    let grams = null;
+    let kgQuantity = null;
+
+    // Intentar formato de 12 dígitos primero
+    const pluWeightRegex12 = /^(\d{3})(\d{8})(\d{1})$/;
+    const match12 = value.match(pluWeightRegex12);
+
+    if (match12) {
+      plu = match12[1];
+      grams = parseInt(match12[2], 10);
+      kgQuantity = grams / 1000;
+      console.log(
+        `🔍 DEBUG: PLU + peso detectado (12 dígitos) - PLU: ${plu}, gramos: ${grams}, kg: ${kgQuantity}`
+      );
+    } else {
+      // Intentar formato de 13 dígitos
+      const pluWeightRegex13 = /^0(\d{3})(\d{8})(\d{1})$/;
+      const match13 = value.match(pluWeightRegex13);
+
+      if (match13) {
+        plu = match13[1];
+        grams = parseInt(match13[2], 10);
+        kgQuantity = grams / 1000;
+        console.log(
+          `🔍 DEBUG: PLU + peso detectado (13 dígitos) - PLU: ${plu}, gramos: ${grams}, kg: ${kgQuantity}`
+        );
+      }
+    }
+
+    if (plu && grams !== null && kgQuantity !== null) {
+      // Validar que el peso sea razonable
+      if (kgQuantity < 0.001 || kgQuantity > 999.999) {
+        console.log(`🔍 DEBUG: Peso fuera de rango válido: ${kgQuantity} kg`);
+        return;
+      }
 
       const productByPlu: any = availableProducts.find((p: any) => {
         if (p.plu === null || p.plu === undefined) return false;
-        // Comparar numéricamente para ignorar ceros a la izquierda ("002" vs "2")
         return Number(p.plu) === Number(plu);
       });
       if (productByPlu) {
+        console.log(
+          `🔍 DEBUG: Producto encontrado por PLU ${plu}:`,
+          productByPlu.name
+        );
         autoAddScannedProduct(productByPlu, kgQuantity);
         setBarcodeBuffer("");
         return;
+      } else {
+        console.log(`🔍 DEBUG: No se encontró producto con PLU: ${plu}`);
       }
     }
   };
@@ -1250,25 +1288,71 @@ export default function ShoppingCartRefactored() {
           }
         }
 
-        // 2. PLU + peso: 3 dígitos PLU + 8 dígitos gramos + 1 dígito adicional (12 dígitos total)
-        const pluWeightRegex = /^(\d{3})(\d{8})(\d{1})$/;
-        const match = currentValue.match(pluWeightRegex);
-        if (match) {
-          const plu = match[1];
-          const grams = parseInt(match[2], 10);
-          const kgQuantity = grams / 1000; // convertir a kilos
+        // 2. PLU + peso: Múltiples formatos soportados
+        // Formato 1: 3 dígitos PLU + 8 dígitos gramos + 1 dígito adicional (12 dígitos total) - "105000013552"
+        // Formato 2: 0 + 3 dígitos PLU + 8 dígitos gramos + 1 dígito adicional (13 dígitos total) - "0105000013552"
+
+        let plu = null;
+        let grams = null;
+        let kgQuantity = null;
+        let formatUsed = null;
+
+        // Intentar formato de 12 dígitos primero
+        const pluWeightRegex12 = /^(\d{3})(\d{8})(\d{1})$/;
+        const match12 = currentValue.match(pluWeightRegex12);
+
+        if (match12) {
+          plu = match12[1];
+          grams = parseInt(match12[2], 10);
+          kgQuantity = grams / 1000;
+          formatUsed = "12 dígitos";
 
           console.log(
-            `🔍 DEBUG: PLU + peso detectado - PLU: ${plu}, gramos: ${grams}, kg: ${kgQuantity}`
+            `🔍 DEBUG: PLU + peso detectado (formato ${formatUsed}):`
           );
+          console.log(`   - Código completo: ${currentValue}`);
+          console.log(`   - PLU extraído: ${plu}`);
+          console.log(`   - Gramos extraídos: ${grams}`);
+          console.log(`   - Kilogramos calculados: ${kgQuantity}`);
+        } else {
+          // Intentar formato de 13 dígitos
+          const pluWeightRegex13 = /^0(\d{3})(\d{8})(\d{1})$/;
+          const match13 = currentValue.match(pluWeightRegex13);
 
+          if (match13) {
+            plu = match13[1];
+            grams = parseInt(match13[2], 10);
+            kgQuantity = grams / 1000;
+            formatUsed = "13 dígitos";
+
+            console.log(
+              `🔍 DEBUG: PLU + peso detectado (formato ${formatUsed}):`
+            );
+            console.log(`   - Código completo: ${currentValue}`);
+            console.log(`   - PLU extraído: ${plu}`);
+            console.log(`   - Gramos extraídos: ${grams}`);
+            console.log(`   - Kilogramos calculados: ${kgQuantity}`);
+          }
+        }
+
+        if (plu && grams !== null && kgQuantity !== null) {
           // ✅ CORRECCIÓN: Validar que el peso sea razonable (entre 0.001 y 999.999 kg)
           if (kgQuantity < 0.001 || kgQuantity > 999.999) {
             console.log(
               `🔍 DEBUG: Peso fuera de rango válido: ${kgQuantity} kg`
             );
+            console.log(`   - Rango válido: 0.001 - 999.999 kg`);
+            console.log(`   - Formato usado: ${formatUsed}`);
             return;
           }
+
+          console.log(`🔍 DEBUG: Buscando producto con PLU: ${plu}`);
+          console.log(
+            `   - Productos disponibles con PLU:`,
+            availableProducts
+              .filter((p) => p.plu)
+              .map((p) => ({ name: p.name, plu: p.plu, id: p.id }))
+          );
 
           const productByPlu: any = availableProducts.find((p: any) => {
             if (p.plu === null || p.plu === undefined) return false;
@@ -1276,12 +1360,14 @@ export default function ShoppingCartRefactored() {
           });
 
           if (productByPlu) {
-            console.log("🔍 DEBUG: Producto encontrado por PLU:", {
+            console.log("🔍 DEBUG: ✅ Producto encontrado por PLU:", {
               id: productByPlu.id,
               name: productByPlu.name,
               plu: productByPlu.plu,
               precio: productByPlu.pricePerUnit,
               cantidad: kgQuantity,
+              formato: formatUsed,
+              codigoOriginal: currentValue,
             });
 
             // 🛒 DEBUG: Estado del carrito ANTES de agregar PLU+peso
@@ -1312,21 +1398,30 @@ export default function ShoppingCartRefactored() {
                     id: item.id,
                     name: item.name,
                     cartId: item.cartId,
+                    cantidad: item.quantity,
+                    subtotal: item.subtotal,
                   })),
                 }
               );
             }, 100);
           } else {
-            console.log("🔍 DEBUG: No se encontró producto con PLU:", plu);
+            console.log("🔍 DEBUG: ❌ No se encontró producto con PLU:", plu);
+            console.log(`   - Formato usado: ${formatUsed}`);
+            console.log(`   - Código original: ${currentValue}`);
             console.log(
               "🔍 DEBUG: Productos disponibles con PLU:",
               availableProducts
                 .filter((p) => p.plu)
-                .map((p) => ({ name: p.name, plu: p.plu }))
+                .map((p) => ({ name: p.name, plu: p.plu, id: p.id }))
             );
           }
         } else {
-          console.log("🔍 DEBUG: No coincide con patrón PLU + peso");
+          console.log("🔍 DEBUG: No coincide con ningún patrón PLU + peso");
+          console.log(`   - Código ingresado: ${currentValue}`);
+          console.log(`   - Longitud: ${currentValue.length} dígitos`);
+          console.log(
+            `   - Formatos soportados: 12 dígitos (XXX + 8 dígitos peso + 1) o 13 dígitos (0 + XXX + 8 dígitos peso + 1)`
+          );
         }
       }, 10);
     };

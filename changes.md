@@ -129,3 +129,121 @@ useEffect(
    - Funcionalidad completa de completado manual
    - Debugging mejorado para futuros problemas
    - Flujo de pago más robusto
+
+# Cambios en el Sistema
+
+## Sistema de Cancelaciones Unificado
+
+### Cambios Realizados
+
+1. **API Unificada**: Se actualizó el sistema de cancelaciones para usar el endpoint unificado `/api/cancelaciones` que maneja tanto órdenes como facturas.
+
+2. **Payload Mejorado**: El payload de cancelación ahora incluye un array de productos con información detallada:
+
+   ```json
+   {
+     "tipo": "orden",
+     "referenciaId": "ID_DE_LA_ORDEN",
+     "montoTotal": 150.0,
+     "productos": [
+       {
+         "productoId": 123,
+         "nombreProducto": "Manzana",
+         "cantidad": 2.5,
+         "precioUnitario": 60.0,
+         "subtotal": 150.0
+       }
+     ]
+   }
+   ```
+
+3. **Validación Mejorada**: Se aumentó el mínimo de caracteres para la razón de cancelación de 2 a 3 caracteres.
+
+4. **Interfaz Actualizada**: El diálogo de cancelación ahora muestra la lista de productos que se van a cancelar con sus cantidades y subtotales.
+
+### Archivos Modificados
+
+- `src/hooks/useCancellationControl.ts`: Hook actualizado para usar la API unificada
+- `src/components/shopping-cart/dialogs/CancellationDialog.tsx`: Diálogo actualizado para mostrar productos
+- `src/components/ShoppingCartRefactored.tsx`: Integración del nuevo sistema de cancelación
+
+## Sistema de PLU Mejorado - Múltiples Formatos Soportados
+
+### Problema Identificado
+
+El sistema de PLU solo funcionaba con un formato específico, pero los clientes usan diferentes formatos:
+
+- Formato 1: `105000013552` (12 dígitos)
+- Formato 2: `0105000013552` (13 dígitos)
+
+### Solución Implementada
+
+1. **Sistema Flexible**: Ahora el sistema detecta automáticamente ambos formatos:
+
+   - **12 dígitos**: 3 dígitos PLU + 8 dígitos peso + 1 dígito adicional
+   - **13 dígitos**: 0 + 3 dígitos PLU + 8 dígitos peso + 1 dígito adicional
+
+2. **Logs Detallados**: Se agregaron logs extensivos para debugging:
+
+   ```
+   🔍 DEBUG: PLU + peso detectado (formato 13 dígitos):
+      - Código completo: 0105000013552
+      - PLU extraído: 105
+      - Gramos extraídos: 1355
+      - Kilogramos calculados: 1.355
+   ```
+
+3. **Validación de Peso**: Se mantiene la validación para pesos entre 0.001 y 999.999 kg.
+
+4. **Compatibilidad Total**: Funciona tanto con escaneo directo como con pegado de códigos.
+
+### Archivos Modificados
+
+- `src/components/ShoppingCartRefactored.tsx`: Sistema de detección de PLU actualizado
+
+### Ejemplos de Uso
+
+**Código `105000013552` (12 dígitos)**:
+
+- PLU: `105`
+- Peso: `00001355` = 1.355 kg
+- Adicional: `2`
+
+**Código `0105000013552` (13 dígitos)**:
+
+- PLU: `105`
+- Peso: `00001355` = 1.355 kg
+- Adicional: `2`
+
+Ambos códigos producen el mismo resultado: producto con PLU 105 y cantidad 1.355 kg.
+
+## Problema de Diálogo QR Manual
+
+### Problema Reportado
+
+El botón para completar manualmente un pago QR no abría el diálogo de contraseña, tanto con AFIP como sin AFIP.
+
+### Solución Implementada
+
+1. **Logs Detallados**: Se agregaron logs extensivos para rastrear el estado del diálogo:
+
+   ```javascript
+   console.log("🔧 Estado de diálogos de contraseña manual:", {
+     normalDialogOpen: paymentProcessor.manualQrPasswordDialogOpen,
+     afipDialogOpen: afipPaymentProcessor.manualQrPasswordDialogOpen,
+     isCurrentlyAfipFlow,
+   });
+   ```
+
+2. **Monitoreo de Estados**: Se implementó un sistema de monitoreo para verificar que los diálogos se abran correctamente.
+
+3. **Verificación de Componentes**: Se aseguró que los componentes `ManualQrDialog` estén correctamente renderizados y controlados.
+
+### Archivos Modificados
+
+- `src/components/ShoppingCartRefactored.tsx`: Logs y monitoreo agregados
+- `src/components/shopping-cart/dialogs/QRPaymentDialog.tsx`: Logs detallados en el botón manual
+
+### Estado Actual
+
+El problema está siendo investigado con logs detallados. Los diálogos están correctamente implementados y deberían funcionar. Los logs ayudarán a identificar si hay algún problema en el flujo de estados.
