@@ -470,6 +470,72 @@ Ahora cuando se escanee un código, deberíamos ver un flujo completo como:
 
 - `src/components/ShoppingCartRefactored.tsx`: Sistema de logs detallados implementado
 
+## Corrección Crítica - Conflicto entre Sistemas de Detección de PLU
+
+### Problema Identificado
+
+Se descubrió que había **dos sistemas** compitiendo por procesar los códigos PLU:
+
+1. **Sistema en `useProductSearch.ts`**: Detectaba PLUs de 3-6 dígitos y abría automáticamente el diálogo de selección
+2. **Sistema en `ShoppingCartRefactored.tsx`**: Procesaba códigos completos PLU + peso (12-13 dígitos)
+
+**Síntomas observados**:
+
+```
+🔧 DEBUG: Input event detectado, valor: "105"
+🔧 DEBUG: 🎯 INICIO handleProductSelect  // ← Sistema antiguo interfiriendo
+🔧 DEBUG: Producto seleccionado: Blanda
+🔧 DEBUG: Estableciendo selectedProduct y abriendo diálogo
+```
+
+**Problema**: El sistema antiguo detectaba "105" como PLU válido y abría el diálogo **antes** de que se completara el código `0105000013552`.
+
+### Solución Implementada
+
+**Deshabilitación del Sistema Antiguo**: Se comentó la detección automática de PLU en `useProductSearch.ts`:
+
+```typescript
+// ✅ DESHABILITADO: Detección automática de PLU directo
+// Este sistema interfería con el procesamiento de códigos PLU + peso completos
+// Ahora solo se procesan PLUs a través del sistema de buffer en ShoppingCartRefactored
+/*
+// Detectar PLU directo (3-6 dígitos numéricos)
+if (/^\d{3,6}$/.test(value)) {
+  const productByPlu = availableProducts.find((p) => p.plu === value);
+  if (productByPlu) {
+    handleProductSelect(productByPlu);
+  }
+}
+*/
+```
+
+### Resultado
+
+Ahora el sistema:
+
+- ✅ **No abre** diálogos automáticamente con códigos parciales
+- ✅ **Espera** a que se complete el código completo PLU + peso
+- ✅ **Procesa** correctamente el peso (1.355 kg en lugar de 13.552 kg)
+- ✅ **No interfiere** con el sistema de buffer
+
+### Flujo Correcto Esperado
+
+**Antes (incorrecto)**:
+
+```
+"105" → Sistema antiguo detecta PLU → Abre diálogo → Se cierra → "0" se procesa por separado
+```
+
+**Ahora (correcto)**:
+
+```
+"0105000013552" → Sistema de buffer procesa código completo → PLU: 105, Peso: 1.355kg → Agrega correctamente
+```
+
+### Archivos Modificados
+
+- `src/hooks/useProductSearch.ts`: Sistema de detección automática de PLU deshabilitado
+
 ## Problema de Diálogo QR Manual
 
 ### Problema Reportado

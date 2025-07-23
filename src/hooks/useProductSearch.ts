@@ -215,6 +215,10 @@ export function useProductSearch() {
       }
     }
 
+    // ✅ DESHABILITADO: Detección automática de PLU directo
+    // Este sistema interfería con el procesamiento de códigos PLU + peso completos
+    // Ahora solo se procesan PLUs a través del sistema de buffer en ShoppingCartRefactored
+    /*
     // Detectar PLU directo (3-6 dígitos numéricos)
     if (/^\d{3,6}$/.test(value)) {
       const productByPlu = availableProducts.find((p) => p.plu === value);
@@ -222,6 +226,7 @@ export function useProductSearch() {
         handleProductSelect(productByPlu);
       }
     }
+    */
   };
 
   // Limpiar la selección
