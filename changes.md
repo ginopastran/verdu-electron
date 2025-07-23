@@ -217,6 +217,68 @@ El sistema de PLU solo funcionaba con un formato específico, pero los clientes 
 
 Ambos códigos producen el mismo resultado: producto con PLU 105 y cantidad 1.355 kg.
 
+## Corrección Crítica - Sistema de Buffer para Códigos PLU
+
+### Problema Identificado
+
+El sistema procesaba los códigos **carácter por carácter** en lugar de esperar a que se complete todo el código. Esto causaba que nunca se procesara el código completo, resultando en cantidades incorrectas.
+
+**Síntomas observados**:
+
+```
+🔍 DEBUG: Input event detectado, valor: "1"
+🔍 DEBUG: Input event detectado, valor: "10"
+🔍 DEBUG: Input event detectado, valor: "105"
+```
+
+### Solución Implementada
+
+1. **Sistema de Buffer**: Se implementó un buffer que acumula caracteres hasta que se complete el código:
+
+   ```javascript
+   let inputBuffer = "";
+   let inputTimeout: NodeJS.Timeout | null = null;
+   ```
+
+2. **Timeout Inteligente**: Se usa un timeout de 100ms para procesar el código completo:
+
+   ```javascript
+   inputTimeout = setTimeout(() => {
+     console.log(
+       `🔍 DEBUG: Timeout completado, procesando buffer: "${inputBuffer}"`
+     );
+     processCompleteCode(inputBuffer);
+     inputBuffer = "";
+     inputTimeout = null;
+   }, 100);
+   ```
+
+3. **Procesamiento Completo**: Ahora el sistema procesa el código completo en una sola operación:
+
+   ```
+   🔍 DEBUG: Procesando código completo: "105000013552"
+   🔍 DEBUG: PLU + peso detectado (formato 12 dígitos):
+      - Código completo: 105000013552
+      - PLU extraído: 105
+      - Gramos extraídos: 1355
+      - Kilogramos calculados: 1.355
+   ```
+
+4. **Limpieza de Estados**: Se asegura que los timeouts se limpien correctamente para evitar procesamiento duplicado.
+
+### Resultado
+
+Ahora el sistema:
+
+- ✅ **Espera** a que se complete todo el código antes de procesar
+- ✅ **Procesa** el código completo en una sola operación
+- ✅ **Calcula** correctamente el peso (1.355 kg en lugar de 13.552 kg)
+- ✅ **Funciona** tanto con escaneo como con pegado de códigos
+
+### Archivos Modificados
+
+- `src/components/ShoppingCartRefactored.tsx`: Sistema de buffer implementado
+
 ## Problema de Diálogo QR Manual
 
 ### Problema Reportado

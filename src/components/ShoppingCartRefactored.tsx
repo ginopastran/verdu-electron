@@ -1177,253 +1177,274 @@ export default function ShoppingCartRefactored() {
     console.log("🔍 DEBUG: Configurando listeners para input de búsqueda");
     console.log("🔍 DEBUG: Productos disponibles:", availableProducts.length);
 
-    const handleInputEvent = (e: Event) => {
-      const value = (e.target as HTMLInputElement).value.trim();
-      console.log(`🔍 DEBUG: Input event detectado, valor: "${value}"`);
+    // Buffer para acumular caracteres del escáner
+    let inputBuffer = "";
+    let inputTimeout: NodeJS.Timeout | null = null;
 
-      // Usar setTimeout para procesar después de que se complete el paste
-      setTimeout(() => {
-        const currentValue = (e.target as HTMLInputElement).value.trim();
+    const processCompleteCode = (completeCode: string) => {
+      console.log(`🔍 DEBUG: Procesando código completo: "${completeCode}"`);
+
+      if (!completeCode) {
+        console.log("🔍 DEBUG: Código vacío, no procesando");
+        return;
+      }
+
+      // Verificar que tengamos productos cargados
+      if (!availableProducts || availableProducts.length === 0) {
+        console.log("🔍 DEBUG: Productos aún no cargados, esperando...");
+        return;
+      }
+
+      // 🛒 DEBUG: Estado actual del carrito antes de procesar
+      const currentItems = cartState.getCurrentItems();
+      console.log("🛒 DEBUG: Estado del carrito antes de procesar:", {
+        itemsCount: currentItems.length,
+        items: currentItems.map((item) => ({
+          id: item.id,
+          name: item.name,
+          cartId: item.cartId,
+        })),
+      });
+
+      // 1. Código de barras estándar (8-15 dígitos) - EAN-8, UPC-A, EAN-13, Code 128, etc.
+      if (/^\d{8,15}$/.test(completeCode)) {
+        console.log("🔍 DEBUG: Patrón de código de barras detectado");
         console.log(
-          `🔍 DEBUG: Procesando valor después de timeout: "${currentValue}"`
+          "🔍 DEBUG: Productos con código de barras:",
+          availableProducts
+            .filter((p) => p.codigoBarras)
+            .map((p) => ({ name: p.name, codigoBarras: p.codigoBarras }))
         );
 
-        if (!currentValue) {
-          console.log("🔍 DEBUG: Valor vacío, no procesando");
-          return;
-        }
+        // Buscar coincidencia exacta
+        let product = availableProducts.find(
+          (p: any) => p.codigoBarras === completeCode
+        );
 
-        // Verificar que tengamos productos cargados
-        if (!availableProducts || availableProducts.length === 0) {
-          console.log("🔍 DEBUG: Productos aún no cargados, esperando...");
-          return;
-        }
-
-        // 🛒 DEBUG: Estado actual del carrito antes de procesar
-        const currentItems = cartState.getCurrentItems();
-        console.log("🛒 DEBUG: Estado del carrito antes de procesar:", {
-          itemsCount: currentItems.length,
-          items: currentItems.map((item) => ({
-            id: item.id,
-            name: item.name,
-            cartId: item.cartId,
-          })),
-        });
-
-        // 1. Código de barras estándar (8-15 dígitos) - EAN-8, UPC-A, EAN-13, Code 128, etc.
-        if (/^\d{8,15}$/.test(currentValue)) {
-          console.log("🔍 DEBUG: Patrón de código de barras detectado");
+        // Si no hay coincidencia exacta, buscar si algún código contiene el valor o viceversa
+        if (!product) {
           console.log(
-            "🔍 DEBUG: Productos con código de barras:",
-            availableProducts
-              .filter((p) => p.codigoBarras)
-              .map((p) => ({ name: p.name, codigoBarras: p.codigoBarras }))
+            "🔍 DEBUG: No encontrado exacto, buscando coincidencias parciales..."
+          );
+          product = availableProducts.find(
+            (p: any) =>
+              p.codigoBarras &&
+              (p.codigoBarras.includes(completeCode) ||
+                completeCode.includes(p.codigoBarras))
+          );
+        }
+
+        if (product) {
+          console.log("🔍 DEBUG: Producto encontrado por código de barras:", {
+            id: product.id,
+            name: product.name,
+            codigoBarras: product.codigoBarras,
+            precio: product.pricePerUnit,
+            cantidad: 1,
+          });
+
+          // 🛒 DEBUG: Estado del carrito ANTES de agregar código de barras
+          const itemsBeforeAdd = cartState.getCurrentItems();
+          console.log(
+            "🛒 DEBUG: Items en carrito ANTES de agregar código de barras:",
+            {
+              count: itemsBeforeAdd.length,
+              items: itemsBeforeAdd.map((item) => ({
+                id: item.id,
+                name: item.name,
+                cartId: item.cartId,
+              })),
+            }
           );
 
-          // Buscar coincidencia exacta
-          let product = availableProducts.find(
-            (p: any) => p.codigoBarras === currentValue
-          );
+          autoAddScannedProduct(product, 1);
+          input.value = "";
 
-          // Si no hay coincidencia exacta, buscar si algún código contiene el valor o viceversa
-          if (!product) {
+          // 🛒 DEBUG: Estado del carrito después de agregar código de barras
+          setTimeout(() => {
+            const itemsAfterAdd = cartState.getCurrentItems();
             console.log(
-              "🔍 DEBUG: No encontrado exacto, buscando coincidencias parciales..."
-            );
-            product = availableProducts.find(
-              (p: any) =>
-                p.codigoBarras &&
-                (p.codigoBarras.includes(currentValue) ||
-                  currentValue.includes(p.codigoBarras))
-            );
-          }
-
-          if (product) {
-            console.log("🔍 DEBUG: Producto encontrado por código de barras:", {
-              id: product.id,
-              name: product.name,
-              codigoBarras: product.codigoBarras,
-              precio: product.pricePerUnit,
-              cantidad: 1,
-            });
-
-            // 🛒 DEBUG: Estado del carrito ANTES de agregar código de barras
-            const itemsBeforeAdd = cartState.getCurrentItems();
-            console.log(
-              "🛒 DEBUG: Items en carrito ANTES de agregar código de barras:",
+              "🛒 DEBUG: Items en carrito DESPUÉS de agregar código de barras:",
               {
-                count: itemsBeforeAdd.length,
-                items: itemsBeforeAdd.map((item) => ({
+                count: itemsAfterAdd.length,
+                items: itemsAfterAdd.map((item) => ({
                   id: item.id,
                   name: item.name,
                   cartId: item.cartId,
                 })),
               }
             );
-
-            autoAddScannedProduct(product, 1);
-            (e.target as HTMLInputElement).value = "";
-
-            // 🛒 DEBUG: Estado del carrito después de agregar código de barras
-            setTimeout(() => {
-              const itemsAfterAdd = cartState.getCurrentItems();
-              console.log(
-                "🛒 DEBUG: Items en carrito DESPUÉS de agregar código de barras:",
-                {
-                  count: itemsAfterAdd.length,
-                  items: itemsAfterAdd.map((item) => ({
-                    id: item.id,
-                    name: item.name,
-                    cartId: item.cartId,
-                  })),
-                }
-              );
-            }, 100);
-            return;
-          } else {
-            console.log(
-              "🔍 DEBUG: No se encontró producto con código de barras:",
-              currentValue
-            );
-          }
+          }, 100);
+          return;
+        } else {
+          console.log(
+            "🔍 DEBUG: No se encontró producto con código de barras:",
+            completeCode
+          );
         }
+      }
 
-        // 2. PLU + peso: Múltiples formatos soportados
-        // Formato 1: 3 dígitos PLU + 8 dígitos gramos + 1 dígito adicional (12 dígitos total) - "105000013552"
-        // Formato 2: 0 + 3 dígitos PLU + 8 dígitos gramos + 1 dígito adicional (13 dígitos total) - "0105000013552"
+      // 2. PLU + peso: Múltiples formatos soportados
+      // Formato 1: 3 dígitos PLU + 8 dígitos gramos + 1 dígito adicional (12 dígitos total) - "105000013552"
+      // Formato 2: 0 + 3 dígitos PLU + 8 dígitos gramos + 1 dígito adicional (13 dígitos total) - "0105000013552"
 
-        let plu = null;
-        let grams = null;
-        let kgQuantity = null;
-        let formatUsed = null;
+      let plu = null;
+      let grams = null;
+      let kgQuantity = null;
+      let formatUsed = null;
 
-        // Intentar formato de 12 dígitos primero
-        const pluWeightRegex12 = /^(\d{3})(\d{8})(\d{1})$/;
-        const match12 = currentValue.match(pluWeightRegex12);
+      // Intentar formato de 12 dígitos primero
+      const pluWeightRegex12 = /^(\d{3})(\d{8})(\d{1})$/;
+      const match12 = completeCode.match(pluWeightRegex12);
 
-        if (match12) {
-          plu = match12[1];
-          grams = parseInt(match12[2], 10);
+      if (match12) {
+        plu = match12[1];
+        grams = parseInt(match12[2], 10);
+        kgQuantity = grams / 1000;
+        formatUsed = "12 dígitos";
+
+        console.log(`🔍 DEBUG: PLU + peso detectado (formato ${formatUsed}):`);
+        console.log(`   - Código completo: ${completeCode}`);
+        console.log(`   - PLU extraído: ${plu}`);
+        console.log(`   - Gramos extraídos: ${grams}`);
+        console.log(`   - Kilogramos calculados: ${kgQuantity}`);
+      } else {
+        // Intentar formato de 13 dígitos
+        const pluWeightRegex13 = /^0(\d{3})(\d{8})(\d{1})$/;
+        const match13 = completeCode.match(pluWeightRegex13);
+
+        if (match13) {
+          plu = match13[1];
+          grams = parseInt(match13[2], 10);
           kgQuantity = grams / 1000;
-          formatUsed = "12 dígitos";
+          formatUsed = "13 dígitos";
 
           console.log(
             `🔍 DEBUG: PLU + peso detectado (formato ${formatUsed}):`
           );
-          console.log(`   - Código completo: ${currentValue}`);
+          console.log(`   - Código completo: ${completeCode}`);
           console.log(`   - PLU extraído: ${plu}`);
           console.log(`   - Gramos extraídos: ${grams}`);
           console.log(`   - Kilogramos calculados: ${kgQuantity}`);
-        } else {
-          // Intentar formato de 13 dígitos
-          const pluWeightRegex13 = /^0(\d{3})(\d{8})(\d{1})$/;
-          const match13 = currentValue.match(pluWeightRegex13);
+        }
+      }
 
-          if (match13) {
-            plu = match13[1];
-            grams = parseInt(match13[2], 10);
-            kgQuantity = grams / 1000;
-            formatUsed = "13 dígitos";
-
-            console.log(
-              `🔍 DEBUG: PLU + peso detectado (formato ${formatUsed}):`
-            );
-            console.log(`   - Código completo: ${currentValue}`);
-            console.log(`   - PLU extraído: ${plu}`);
-            console.log(`   - Gramos extraídos: ${grams}`);
-            console.log(`   - Kilogramos calculados: ${kgQuantity}`);
-          }
+      if (plu && grams !== null && kgQuantity !== null) {
+        // ✅ CORRECCIÓN: Validar que el peso sea razonable (entre 0.001 y 999.999 kg)
+        if (kgQuantity < 0.001 || kgQuantity > 999.999) {
+          console.log(`🔍 DEBUG: Peso fuera de rango válido: ${kgQuantity} kg`);
+          console.log(`   - Rango válido: 0.001 - 999.999 kg`);
+          console.log(`   - Formato usado: ${formatUsed}`);
+          return;
         }
 
-        if (plu && grams !== null && kgQuantity !== null) {
-          // ✅ CORRECCIÓN: Validar que el peso sea razonable (entre 0.001 y 999.999 kg)
-          if (kgQuantity < 0.001 || kgQuantity > 999.999) {
-            console.log(
-              `🔍 DEBUG: Peso fuera de rango válido: ${kgQuantity} kg`
-            );
-            console.log(`   - Rango válido: 0.001 - 999.999 kg`);
-            console.log(`   - Formato usado: ${formatUsed}`);
-            return;
-          }
+        console.log(`🔍 DEBUG: Buscando producto con PLU: ${plu}`);
+        console.log(
+          `   - Productos disponibles con PLU:`,
+          availableProducts
+            .filter((p) => p.plu)
+            .map((p) => ({ name: p.name, plu: p.plu, id: p.id }))
+        );
 
-          console.log(`🔍 DEBUG: Buscando producto con PLU: ${plu}`);
+        const productByPlu: any = availableProducts.find((p: any) => {
+          if (p.plu === null || p.plu === undefined) return false;
+          return Number(p.plu) === Number(plu);
+        });
+
+        if (productByPlu) {
+          console.log("🔍 DEBUG: ✅ Producto encontrado por PLU:", {
+            id: productByPlu.id,
+            name: productByPlu.name,
+            plu: productByPlu.plu,
+            precio: productByPlu.pricePerUnit,
+            cantidad: kgQuantity,
+            formato: formatUsed,
+            codigoOriginal: completeCode,
+          });
+
+          // 🛒 DEBUG: Estado del carrito ANTES de agregar PLU+peso
+          const itemsBeforeAdd = cartState.getCurrentItems();
+          console.log("🛒 DEBUG: Items en carrito ANTES de agregar PLU+peso:", {
+            count: itemsBeforeAdd.length,
+            items: itemsBeforeAdd.map((item) => ({
+              id: item.id,
+              name: item.name,
+              cartId: item.cartId,
+            })),
+          });
+
+          autoAddScannedProduct(productByPlu, kgQuantity);
+          input.value = "";
+
+          // 🛒 DEBUG: Estado del carrito después de agregar PLU+peso
+          setTimeout(() => {
+            const itemsAfterAdd = cartState.getCurrentItems();
+            console.log(
+              "🛒 DEBUG: Items en carrito DESPUÉS de agregar PLU+peso:",
+              {
+                count: itemsAfterAdd.length,
+                items: itemsAfterAdd.map((item) => ({
+                  id: item.id,
+                  name: item.name,
+                  cartId: item.cartId,
+                  cantidad: item.quantity,
+                  subtotal: item.subtotal,
+                })),
+              }
+            );
+          }, 100);
+        } else {
+          console.log("🔍 DEBUG: ❌ No se encontró producto con PLU:", plu);
+          console.log(`   - Formato usado: ${formatUsed}`);
+          console.log(`   - Código original: ${completeCode}`);
           console.log(
-            `   - Productos disponibles con PLU:`,
+            "🔍 DEBUG: Productos disponibles con PLU:",
             availableProducts
               .filter((p) => p.plu)
               .map((p) => ({ name: p.name, plu: p.plu, id: p.id }))
           );
-
-          const productByPlu: any = availableProducts.find((p: any) => {
-            if (p.plu === null || p.plu === undefined) return false;
-            return Number(p.plu) === Number(plu);
-          });
-
-          if (productByPlu) {
-            console.log("🔍 DEBUG: ✅ Producto encontrado por PLU:", {
-              id: productByPlu.id,
-              name: productByPlu.name,
-              plu: productByPlu.plu,
-              precio: productByPlu.pricePerUnit,
-              cantidad: kgQuantity,
-              formato: formatUsed,
-              codigoOriginal: currentValue,
-            });
-
-            // 🛒 DEBUG: Estado del carrito ANTES de agregar PLU+peso
-            const itemsBeforeAdd = cartState.getCurrentItems();
-            console.log(
-              "🛒 DEBUG: Items en carrito ANTES de agregar PLU+peso:",
-              {
-                count: itemsBeforeAdd.length,
-                items: itemsBeforeAdd.map((item) => ({
-                  id: item.id,
-                  name: item.name,
-                  cartId: item.cartId,
-                })),
-              }
-            );
-
-            autoAddScannedProduct(productByPlu, kgQuantity);
-            (e.target as HTMLInputElement).value = "";
-
-            // 🛒 DEBUG: Estado del carrito después de agregar PLU+peso
-            setTimeout(() => {
-              const itemsAfterAdd = cartState.getCurrentItems();
-              console.log(
-                "🛒 DEBUG: Items en carrito DESPUÉS de agregar PLU+peso:",
-                {
-                  count: itemsAfterAdd.length,
-                  items: itemsAfterAdd.map((item) => ({
-                    id: item.id,
-                    name: item.name,
-                    cartId: item.cartId,
-                    cantidad: item.quantity,
-                    subtotal: item.subtotal,
-                  })),
-                }
-              );
-            }, 100);
-          } else {
-            console.log("🔍 DEBUG: ❌ No se encontró producto con PLU:", plu);
-            console.log(`   - Formato usado: ${formatUsed}`);
-            console.log(`   - Código original: ${currentValue}`);
-            console.log(
-              "🔍 DEBUG: Productos disponibles con PLU:",
-              availableProducts
-                .filter((p) => p.plu)
-                .map((p) => ({ name: p.name, plu: p.plu, id: p.id }))
-            );
-          }
-        } else {
-          console.log("🔍 DEBUG: No coincide con ningún patrón PLU + peso");
-          console.log(`   - Código ingresado: ${currentValue}`);
-          console.log(`   - Longitud: ${currentValue.length} dígitos`);
-          console.log(
-            `   - Formatos soportados: 12 dígitos (XXX + 8 dígitos peso + 1) o 13 dígitos (0 + XXX + 8 dígitos peso + 1)`
-          );
         }
-      }, 10);
+      } else {
+        console.log("🔍 DEBUG: No coincide con ningún patrón PLU + peso");
+        console.log(`   - Código ingresado: ${completeCode}`);
+        console.log(`   - Longitud: ${completeCode.length} dígitos`);
+        console.log(
+          `   - Formatos soportados: 12 dígitos (XXX + 8 dígitos peso + 1) o 13 dígitos (0 + XXX + 8 dígitos peso + 1)`
+        );
+      }
+    };
+
+    const handleInputEvent = (e: Event) => {
+      const value = (e.target as HTMLInputElement).value.trim();
+      console.log(`🔍 DEBUG: Input event detectado, valor: "${value}"`);
+
+      // Si el valor está vacío, limpiar buffer
+      if (!value) {
+        inputBuffer = "";
+        if (inputTimeout) {
+          clearTimeout(inputTimeout);
+          inputTimeout = null;
+        }
+        return;
+      }
+
+      // Actualizar buffer con el valor completo
+      inputBuffer = value;
+
+      // Limpiar timeout anterior si existe
+      if (inputTimeout) {
+        clearTimeout(inputTimeout);
+      }
+
+      // Establecer nuevo timeout para procesar después de que se complete la entrada
+      inputTimeout = setTimeout(() => {
+        console.log(
+          `🔍 DEBUG: Timeout completado, procesando buffer: "${inputBuffer}"`
+        );
+        processCompleteCode(inputBuffer);
+        inputBuffer = "";
+        inputTimeout = null;
+      }, 100); // 100ms de delay para capturar el código completo
     };
 
     const handlePasteEvent = (e: ClipboardEvent) => {
@@ -1431,15 +1452,16 @@ export default function ShoppingCartRefactored() {
       const pastedText = e.clipboardData?.getData("text") || "";
       console.log(`🔍 DEBUG: Texto pegado: "${pastedText}"`);
 
-      setTimeout(() => {
-        const inputElement = e.target as HTMLInputElement;
-        const currentValue = inputElement.value.trim();
-        console.log(`🔍 DEBUG: Valor después de paste: "${currentValue}"`);
+      // Limpiar buffer y timeout anteriores
+      inputBuffer = "";
+      if (inputTimeout) {
+        clearTimeout(inputTimeout);
+        inputTimeout = null;
+      }
 
-        // Procesar el valor pegado
-        if (currentValue) {
-          handleInputEvent({ target: inputElement } as any);
-        }
+      // Procesar inmediatamente el texto pegado
+      setTimeout(() => {
+        processCompleteCode(pastedText);
       }, 50);
     };
 
@@ -1453,6 +1475,11 @@ export default function ShoppingCartRefactored() {
       console.log("🔍 DEBUG: Removiendo listeners");
       input.removeEventListener("input", handleInputEvent);
       input.removeEventListener("paste", handlePasteEvent);
+
+      // Limpiar timeout si existe
+      if (inputTimeout) {
+        clearTimeout(inputTimeout);
+      }
     };
   }, [availableProducts, searchInputRef]);
 
