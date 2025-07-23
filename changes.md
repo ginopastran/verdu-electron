@@ -400,6 +400,76 @@ Ahora el sistema:
 
 - `src/components/ShoppingCartRefactored.tsx`: Lógica de procesamiento de códigos corregida
 
+## Mejora en Sistema de Debugging - Rastreo Completo del Escaneo
+
+### Problema Identificado
+
+El usuario reportó que cuando escanea un código, no aparece ningún log de debug, pero cuando pega manualmente el mismo código sí aparecen los logs. También se abre brevemente un diálogo durante el escaneo.
+
+### Solución Implementada
+
+1. **Logs Detallados en Cada Instancia**: Se agregaron logs con emojis para rastrear el flujo completo:
+
+   ```
+   🔧 DEBUG: 🚀 Iniciando configuración de listeners para input de búsqueda
+   🔧 DEBUG: 📥 INICIO handleInputEvent
+   🔧 DEBUG: 🎯 INICIO processCompleteCode
+   🔧 DEBUG: 🚀 INICIO autoAddScannedProduct
+   ```
+
+2. **Rastreo del Buffer**: Logs específicos para el manejo del buffer:
+
+   ```
+   🔧 DEBUG: Buffer actualizado: "0105000013552"
+   🔧 DEBUG: Estableciendo nuevo timeout de 100ms
+   🔧 DEBUG: ⏰ Timeout completado, procesando buffer: "0105000013552"
+   ```
+
+3. **Verificación de Formatos**: Logs detallados para cada formato de código:
+
+   ```
+   🔧 DEBUG: 🔍 Verificando si es código de barras estándar...
+   🔧 DEBUG: 🔍 Verificando si es PLU + peso...
+   🔧 DEBUG: 🔍 Probando formato de 12 dígitos...
+   🔧 DEBUG: ✅ Formato de 13 dígitos detectado
+   ```
+
+4. **Rastreo de Productos**: Logs para la búsqueda y agregado de productos:
+
+   ```
+   🔧 DEBUG: 🔍 Buscando producto con PLU: 105
+   🔧 DEBUG: ✅ Producto encontrado por PLU
+   🔧 DEBUG: 🛒 Llamando a autoAddScannedProduct para PLU+peso
+   ```
+
+5. **Investigación del Diálogo**: Logs para rastrear por qué se abre el diálogo:
+   ```
+   🔧 DEBUG: 🎯 INICIO handleProductSelect
+   🔧 DEBUG: Estableciendo selectedProduct y abriendo diálogo
+   ```
+
+### Resultado Esperado
+
+Ahora cuando se escanee un código, deberíamos ver un flujo completo como:
+
+```
+🔧 DEBUG: 🚀 Iniciando configuración de listeners para input de búsqueda
+🔧 DEBUG: 📥 INICIO handleInputEvent
+🔧 DEBUG: Input event detectado, valor: "0105000013552"
+🔧 DEBUG: Buffer actualizado: "0105000013552"
+🔧 DEBUG: ⏰ Timeout completado, procesando buffer: "0105000013552"
+🔧 DEBUG: 🎯 INICIO processCompleteCode
+🔧 DEBUG: ✅ Formato de 13 dígitos detectado
+🔧 DEBUG: ✅ Producto encontrado por PLU
+🔧 DEBUG: 🛒 Llamando a autoAddScannedProduct para PLU+peso
+🔧 DEBUG: 🚀 INICIO autoAddScannedProduct
+🔧 DEBUG: ✅ FIN autoAddScannedProduct - Producto agregado exitosamente
+```
+
+### Archivos Modificados
+
+- `src/components/ShoppingCartRefactored.tsx`: Sistema de logs detallados implementado
+
 ## Problema de Diálogo QR Manual
 
 ### Problema Reportado
