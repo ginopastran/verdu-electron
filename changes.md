@@ -279,6 +279,61 @@ Ahora el sistema:
 
 - `src/components/ShoppingCartRefactored.tsx`: Sistema de buffer implementado
 
+## Corrección del Problema del "0" Residual en el Input
+
+### Problema Identificado
+
+Después de escanear un código PLU, el producto se agregaba correctamente pero quedaba un "0" en el campo de búsqueda, indicando que el buffer no se limpiaba completamente.
+
+### Solución Implementada
+
+1. **Limpieza Completa del Buffer**: Se asegura que tanto el input como el buffer se limpien completamente después de procesar un código:
+
+   ```javascript
+   // Limpiar completamente el input y el buffer
+   input.value = "";
+   inputBuffer = "";
+   if (inputTimeout) {
+     clearTimeout(inputTimeout);
+     inputTimeout = null;
+   }
+   ```
+
+2. **Logs Detallados del Buffer**: Se agregaron logs para rastrear el estado del buffer:
+
+   ```
+   🔍 DEBUG: Buffer actualizado: "0105000013552"
+   🔍 DEBUG: Timeout completado, procesando buffer: "0105000013552"
+   🔍 DEBUG: Buffer limpiado después de procesar
+   ```
+
+3. **Análisis Detallado del Código**: Se agregaron logs específicos para el formato de 13 dígitos:
+   ```
+   🔍 DEBUG: PLU + peso detectado (formato 13 dígitos):
+      - Código completo: 0105000013552
+      - PLU extraído: 105
+      - Gramos extraídos: 1355
+      - Kilogramos calculados: 1.355
+      - Análisis detallado:
+        * Dígito inicial: 0
+        * PLU (3 dígitos): 105
+        * Peso (8 dígitos): 00001355 = 1355g = 1.355kg
+        * Dígito final: 2
+   ```
+
+### Resultado
+
+Ahora el sistema:
+
+- ✅ **Procesa** correctamente el código completo
+- ✅ **Calcula** el peso exacto (1.355 kg)
+- ✅ **Limpia** completamente el input después de agregar el producto
+- ✅ **No deja** caracteres residuales en el campo de búsqueda
+
+### Archivos Modificados
+
+- `src/components/ShoppingCartRefactored.tsx`: Limpieza completa del buffer implementada
+
 ## Problema de Diálogo QR Manual
 
 ### Problema Reportado

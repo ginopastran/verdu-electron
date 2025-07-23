@@ -1258,7 +1258,13 @@ export default function ShoppingCartRefactored() {
           );
 
           autoAddScannedProduct(product, 1);
+          // Limpiar completamente el input y el buffer
           input.value = "";
+          inputBuffer = "";
+          if (inputTimeout) {
+            clearTimeout(inputTimeout);
+            inputTimeout = null;
+          }
 
           // 🛒 DEBUG: Estado del carrito después de agregar código de barras
           setTimeout(() => {
@@ -1309,7 +1315,7 @@ export default function ShoppingCartRefactored() {
         console.log(`   - Gramos extraídos: ${grams}`);
         console.log(`   - Kilogramos calculados: ${kgQuantity}`);
       } else {
-        // Intentar formato de 13 dígitos
+        // Intentar formato de 13 dígitos (0 + PLU + peso + dígito final)
         const pluWeightRegex13 = /^0(\d{3})(\d{8})(\d{1})$/;
         const match13 = completeCode.match(pluWeightRegex13);
 
@@ -1326,6 +1332,13 @@ export default function ShoppingCartRefactored() {
           console.log(`   - PLU extraído: ${plu}`);
           console.log(`   - Gramos extraídos: ${grams}`);
           console.log(`   - Kilogramos calculados: ${kgQuantity}`);
+          console.log(`   - Análisis detallado:`);
+          console.log(`     * Dígito inicial: 0`);
+          console.log(`     * PLU (3 dígitos): ${plu}`);
+          console.log(
+            `     * Peso (8 dígitos): ${match13[2]} = ${grams}g = ${kgQuantity}kg`
+          );
+          console.log(`     * Dígito final: ${match13[3]}`);
         }
       }
 
@@ -1374,7 +1387,13 @@ export default function ShoppingCartRefactored() {
           });
 
           autoAddScannedProduct(productByPlu, kgQuantity);
+          // Limpiar completamente el input y el buffer
           input.value = "";
+          inputBuffer = "";
+          if (inputTimeout) {
+            clearTimeout(inputTimeout);
+            inputTimeout = null;
+          }
 
           // 🛒 DEBUG: Estado del carrito después de agregar PLU+peso
           setTimeout(() => {
@@ -1420,6 +1439,7 @@ export default function ShoppingCartRefactored() {
 
       // Si el valor está vacío, limpiar buffer
       if (!value) {
+        console.log(`🔍 DEBUG: Valor vacío, limpiando buffer`);
         inputBuffer = "";
         if (inputTimeout) {
           clearTimeout(inputTimeout);
@@ -1430,10 +1450,12 @@ export default function ShoppingCartRefactored() {
 
       // Actualizar buffer con el valor completo
       inputBuffer = value;
+      console.log(`🔍 DEBUG: Buffer actualizado: "${inputBuffer}"`);
 
       // Limpiar timeout anterior si existe
       if (inputTimeout) {
         clearTimeout(inputTimeout);
+        console.log(`🔍 DEBUG: Timeout anterior limpiado`);
       }
 
       // Establecer nuevo timeout para procesar después de que se complete la entrada
@@ -1442,6 +1464,7 @@ export default function ShoppingCartRefactored() {
           `🔍 DEBUG: Timeout completado, procesando buffer: "${inputBuffer}"`
         );
         processCompleteCode(inputBuffer);
+        console.log(`🔍 DEBUG: Buffer limpiado después de procesar`);
         inputBuffer = "";
         inputTimeout = null;
       }, 100); // 100ms de delay para capturar el código completo
