@@ -53,7 +53,8 @@ export const ClosingDialog = ({
 
   // Estados para el cierre manual
   const [createOpen, setCreateOpen] = useState(false);
-  const [selectedDay, setSelectedDay] = useState<Date | undefined>(new Date());
+  const [startDate, setStartDate] = useState<Date | undefined>(new Date());
+  const [endDate, setEndDate] = useState<Date | undefined>(new Date());
   const [startTime, setStartTime] = useState("00:00");
   const [endTime, setEndTime] = useState("23:59");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -109,27 +110,38 @@ export const ClosingDialog = ({
   // Función para crear cierre manual
   const handleCreateCierre = async () => {
     // Validaciones
-    if (!selectedDay || !selectedVendedorId || !selectedSucursalId) {
+    if (!startDate || !endDate || !selectedVendedorId || !selectedSucursalId) {
       toast.error("Por favor, completa todos los campos.");
+      return;
+    }
+
+    // Validar que la fecha de fin no sea anterior a la de inicio
+    if (endDate < startDate) {
+      toast.error(
+        "La fecha de fin no puede ser anterior a la fecha de inicio."
+      );
       return;
     }
 
     const [startHour, startMinute] = startTime.split(":").map(Number);
     const [endHour, endMinute] = endTime.split(":").map(Number);
 
-    if (
-      startHour > endHour ||
-      (startHour === endHour && startMinute >= endMinute)
-    ) {
-      toast.error("La hora de fin debe ser posterior a la hora de inicio.");
-      return;
+    // Si es el mismo día, validar que la hora de fin sea posterior a la de inicio
+    if (startDate.getTime() === endDate.getTime()) {
+      if (
+        startHour > endHour ||
+        (startHour === endHour && startMinute >= endMinute)
+      ) {
+        toast.error("La hora de fin debe ser posterior a la hora de inicio.");
+        return;
+      }
     }
 
     // Crear fechas en hora local Argentina
-    const fechaInicio = new Date(selectedDay);
+    const fechaInicio = new Date(startDate);
     fechaInicio.setHours(startHour, startMinute, 0, 0);
 
-    const fechaCierre = new Date(selectedDay);
+    const fechaCierre = new Date(endDate);
     fechaCierre.setHours(endHour, endMinute, 59, 999);
 
     // Convertir a UTC (Argentina UTC-3)
@@ -171,6 +183,8 @@ export const ClosingDialog = ({
       toast.success("Cierre creado correctamente");
       setCreateOpen(false);
       // Resetear formulario
+      setStartDate(new Date());
+      setEndDate(new Date());
       setStartTime("00:00");
       setEndTime("23:59");
     } catch (err) {
@@ -272,7 +286,9 @@ export const ClosingDialog = ({
               Crear Cierre Manual
             </DialogTitle>
             <DialogDescription>
-              Selecciona los detalles para generar el cierre de caja manual.
+              Selecciona las fechas y horarios para generar el cierre de caja
+              manual. Puedes seleccionar fechas diferentes para cierres que
+              abarquen múltiples días.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
@@ -298,34 +314,64 @@ export const ClosingDialog = ({
               </div>
             </div>
 
-            {/* Fecha */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Fecha</label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start text-left font-normal"
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {selectedDay ? (
-                      format(selectedDay, "PPP", { locale: es })
-                    ) : (
-                      <span>Elige una fecha</span>
-                    )}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" sideOffset={5}>
-                  <Calendar
-                    mode="single"
-                    selected={selectedDay}
-                    onSelect={setSelectedDay}
-                    disabled={(date) => date > new Date()}
-                    initialFocus
-                    locale={es}
-                  />
-                </PopoverContent>
-              </Popover>
+            {/* Fechas de inicio y fin */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Fecha de inicio</label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start text-left font-normal"
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {startDate ? (
+                        format(startDate, "PPP", { locale: es })
+                      ) : (
+                        <span>Elige fecha inicio</span>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" sideOffset={5}>
+                    <Calendar
+                      mode="single"
+                      selected={startDate}
+                      onSelect={setStartDate}
+                      disabled={(date) => date > new Date()}
+                      initialFocus
+                      locale={es}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Fecha de fin</label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start text-left font-normal"
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {endDate ? (
+                        format(endDate, "PPP", { locale: es })
+                      ) : (
+                        <span>Elige fecha fin</span>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" sideOffset={5}>
+                    <Calendar
+                      mode="single"
+                      selected={endDate}
+                      onSelect={setEndDate}
+                      disabled={(date) => date > new Date()}
+                      initialFocus
+                      locale={es}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
             </div>
 
             {/* Horas de inicio y fin */}
@@ -423,6 +469,33 @@ export const ClosingDialog = ({
                 </div>
               </div>
             </div>
+
+            {/* Información del período seleccionado */}
+            {startDate && endDate && (
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <Clock className="h-4 w-4 text-blue-600" />
+                  <span className="text-sm font-medium text-blue-800">
+                    Período seleccionado:
+                  </span>
+                </div>
+                <div className="text-sm text-blue-700 space-y-1">
+                  <div>
+                    <strong>Inicio:</strong>{" "}
+                    {format(startDate, "PPP", { locale: es })} a las {startTime}
+                  </div>
+                  <div>
+                    <strong>Fin:</strong>{" "}
+                    {format(endDate, "PPP", { locale: es })} a las {endTime}
+                  </div>
+                  {startDate.getTime() !== endDate.getTime() && (
+                    <div className="text-xs text-blue-600 mt-1">
+                      ⚠️ Cierre de múltiples días
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCreateOpen(false)}>
