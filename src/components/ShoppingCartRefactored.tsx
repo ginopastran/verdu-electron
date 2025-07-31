@@ -70,6 +70,11 @@ import { CancellationDialog } from "./shopping-cart/dialogs/CancellationDialog";
 // Importar el nuevo componente de diálogo de órdenes recientes
 import { RecentOrdersDialog } from "./RecentOrdersDialog";
 
+// Props para el componente
+interface ShoppingCartRefactoredProps {
+  // Removido onCuentaCorrienteClick - ahora se maneja con navegación
+}
+
 // Tipos
 interface Product {
   id: number;
@@ -82,7 +87,7 @@ interface Product {
   costo: number;
 }
 
-export default function ShoppingCartRefactored() {
+export default function ShoppingCartRefactored({}: ShoppingCartRefactoredProps = {}) {
   const { user, logout } = useAuth();
   const { selectedProductFromSidebar, clearSelectedProduct } = useCartSidebar();
   const { searchInputRef, focusSearchInput } = useSearchInput();

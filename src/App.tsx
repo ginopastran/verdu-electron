@@ -18,6 +18,8 @@ import AppRouter from "./components/AppRouter";
 import UpdateNotification from "./components/UpdateNotification";
 import { ElectronDebug } from "./components/ElectronDebug";
 import { CartWrapper } from "./components/CartWrapper";
+import { FacturasPage } from "./pages/FacturasPage";
+import { FacturaDetallePage } from "./pages/FacturaDetallePage";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -53,6 +55,14 @@ export default function App() {
             <UpdateNotification />
             <Routes>
               <Route path="/" element={<AppRouter />} />
+              <Route
+                path="/dashboard"
+                element={
+                  <ProtectedRoute>
+                    <CartWrapper />
+                  </ProtectedRoute>
+                }
+              />
               <Route path="/admin-login" element={<AdminLogin />} />
               <Route path="/user-login" element={<UserLogin />} />
               <Route path="/admin-message" element={<AdminMessage />} />
@@ -72,6 +82,23 @@ export default function App() {
                   </ProtectedRoute>
                 }
               />
+              <Route
+                path="/facturas"
+                element={
+                  <ProtectedRoute>
+                    <FacturasPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/facturas/:id"
+                element={
+                  <ProtectedRoute>
+                    <FacturaDetallePage />
+                  </ProtectedRoute>
+                }
+              />
+
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </OfflineModeProvider>

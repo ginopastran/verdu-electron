@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
-import { History, Store } from "lucide-react";
+import { History, Store, Receipt } from "lucide-react";
 import { UserMenu } from "@/components/user-menu";
+import { useNavigate } from "react-router-dom";
 
 interface HeaderActionsProps {
   onOrdersClick: () => void;
@@ -15,6 +16,12 @@ export const HeaderActions = ({
   user,
   userMenuUser,
 }: HeaderActionsProps) => {
+  const navigate = useNavigate();
+
+  const handleCuentaCorrienteClick = () => {
+    navigate("/facturas");
+  };
+
   return (
     <div className="w-full flex justify-end items-center gap-4">
       {/* Botón de Órdenes recientes */}
@@ -24,6 +31,15 @@ export const HeaderActions = ({
       >
         <History />
         Órdenes
+      </Button>
+
+      {/* Botón de Cuenta Corriente */}
+      <Button
+        className="bg-emerald-gradient text-white hover:text-white text-base [&_svg]:size-6"
+        onClick={handleCuentaCorrienteClick}
+      >
+        <Receipt />
+        Cuenta Corriente
       </Button>
 
       {user?.permisos?.cierreDeCajaEnabled && (
