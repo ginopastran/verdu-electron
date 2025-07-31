@@ -32,6 +32,7 @@ import {
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface ClosingDialogProps {
   open: boolean;
@@ -48,6 +49,8 @@ export const ClosingDialog = ({
   isClosing,
   searchInputRef,
 }: ClosingDialogProps) => {
+  const { user } = useAuth();
+
   // Estados para el cierre manual
   const [createOpen, setCreateOpen] = useState(false);
   const [selectedDay, setSelectedDay] = useState<Date | undefined>(new Date());
@@ -56,8 +59,10 @@ export const ClosingDialog = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [users, setUsers] = useState<any[]>([]);
   const [sucursales, setSucursales] = useState<any[]>([]);
-  const [selectedVendedorId, setSelectedVendedorId] = useState<string>("");
-  const [selectedSucursalId, setSelectedSucursalId] = useState<string>("");
+
+  // Obtener vendedor y sucursal del usuario logueado automáticamente
+  const selectedVendedorId = user?.id?.toString() || "";
+  const selectedSucursalId = user?.sucursalId?.toString() || "";
 
   // Cargar datos cuando se abre el modal de creación
   useEffect(() => {
@@ -166,8 +171,6 @@ export const ClosingDialog = ({
       toast.success("Cierre creado correctamente");
       setCreateOpen(false);
       // Resetear formulario
-      setSelectedVendedorId("");
-      setSelectedSucursalId("");
       setStartTime("00:00");
       setEndTime("23:59");
     } catch (err) {
@@ -176,6 +179,14 @@ export const ClosingDialog = ({
       setIsSubmitting(false);
     }
   };
+
+  // Obtener información del vendedor y sucursal para mostrar
+  const vendedorInfo = users.find(
+    (u) => u.id.toString() === selectedVendedorId
+  );
+  const sucursalInfo = sucursales.find(
+    (s) => s.id.toString() === selectedSucursalId
+  );
 
   return (
     <>
@@ -265,48 +276,25 @@ export const ClosingDialog = ({
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            {/* Vendedor y Sucursal */}
+            {/* Vendedor y Sucursal - Solo lectura */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Vendedor</label>
-                <Select
-                  value={selectedVendedorId}
-                  onValueChange={setSelectedVendedorId}
-                >
-                  <SelectTrigger>
-                    <User className="mr-2 h-4 w-4" />
-                    <SelectValue placeholder="Elegir vendedor" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {users.map((user) => (
-                      <SelectItem key={user.id} value={user.id.toString()}>
-                        {user.nombre}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex items-center gap-2 p-3 border border-gray-200 rounded-md bg-gray-50">
+                  <User className="h-4 w-4 text-gray-500" />
+                  <span className="text-sm text-gray-700">
+                    {vendedorInfo?.nombre || user?.nombre || "Cargando..."}
+                  </span>
+                </div>
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">Sucursal</label>
-                <Select
-                  value={selectedSucursalId}
-                  onValueChange={setSelectedSucursalId}
-                >
-                  <SelectTrigger>
-                    <Store className="mr-2 h-4 w-4" />
-                    <SelectValue placeholder="Elegir sucursal" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {sucursales.map((sucursal) => (
-                      <SelectItem
-                        key={sucursal.id}
-                        value={sucursal.id.toString()}
-                      >
-                        {sucursal.nombre}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex items-center gap-2 p-3 border border-gray-200 rounded-md bg-gray-50">
+                  <Store className="h-4 w-4 text-gray-500" />
+                  <span className="text-sm text-gray-700">
+                    {sucursalInfo?.nombre || "Cargando..."}
+                  </span>
+                </div>
               </div>
             </div>
 
