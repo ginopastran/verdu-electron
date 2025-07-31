@@ -21,7 +21,8 @@ export const useFacturas = () => {
   });
   const [filters, setFilters] = useState<FiltersState>({
     search: "",
-    cuentaCorriente: "",
+    estado: "",
+    tipoFactura: "",
     sort: "fecha",
     order: "desc",
   });
@@ -37,7 +38,8 @@ export const useFacturas = () => {
           search: filters.search,
           sort: filters.sort,
           order: filters.order,
-          cuentaCorriente: filters.cuentaCorriente,
+          estado: filters.estado,
+          tipoFactura: filters.tipoFactura,
           excludeTipoFactura: "B", // Excluir facturas tipo "B" (boletas)
           ...params,
         });

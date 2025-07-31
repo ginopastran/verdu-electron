@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { FacturaList } from "@/components/facturas/FacturaList";
 import { AgregarPagoDialog } from "@/components/facturas/AgregarPagoDialog";
 import { HistorialPagosDialog } from "@/components/facturas/HistorialPagosDialog";
+import FacturaModal from "@/components/facturas/FacturaModal";
+import FacturaForm from "@/components/facturas/FacturaForm";
 import { useFacturas } from "@/hooks/useFacturas";
 import { Factura, AddPagoData } from "@/types/factura";
 import { ArrowLeft } from "lucide-react";
@@ -34,6 +36,8 @@ export const FacturasPage: React.FC<FacturasPageProps> = ({}) => {
   const [selectedFactura, setSelectedFactura] = useState<Factura | null>(null);
   const [showPagoDialog, setShowPagoDialog] = useState(false);
   const [showHistorialDialog, setShowHistorialDialog] = useState(false);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
 
   const handleVer = (factura: Factura) => {
     // Esta función ya no se usa, la navegación se maneja directamente en FacturaCard
@@ -41,8 +45,8 @@ export const FacturasPage: React.FC<FacturasPageProps> = ({}) => {
   };
 
   const handleEditar = (factura: Factura) => {
-    // Aquí podrías abrir un modal de edición
-    console.log("Editar factura:", factura);
+    setSelectedFactura(factura);
+    setShowEditModal(true);
   };
 
   const handleDescargar = async (id: string) => {
@@ -67,8 +71,16 @@ export const FacturasPage: React.FC<FacturasPageProps> = ({}) => {
   };
 
   const handleCreateNew = () => {
-    // Aquí podrías abrir un modal de creación
-    console.log("Crear nueva factura");
+    setShowCreateForm(true);
+  };
+
+  const handleFormClose = () => {
+    setShowCreateForm(false);
+  };
+
+  const handleFormSuccess = () => {
+    setShowCreateForm(false);
+    fetchFacturas();
   };
 
   const handleAddPagoSubmit = async (data: AddPagoData): Promise<boolean> => {
@@ -142,6 +154,28 @@ export const FacturasPage: React.FC<FacturasPageProps> = ({}) => {
           factura={selectedFactura}
           open={showHistorialDialog}
           onOpenChange={setShowHistorialDialog}
+        />
+      )}
+
+      {/* Modales de facturas */}
+      {showCreateForm && (
+        <FacturaForm
+          mode="create"
+          onClose={handleFormClose}
+          onSuccess={handleFormSuccess}
+        />
+      )}
+
+      {showEditModal && selectedFactura && (
+        <FacturaModal
+          factura={selectedFactura}
+          mode="edit"
+          onClose={() => setShowEditModal(false)}
+          onUpdate={() => {
+            setShowEditModal(false);
+            setSelectedFactura(null);
+            fetchFacturas();
+          }}
         />
       )}
     </div>

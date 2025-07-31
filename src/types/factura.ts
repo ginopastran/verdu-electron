@@ -19,7 +19,9 @@ export interface Cliente {
 export interface Producto {
   id: number;
   nombre: string;
+  precio: number;
   tipoMedida: string;
+  stock?: number;
 }
 
 export interface DetalleFactura {
@@ -66,7 +68,8 @@ export interface FacturasResponse {
 
 export interface FiltersState {
   search: string;
-  cuentaCorriente: string;
+  estado: string;
+  tipoFactura: string;
   sort: string;
   order: "asc" | "desc";
 }

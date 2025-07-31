@@ -18,7 +18,8 @@ export const facturasService = {
       sort?: string;
       order?: "asc" | "desc";
       excludeTipoFactura?: string;
-      cuentaCorriente?: string;
+      estado?: string;
+      tipoFactura?: string;
     } = {}
   ): Promise<FacturasResponse> {
     // Para la página de cuenta corriente, excluir facturas tipo "B" por defecto

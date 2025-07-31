@@ -24,7 +24,8 @@ interface FacturaListProps {
   };
   filters: {
     search: string;
-    cuentaCorriente: string;
+    estado: string;
+    tipoFactura: string;
     sort: string;
     order: "asc" | "desc";
   };
@@ -68,8 +69,12 @@ export const FacturaList: React.FC<FacturaListProps> = ({
     onUpdateFilters({ sort, order: order as "asc" | "desc" });
   };
 
-  const handleCuentaCorrienteChange = (value: string) => {
-    onUpdateFilters({ cuentaCorriente: value === "all" ? "" : value });
+  const handleEstadoChange = (value: string) => {
+    onUpdateFilters({ estado: value === "all" ? "" : value });
+  };
+
+  const handleTipoFacturaChange = (value: string) => {
+    onUpdateFilters({ tipoFactura: value === "all" ? "" : value });
   };
 
   const formatSortValue = () => {
@@ -96,49 +101,43 @@ export const FacturaList: React.FC<FacturaListProps> = ({
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
             <Input
-              placeholder="Buscar facturas de cuenta corriente..."
+              placeholder="Buscar facturas..."
               value={searchValue}
               onChange={(e) => setSearchValue(e.target.value)}
-              className="pl-10"
+              className="pl-10 border-[#A7A7A7] rounded-xl"
             />
           </div>
 
           {/* Filtros */}
           <div className="flex gap-2">
             <Select
-              value={filters.cuentaCorriente || "all"}
-              onValueChange={handleCuentaCorrienteChange}
+              value={filters.estado || "all"}
+              onValueChange={handleEstadoChange}
             >
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder="Todas las facturas" />
+              <SelectTrigger className="w-48 border-[#A7A7A7] rounded-xl">
+                <SelectValue placeholder="Todos los estados" />
               </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas las facturas CC</SelectItem>
-                <SelectItem value="cuenta_corriente">
-                  Solo Cuenta Corriente
-                </SelectItem>
-                <SelectItem value="pagadas">CC Pagadas</SelectItem>
-                <SelectItem value="pendientes">CC Pendientes</SelectItem>
+              <SelectContent className="border-[#A7A7A7] rounded-xl">
+                <SelectItem value="all">Todos los estados</SelectItem>
+                <SelectItem value="pendiente">Pendiente</SelectItem>
+                <SelectItem value="pagada">Pagada</SelectItem>
+                <SelectItem value="anulada">Anulada</SelectItem>
+                <SelectItem value="vencida">Vencida</SelectItem>
               </SelectContent>
             </Select>
 
-            <Select value={formatSortValue()} onValueChange={handleSortChange}>
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder="Ordenar por" />
+            <Select
+              value={filters.tipoFactura || "all"}
+              onValueChange={handleTipoFacturaChange}
+            >
+              <SelectTrigger className="w-48 border-[#A7A7A7] rounded-xl">
+                <SelectValue placeholder="Todos los tipos" />
               </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="fecha-desc">Fecha (más reciente)</SelectItem>
-                <SelectItem value="fecha-asc">Fecha (más antigua)</SelectItem>
-                <SelectItem value="numero-desc">
-                  Número (descendente)
-                </SelectItem>
-                <SelectItem value="numero-asc">Número (ascendente)</SelectItem>
-                <SelectItem value="total-desc">
-                  Total (mayor a menor)
-                </SelectItem>
-                <SelectItem value="total-asc">Total (menor a mayor)</SelectItem>
-                <SelectItem value="cliente-asc">Cliente (A-Z)</SelectItem>
-                <SelectItem value="cliente-desc">Cliente (Z-A)</SelectItem>
+              <SelectContent className="border-[#A7A7A7] rounded-xl">
+                <SelectItem value="all">Todos los tipos</SelectItem>
+                <SelectItem value="A">Factura A</SelectItem>
+                <SelectItem value="C">Factura C</SelectItem>
+                <SelectItem value="remito">Remito</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -158,19 +157,18 @@ export const FacturaList: React.FC<FacturaListProps> = ({
       {facturas.length === 0 ? (
         <div className="text-center py-12">
           <div className="text-gray-600 mb-4">
-            {filters.search || filters.cuentaCorriente
+            {filters.search || filters.estado || filters.tipoFactura
               ? "No se encontraron facturas con los filtros aplicados"
-              : "No hay facturas de cuenta corriente registradas"}
+              : "No hay facturas registradas"}
           </div>
           <div className="text-sm text-gray-500 mb-4">
-            Esta página muestra solo facturas de cuenta corriente (remitos,
-            facturas A, C). Las boletas (tipo B) se pueden ver en el historial.
+            Esta página muestra todas las facturas registradas en el sistema.
           </div>
-          {filters.search || filters.cuentaCorriente ? (
+          {filters.search || filters.estado || filters.tipoFactura ? (
             <Button
               variant="outline"
               onClick={() =>
-                onUpdateFilters({ search: "", cuentaCorriente: "" })
+                onUpdateFilters({ search: "", estado: "", tipoFactura: "" })
               }
             >
               Limpiar filtros
