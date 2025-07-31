@@ -1306,11 +1306,15 @@ export function useAfipPaymentProcessing({
         if (setQrDialogOpen) {
           setQrDialogOpen(false);
         }
-        clearCart();
-        resetPaymentState();
 
-        // Enfocar input de búsqueda
+        // ✅ CRÍTICO: Limpiar carrito y estados SOLO después de que todo esté completo
+        // Esto evita que los productos se borren prematuramente
         setTimeout(() => {
+          clearCart();
+          resetPaymentState();
+          console.log("🛒 Carrito limpiado después de pago QR AFIP exitoso");
+
+          // Enfocar input de búsqueda
           if (searchInputRef?.current) {
             searchInputRef.current.focus();
           }

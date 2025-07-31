@@ -47,6 +47,7 @@ import {
 import { toast } from "sonner";
 import ClienteSelectorDialog from "./ClienteSelectorDialog";
 import ProductoSelectorDialog from "./ProductoSelectorDialog";
+import CantidadProductoDialog from "./CantidadProductoDialog";
 import { useBusinessInfo } from "@/hooks/useBusinessInfo";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -111,6 +112,9 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
   const [showClienteDialog, setShowClienteDialog] = useState(false);
   const [showProductoDialog, setShowProductoDialog] = useState(false);
+  const [showCantidadDialog, setShowCantidadDialog] = useState(false);
+  const [selectedProductoForCantidad, setSelectedProductoForCantidad] =
+    useState<Producto | null>(null);
 
   const [formData, setFormData] = useState<FormData>({
     clienteId: factura?.clienteId,
@@ -166,19 +170,30 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
   };
 
   const handleProductoSelect = (producto: Producto) => {
+    // En lugar de agregar directamente, abrir el diálogo de cantidad
+    setSelectedProductoForCantidad(producto);
+    setShowCantidadDialog(true);
+    setShowProductoDialog(false);
+  };
+
+  const handleConfirmarCantidad = (producto: Producto, cantidad: number) => {
     const nuevoDetalle: DetalleFactura = {
       productoId: producto.id,
       producto,
       descripcion: producto.nombre,
-      cantidad: 1,
+      cantidad: cantidad,
       precioUnitario: producto.precio,
-      subtotal: producto.precio,
+      subtotal: producto.precio * cantidad,
     };
 
     setFormData({
       ...formData,
       detalles: [...formData.detalles, nuevoDetalle],
     });
+
+    // Limpiar estados
+    setSelectedProductoForCantidad(null);
+    setShowCantidadDialog(false);
   };
 
   const updateDetalle = (index: number, field: string, value: any) => {
@@ -743,6 +758,16 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
         onClose={() => setShowProductoDialog(false)}
         onSelect={handleProductoSelect}
         excludeProductIds={excludeProductIds}
+      />
+
+      <CantidadProductoDialog
+        open={showCantidadDialog}
+        onClose={() => {
+          setShowCantidadDialog(false);
+          setSelectedProductoForCantidad(null);
+        }}
+        onConfirm={handleConfirmarCantidad}
+        producto={selectedProductoForCantidad}
       />
     </>
   );

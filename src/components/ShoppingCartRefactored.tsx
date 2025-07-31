@@ -644,8 +644,13 @@ export default function ShoppingCartRefactored({}: ShoppingCartRefactoredProps =
     } catch (error: any) {
       console.error("❌ Error en pago AFIP:", error);
       toast.error(`Error en factura AFIP: ${error.message}`);
+
+      // ✅ CRÍTICO: NO limpiar el carrito en caso de error
+      // Los productos deben permanecer para que el usuario pueda reintentar
       // NO limpiar estados locales aquí, solo los del hook AFIP
       afipPaymentProcessor.resetPaymentState();
+
+      console.log("🛒 Error en pago AFIP - carrito mantenido para reintento");
     } finally {
       paymentLockRef.current = false;
     }
@@ -807,17 +812,25 @@ export default function ShoppingCartRefactored({}: ShoppingCartRefactoredProps =
             toast.dismiss(printingToastId);
           }
 
-          // Limpiar carrito y estados locales
-          cartState.clearCart();
-          setIsProcessingPayment(false);
-          setSelectedPaymentMethod(null);
-          setPaymentDialogOpen(false);
+          // ✅ CRÍTICO: Limpiar carrito y estados locales SOLO después de que todo esté completo
+          setTimeout(() => {
+            cartState.clearCart();
+            setIsProcessingPayment(false);
+            setSelectedPaymentMethod(null);
+            setPaymentDialogOpen(false);
+            console.log(
+              "🛒 Carrito limpiado después de pago QR directo exitoso"
+            );
+          }, 100);
 
           toast.success("Orden completada exitosamente");
           paymentLockRef.current = false;
         } catch (error: any) {
           console.error("❌ Error en flujo QR/MP deshabilitado:", error);
           toast.error(`Error al procesar la orden: ${error.message}`);
+
+          // ✅ CRÍTICO: NO limpiar el carrito en caso de error
+          // Los productos deben permanecer para que el usuario pueda reintentar
           setIsProcessingPayment(false);
           setSelectedPaymentMethod(null);
           setPaymentDialogOpen(false);
@@ -826,6 +839,8 @@ export default function ShoppingCartRefactored({}: ShoppingCartRefactoredProps =
           toast.dismiss("processing-order");
           toast.dismiss("printing-ticket");
           paymentLockRef.current = false;
+
+          console.log("🛒 Error en pago QR - carrito mantenido para reintento");
         }
 
         return;
@@ -850,10 +865,15 @@ export default function ShoppingCartRefactored({}: ShoppingCartRefactoredProps =
       setSelectedPaymentMethod(null);
     } catch (error: any) {
       console.error("❌ Error al procesar pago:", error);
-      // ✅ MEJORADO: Limpiar estados en caso de error
+      toast.error(`Error al procesar el pago: ${error.message}`);
+
+      // ✅ CRÍTICO: NO limpiar el carrito en caso de error
+      // Los productos deben permanecer para que el usuario pueda reintentar
       setIsProcessingPayment(false);
       setSelectedPaymentMethod(null);
       setPaymentDialogOpen(false);
+
+      console.log("🛒 Error en pago normal - carrito mantenido para reintento");
     } finally {
       // ✅ MEJORADO: Asegurar que el estado se resetee SIEMPRE
       setIsProcessingPayment(false);
@@ -1164,6 +1184,10 @@ export default function ShoppingCartRefactored({}: ShoppingCartRefactoredProps =
       // Limpiar tracking en ambos hooks
       paymentProcessor.clearProcessedOrdersTracking?.();
       afipPaymentProcessor.clearProcessedOrdersTracking?.();
+
+      // ✅ CRÍTICO: NO limpiar el carrito automáticamente al cerrar el diálogo QR
+      // El carrito se debe limpiar solo cuando el pago se complete exitosamente
+      console.log("🛒 QR Dialog cerrado - manteniendo carrito intacto");
     }
   }, [qrDialogOpen, paymentProcessor, afipPaymentProcessor]);
 

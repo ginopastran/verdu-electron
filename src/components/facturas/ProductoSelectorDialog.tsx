@@ -50,21 +50,6 @@ const ProductoSelectorDialog: React.FC<ProductoSelectorDialogProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
 
-  // Resetear estado cuando se abre el diálogo
-  useEffect(() => {
-    if (open) {
-      setSearchTerm("");
-      setError(null);
-      setCurrentPage(1);
-      fetchProductos();
-    }
-  }, [open]);
-
-  // Reset to first page when search changes
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm]);
-
   const fetchProductos = useCallback(async () => {
     try {
       setLoading(true);
@@ -103,6 +88,21 @@ const ProductoSelectorDialog: React.FC<ProductoSelectorDialogProps> = ({
     }
   }, []);
 
+  // Resetear estado cuando se abre el diálogo
+  useEffect(() => {
+    if (open) {
+      setSearchTerm("");
+      setError(null);
+      setCurrentPage(1);
+      fetchProductos();
+    }
+  }, [open, fetchProductos]);
+
+  // Reset to first page when search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
+
   const formatCurrency = useCallback((amount: number) => {
     return new Intl.NumberFormat("es-AR", {
       style: "currency",
@@ -111,10 +111,15 @@ const ProductoSelectorDialog: React.FC<ProductoSelectorDialogProps> = ({
   }, []);
 
   const filteredProductos = useMemo(() => {
+    if (!searchTerm.trim()) {
+      return productos.filter(
+        (producto) => !excludeProductIds.includes(producto.id)
+      );
+    }
+
+    const searchLower = searchTerm.toLowerCase().trim();
     return productos.filter((producto) => {
-      const matchesSearch = producto.nombre
-        .toLowerCase()
-        .includes(searchTerm.toLowerCase());
+      const matchesSearch = producto.nombre.toLowerCase().includes(searchLower);
       const isNotExcluded = !excludeProductIds.includes(producto.id);
       return matchesSearch && isNotExcluded;
     });
@@ -209,6 +214,11 @@ const ProductoSelectorDialog: React.FC<ProductoSelectorDialogProps> = ({
               className="pl-9"
               autoFocus
               disabled={loading}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  onClose();
+                }
+              }}
             />
           </div>
 
@@ -244,18 +254,22 @@ const ProductoSelectorDialog: React.FC<ProductoSelectorDialogProps> = ({
                 <Package className="h-12 w-12 text-muted-foreground mx-auto mb-2" />
                 <p className="text-muted-foreground">
                   {searchTerm
-                    ? "No se encontraron productos con ese criterio de búsqueda"
+                    ? `No se encontraron productos que coincidan con "${searchTerm}"`
                     : "No hay productos disponibles"}
                 </p>
                 {searchTerm && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setSearchTerm("")}
-                    className="mt-2"
-                  >
-                    Limpiar búsqueda
-                  </Button>
+                  <div className="mt-4 space-y-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setSearchTerm("")}
+                    >
+                      Limpiar búsqueda
+                    </Button>
+                    <p className="text-xs text-muted-foreground">
+                      Intenta con términos más generales
+                    </p>
+                  </div>
                 )}
               </div>
             ) : (

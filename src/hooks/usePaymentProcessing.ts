@@ -988,9 +988,18 @@ export function usePaymentProcessing({
           setQrDialogOpenRef(false);
         }
 
-        // Limpiar carrito y estados
-        clearCart();
-        resetPaymentState();
+        // ✅ CRÍTICO: Limpiar carrito y estados SOLO después de que todo esté completo
+        // Esto evita que los productos se borren prematuramente
+        setTimeout(() => {
+          clearCart();
+          resetPaymentState();
+          console.log("🛒 Carrito limpiado después de pago QR exitoso");
+
+          // ✅ CRÍTICO: El enfoque del input se maneja en el componente principal
+          console.log(
+            "✅ FINALIZE MP: Proceso completado, input será enfocado por el componente"
+          );
+        }, 100);
 
         console.log("✅ FINALIZE MP: Proceso completado con impresión");
       }
@@ -1683,6 +1692,28 @@ export function usePaymentProcessing({
           console.log("🆔 ID Real:", orderDataForPrint.idReal);
           console.log("💳 Método de Pago:", orderDataForPrint.metodoPago);
           console.log("💰 Total COMBINADO:", orderDataForPrint.total);
+
+          // ✅ CRÍTICO: Mostrar toast de impresión
+          const manualPrintingToastId = toast.loading("Imprimiendo ticket...");
+
+          try {
+            // Llamar a impresión
+            await handleTicketPrinting(orderDataForPrint);
+
+            // Cerrar toast de impresión
+            toast.dismiss(manualPrintingToastId);
+
+            console.log("✅ MANUAL FINALIZE: Ticket impreso exitosamente");
+          } catch (printError) {
+            console.error(
+              "❌ MANUAL FINALIZE: Error en impresión:",
+              printError
+            );
+            toast.dismiss(manualPrintingToastId);
+            toast.error(
+              "Error al imprimir el ticket, pero el pago se completó correctamente"
+            );
+          }
           console.log("🛒 Items:", orderDataForPrint.items);
           console.log("👤 Vendedor ID:", orderDataForPrint.vendedorId);
           console.log("🏢 Sucursal ID:", orderDataForPrint.sucursalId);
@@ -1902,12 +1933,20 @@ export function usePaymentProcessing({
           );
         }
 
-        // Completar el proceso
-        toast.success("¡Pago completado exitosamente!");
+        // ✅ CRÍTICO: Mostrar toast de éxito después de impresión
+        toast.success("¡Pago QR completado exitosamente!");
 
         console.log(
           "✅ MANUAL FINALIZE QR: Completado con impresión (backend ya procesó)"
         );
+
+        // ✅ CRÍTICO: Limpiar carrito y estados después de éxito
+        setTimeout(() => {
+          clearCart();
+          resetPaymentState();
+          console.log("🛒 Carrito limpiado después de pago QR manual exitoso");
+        }, 100);
+
         return; // Salir temprano
       }
 
