@@ -197,11 +197,75 @@ export function RecentOrdersDialog({
     if (isPrinting) return;
     setIsPrinting(true);
     try {
-      // Añadir businessName si no lo tiene
+      // Debug de la estructura completa de la orden
+      console.log("🖨️ Orden original para reimpresión:", order);
+      console.log("🖨️ Claves disponibles en la orden:", Object.keys(order));
+      console.log("🖨️ Items:", order.items);
+      console.log("🖨️ Detalles:", order.detalles);
+      console.log("🖨️ Vendedor:", order.vendedor);
+      // Normalizar los datos del vendedor
+      let vendedorNormalizado = 'N/A';
+      if (order.vendedor) {
+        if (typeof order.vendedor === 'string') {
+          vendedorNormalizado = order.vendedor;
+        } else if (typeof order.vendedor === 'object' && order.vendedor !== null) {
+          vendedorNormalizado = order.vendedor.nombre || order.vendedor.name || 'N/A';
+        }
+      }
+
+             // Normalizar los items de la orden
+       let itemsNormalizados = [];
+       if (order.items && Array.isArray(order.items)) {
+         itemsNormalizados = order.items.map((item: any) => {
+           // Debug del item para entender su estructura
+           console.log("🔍 Item original:", item);
+           
+           const nombre = item.nombre || item.producto?.nombre || item.producto || item.detalle?.nombre || 'Producto';
+           const cantidad = item.cantidad || item.qty || item.cantidadProducto || 0;
+           const precioHistorico = item.precioHistorico || item.precio || item.price || item.precioUnitario || 0;
+           const subtotal = item.subtotal || (cantidad * precioHistorico);
+           
+           console.log("🔍 Item normalizado:", { nombre, cantidad, precioHistorico, subtotal });
+           
+           return {
+             nombre,
+             cantidad,
+             precioHistorico,
+             subtotal
+           };
+         });
+       } else if (order.detalles && Array.isArray(order.detalles)) {
+         // Si no hay items pero hay detalles (estructura alternativa)
+         itemsNormalizados = order.detalles.map((detalle: any) => {
+           console.log("🔍 Detalle original:", detalle);
+           
+           const nombre = detalle.nombre || detalle.producto?.nombre || detalle.producto || 'Producto';
+           const cantidad = detalle.cantidad || detalle.qty || detalle.cantidadProducto || 0;
+           const precioHistorico = detalle.precioHistorico || detalle.precio || detalle.price || detalle.precioUnitario || 0;
+           const subtotal = detalle.subtotal || (cantidad * precioHistorico);
+           
+           console.log("🔍 Detalle normalizado:", { nombre, cantidad, precioHistorico, subtotal });
+           
+           return {
+             nombre,
+             cantidad,
+             precioHistorico,
+             subtotal
+           };
+         });
+       }
+       
+       console.log("🖨️ Items normalizados finales:", itemsNormalizados);
+
+      // Crear orden normalizada para impresión
       const enrichedOrder = {
         ...order,
+        vendedor: vendedorNormalizado,
+        items: itemsNormalizados,
         businessName: order.businessName || (await getBusinessName()),
       };
+
+      console.log("🖨️ Datos normalizados para reimpresión:", enrichedOrder);
 
       // Usar la función de impresión con soporte para doble impresión
       await handleTicketPrinting(enrichedOrder, API_URL, appId);

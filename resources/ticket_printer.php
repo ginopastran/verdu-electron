@@ -47,11 +47,26 @@ try {
     file_put_contents('php://stderr', "🔍 ESTRUCTURA DE DATOS PROCESADA:\n");
     file_put_contents('php://stderr', "- ID: " . ($orderData['idReal'] ?? 'NO DEFINIDO') . "\n");
     file_put_contents('php://stderr', "- Total: " . ($orderData['total'] ?? 'N/A') . "\n");
-    file_put_contents('php://stderr', "- Vendedor: " . ($orderData['vendedor'] ?? 'N/A') . "\n");
+    // Debug del vendedor con manejo de array
+    $vendedorDebug = 'N/A';
+    if (isset($orderData['vendedor'])) {
+        if (is_array($orderData['vendedor'])) {
+            $vendedorDebug = $orderData['vendedor']['nombre'] ?? $orderData['vendedor']['name'] ?? 'Array sin nombre';
+        } else {
+            $vendedorDebug = $orderData['vendedor'];
+        }
+    }
+    file_put_contents('php://stderr', "- Vendedor: " . $vendedorDebug . "\n");
     file_put_contents('php://stderr', "- Fecha: " . ($orderData['createdAt'] ?? $orderData['fecha'] ?? 'N/A') . "\n");
     file_put_contents('php://stderr', "- Business Name: " . ($orderData['businessName'] ?? 'NO DEFINIDO') . "\n");
     file_put_contents('php://stderr', "- Sucursal: " . ($orderData['sucursal'] ?? 'NO DEFINIDO') . "\n");
-    file_put_contents('php://stderr', "- Cantidad de items: " . (isset($orderData['items']) ? count($orderData['items']) : 'N/A') . "\n");
+    // Debug detallado de items
+    if (isset($orderData['items']) && is_array($orderData['items'])) {
+        file_put_contents('php://stderr', "- Cantidad de items: " . count($orderData['items']) . "\n");
+        file_put_contents('php://stderr', "- Estructura del primer item: " . json_encode(array_slice($orderData['items'], 0, 1)) . "\n");
+    } else {
+        file_put_contents('php://stderr', "- Cantidad de items: N/A (no es array o no existe)\n");
+    }
     file_put_contents('php://stderr', "- Método de pago: " . ($orderData['metodoPago'] ?? 'N/A') . "\n");
     file_put_contents('php://stderr', "- Pagos múltiples: " . (isset($orderData['pagos']) ? 'SÍ (' . count($orderData['pagos']) . ')' : 'NO') . "\n");
 
@@ -252,7 +267,18 @@ try {
     $printer->text(strtoupper($businessName) . "\n");
     $printer->setEmphasis(false);
     $printer->setTextSize(1, 1);
-    $printer->text("Vendedor: " . ($orderData['vendedor'] ?? 'N/A') . "\n");
+    // Manejar vendedor que puede venir como string o como array
+    $vendedorText = 'N/A';
+    if (isset($orderData['vendedor'])) {
+        if (is_array($orderData['vendedor'])) {
+            // Si es array, usar la propiedad 'nombre' si existe
+            $vendedorText = $orderData['vendedor']['nombre'] ?? $orderData['vendedor']['name'] ?? 'N/A';
+        } else {
+            // Si es string, usarlo directamente
+            $vendedorText = $orderData['vendedor'];
+        }
+    }
+    $printer->text("Vendedor: " . $vendedorText . "\n");
     date_default_timezone_set('America/Argentina/Buenos_Aires');
     $printer->text(date("Y-m-d H:i:s") . "\n");
     
@@ -275,13 +301,57 @@ try {
     $printer->text("PRODUCTO      CANT    PRECIO    TOTAL\n");
     $printer->text("-----------------------------\n");
 
-    foreach ($orderData['items'] as $item) {
-        $nombre = str_pad(substr($item['nombre'], 0, 12), 12);
-        $cantidad = str_pad(number_format($item['cantidad'], 3), 8);
-        $precio = str_pad('$' . number_format($item['precioHistorico'], 2), 8);
-        $subtotal = str_pad('$' . number_format($item['subtotal'], 2), 8);
-        
-        $printer->text("$nombre $cantidad $precio $subtotal\n");
+    // Verificar si hay items para imprimir
+    if (isset($orderData['items']) && is_array($orderData['items']) && count($orderData['items']) > 0) {
+        foreach ($orderData['items'] as $item) {
+            // Manejar diferentes estructuras de nombre del producto
+            $nombreProducto = '';
+            if (isset($item['nombre'])) {
+                $nombreProducto = $item['nombre'];
+            } elseif (isset($item['producto']) && is_array($item['producto']) && isset($item['producto']['nombre'])) {
+                $nombreProducto = $item['producto']['nombre'];
+            } elseif (isset($item['producto']) && is_string($item['producto'])) {
+                $nombreProducto = $item['producto'];
+            } else {
+                $nombreProducto = 'Producto';
+            }
+            
+            // Manejar diferentes estructuras de cantidad
+            $cantidad = 0;
+            if (isset($item['cantidad'])) {
+                $cantidad = $item['cantidad'];
+            } elseif (isset($item['qty'])) {
+                $cantidad = $item['qty'];
+            }
+            
+            // Manejar diferentes estructuras de precio
+            $precio = 0;
+            if (isset($item['precioHistorico'])) {
+                $precio = $item['precioHistorico'];
+            } elseif (isset($item['precio'])) {
+                $precio = $item['precio'];
+            } elseif (isset($item['price'])) {
+                $precio = $item['price'];
+            }
+            
+            // Manejar diferentes estructuras de subtotal
+            $subtotal = 0;
+            if (isset($item['subtotal'])) {
+                $subtotal = $item['subtotal'];
+            } else {
+                $subtotal = $cantidad * $precio;
+            }
+            
+            $nombre = str_pad(substr($nombreProducto, 0, 12), 12);
+            $cantidadFormateada = str_pad(number_format($cantidad, 3), 8);
+            $precioFormateado = str_pad('$' . number_format($precio, 2), 8);
+            $subtotalFormateado = str_pad('$' . number_format($subtotal, 2), 8);
+            
+            $printer->text("$nombre $cantidadFormateada $precioFormateado $subtotalFormateado\n");
+        }
+    } else {
+        file_put_contents('php://stderr', "⚠️ No hay items para imprimir o items está vacío\n");
+        $printer->text("No hay productos para mostrar\n");
     }
 
     // Total
