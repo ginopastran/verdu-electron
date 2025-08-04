@@ -66,6 +66,12 @@ export const QRPaymentDialog = ({
         paymentProcessor.qrData.orderId
       );
 
+      // ✅ NUEVO: Verificar si ya hay un polling activo para evitar duplicados
+      if (paymentProcessor.pollingInterval) {
+        console.log("🔄 Polling ya activo, saltando inicio de nuevo polling");
+        return;
+      }
+
       if (paymentProcessor.qrData.isSplitPayment) {
         // Para pago mixto, usar el polling específico
         paymentProcessor.startSplitPaymentStatusPolling(
@@ -115,13 +121,14 @@ export const QRPaymentDialog = ({
       onOpenChange={(open) => {
         console.log("🔄 QR Dialog onOpenChange:", open);
         if (!open) {
-          console.log("🔄 Cerrando diálogo QR, cancelando pago");
+          console.log("🔄 Cerrando diálogo QR - manteniendo polling activo");
           // ✅ PROTECCIÓN: Limpiar estado de loading al cerrar
           setIsManualCompletionLoading(false);
           // ✅ CORRECCIÓN: Limpiar toast de loading al cerrar diálogo
           toast.dismiss("qr-loading");
           onOpenChange(false);
-          paymentProcessor.cancelQRPayment();
+          // ✅ NUEVO: NO cancelar el pago QR para mantener el polling activo
+          // El polling se detendrá automáticamente cuando el pago se complete o falle
         }
       }}
     >

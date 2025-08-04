@@ -1185,9 +1185,11 @@ export default function ShoppingCartRefactored({}: ShoppingCartRefactoredProps =
       paymentProcessor.clearProcessedOrdersTracking?.();
       afipPaymentProcessor.clearProcessedOrdersTracking?.();
 
-      // ✅ CRÍTICO: Limpiar TODOS los intervalos de polling al cerrar el diálogo
-      paymentProcessor.cleanupPolling?.();
-      afipPaymentProcessor.cleanupPolling?.();
+      // ✅ NUEVO: NO limpiar el polling automáticamente al cerrar el diálogo
+      // El polling debe continuar hasta que el pago se complete o falle
+      console.log(
+        "🔄 QR Dialog cerrado - manteniendo polling activo para detectar pago"
+      );
 
       // ✅ CRÍTICO: NO limpiar el carrito automáticamente al cerrar el diálogo QR
       // El carrito se debe limpiar solo cuando el pago se complete exitosamente
@@ -1208,14 +1210,15 @@ export default function ShoppingCartRefactored({}: ShoppingCartRefactoredProps =
     isCurrentlyAfipFlow,
   ]);
 
-  // ✅ CRÍTICO: Limpiar intervalos al desmontar o cuando cambia el estado del diálogo QR
+  // ✅ CRÍTICO: Limpiar intervalos solo al desmontar el componente
   useEffect(() => {
     return () => {
-      // Limpiar TODOS los intervalos al desmontar el componente
+      // Limpiar intervalos solo al desmontar el componente, no al cambiar estado
+      console.log("🧹 Componente desmontándose - limpiando polling");
       paymentProcessor.cleanupPolling?.();
       afipPaymentProcessor.cleanupPolling?.();
     };
-  }, [paymentProcessor, afipPaymentProcessor]);
+  }, []); // Solo se ejecuta al desmontar, no cuando cambian los processors
 
   // Escuchar productos seleccionados desde el sidebar
   useEffect(() => {

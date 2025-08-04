@@ -152,6 +152,15 @@ export function usePaymentProcessing({
   // ✅ NUEVO: Flag para prevenir doble impresión cuando se procesa manualmente
   const isProcessingManualPayment = useRef<boolean>(false);
 
+  // ✅ NUEVO: Referencia para rastrear qué orden está siendo monitoreada actualmente
+  const currentPollingOrderId = useRef<string | null>(null);
+
+  // ✅ NUEVO: Referencia para el timeout de seguridad del polling
+  const pollingSafetyTimeout = useRef<NodeJS.Timeout | null>(null);
+
+  // ✅ CRÍTICO: Referencia directa al intervalo para evitar problemas de estado
+  const currentPollingInterval = useRef<NodeJS.Timeout | null>(null);
+
   // Referencias para controles externos - Usar las funciones pasadas como parámetros
   const setQrDialogOpenRef = setQrDialogOpen;
   const setSplitPaymentDialogOpenRef = setSplitPaymentDialogOpen;
@@ -652,6 +661,12 @@ export function usePaymentProcessing({
 
   // Verificar el estado del pago
   const startPaymentStatusPolling = (orderId: string) => {
+    // ✅ CRÍTICO: Verificar si ya hay un polling activo para esta orden
+    if (currentPollingOrderId.current === orderId && pollingInterval) {
+      console.log(`🔄 Polling ya activo para orden ${orderId}, saltando`);
+      return;
+    }
+
     // ✅ CRÍTICO: Limpiar cualquier polling anterior ANTES de iniciar uno nuevo
     cleanupPolling();
 
@@ -661,6 +676,8 @@ export function usePaymentProcessing({
     const MAX_POLLING_TIME = 10 * 60 * 1000;
     const MAX_RETRIES = 3;
 
+    // ✅ NUEVO: Establecer la orden actual que se está monitoreando
+    currentPollingOrderId.current = orderId;
     setPollingStartTime(Date.now());
     setRetryCount(0);
 
@@ -736,8 +753,27 @@ export function usePaymentProcessing({
         setPaymentStatus(normalizedStatus);
 
         if (statusData.isCompleted || statusData.isCancelled) {
+          // ✅ CRÍTICO: Verificar si ya se procesó esta orden
+          if (isOrderAlreadyProcessed(orderId)) {
+            console.log(
+              `🛡️ POLLING CONTROL: Orden ${orderId} ya fue procesada, solo limpiando polling`
+            );
+            cleanupPolling();
+            return;
+          }
+
           // ✅ CRÍTICO: Limpiar polling ANTES de procesar el resultado
+          console.log("🎯 Pago completado o cancelado - limpiando polling");
           cleanupPolling();
+
+          // ✅ CRÍTICO: Verificar que realmente se limpió el polling
+          if (currentPollingInterval.current) {
+            console.warn(
+              "⚠️ ADVERTENCIA: El polling no se limpió correctamente, forzando limpieza"
+            );
+            clearInterval(currentPollingInterval.current);
+            currentPollingInterval.current = null;
+          }
 
           if (statusData.isCompleted) {
             // ✅ TOAST CONTROL: Verificar si ya se procesó esta orden
@@ -751,13 +787,20 @@ export function usePaymentProcessing({
             // ✅ TOAST CONTROL: Marcar como procesada ANTES de mostrar toasts
             markOrderAsProcessed(orderId);
 
+            console.log(
+              `🔄 Finalizando pago para orden ${orderId} - primera vez`
+            );
+
             const cartData = {
               items: currentQrData?.items || [],
               total: currentQrData?.monto ?? 0,
             };
 
             // ✅ CRÍTICO: Mostrar toast de éxito ANTES de finalizar
-            toast.success("¡Pago completado exitosamente!");
+            console.log("🎉 Mostrando toast de éxito para pago completado");
+            toast.success("¡Pago completado exitosamente!", {
+              id: `payment-success-${orderId}`, // ✅ NUEVO: ID único para evitar duplicados
+            });
 
             await finalizeMPPayment(
               {
@@ -767,14 +810,13 @@ export function usePaymentProcessing({
               false
             );
 
-            // ✅ CRÍTICO: Cerrar diálogo y limpiar carrito después de un delay
-            setTimeout(() => {
-              if (setQrDialogOpenRef) {
-                setQrDialogOpenRef(false);
-              }
-              resetPaymentState();
-              clearCart();
-            }, 2000);
+            // ✅ CRÍTICO: Cerrar diálogo y limpiar carrito inmediatamente
+            console.log("🔒 Cerrando diálogo QR y limpiando carrito");
+            if (setQrDialogOpenRef) {
+              setQrDialogOpenRef(false);
+            }
+            resetPaymentState();
+            clearCart();
           } else {
             console.log("❌ Pago cancelado o rechazado");
             toast.error("El pago ha sido cancelado o rechazado");
@@ -825,13 +867,32 @@ export function usePaymentProcessing({
       "ms"
     );
     const interval = setInterval(() => {
-      console.log("⏰ setInterval EJECUTÁNDOSE - llamada periódica");
+      console.log(
+        "⏰ setInterval EJECUTÁNDOSE - llamada periódica para orden:",
+        orderId
+      );
       fetchStatus();
     }, POLLING_INTERVAL);
 
     console.log("📌 setInterval creado con ID:", interval);
+
+    // ✅ CRÍTICO: Guardar en referencia directa Y en estado
+    currentPollingInterval.current = interval;
     setPollingInterval(interval);
-    console.log("✅ pollingInterval guardado en estado");
+    console.log("✅ pollingInterval guardado en estado y referencia");
+
+    // ✅ NUEVO: Timeout de seguridad para detener el polling después de 10 minutos
+    pollingSafetyTimeout.current = setTimeout(() => {
+      console.log(
+        "⏰ TIMEOUT DE SEGURIDAD: Deteniendo polling después de 10 minutos"
+      );
+      if (pollingInterval === interval) {
+        cleanupPolling();
+        toast.error(
+          "Tiempo de espera agotado. El pago no se completó en el tiempo esperado."
+        );
+      }
+    }, MAX_POLLING_TIME);
   };
 
   // Función para cancelar QR
@@ -841,7 +902,11 @@ export function usePaymentProcessing({
     // ✅ CORRECCIÓN: Limpiar toast de loading al cancelar
     toast.dismiss("qr-loading");
 
-    // Limpiar polling
+    // Limpiar polling usando referencia directa
+    if (currentPollingInterval.current) {
+      clearInterval(currentPollingInterval.current);
+      currentPollingInterval.current = null;
+    }
     if (pollingInterval) {
       clearInterval(pollingInterval);
       setPollingInterval(null);
@@ -865,16 +930,44 @@ export function usePaymentProcessing({
   const cleanupPolling = () => {
     console.log("🧹 Limpiando polling y estados");
 
+    // ✅ CRÍTICO: Usar la referencia directa para limpiar el intervalo
+    if (currentPollingInterval.current) {
+      console.log(
+        "🧹 Limpiando intervalo de polling con ID:",
+        currentPollingInterval.current
+      );
+      clearInterval(currentPollingInterval.current);
+      currentPollingInterval.current = null;
+      console.log(
+        "✅ Intervalo de polling limpiado correctamente desde referencia"
+      );
+    } else {
+      console.log(
+        "ℹ️ No hay intervalo de polling activo en referencia para limpiar"
+      );
+    }
+
+    // ✅ CRÍTICO: También limpiar desde el estado por si acaso
     if (pollingInterval) {
-      console.log("🧹 Limpiando intervalo de polling con ID:", pollingInterval);
+      console.log("🧹 Limpiando también desde estado con ID:", pollingInterval);
       clearInterval(pollingInterval);
       setPollingInterval(null);
+      console.log("✅ Intervalo de polling limpiado también desde estado");
+    }
+
+    // ✅ NUEVO: Limpiar la referencia de la orden actual
+    currentPollingOrderId.current = null;
+
+    // ✅ NUEVO: Limpiar el timeout de seguridad
+    if (pollingSafetyTimeout.current) {
+      clearTimeout(pollingSafetyTimeout.current);
+      pollingSafetyTimeout.current = null;
     }
 
     // ✅ CRÍTICO: Limpiar también el tracking de órdenes procesadas
     clearProcessedOrdersTracking();
 
-    console.log("🧹 Polling y estados limpiados");
+    console.log("🧹 Polling y estados limpiados completamente");
   };
 
   // Función para finalizar el pago después de que MP confirme
@@ -918,9 +1011,23 @@ export function usePaymentProcessing({
         // ✅ TOAST CONTROL: Marcar como procesada ANTES de continuar
         markOrderAsProcessed(orderId);
 
-        // ✅ CRÍTICO: Mostrar toast de éxito si no se mostró antes
-        if (!skipPrinting) {
-          toast.success("¡Pago completado! Procesando ticket...");
+        console.log(`🔄 Finalizando pago para orden ${orderId} - primera vez`);
+
+        // ✅ NUEVO: Verificar que se marcó correctamente
+        console.log(
+          `✅ Orden ${orderId} marcada como procesada en finalizeMPPayment`
+        );
+
+        // ✅ CRÍTICO: Mostrar toast de éxito solo si no se mostró antes
+        if (!skipPrinting && !isOrderAlreadyProcessed(orderId)) {
+          console.log("🎉 Mostrando toast de éxito para pago completado");
+          toast.success("¡Pago completado! Procesando ticket...", {
+            id: `payment-processing-${orderId}`, // ✅ NUEVO: ID único para evitar duplicados
+          });
+        } else {
+          console.log(
+            "ℹ️ Saltando toast de éxito (skipPrinting = true o ya procesada)"
+          );
         }
 
         // ✅ CORRECCIÓN: El backend refactorizado ya maneja todo automáticamente
