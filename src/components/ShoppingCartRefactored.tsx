@@ -1185,6 +1185,10 @@ export default function ShoppingCartRefactored({}: ShoppingCartRefactoredProps =
       paymentProcessor.clearProcessedOrdersTracking?.();
       afipPaymentProcessor.clearProcessedOrdersTracking?.();
 
+      // ✅ CRÍTICO: Limpiar TODOS los intervalos de polling al cerrar el diálogo
+      paymentProcessor.cleanupPolling?.();
+      afipPaymentProcessor.cleanupPolling?.();
+
       // ✅ CRÍTICO: NO limpiar el carrito automáticamente al cerrar el diálogo QR
       // El carrito se debe limpiar solo cuando el pago se complete exitosamente
       console.log("🛒 QR Dialog cerrado - manteniendo carrito intacto");
@@ -1204,15 +1208,14 @@ export default function ShoppingCartRefactored({}: ShoppingCartRefactoredProps =
     isCurrentlyAfipFlow,
   ]);
 
-  // Limpiar intervalos al desmontar o cuando cambia el estado del diálogo QR
+  // ✅ CRÍTICO: Limpiar intervalos al desmontar o cuando cambia el estado del diálogo QR
   useEffect(() => {
-    if (!qrDialogOpen) {
-      paymentProcessor.cleanupPolling();
-    }
     return () => {
-      paymentProcessor.cleanupPolling();
+      // Limpiar TODOS los intervalos al desmontar el componente
+      paymentProcessor.cleanupPolling?.();
+      afipPaymentProcessor.cleanupPolling?.();
     };
-  }, [qrDialogOpen]);
+  }, [paymentProcessor, afipPaymentProcessor]);
 
   // Escuchar productos seleccionados desde el sidebar
   useEffect(() => {
@@ -1650,6 +1653,7 @@ export default function ShoppingCartRefactored({}: ShoppingCartRefactoredProps =
             nombre: user?.nombre || "",
             email: user?.email || "",
           }}
+          businessInfo={businessInfo}
         />
       </div>
 

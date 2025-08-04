@@ -1130,7 +1130,16 @@ export function useAfipPaymentProcessing({
       "🔍 CRÍTICO: Polling SOLO verifica estado, factura se crea automáticamente en backend"
     );
 
+    // ✅ CRÍTICO: Limpiar cualquier polling anterior ANTES de iniciar uno nuevo
     cleanupPolling();
+
+    // ✅ CRÍTICO: Verificar si la orden ya fue procesada ANTES de iniciar polling
+    if (isOrderAlreadyProcessed(orderId)) {
+      console.log(
+        `🛡️ AFIP POLLING CONTROL: Orden ${orderId} ya fue procesada, saltando polling`
+      );
+      return;
+    }
 
     const POLLING_INTERVAL = 2000; // 2 segundos como especifica el backend
     const MAX_POLLING_TIME = 5 * 60 * 1000; // 5 minutos máximo
@@ -1140,6 +1149,16 @@ export function useAfipPaymentProcessing({
 
     const interval = setInterval(async () => {
       pollCount++;
+
+      // ✅ CRÍTICO: Verificar si la orden ya fue procesada en cada llamada
+      if (isOrderAlreadyProcessed(orderId)) {
+        console.log(
+          `🛡️ AFIP POLLING CONTROL: Orden ${orderId} ya fue procesada, deteniendo polling`
+        );
+        clearInterval(interval);
+        setPollingInterval(null);
+        return;
+      }
 
       if (pollCount > maxPolls) {
         console.log(
@@ -1168,6 +1187,16 @@ export function useAfipPaymentProcessing({
         );
 
         if (!response.ok) {
+          // ✅ CRÍTICO: Si es 404, la orden ya no existe (probablemente completada)
+          if (response.status === 404) {
+            console.log(
+              `🛡️ AFIP POLLING CONTROL: Orden ${orderId} no encontrada (404), probablemente ya completada`
+            );
+            clearInterval(interval);
+            setPollingInterval(null);
+            return;
+          }
+
           const errorData = await response.json().catch(() => ({}));
           console.error("🔄 AFIP POLLING: Error en respuesta:", errorData);
 
@@ -1201,10 +1230,7 @@ export function useAfipPaymentProcessing({
             }
           }
 
-          throw new Error(
-            errorData.message ||
-              `Error ${response.status} al verificar el estado del pago`
-          );
+          throw new Error(`Error en polling: ${response.status}`);
         }
 
         const statusData = await response.json();
@@ -1216,44 +1242,42 @@ export function useAfipPaymentProcessing({
 
         await handlePollingResponse(statusData, orderId, interval, isAfip);
       } catch (error: any) {
-        console.log("🔄 AFIP POLLING: Error en respuesta:", error.message);
+        console.error("🔄 AFIP POLLING: Error en polling:", error);
 
-        // ✅ NUEVO: Si la orden no se encuentra, probablemente ya fue procesada y eliminada
+        // ✅ CRÍTICO: Si es error 404, la orden ya no existe
         if (
-          error.message.includes("Orden no encontrada") ||
-          error.message.includes("404")
+          error.message?.includes("404") ||
+          error.message?.includes("Not Found")
         ) {
           console.log(
-            "🔄 AFIP POLLING: ✅ Orden no encontrada - probablemente ya fue procesada"
+            `🛡️ AFIP POLLING CONTROL: Orden ${orderId} no encontrada, deteniendo polling`
           );
           clearInterval(interval);
           setPollingInterval(null);
-
-          // ✅ MEJORA: No mostrar error, es normal que la orden se elimine después de procesarse
-          // Solo loggear para debugging pero no molestar al usuario
-          console.log(
-            "🔄 AFIP POLLING: Deteniendo polling - orden completada y eliminada (esto es normal)"
-          );
           return;
         }
 
-        // ✅ MEJORA: Para otros errores, ser más tolerante antes de mostrar error al usuario
-        console.warn(
-          `🔄 AFIP POLLING: Error en intento ${pollCount}:`,
-          error.message
-        );
-
-        // Solo mostrar error después de varios intentos fallidos (no por 404s)
-        if (pollCount >= 5) {
+        // Si hay muchos errores consecutivos, detener el polling
+        if (pollCount > 10) {
+          console.log(
+            "🔄 AFIP POLLING: Demasiados errores consecutivos, deteniendo polling"
+          );
           clearInterval(interval);
           setPollingInterval(null);
-          toast.error(`Error en verificación de estado AFIP: ${error.message}`);
+          toast.error(
+            "Error al verificar el estado del pago. Verifique manualmente."
+          );
           resetPaymentState();
         }
       }
     }, POLLING_INTERVAL);
 
     setPollingInterval(interval);
+    console.log(
+      "🔄 AFIP POLLING: Polling iniciado con intervalo:",
+      POLLING_INTERVAL,
+      "ms"
+    );
   };
 
   // ✅ NUEVA FUNCIÓN: Manejar respuesta de polling de manera centralizada
@@ -1283,6 +1307,9 @@ export function useAfipPaymentProcessing({
       // ✅ TOAST CONTROL: Marcar como procesada ANTES de continuar
       markOrderAsProcessed(orderId);
 
+      // ✅ CRÍTICO: Mostrar toast de éxito ANTES de procesar
+      toast.success("¡Pago QR completado exitosamente!");
+
       // ✅ FLUJO CORRECTO: El backend ya debería haber creado la factura AFIP automáticamente
       if (statusData.afipInvoice?.created) {
         console.log(
@@ -1290,17 +1317,35 @@ export function useAfipPaymentProcessing({
           statusData.afipInvoice
         );
 
-        // ✅ MEJORA: Solo mostrar toast si no fue un pago manual (evitar duplicados)
-        // Si fue pago manual, el toast ya se mostró en handleManualQrPasswordSubmit
-        if (!isManualPasswordSubmitting) {
-          const facturaInfo = statusData.afipInvoice;
-          if (facturaInfo.numero) {
-            toast.success(
-              `¡Pago QR completado! Factura AFIP N° ${facturaInfo.numero} generada automáticamente`
-            );
+        // ✅ CRÍTICO: Mostrar toast específico de factura AFIP
+        const facturaInfo = statusData.afipInvoice;
+        if (facturaInfo.numero) {
+          toast.success(
+            `Factura AFIP N° ${facturaInfo.numero} generada automáticamente`
+          );
+        } else {
+          toast.success("Factura AFIP generada automáticamente");
+        }
+
+        // ✅ CRÍTICO: Intentar imprimir la factura AFIP
+        try {
+          console.log("🖨️ AFIP POLLING: Iniciando impresión de factura AFIP");
+          const printingToastId = toast.loading("Imprimiendo factura AFIP...");
+
+          const printSuccess = await handleAfipTicketPrinting(
+            statusData.afipInvoice
+          );
+
+          toast.dismiss(printingToastId);
+
+          if (printSuccess) {
+            toast.success("Factura AFIP impresa correctamente");
           } else {
-            toast.success("¡Pago QR completado y factura AFIP generada!");
+            toast.error("Error al imprimir la factura AFIP");
           }
+        } catch (printError) {
+          console.error("❌ Error al imprimir factura AFIP:", printError);
+          toast.error("Error al imprimir la factura AFIP");
         }
 
         if (setQrDialogOpen) {
@@ -1308,7 +1353,6 @@ export function useAfipPaymentProcessing({
         }
 
         // ✅ CRÍTICO: Limpiar carrito y estados SOLO después de que todo esté completo
-        // Esto evita que los productos se borren prematuramente
         setTimeout(() => {
           clearCart();
           resetPaymentState();
@@ -1318,11 +1362,15 @@ export function useAfipPaymentProcessing({
           if (searchInputRef?.current) {
             searchInputRef.current.focus();
           }
-        }, 100);
+        }, 2000);
       } else {
         console.log(
           "🔄 AFIP POLLING: ⚠️ Pago completado pero factura AFIP no encontrada"
         );
+
+        // ✅ CRÍTICO: Mostrar toast de pago completado aunque no haya factura
+        toast.success("¡Pago QR completado! Verificando factura AFIP...");
+
         // ✅ MEJORA: Solo intentar una vez más si no fue pago manual
         if (!isManualPasswordSubmitting) {
           setTimeout(() => {
@@ -1338,8 +1386,8 @@ export function useAfipPaymentProcessing({
       console.log("🔄 AFIP POLLING: ❌ Pago cancelado o rechazado");
       clearInterval(interval);
       setPollingInterval(null);
-
       toast.error("El pago ha sido cancelado o rechazado");
+
       if (setQrDialogOpen) {
         setQrDialogOpen(false);
       }
@@ -1433,10 +1481,21 @@ export function useAfipPaymentProcessing({
   };
 
   const cleanupPolling = () => {
+    console.log("🧹 AFIP: Limpiando polling y estados");
+
     if (pollingInterval) {
+      console.log(
+        "🧹 AFIP: Limpiando intervalo de polling con ID:",
+        pollingInterval
+      );
       clearInterval(pollingInterval);
       setPollingInterval(null);
     }
+
+    // ✅ CRÍTICO: Limpiar también el tracking de órdenes procesadas
+    clearProcessedOrdersTracking();
+
+    console.log("🧹 AFIP: Polling y estados limpiados");
   };
 
   // ✅ NUEVO: Estado para proteger contra envíos múltiples de contraseña manual

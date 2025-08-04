@@ -652,6 +652,7 @@ export function usePaymentProcessing({
 
   // Verificar el estado del pago
   const startPaymentStatusPolling = (orderId: string) => {
+    // ✅ CRÍTICO: Limpiar cualquier polling anterior ANTES de iniciar uno nuevo
     cleanupPolling();
 
     console.log("🌐 API_URL en polling:", API_URL);
@@ -663,9 +664,26 @@ export function usePaymentProcessing({
     setPollingStartTime(Date.now());
     setRetryCount(0);
 
+    // ✅ CRÍTICO: Verificar si la orden ya fue procesada ANTES de iniciar polling
+    if (isOrderAlreadyProcessed(orderId)) {
+      console.log(
+        `🛡️ POLLING CONTROL: Orden ${orderId} ya fue procesada, saltando polling`
+      );
+      return;
+    }
+
     // Función auxiliar para consultar el backend (evita duplicar código)
     const fetchStatus = async () => {
       try {
+        // ✅ CRÍTICO: Verificar si la orden ya fue procesada en cada llamada
+        if (isOrderAlreadyProcessed(orderId)) {
+          console.log(
+            `🛡️ POLLING CONTROL: Orden ${orderId} ya fue procesada, deteniendo polling`
+          );
+          cleanupPolling();
+          return;
+        }
+
         // Utilizar siempre la versión más reciente de qrData mediante el ref
         const currentQrData = qrDataRef.current;
 
@@ -686,6 +704,14 @@ export function usePaymentProcessing({
         );
 
         if (!response.ok) {
+          // ✅ CRÍTICO: Si es 404, la orden ya no existe (probablemente completada)
+          if (response.status === 404) {
+            console.log(
+              `🛡️ POLLING CONTROL: Orden ${orderId} no encontrada (404), probablemente ya completada`
+            );
+            cleanupPolling();
+            return;
+          }
           throw new Error("Error al verificar estado del pago");
         }
 
@@ -710,6 +736,7 @@ export function usePaymentProcessing({
         setPaymentStatus(normalizedStatus);
 
         if (statusData.isCompleted || statusData.isCancelled) {
+          // ✅ CRÍTICO: Limpiar polling ANTES de procesar el resultado
           cleanupPolling();
 
           if (statusData.isCompleted) {
@@ -729,6 +756,9 @@ export function usePaymentProcessing({
               total: currentQrData?.monto ?? 0,
             };
 
+            // ✅ CRÍTICO: Mostrar toast de éxito ANTES de finalizar
+            toast.success("¡Pago completado exitosamente!");
+
             await finalizeMPPayment(
               {
                 ...statusData,
@@ -737,11 +767,7 @@ export function usePaymentProcessing({
               false
             );
 
-            // ✅ TOAST CONTROL: Solo mostrar toast si no se mostró en finalizeMPPayment
-            if (!isOrderAlreadyProcessed(orderId)) {
-              toast.success("¡Pago completado! Cerrando en 2 segundos...");
-            }
-
+            // ✅ CRÍTICO: Cerrar diálogo y limpiar carrito después de un delay
             setTimeout(() => {
               if (setQrDialogOpenRef) {
                 setQrDialogOpenRef(false);
@@ -760,6 +786,18 @@ export function usePaymentProcessing({
         }
       } catch (error: any) {
         console.error("❌ Error al verificar estado de pago:", error);
+
+        // ✅ CRÍTICO: Si es error 404, la orden ya no existe
+        if (
+          error.message?.includes("404") ||
+          error.message?.includes("Not Found")
+        ) {
+          console.log(
+            `🛡️ POLLING CONTROL: Orden ${orderId} no encontrada, deteniendo polling`
+          );
+          cleanupPolling();
+          return;
+        }
 
         // Incrementar el contador de reintentos y usar el valor ACTUALIZADO para la verificación.
         const nextRetries = retryCount + 1;
@@ -825,15 +863,18 @@ export function usePaymentProcessing({
 
   // Limpiar el polling
   const cleanupPolling = () => {
-    // console.log("🧹 cleanupPolling llamado - stack trace:");
-    console.trace();
+    console.log("🧹 Limpiando polling y estados");
+
     if (pollingInterval) {
       console.log("🧹 Limpiando intervalo de polling con ID:", pollingInterval);
       clearInterval(pollingInterval);
       setPollingInterval(null);
-    } else {
-      // console.log("🧹 No hay intervalo para limpiar");
     }
+
+    // ✅ CRÍTICO: Limpiar también el tracking de órdenes procesadas
+    clearProcessedOrdersTracking();
+
+    console.log("🧹 Polling y estados limpiados");
   };
 
   // Función para finalizar el pago después de que MP confirme
@@ -876,6 +917,11 @@ export function usePaymentProcessing({
 
         // ✅ TOAST CONTROL: Marcar como procesada ANTES de continuar
         markOrderAsProcessed(orderId);
+
+        // ✅ CRÍTICO: Mostrar toast de éxito si no se mostró antes
+        if (!skipPrinting) {
+          toast.success("¡Pago completado! Procesando ticket...");
+        }
 
         // ✅ CORRECCIÓN: El backend refactorizado ya maneja todo automáticamente
         // Pero aún necesitamos imprimir el ticket con los datos de la orden
@@ -944,72 +990,46 @@ export function usePaymentProcessing({
 
               try {
                 // Llamar a impresión
-                await handleTicketPrinting(orderDataForPrint);
+                const printSuccess = await handleTicketPrinting(
+                  orderDataForPrint
+                );
 
                 // Cerrar toast de impresión
                 toast.dismiss(printingToastId);
 
-                console.log("✅ FINALIZE MP: Ticket impreso exitosamente");
+                if (printSuccess) {
+                  // ✅ CRÍTICO: Marcar como impresa para evitar duplicados
+                  markOrderAsPrinted(orderDataForPrint.id, "qr");
+                  toast.success("Ticket impreso correctamente");
+                } else {
+                  toast.error("Error al imprimir el ticket");
+                }
               } catch (printError) {
-                console.error(
-                  "❌ FINALIZE MP: Error en impresión:",
-                  printError
-                );
+                console.error("❌ Error al imprimir ticket:", printError);
                 toast.dismiss(printingToastId);
-                toast.error(
-                  "Error al imprimir el ticket, pero el pago se completó correctamente"
-                );
+                toast.error("Error al imprimir el ticket");
               }
             } else {
-              console.warn(
-                "⚠️ FINALIZE MP: No se encontraron datos para impresión"
+              console.log(
+                "❌ FINALIZE MP: No se pudieron obtener datos para impresión"
               );
             }
           } else {
-            console.warn(
-              "⚠️ FINALIZE MP: No hay datos de orden ni orderId para impresión"
-            );
+            console.log("❌ FINALIZE MP: No hay datos de orden para procesar");
           }
-        } catch (error) {
-          console.error(
-            "❌ FINALIZE MP: Error en proceso de impresión:",
-            error
-          );
-          toast.error(
-            "Error al imprimir el ticket, pero el pago se completó correctamente"
-          );
+        } catch (printError) {
+          console.error("❌ Error al procesar impresión:", printError);
+          // No mostrar error al usuario si falla la impresión, solo log
         }
 
-        // ✅ TOAST CONTROL: Solo mostrar toast de éxito si no se mostró antes
+        // ✅ CRÍTICO: Mostrar toast final de éxito
         toast.success("¡Pago completado exitosamente!");
-
-        // Cerrar diálogo QR
-        if (setQrDialogOpenRef) {
-          setQrDialogOpenRef(false);
-        }
-
-        // ✅ CRÍTICO: Limpiar carrito y estados SOLO después de que todo esté completo
-        // Esto evita que los productos se borren prematuramente
-        setTimeout(() => {
-          clearCart();
-          resetPaymentState();
-          console.log("🛒 Carrito limpiado después de pago QR exitoso");
-
-          // ✅ CRÍTICO: El enfoque del input se maneja en el componente principal
-          console.log(
-            "✅ FINALIZE MP: Proceso completado, input será enfocado por el componente"
-          );
-        }, 100);
-
-        console.log("✅ FINALIZE MP: Proceso completado con impresión");
+      } else {
+        console.log("❌ Pago no completado, estado:", paymentData.status);
       }
     } catch (error: any) {
-      console.error("❌ Error al finalizar pago:", error);
-      toast.error(`Error al finalizar el pago: ${error.message}`);
-    } finally {
-      // Asegurarse de limpiar spinner en todos los casos
-      setIsProcessingPayment(false);
-      setSelectedPaymentMethod(null);
+      console.error("❌ Error en finalizeMPPayment:", error);
+      toast.error("Error al finalizar el pago");
     }
   };
 

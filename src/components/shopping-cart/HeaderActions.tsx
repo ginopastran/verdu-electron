@@ -8,6 +8,7 @@ interface HeaderActionsProps {
   onClosingClick: () => void;
   user: any;
   userMenuUser: { nombre: string; email: string };
+  businessInfo?: any; // Agregar businessInfo como prop opcional
 }
 
 export const HeaderActions = ({
@@ -15,6 +16,7 @@ export const HeaderActions = ({
   onClosingClick,
   user,
   userMenuUser,
+  businessInfo,
 }: HeaderActionsProps) => {
   const navigate = useNavigate();
 
@@ -33,14 +35,16 @@ export const HeaderActions = ({
         Órdenes
       </Button>
 
-      {/* Botón de Cuenta Corriente */}
-      <Button
-        className="bg-emerald-gradient text-white hover:text-white text-base [&_svg]:size-6"
-        onClick={handleCuentaCorrienteClick}
-      >
-        <Receipt />
-        Cuenta Corriente
-      </Button>
+      {/* Botón de Cuenta Corriente - Solo mostrar si la facturación está habilitada */}
+      {businessInfo?.facturacionHabilitada && (
+        <Button
+          className="bg-emerald-gradient text-white hover:text-white text-base [&_svg]:size-6"
+          onClick={handleCuentaCorrienteClick}
+        >
+          <Receipt />
+          Cuenta Corriente
+        </Button>
+      )}
 
       {user?.permisos?.cierreDeCajaEnabled && (
         <Button
