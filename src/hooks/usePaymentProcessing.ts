@@ -784,9 +784,6 @@ export function usePaymentProcessing({
               return;
             }
 
-            // ✅ TOAST CONTROL: Marcar como procesada ANTES de mostrar toasts
-            markOrderAsProcessed(orderId);
-
             console.log(
               `🔄 Finalizando pago para orden ${orderId} - primera vez`
             );
@@ -801,6 +798,12 @@ export function usePaymentProcessing({
             toast.success("¡Pago completado exitosamente!", {
               id: `payment-success-${orderId}`, // ✅ NUEVO: ID único para evitar duplicados
             });
+
+            console.log(
+              "🖨️ POLLING: Llamando a finalizeMPPayment con skipPrinting: false"
+            );
+            console.log("🖨️ POLLING: Datos de statusData:", statusData);
+            console.log("🖨️ POLLING: Datos de cartData:", cartData);
 
             await finalizeMPPayment(
               {
@@ -1008,9 +1011,6 @@ export function usePaymentProcessing({
           return;
         }
 
-        // ✅ TOAST CONTROL: Marcar como procesada ANTES de continuar
-        markOrderAsProcessed(orderId);
-
         console.log(`🔄 Finalizando pago para orden ${orderId} - primera vez`);
 
         // ✅ NUEVO: Verificar que se marcó correctamente
@@ -1030,6 +1030,13 @@ export function usePaymentProcessing({
           );
         }
 
+        console.log(
+          "🖨️ FINALIZE MP: skipPrinting =",
+          skipPrinting,
+          "orden procesada =",
+          isOrderAlreadyProcessed(orderId)
+        );
+
         // ✅ CORRECCIÓN: El backend refactorizado ya maneja todo automáticamente
         // Pero aún necesitamos imprimir el ticket con los datos de la orden
         console.log(
@@ -1037,6 +1044,16 @@ export function usePaymentProcessing({
         );
 
         try {
+          console.log("🖨️ FINALIZE MP: Iniciando proceso de impresión...");
+          console.log(
+            "🖨️ FINALIZE MP: paymentData.orderData =",
+            paymentData.orderData
+          );
+          console.log(
+            "🖨️ FINALIZE MP: paymentData.orderId =",
+            paymentData.orderId
+          );
+
           // ✅ OBTENER DATOS DE LA ORDEN DESDE EL BACKEND PARA IMPRESIÓN
           if (paymentData.orderData || paymentData.orderId) {
             console.log("🖨️ FINALIZE MP: Obteniendo datos para impresión");
@@ -1047,6 +1064,14 @@ export function usePaymentProcessing({
             if (!orderDataForPrint && paymentData.orderId) {
               console.log(
                 "🖨️ FINALIZE MP: Construyendo datos básicos para impresión"
+              );
+              console.log(
+                "🖨️ FINALIZE MP: paymentData.cartData =",
+                paymentData.cartData
+              );
+              console.log(
+                "🖨️ FINALIZE MP: qrDataRef.current =",
+                qrDataRef.current
               );
 
               // Obtener datos del carrito actual/QR para impresión
@@ -1072,10 +1097,18 @@ export function usePaymentProcessing({
                 estado: "COMPLETADA",
                 createdAt: new Date().toISOString(),
               };
+
+              console.log(
+                "🖨️ FINALIZE MP: orderDataForPrint construido:",
+                orderDataForPrint
+              );
             }
 
             if (orderDataForPrint) {
               console.log("🖨️ FINALIZE MP: Iniciando impresión de ticket QR");
+              console.log(
+                "🖨️ FINALIZE MP: orderDataForPrint encontrado, procediendo con impresión"
+              );
 
               // ✅ SIMULACIÓN: Log detallado de los datos que se van a imprimir
               console.log("🎯 SIMULACIÓN DE TICKET QR AUTOMÁTICO SIN AFIP:");
@@ -1096,6 +1129,9 @@ export function usePaymentProcessing({
               const printingToastId = toast.loading("Imprimiendo ticket...");
 
               try {
+                console.log(
+                  "🖨️ FINALIZE MP: Llamando a handleTicketPrinting..."
+                );
                 // Llamar a impresión
                 const printSuccess = await handleTicketPrinting(
                   orderDataForPrint
@@ -1104,12 +1140,23 @@ export function usePaymentProcessing({
                 // Cerrar toast de impresión
                 toast.dismiss(printingToastId);
 
+                console.log(
+                  "🖨️ FINALIZE MP: Resultado de impresión:",
+                  printSuccess
+                );
+
                 if (printSuccess) {
                   // ✅ CRÍTICO: Marcar como impresa para evitar duplicados
                   markOrderAsPrinted(orderDataForPrint.id, "qr");
                   toast.success("Ticket impreso correctamente");
+                  console.log(
+                    "🖨️ FINALIZE MP: Ticket marcado como impreso correctamente"
+                  );
                 } else {
                   toast.error("Error al imprimir el ticket");
+                  console.log(
+                    "🖨️ FINALIZE MP: Error en la impresión del ticket"
+                  );
                 }
               } catch (printError) {
                 console.error("❌ Error al imprimir ticket:", printError);
@@ -1120,6 +1167,14 @@ export function usePaymentProcessing({
               console.log(
                 "❌ FINALIZE MP: No se pudieron obtener datos para impresión"
               );
+              console.log(
+                "❌ FINALIZE MP: paymentData.orderData =",
+                paymentData.orderData
+              );
+              console.log(
+                "❌ FINALIZE MP: paymentData.orderId =",
+                paymentData.orderId
+              );
             }
           } else {
             console.log("❌ FINALIZE MP: No hay datos de orden para procesar");
@@ -1128,6 +1183,12 @@ export function usePaymentProcessing({
           console.error("❌ Error al procesar impresión:", printError);
           // No mostrar error al usuario si falla la impresión, solo log
         }
+
+        // ✅ CRÍTICO: Marcar como procesada DESPUÉS de completar todo el proceso
+        markOrderAsProcessed(orderId);
+        console.log(
+          `✅ FINALIZE MP: Orden ${orderId} marcada como procesada después de completar todo`
+        );
 
         // ✅ CRÍTICO: Mostrar toast final de éxito
         toast.success("¡Pago completado exitosamente!");
