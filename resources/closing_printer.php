@@ -220,19 +220,32 @@ try {
         $printer->setTextSize(2, 2);
         $printer->text("Cierre de Caja\n");
         $printer->setTextSize(1, 1);
-        $printer->text("Periodo: " . strtoupper($closingData['periodo']) . "\n\n");
+        // Formatear el período para mostrar un texto más descriptivo
+        $periodoTexto = $closingData['periodo'];
+        if ($periodoTexto === 'custom') {
+            $periodoTexto = 'MANUAL';
+        } else {
+            $periodoTexto = strtoupper($periodoTexto);
+        }
+        $printer->text("Periodo: " . $periodoTexto . "\n\n");
         
         // Detalles del periodo
         $printer->setJustification(Printer::JUSTIFY_LEFT);
-        // Asegurar que la fecha de inicio muestre 00:00
-        $fechaInicio = new DateTime($closingData['fechaInicio'], new DateTimeZone('America/Argentina/Buenos_Aires'));
-        $fechaInicio->setTime(0, 0); // Establecer hora a 00:00
         
-        // Manejar la fecha de cierre con zona horaria
+        // Manejar las fechas con zona horaria
+        $fechaInicio = new DateTime($closingData['fechaInicio'], new DateTimeZone('America/Argentina/Buenos_Aires'));
         $fechaCierre = new DateTime($closingData['fechaCierre'], new DateTimeZone('America/Argentina/Buenos_Aires'));
         
-        $printer->text("Fecha inicio: " . $fechaInicio->format("d/m/Y H:i") . "\n");
-        $printer->text("Fecha cierre: " . $fechaCierre->format("d/m/Y H:i") . "\n");
+        // Para cierres custom, mostrar las fechas exactas sin modificar
+        if ($closingData['periodo'] === 'custom') {
+            $printer->text("Desde: " . $fechaInicio->format("d/m/Y H:i") . "\n");
+            $printer->text("Hasta: " . $fechaCierre->format("d/m/Y H:i") . "\n");
+        } else {
+            // Para cierres normales, mantener el comportamiento original
+            $fechaInicio->setTime(0, 0); // Establecer hora a 00:00 para cierres normales
+            $printer->text("Fecha inicio: " . $fechaInicio->format("d/m/Y H:i") . "\n");
+            $printer->text("Fecha cierre: " . $fechaCierre->format("d/m/Y H:i") . "\n");
+        }
         $printer->text("-----------------------------\n");
 
         // Estructurar los datos de métodos de pago - Sección crítica
