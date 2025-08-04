@@ -180,6 +180,58 @@ export const ClosingDialog = ({
         throw new Error(errorData.message || "Error al crear el cierre");
       }
 
+      const cierreData = await res.json();
+      console.log("✅ Datos de cierre recibidos:", cierreData);
+
+      // Intentar imprimir el ticket de cierre
+      try {
+        if (typeof window !== "undefined" && window.printer?.printClosing) {
+          console.log(
+            "📄 Enviando datos para impresión de cierre manual:",
+            cierreData
+          );
+          const result = await window.printer.printClosing(cierreData);
+          console.log("📄 Resultado de impresión de cierre manual:", result);
+
+          if (result.success && !result.printerError) {
+            toast.success("Ticket de cierre impreso correctamente");
+          } else if (result.printerError) {
+            // Error específico de la impresora TP806L - mostrar toast de error pero no fallar
+            console.error(
+              "❌ Error de impresora TP806L:",
+              result.printerError
+            );
+            toast.error(`Error de impresión: ${result.printerError}`, {
+              description:
+                "El cierre se completó correctamente pero no se pudo imprimir el ticket",
+            });
+          } else {
+            // Error general - mostrar toast de error
+            console.error(
+              "❌ Error general al imprimir cierre:",
+              result.message
+            );
+            toast.error(
+              `Error al imprimir el ticket de cierre: ${
+                result.message || "Desconocido"
+              }`
+            );
+          }
+        } else {
+          throw new Error("API de Electron no disponible");
+        }
+      } catch (electronError: any) {
+        // Si no se puede acceder a Electron, mostrar error específico
+        console.error(
+          "❌ Error al acceder a Electron para cierre:",
+          electronError
+        );
+        toast.error("Error de conexión con la impresora", {
+          description:
+            "No se pudo conectar con el sistema de impresión para el cierre",
+        });
+      }
+
       toast.success("Cierre creado correctamente");
       setCreateOpen(false);
       // Resetear formulario
