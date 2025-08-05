@@ -454,30 +454,49 @@ export function useAfipPaymentProcessing({
 
         // 🔧 INFORMACIÓN DEL NEGOCIO: Priorizar businessInfo del contexto
         businessName:
+          // 🆕 PRIORIDAD 1: Nombre del business
           fetchedBusinessInfo?.nombre ||
           fetchedBusinessInfo?.name ||
+          businessInfo?.nombre ||
+          businessInfo?.name ||
+          // PRIORIDAD 2: Razón social del business
           fetchedBusinessInfo?.razonSocial ||
+          businessInfo?.razonSocial ||
+          // PRIORIDAD 3: Datos del resultado AFIP
           afipResult.business?.name ||
           afipResult.business?.razonSocial ||
+          // PRIORIDAD 4: Datos del usuario
           user.business?.name ||
           user.business?.razonSocial ||
           user.nombre ||
+          // FALLBACK
           "Comercio",
 
         razonSocial:
+          // 🆕 PRIORIDAD 1: Configuración AFIP del business
+          fetchedBusinessInfo?.configuracionAfip?.razonSocial ||
+          businessInfo?.configuracionAfip?.razonSocial ||
+          // PRIORIDAD 2: Razón social directa del business
           fetchedBusinessInfo?.razonSocial ||
+          businessInfo?.razonSocial ||
+          // PRIORIDAD 3: Nombre del business
           fetchedBusinessInfo?.nombre ||
           fetchedBusinessInfo?.name ||
+          businessInfo?.nombre ||
+          businessInfo?.name ||
+          // PRIORIDAD 4: Datos del resultado AFIP
           afipResult.business?.razonSocial ||
           afipResult.business?.name ||
           afipResult.razonSocial ||
           afipResult.empresa?.razonSocial ||
           afipResult.empresa?.nombre ||
+          // PRIORIDAD 5: Datos del usuario
           user.business?.razonSocial ||
           user.business?.name ||
           user.razonSocial ||
           user.empresa ||
           user.nombre ||
+          // FALLBACK
           "Comercio",
 
         cuit:
@@ -567,6 +586,15 @@ export function useAfipPaymentProcessing({
       console.log(
         "- businessInfo.sucursalActiva:",
         businessInfo?.sucursalActiva
+      );
+      console.log(
+        "- businessInfo.configuracionAfip:",
+        businessInfo?.configuracionAfip
+      );
+      console.log("- fetchedBusinessInfo:", fetchedBusinessInfo);
+      console.log(
+        "- fetchedBusinessInfo.configuracionAfip:",
+        fetchedBusinessInfo?.configuracionAfip
       );
       console.log("- afipResult.business:", afipResult.business);
       console.log("- user:", user);

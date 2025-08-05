@@ -104,9 +104,9 @@ export const useBusinessInfo = (API_URL: string, appId: string | null) => {
       }
 
       try {
-        // Modificar el endpoint para incluir datos de sucursal
+        // Modificar el endpoint para incluir datos de sucursal y configuración AFIP
         const response = await fetch(
-          `${API_URL}/api/business/${businessId}?include=sucursales`,
+          `${API_URL}/api/business/${businessId}?include=sucursales,configuracionAfip`,
           {
             headers: {
               "Content-Type": "application/json",
