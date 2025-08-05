@@ -158,17 +158,25 @@ try {
     $businessName = "Comercio"; // Valor por defecto más genérico
     $razonSocial = "Comercio";
     
+    // Buscar el nombre del business en diferentes ubicaciones posibles
     if (isset($afipData['businessName']) && !empty($afipData['businessName'])) {
         $businessName = $afipData['businessName'];
-        file_put_contents('php://stderr', "✅ Usando nombre del business desde afipData: " . $businessName . "\n");
+        file_put_contents('php://stderr', "✅ Usando nombre del business desde afipData.businessName: " . $businessName . "\n");
+    } elseif (isset($afipData['nombre']) && !empty($afipData['nombre'])) {
+        $businessName = $afipData['nombre'];
+        file_put_contents('php://stderr', "✅ Usando nombre del business desde afipData.nombre: " . $businessName . "\n");
     } else {
         file_put_contents('php://stderr', "⚠️ Usando nombre por defecto: " . $businessName . "\n");
     }
     
-    // Usar razón social si está disponible, sino usar businessName
-    if (isset($afipData['razonSocial']) && !empty($afipData['razonSocial'])) {
+    // Buscar razón social en la nueva estructura configuracionAfip
+    if (isset($afipData['configuracionAfip']) && is_array($afipData['configuracionAfip']) && 
+        isset($afipData['configuracionAfip']['razonSocial']) && !empty($afipData['configuracionAfip']['razonSocial'])) {
+        $razonSocial = $afipData['configuracionAfip']['razonSocial'];
+        file_put_contents('php://stderr', "✅ Usando razón social desde configuracionAfip.razonSocial: " . $razonSocial . "\n");
+    } elseif (isset($afipData['razonSocial']) && !empty($afipData['razonSocial'])) {
         $razonSocial = $afipData['razonSocial'];
-        file_put_contents('php://stderr', "✅ Usando razón social desde afipData: " . $razonSocial . "\n");
+        file_put_contents('php://stderr', "✅ Usando razón social desde afipData.razonSocial: " . $razonSocial . "\n");
     } else {
         $razonSocial = $businessName;
         file_put_contents('php://stderr', "⚠️ Usando businessName como razón social: " . $razonSocial . "\n");
@@ -330,6 +338,14 @@ try {
     file_put_contents('php://stderr', "- Vendedor: " . ($afipData['vendedor'] ?? $afipData['usuario'] ?? 'N/A') . "\n");
     file_put_contents('php://stderr', "- Tipo Factura: " . ($afipData['tipoFactura'] ?? 'N/A') . "\n");
     file_put_contents('php://stderr', "- Número: " . ($afipData['puntoVenta'] ?? '0001') . "-" . str_pad($afipData['numeroFactura'] ?? '1', 8, '0', STR_PAD_LEFT) . "\n");
+    
+    // Debug de la nueva estructura de configuración AFIP
+    if (isset($afipData['configuracionAfip'])) {
+        file_put_contents('php://stderr', "- Configuración AFIP encontrada: " . json_encode($afipData['configuracionAfip']) . "\n");
+    } else {
+        file_put_contents('php://stderr', "- Configuración AFIP: NO DISPONIBLE\n");
+    }
+    
     file_put_contents('php://stderr', "====== FIN DEBUG IMPRESIÓN TICKET AFIP ======\n");
 
 } catch (Exception $e) {
