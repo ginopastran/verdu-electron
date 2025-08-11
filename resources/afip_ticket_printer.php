@@ -182,7 +182,8 @@ try {
         file_put_contents('php://stderr', "⚠️ Usando businessName como razón social: " . $razonSocial . "\n");
     }
     
-    $printer->text(strtoupper($razonSocial) . "\n");
+    // Imprimir el nombre del business en grande arriba (no la razón social)
+    $printer->text(strtoupper($businessName) . "\n");
     $printer->setEmphasis(false);
     $printer->setTextSize(1, 1);
 
