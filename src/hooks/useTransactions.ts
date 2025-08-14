@@ -28,14 +28,12 @@ export async function fetchTransaccionesDelDia(
   const ord = (ordenes || []).map((o: any) => ({ ...o, tipo: "orden" }));
   const fac = (facturas || []).map((f: any) => {
     const rawFecha = f.fecha || f.fechaEmision || f.fechaFactura || f.createdAt;
-    const dateObj = new Date(rawFecha);
-    // Ajustar -3 horas para Argentina (UTC-3) cuando el backend viene en UTC
-    dateObj.setHours(dateObj.getHours() - 3);
 
     return {
       ...f,
       tipo: "facturaB",
-      fecha: dateObj.toISOString(),
+      // Mantener la fecha original sin aplicar desplazamientos manuales; la vista hará la conversión a ART
+      fecha: rawFecha,
       metodoPago: f.metodoPago || f.formaPago || "N/A",
     };
   });

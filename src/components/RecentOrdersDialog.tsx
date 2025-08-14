@@ -150,12 +150,25 @@ export function RecentOrdersDialog({
         includeFacturas
       );
 
-      // Filtro local por fecha del día (aunque backend ya debería filtrar)
-      const todayIso = new Date().toISOString().slice(0, 10);
-      const filtered = transacciones.filter((t: any) => {
-        const iso = new Date(t.fecha).toISOString().slice(0, 10);
-        return iso === todayIso;
-      });
+      // Filtro local por fecha del día en zona horaria de Argentina (evitar UTC)
+      const timeZone = "America/Argentina/Buenos_Aires";
+      const formatYMDInTZ = (d: Date) => {
+        const parts = new Intl.DateTimeFormat("en-CA", {
+          timeZone,
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        }).formatToParts(d);
+        const y = parts.find((p) => p.type === "year")?.value ?? "";
+        const m = parts.find((p) => p.type === "month")?.value ?? "";
+        const da = parts.find((p) => p.type === "day")?.value ?? "";
+        return `${y}-${m}-${da}`; // YYYY-MM-DD
+      };
+
+      const todayArg = formatYMDInTZ(new Date());
+      const filtered = transacciones.filter(
+        (t: any) => formatYMDInTZ(new Date(t.fecha)) === todayArg
+      );
 
       setAllOrders(filtered);
 
@@ -204,58 +217,93 @@ export function RecentOrdersDialog({
       console.log("🖨️ Detalles:", order.detalles);
       console.log("🖨️ Vendedor:", order.vendedor);
       // Normalizar los datos del vendedor
-      let vendedorNormalizado = 'N/A';
+      let vendedorNormalizado = "N/A";
       if (order.vendedor) {
-        if (typeof order.vendedor === 'string') {
+        if (typeof order.vendedor === "string") {
           vendedorNormalizado = order.vendedor;
-        } else if (typeof order.vendedor === 'object' && order.vendedor !== null) {
-          vendedorNormalizado = order.vendedor.nombre || order.vendedor.name || 'N/A';
+        } else if (
+          typeof order.vendedor === "object" &&
+          order.vendedor !== null
+        ) {
+          vendedorNormalizado =
+            order.vendedor.nombre || order.vendedor.name || "N/A";
         }
       }
 
-             // Normalizar los items de la orden
-       let itemsNormalizados = [];
-       if (order.items && Array.isArray(order.items)) {
-         itemsNormalizados = order.items.map((item: any) => {
-           // Debug del item para entender su estructura
-           console.log("🔍 Item original:", item);
-           
-           const nombre = item.nombre || item.producto?.nombre || item.producto || item.detalle?.nombre || 'Producto';
-           const cantidad = item.cantidad || item.qty || item.cantidadProducto || 0;
-           const precioHistorico = item.precioHistorico || item.precio || item.price || item.precioUnitario || 0;
-           const subtotal = item.subtotal || (cantidad * precioHistorico);
-           
-           console.log("🔍 Item normalizado:", { nombre, cantidad, precioHistorico, subtotal });
-           
-           return {
-             nombre,
-             cantidad,
-             precioHistorico,
-             subtotal
-           };
-         });
-       } else if (order.detalles && Array.isArray(order.detalles)) {
-         // Si no hay items pero hay detalles (estructura alternativa)
-         itemsNormalizados = order.detalles.map((detalle: any) => {
-           console.log("🔍 Detalle original:", detalle);
-           
-           const nombre = detalle.nombre || detalle.producto?.nombre || detalle.producto || 'Producto';
-           const cantidad = detalle.cantidad || detalle.qty || detalle.cantidadProducto || 0;
-           const precioHistorico = detalle.precioHistorico || detalle.precio || detalle.price || detalle.precioUnitario || 0;
-           const subtotal = detalle.subtotal || (cantidad * precioHistorico);
-           
-           console.log("🔍 Detalle normalizado:", { nombre, cantidad, precioHistorico, subtotal });
-           
-           return {
-             nombre,
-             cantidad,
-             precioHistorico,
-             subtotal
-           };
-         });
-       }
-       
-       console.log("🖨️ Items normalizados finales:", itemsNormalizados);
+      // Normalizar los items de la orden
+      let itemsNormalizados = [];
+      if (order.items && Array.isArray(order.items)) {
+        itemsNormalizados = order.items.map((item: any) => {
+          // Debug del item para entender su estructura
+          console.log("🔍 Item original:", item);
+
+          const nombre =
+            item.nombre ||
+            item.producto?.nombre ||
+            item.producto ||
+            item.detalle?.nombre ||
+            "Producto";
+          const cantidad =
+            item.cantidad || item.qty || item.cantidadProducto || 0;
+          const precioHistorico =
+            item.precioHistorico ||
+            item.precio ||
+            item.price ||
+            item.precioUnitario ||
+            0;
+          const subtotal = item.subtotal || cantidad * precioHistorico;
+
+          console.log("🔍 Item normalizado:", {
+            nombre,
+            cantidad,
+            precioHistorico,
+            subtotal,
+          });
+
+          return {
+            nombre,
+            cantidad,
+            precioHistorico,
+            subtotal,
+          };
+        });
+      } else if (order.detalles && Array.isArray(order.detalles)) {
+        // Si no hay items pero hay detalles (estructura alternativa)
+        itemsNormalizados = order.detalles.map((detalle: any) => {
+          console.log("🔍 Detalle original:", detalle);
+
+          const nombre =
+            detalle.nombre ||
+            detalle.producto?.nombre ||
+            detalle.producto ||
+            "Producto";
+          const cantidad =
+            detalle.cantidad || detalle.qty || detalle.cantidadProducto || 0;
+          const precioHistorico =
+            detalle.precioHistorico ||
+            detalle.precio ||
+            detalle.price ||
+            detalle.precioUnitario ||
+            0;
+          const subtotal = detalle.subtotal || cantidad * precioHistorico;
+
+          console.log("🔍 Detalle normalizado:", {
+            nombre,
+            cantidad,
+            precioHistorico,
+            subtotal,
+          });
+
+          return {
+            nombre,
+            cantidad,
+            precioHistorico,
+            subtotal,
+          };
+        });
+      }
+
+      console.log("🖨️ Items normalizados finales:", itemsNormalizados);
 
       // Crear orden normalizada para impresión
       const enrichedOrder = {
