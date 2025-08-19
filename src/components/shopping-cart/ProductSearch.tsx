@@ -10,20 +10,14 @@ import { calcularPrecioVisualConIVA } from "@/utils/ivaHelpers";
 interface ProductSearchProps {
   onProductSelect: (product: AvailableProduct) => void;
   inputRef: RefObject<HTMLInputElement | null>;
-  onBarcodeScanned?: (product: AvailableProduct) => void;
+  onDirectAddToCart?: (product: AvailableProduct, quantity: number) => void;
 }
 
 export function ProductSearch({
   onProductSelect,
   inputRef,
-  onBarcodeScanned,
+  onDirectAddToCart,
 }: ProductSearchProps) {
-  console.log("🔧 DEBUG: 🚀 ProductSearch - props recibidas:", {
-    onProductSelect: !!onProductSelect,
-    onBarcodeScanned: !!onBarcodeScanned,
-    onBarcodeScannerType: typeof onBarcodeScanned,
-  });
-
   const {
     searchQuery,
     searchResults,
@@ -34,7 +28,7 @@ export function ProductSearch({
     handleProductSelect,
     handleSearchInputChange,
     clearSelection,
-  } = useProductSearch(onBarcodeScanned);
+  } = useProductSearch(onDirectAddToCart);
 
   // Obtener información del business para el cálculo de IVA
   const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";

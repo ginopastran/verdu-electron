@@ -13,20 +13,17 @@ import { useAuth } from "@/contexts/AuthContext";
 import { ProductSearch } from "./shopping-cart/ProductSearch";
 import { AvailableProduct } from "@/hooks/useProductSearch";
 import { useSearchInput } from "@/contexts/SearchInputContext";
+import { useCartSidebar } from "@/contexts/CartSidebarContext";
 
 interface MainLayoutProps {
   children: React.ReactNode;
   onProductSelect?: (product: AvailableProduct) => void;
-  onBarcodeScanned?: (product: AvailableProduct) => void;
 }
 
-export function MainLayout({
-  children,
-  onProductSelect,
-  onBarcodeScanned,
-}: MainLayoutProps) {
+export function MainLayout({ children, onProductSelect }: MainLayoutProps) {
   const { user } = useAuth();
   const { searchInputRef } = useSearchInput();
+  const { autoAddProductToCart } = useCartSidebar();
 
   return (
     <div className="flex h-screen bg-gray-50">
@@ -49,7 +46,7 @@ export function MainLayout({
             <ProductSearch
               onProductSelect={onProductSelect}
               inputRef={searchInputRef}
-              onBarcodeScanned={onBarcodeScanned}
+              onDirectAddToCart={autoAddProductToCart}
             />
           )}
         </div>

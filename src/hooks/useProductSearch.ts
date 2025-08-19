@@ -13,7 +13,7 @@ export interface AvailableProduct {
 }
 
 export function useProductSearch(
-  onBarcodeScanned?: (product: AvailableProduct) => void
+  onDirectAddToCart?: (product: AvailableProduct, quantity: number) => void
 ) {
   const [availableProducts, setAvailableProducts] = useState<
     AvailableProduct[]
@@ -29,7 +29,7 @@ export function useProductSearch(
   const [lastInputTime, setLastInputTime] = useState<number>(0);
 
   const appId =
-    (window as any).electron?.process?.argv
+    window.electron?.process?.argv
       ?.find((arg: string) => arg.startsWith("--app-id="))
       ?.split("=")[1] || null;
 
@@ -230,41 +230,16 @@ export function useProductSearch(
 
     // Si detectamos un patrón de código de barras (números y longitud específica)
     if (/^\d{8,13}$/.test(value)) {
-      console.log(
-        "🔧 DEBUG: 📱 Código de barras detectado en useProductSearch:",
-        value
-      );
       const product = availableProducts.find((p) => p.codigoBarras === value);
-      console.log("🔧 DEBUG: 📱 Producto encontrado:", product);
-
       if (product) {
-        // Si hay callback para código de barras, usarlo (agregado automático)
-        // Si no, usar el comportamiento normal (abrir diálogo)
-        console.log(
-          "🔧 DEBUG: 📱 onBarcodeScanned disponible:",
-          !!onBarcodeScanned
-        );
-        console.log("🔧 DEBUG: 📱 onBarcodeScanned función:", onBarcodeScanned);
-
-        if (onBarcodeScanned && typeof onBarcodeScanned === "function") {
-          console.log(
-            "🔧 DEBUG: 📱 Llamando onBarcodeScanned con producto:",
-            product
-          );
-          onBarcodeScanned(product);
-          setSearchQuery(""); // Limpiar la búsqueda
+        // Si tenemos callback para agregar directamente, usarlo en lugar de abrir diálogo
+        if (onDirectAddToCart) {
+          onDirectAddToCart(product, 1);
+          setSearchQuery(""); // Limpiar el input después de agregar
         } else {
-          console.log(
-            "🔧 DEBUG: 📱 No hay onBarcodeScanned válido, usando handleProductSelect"
-          );
           handleProductSelect(product);
         }
         return;
-      } else {
-        console.log(
-          "🔧 DEBUG: 📱 No se encontró producto con código de barras:",
-          value
-        );
       }
     }
 

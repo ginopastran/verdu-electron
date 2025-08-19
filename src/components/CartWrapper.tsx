@@ -1,37 +1,43 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { MainLayout } from "./MainLayout";
-import ShoppingCartRefactored from "./ShoppingCartRefactored";
+import ShoppingCartRefactored, {
+  ShoppingCartRefactoredRef,
+} from "./ShoppingCartRefactored";
 import {
   CartSidebarProvider,
   useCartSidebar,
 } from "@/contexts/CartSidebarContext";
 import { SearchInputProvider } from "@/contexts/SearchInputContext";
+import { AvailableProduct } from "@/hooks/useProductSearch";
 
-function CartWithSidebar() {
-  const { selectProductFromSidebar, onBarcodeScanned } = useCartSidebar();
+export function CartWrapper() {
+  const shoppingCartRef = useRef<ShoppingCartRefactoredRef>(null);
 
-  console.log("🔧 DEBUG: 🚀 CartWrapper - callbacks disponibles:", {
-    selectProductFromSidebar: !!selectProductFromSidebar,
-    onBarcodeScanned: !!onBarcodeScanned,
-    onBarcodeScannerType: typeof onBarcodeScanned,
-  });
+  const handleAutoAddToCart = (product: AvailableProduct, quantity: number) => {
+    if (shoppingCartRef.current) {
+      shoppingCartRef.current.autoAddScannedProduct(product, quantity);
+    }
+  };
 
   return (
-    <MainLayout
-      onProductSelect={selectProductFromSidebar}
-      onBarcodeScanned={onBarcodeScanned}
-    >
-      <ShoppingCartRefactored />
-    </MainLayout>
+    <SearchInputProvider>
+      <CartSidebarProvider autoAddProductToCart={handleAutoAddToCart}>
+        <CartWithSidebarWrapper shoppingCartRef={shoppingCartRef} />
+      </CartSidebarProvider>
+    </SearchInputProvider>
   );
 }
 
-export function CartWrapper() {
+function CartWithSidebarWrapper({
+  shoppingCartRef,
+}: {
+  shoppingCartRef: React.RefObject<ShoppingCartRefactoredRef | null>;
+}) {
+  const { selectProductFromSidebar } = useCartSidebar();
+
   return (
-    <SearchInputProvider>
-      <CartSidebarProvider>
-        <CartWithSidebar />
-      </CartSidebarProvider>
-    </SearchInputProvider>
+    <MainLayout onProductSelect={selectProductFromSidebar}>
+      <ShoppingCartRefactored ref={shoppingCartRef} />
+    </MainLayout>
   );
 }
