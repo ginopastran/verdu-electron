@@ -10,12 +10,20 @@ import { calcularPrecioVisualConIVA } from "@/utils/ivaHelpers";
 interface ProductSearchProps {
   onProductSelect: (product: AvailableProduct) => void;
   inputRef: RefObject<HTMLInputElement | null>;
+  onBarcodeScanned?: (product: AvailableProduct) => void;
 }
 
 export function ProductSearch({
   onProductSelect,
   inputRef,
+  onBarcodeScanned,
 }: ProductSearchProps) {
+  console.log("🔧 DEBUG: 🚀 ProductSearch - props recibidas:", {
+    onProductSelect: !!onProductSelect,
+    onBarcodeScanned: !!onBarcodeScanned,
+    onBarcodeScannerType: typeof onBarcodeScanned,
+  });
+
   const {
     searchQuery,
     searchResults,
@@ -26,7 +34,7 @@ export function ProductSearch({
     handleProductSelect,
     handleSearchInputChange,
     clearSelection,
-  } = useProductSearch();
+  } = useProductSearch(onBarcodeScanned);
 
   // Obtener información del business para el cálculo de IVA
   const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
@@ -73,7 +81,7 @@ export function ProductSearch({
       <div className="flex items-center gap-2">
         <Input
           type="text"
-          placeholder="Buscar productos..."
+          placeholder="Buscar productos (nombre o PLU)..."
           value={searchQuery}
           onChange={handleSearchInputChange}
           onKeyDown={handleKeyDown}
@@ -97,7 +105,14 @@ export function ProductSearch({
               onClick={() => selectProduct(product)}
             >
               <div className="text-base flex items-center justify-between">
-                <span>{product.name}</span>
+                <div className="flex items-center gap-2">
+                  {product.plu && (
+                    <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-1 rounded">
+                      PLU: {product.plu}
+                    </span>
+                  )}
+                  <span>{product.name}</span>
+                </div>
                 <span className="text-emerald-600">
                   $
                   {businessInfo

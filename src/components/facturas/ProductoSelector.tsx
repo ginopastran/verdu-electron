@@ -33,9 +33,15 @@ export const ProductoSelector: React.FC<ProductoSelectorProps> = ({
   const appId = import.meta.env.VITE_APP_ID || null;
   const { businessInfo } = useBusinessInfo(API_URL, appId);
 
-  const filteredProductos = productos.filter((producto) =>
-    producto.nombre.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredProductos = productos.filter((producto) => {
+    const matchesName = producto.nombre
+      .toLowerCase()
+      .includes(searchTerm.toLowerCase());
+    const matchesPlu =
+      producto.plu &&
+      producto.plu.toLowerCase().includes(searchTerm.toLowerCase());
+    return matchesName || matchesPlu;
+  });
 
   const getStockStatus = (stock?: number) => {
     if (stock === undefined) return null;
@@ -63,7 +69,7 @@ export const ProductoSelector: React.FC<ProductoSelectorProps> = ({
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
               <Input
                 id="search-producto"
-                placeholder="Buscar por nombre..."
+                placeholder="Buscar por nombre o PLU..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10"
@@ -84,8 +90,13 @@ export const ProductoSelector: React.FC<ProductoSelectorProps> = ({
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
                           <Package className="w-4 h-4 text-muted-foreground" />
+                          {producto.plu && (
+                            <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-1 rounded">
+                              PLU: {producto.plu}
+                            </span>
+                          )}
                           <span className="font-medium">{producto.nombre}</span>
                         </div>
                         <div className="flex items-center gap-4 text-sm text-muted-foreground mb-2">

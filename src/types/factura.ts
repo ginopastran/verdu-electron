@@ -24,6 +24,7 @@ export interface Producto {
   stock?: number;
   ivaIncluido?: boolean;
   ivaPorcentaje?: number | null;
+  plu?: string | null;
 }
 
 export interface DetalleFactura {

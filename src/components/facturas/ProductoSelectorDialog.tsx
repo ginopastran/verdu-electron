@@ -31,6 +31,7 @@ interface Producto {
   stock?: number;
   ivaIncluido?: boolean;
   ivaPorcentaje?: number | null;
+  plu?: string | null;
 }
 
 interface ProductoSelectorDialogProps {
@@ -72,13 +73,14 @@ const ProductoSelectorDialog: React.FC<ProductoSelectorDialogProps> = ({
       }
 
       const data = await response.json();
-      // Transformar productos para incluir campos de IVA
-      const productosConIVA = (data.productos || []).map((p: any) => ({
+      // Transformar productos para incluir campos de IVA y PLU
+      const productosCompletos = (data.productos || []).map((p: any) => ({
         ...p,
         ivaIncluido: p.ivaIncluido,
         ivaPorcentaje: p.ivaPorcentaje,
+        plu: p.plu,
       }));
-      setProductos(productosConIVA);
+      setProductos(productosCompletos);
     } catch (error) {
       console.error("Error al cargar productos:", error);
 
@@ -134,7 +136,10 @@ const ProductoSelectorDialog: React.FC<ProductoSelectorDialogProps> = ({
 
     const searchLower = searchTerm.toLowerCase().trim();
     return productos.filter((producto) => {
-      const matchesSearch = producto.nombre.toLowerCase().includes(searchLower);
+      const matchesName = producto.nombre.toLowerCase().includes(searchLower);
+      const matchesPlu =
+        producto.plu && producto.plu.toLowerCase().includes(searchLower);
+      const matchesSearch = matchesName || matchesPlu;
       const isNotExcluded = !excludeProductIds.includes(producto.id);
       return matchesSearch && isNotExcluded;
     });
@@ -225,7 +230,7 @@ const ProductoSelectorDialog: React.FC<ProductoSelectorDialogProps> = ({
             <Input
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Buscar producto..."
+              placeholder="Buscar producto (nombre o PLU)..."
               className="pl-9"
               autoFocus
               disabled={loading}
@@ -297,7 +302,14 @@ const ProductoSelectorDialog: React.FC<ProductoSelectorDialogProps> = ({
                   disabled={loading}
                 >
                   <div className="text-left flex-1">
-                    <p className="font-medium">{producto.nombre}</p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {producto.plu && (
+                        <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-1 rounded">
+                          PLU: {producto.plu}
+                        </span>
+                      )}
+                      <p className="font-medium">{producto.nombre}</p>
+                    </div>
                     <div className="text-sm text-muted-foreground flex flex-wrap gap-2 mt-1">
                       <span className="bg-muted px-2 py-1 rounded text-xs">
                         {producto.tipoMedida}

@@ -23,6 +23,7 @@ interface Producto {
   stock?: number;
   ivaIncluido?: boolean;
   ivaPorcentaje?: number | null;
+  plu?: string | null;
 }
 
 interface CantidadProductoDialogProps {
@@ -149,7 +150,14 @@ const CantidadProductoDialog: React.FC<CantidadProductoDialogProps> = ({
         <div className="space-y-6">
           {/* Información del producto */}
           <div className="p-4 bg-muted/30 rounded-lg">
-            <h3 className="font-semibold text-lg mb-2">{producto.nombre}</h3>
+            <div className="flex items-center gap-2 flex-wrap mb-2">
+              {producto.plu && (
+                <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-1 rounded">
+                  PLU: {producto.plu}
+                </span>
+              )}
+              <h3 className="font-semibold text-lg">{producto.nombre}</h3>
+            </div>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Precio unitario:</span>

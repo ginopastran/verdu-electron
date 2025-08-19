@@ -17,9 +17,14 @@ import { useSearchInput } from "@/contexts/SearchInputContext";
 interface MainLayoutProps {
   children: React.ReactNode;
   onProductSelect?: (product: AvailableProduct) => void;
+  onBarcodeScanned?: (product: AvailableProduct) => void;
 }
 
-export function MainLayout({ children, onProductSelect }: MainLayoutProps) {
+export function MainLayout({
+  children,
+  onProductSelect,
+  onBarcodeScanned,
+}: MainLayoutProps) {
   const { user } = useAuth();
   const { searchInputRef } = useSearchInput();
 
@@ -44,6 +49,7 @@ export function MainLayout({ children, onProductSelect }: MainLayoutProps) {
             <ProductSearch
               onProductSelect={onProductSelect}
               inputRef={searchInputRef}
+              onBarcodeScanned={onBarcodeScanned}
             />
           )}
         </div>

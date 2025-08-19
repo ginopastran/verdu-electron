@@ -79,7 +79,11 @@ interface ShoppingCartRefactoredProps {
 
 export default function ShoppingCartRefactored({}: ShoppingCartRefactoredProps = {}) {
   const { user, logout } = useAuth();
-  const { selectedProductFromSidebar, clearSelectedProduct } = useCartSidebar();
+  const {
+    selectedProductFromSidebar,
+    clearSelectedProduct,
+    setOnBarcodeScanned,
+  } = useCartSidebar();
   const { searchInputRef, focusSearchInput } = useSearchInput();
   const API_URL = import.meta.env.VITE_API_URL;
 
@@ -1096,6 +1100,7 @@ export default function ShoppingCartRefactored({}: ShoppingCartRefactoredProps =
         unit: prod.unit,
       });
 
+      // 🎯 NOTA: addToCart automáticamente suma cantidades si el producto ya existe
       const uniqueId = `${prod.id}-${Date.now()}-${Math.random()
         .toString(36)
         .substring(2, 10)}`;
@@ -1115,7 +1120,9 @@ export default function ShoppingCartRefactored({}: ShoppingCartRefactoredProps =
 
       console.log("🔧 DEBUG: [autoAddScannedProduct] Objeto creado:", newItem);
 
-      console.log("🔧 DEBUG: Llamando a cartState.addToCart");
+      console.log(
+        "🔧 DEBUG: Llamando a cartState.addToCart (suma automática si existe)"
+      );
       cartState.addToCart(newItem);
       console.log("🔧 DEBUG: ✅ cartState.addToCart ejecutado");
 
@@ -1147,6 +1154,52 @@ export default function ShoppingCartRefactored({}: ShoppingCartRefactoredProps =
       console.error("🔧 DEBUG: ❌ Error auto-add producto:", err);
     }
   };
+
+  // Función para manejar productos escaneados automáticamente (sin diálogo)
+  const handleBarcodeScanned = (product: AvailableProduct) => {
+    console.log(
+      "🔧 DEBUG: 📱 handleBarcodeScanned llamada con producto:",
+      product
+    );
+
+    // Validación de seguridad
+    if (!product) {
+      console.error(
+        "🔧 DEBUG: ❌ handleBarcodeScanned: producto es undefined/null"
+      );
+      return;
+    }
+
+    if (!product.name) {
+      console.error(
+        "🔧 DEBUG: ❌ handleBarcodeScanned: producto no tiene nombre:",
+        product
+      );
+      return;
+    }
+
+    console.log("🔧 DEBUG: 📱 Código de barras escaneado:", product.name);
+    // Agregar 1 unidad automáticamente para códigos de barras
+    autoAddScannedProduct(product, 1);
+    // Limpiar el input de búsqueda
+    if (searchInputRef.current) {
+      searchInputRef.current.value = "";
+    }
+  };
+
+  // Registrar la función de código de barras en el contexto
+  useEffect(() => {
+    console.log("🔧 DEBUG: 🚀 Registrando handleBarcodeScanned en el contexto");
+    if (setOnBarcodeScanned && handleBarcodeScanned) {
+      setOnBarcodeScanned(handleBarcodeScanned);
+      console.log("🔧 DEBUG: ✅ handleBarcodeScanned registrada exitosamente");
+    } else {
+      console.error("🔧 DEBUG: ❌ No se pudo registrar handleBarcodeScanned:", {
+        setOnBarcodeScanned: !!setOnBarcodeScanned,
+        handleBarcodeScanned: !!handleBarcodeScanned,
+      });
+    }
+  }, [setOnBarcodeScanned]); // Registrar cuando setOnBarcodeScanned esté disponible
 
   // Usar el hook de atajos de teclado después de declarar todas las funciones
   useKeyboardShortcuts({

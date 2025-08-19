@@ -8,10 +8,19 @@ import {
 import { SearchInputProvider } from "@/contexts/SearchInputContext";
 
 function CartWithSidebar() {
-  const { selectProductFromSidebar } = useCartSidebar();
+  const { selectProductFromSidebar, onBarcodeScanned } = useCartSidebar();
+
+  console.log("🔧 DEBUG: 🚀 CartWrapper - callbacks disponibles:", {
+    selectProductFromSidebar: !!selectProductFromSidebar,
+    onBarcodeScanned: !!onBarcodeScanned,
+    onBarcodeScannerType: typeof onBarcodeScanned,
+  });
 
   return (
-    <MainLayout onProductSelect={selectProductFromSidebar}>
+    <MainLayout
+      onProductSelect={selectProductFromSidebar}
+      onBarcodeScanned={onBarcodeScanned}
+    >
       <ShoppingCartRefactored />
     </MainLayout>
   );
