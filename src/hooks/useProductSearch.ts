@@ -8,6 +8,8 @@ export interface AvailableProduct {
   costo: number;
   codigoBarras: string | null;
   plu: string | null;
+  ivaIncluido?: boolean;
+  ivaPorcentaje?: number | null;
 }
 
 export function useProductSearch() {
@@ -84,6 +86,8 @@ export function useProductSearch() {
           costo: p.costo,
           codigoBarras: p.codigoBarras,
           plu: p.plu,
+          ivaIncluido: p.ivaIncluido,
+          ivaPorcentaje: p.ivaPorcentaje,
         }));
 
         setAvailableProducts(transformedProducts);

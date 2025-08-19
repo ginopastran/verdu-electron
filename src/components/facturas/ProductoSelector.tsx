@@ -12,6 +12,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Search, Package, DollarSign, Hash } from "lucide-react";
 import { Producto } from "@/types/factura";
+import { useBusinessInfo } from "@/hooks/useBusinessInfo";
+import { formatearPrecioConIVA } from "@/utils/ivaHelpers";
 
 interface ProductoSelectorProps {
   productos: Producto[];
@@ -25,6 +27,11 @@ export const ProductoSelector: React.FC<ProductoSelectorProps> = ({
   onClose,
 }) => {
   const [searchTerm, setSearchTerm] = useState("");
+
+  // Obtener información del business para el cálculo de IVA
+  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+  const appId = import.meta.env.VITE_APP_ID || null;
+  const { businessInfo } = useBusinessInfo(API_URL, appId);
 
   const filteredProductos = productos.filter((producto) =>
     producto.nombre.toLowerCase().includes(searchTerm.toLowerCase())
@@ -84,7 +91,17 @@ export const ProductoSelector: React.FC<ProductoSelectorProps> = ({
                         <div className="flex items-center gap-4 text-sm text-muted-foreground mb-2">
                           <div className="flex items-center gap-1">
                             <DollarSign className="w-3 h-3" />
-                            <span>${producto.precio.toFixed(2)}</span>
+                            <span>
+                              $
+                              {businessInfo
+                                ? formatearPrecioConIVA(
+                                    producto.precio,
+                                    producto.ivaIncluido || false,
+                                    producto.ivaPorcentaje ?? null,
+                                    businessInfo.ivaIncluidoEnPrecios || false
+                                  )
+                                : producto.precio.toFixed(2)}
+                            </span>
                           </div>
                           <div className="flex items-center gap-1">
                             <Hash className="w-3 h-3" />

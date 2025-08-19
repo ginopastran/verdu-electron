@@ -176,12 +176,12 @@ export const AfipSplitPaymentDialog = ({
                 $
                 {!afipPaymentProcessor.cashAmount ||
                 isNaN(parseFloat(afipPaymentProcessor.cashAmount))
-                  ? cartState.calculateTotal().toLocaleString()
+                  ? cartState.calculateTotalWithIVA().toLocaleString()
                   : (
-                      cartState.calculateTotal() -
+                      cartState.calculateTotalWithIVA() -
                       Math.min(
                         parseFloat(afipPaymentProcessor.cashAmount),
-                        cartState.calculateTotal()
+                        cartState.calculateTotalWithIVA()
                       )
                     ).toLocaleString()}
               </div>

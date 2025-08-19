@@ -34,7 +34,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { useCartSidebar } from "@/contexts/CartSidebarContext";
 import { useSearchInput } from "@/contexts/SearchInputContext";
-import { useCartState } from "@/hooks/useCartState";
+import { useCartState, Product } from "@/hooks/useCartState";
 import { usePaymentProcessing } from "@/hooks/usePaymentProcessing";
 import { useAfipPaymentProcessing } from "@/hooks/useAfipPaymentProcessing";
 import { useScaleWeight } from "@/hooks/useScaleWeight";
@@ -76,16 +76,6 @@ interface ShoppingCartRefactoredProps {
 }
 
 // Tipos
-interface Product {
-  id: number;
-  cartId: string;
-  name: string;
-  quantity: number;
-  unit: string;
-  pricePerUnit: number;
-  subtotal: number;
-  costo: number;
-}
 
 export default function ShoppingCartRefactored({}: ShoppingCartRefactoredProps = {}) {
   const { user, logout } = useAuth();
@@ -176,7 +166,7 @@ export default function ShoppingCartRefactored({}: ShoppingCartRefactoredProps =
     API_URL,
     appId: getAppId(),
     clearCart: cartState.clearCart,
-    calculateTotal: cartState.calculateTotal,
+    calculateTotal: cartState.calculateTotalWithIVA,
     setPaymentDialogOpen: setPaymentDialogOpen,
     setQrDialogOpen: setQrDialogOpen,
     setSplitPaymentDialogOpen: setSplitPaymentDialogOpen,
@@ -190,7 +180,7 @@ export default function ShoppingCartRefactored({}: ShoppingCartRefactoredProps =
     API_URL,
     appId: getAppId(),
     clearCart: cartState.clearCart,
-    calculateTotal: cartState.calculateTotal,
+    calculateTotal: cartState.calculateTotalWithIVA,
     setPaymentDialogOpen: setAfipPaymentDialogOpen,
     searchInputRef,
     // NUEVO: pasar referencia para abrir diálogo mixto
@@ -857,7 +847,7 @@ export default function ShoppingCartRefactored({}: ShoppingCartRefactoredProps =
     try {
       await paymentProcessor.processPayment(
         method,
-        Number(cartState.calculateTotal().toFixed(2)),
+        Number(cartState.calculateTotalWithIVA().toFixed(2)),
         cartState.getCurrentItems()
       );
       // ✅ MEJORADO: Estados se limpian en processPayment, pero asegurar limpieza local
@@ -1119,6 +1109,8 @@ export default function ShoppingCartRefactored({}: ShoppingCartRefactoredProps =
         pricePerUnit: prod.pricePerUnit,
         subtotal: Number((prod.pricePerUnit * qty).toFixed(2)),
         costo: prod.costo,
+        ivaIncluido: prod.ivaIncluido,
+        ivaPorcentaje: prod.ivaPorcentaje,
       };
 
       console.log("🔧 DEBUG: [autoAddScannedProduct] Objeto creado:", newItem);
@@ -1688,7 +1680,7 @@ export default function ShoppingCartRefactored({}: ShoppingCartRefactoredProps =
 
       {/* Cart summary */}
       <CartSummary
-        total={cartState.calculateTotal()}
+        total={cartState.calculateTotalWithIVA()}
         onCancel={handleCancelClick}
         onCheckout={
           businessInfo?.facturacionHabilitada

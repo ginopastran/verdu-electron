@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useBusinessInfo } from "@/hooks/useBusinessInfo";
+import { calcularPrecioVisualConIVA } from "@/utils/ivaHelpers";
 
 export interface Product {
   id: number;
@@ -9,6 +11,8 @@ export interface Product {
   pricePerUnit: number;
   subtotal: number;
   costo: number;
+  ivaIncluido?: boolean;
+  ivaPorcentaje?: number | null;
 }
 
 export interface CartScreen {
@@ -20,7 +24,36 @@ export function useCartState() {
   const [screens, setScreens] = useState<CartScreen[]>([{ id: 0, items: [] }]);
   const [activeScreen, setActiveScreen] = useState(0);
 
+  // Obtener información del business para el cálculo de IVA
+  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+  const appId = import.meta.env.VITE_APP_ID || null;
+  const { businessInfo } = useBusinessInfo(API_URL, appId);
+
   const calculateTotal = () => {
+    const currentScreen = screens[activeScreen];
+    return currentScreen.items.reduce((total, item) => {
+      return total + item.pricePerUnit * item.quantity;
+    }, 0);
+  };
+
+  const calculateTotalWithIVA = () => {
+    const currentScreen = screens[activeScreen];
+    return currentScreen.items.reduce((total, item) => {
+      const precioVisualPorUnidad = businessInfo
+        ? calcularPrecioVisualConIVA(
+            item.pricePerUnit,
+            item.ivaIncluido || false,
+            item.ivaPorcentaje ?? null,
+            businessInfo.ivaIncluidoEnPrecios || false
+          )
+        : item.pricePerUnit;
+
+      return total + precioVisualPorUnidad * item.quantity;
+    }, 0);
+  };
+
+  // Función para calcular el total sin IVA (para enviar al backend)
+  const calculateTotalWithoutIVA = () => {
     const currentScreen = screens[activeScreen];
     return currentScreen.items.reduce((total, item) => {
       return total + item.pricePerUnit * item.quantity;
@@ -120,6 +153,8 @@ export function useCartState() {
     removeFromCart,
     clearCart,
     calculateTotal,
+    calculateTotalWithIVA,
+    calculateTotalWithoutIVA,
     addScreen,
     deleteScreen,
     getCurrentItems,

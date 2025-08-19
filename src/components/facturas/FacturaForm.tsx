@@ -51,6 +51,7 @@ import CantidadProductoDialog from "./CantidadProductoDialog";
 import { useBusinessInfo } from "@/hooks/useBusinessInfo";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { calcularPrecioVisualConIVA } from "@/utils/ivaHelpers";
 
 interface Cliente {
   id: string;
@@ -67,6 +68,8 @@ interface Producto {
   tipoMedida: string;
   precio: number;
   stock?: number;
+  ivaIncluido?: boolean;
+  ivaPorcentaje?: number | null;
 }
 
 interface DetalleFactura {
@@ -177,13 +180,23 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
   };
 
   const handleConfirmarCantidad = (producto: Producto, cantidad: number) => {
+    // Calcular precio visual con IVA
+    const precioVisual = businessInfo
+      ? calcularPrecioVisualConIVA(
+          producto.precio,
+          producto.ivaIncluido || false,
+          producto.ivaPorcentaje ?? null,
+          businessInfo.ivaIncluidoEnPrecios || false
+        )
+      : producto.precio;
+
     const nuevoDetalle: DetalleFactura = {
       productoId: producto.id,
       producto,
       descripcion: producto.nombre,
       cantidad: cantidad,
-      precioUnitario: producto.precio,
-      subtotal: producto.precio * cantidad,
+      precioUnitario: precioVisual,
+      subtotal: precioVisual * cantidad,
     };
 
     setFormData({

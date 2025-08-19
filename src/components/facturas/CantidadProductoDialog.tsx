@@ -12,6 +12,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Package, Plus, Minus } from "lucide-react";
+import { useBusinessInfo } from "@/hooks/useBusinessInfo";
+import { calcularPrecioVisualConIVA } from "@/utils/ivaHelpers";
 
 interface Producto {
   id: number;
@@ -19,6 +21,8 @@ interface Producto {
   tipoMedida: string;
   precio: number;
   stock?: number;
+  ivaIncluido?: boolean;
+  ivaPorcentaje?: number | null;
 }
 
 interface CantidadProductoDialogProps {
@@ -36,6 +40,11 @@ const CantidadProductoDialog: React.FC<CantidadProductoDialogProps> = ({
 }) => {
   const [cantidad, setCantidad] = useState(1);
   const [error, setError] = useState<string | null>(null);
+
+  // Obtener información del business para el cálculo de IVA
+  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+  const appId = import.meta.env.VITE_APP_ID || null;
+  const { businessInfo } = useBusinessInfo(API_URL, appId);
 
   // Resetear cantidad cuando se abre el diálogo
   useEffect(() => {
@@ -112,7 +121,17 @@ const CantidadProductoDialog: React.FC<CantidadProductoDialogProps> = ({
 
   if (!producto) return null;
 
-  const subtotal = cantidad * producto.precio;
+  // Calcular precio visual con IVA para el subtotal
+  const precioVisual = businessInfo
+    ? calcularPrecioVisualConIVA(
+        producto.precio,
+        producto.ivaIncluido || false,
+        producto.ivaPorcentaje ?? null,
+        businessInfo.ivaIncluidoEnPrecios || false
+      )
+    : producto.precio;
+
+  const subtotal = cantidad * precioVisual;
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -135,7 +154,16 @@ const CantidadProductoDialog: React.FC<CantidadProductoDialogProps> = ({
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Precio unitario:</span>
                 <span className="font-medium">
-                  {formatCurrency(producto.precio)}
+                  {businessInfo
+                    ? formatCurrency(
+                        calcularPrecioVisualConIVA(
+                          producto.precio,
+                          producto.ivaIncluido || false,
+                          producto.ivaPorcentaje ?? null,
+                          businessInfo.ivaIncluidoEnPrecios || false
+                        )
+                      )
+                    : formatCurrency(producto.precio)}
                 </span>
               </div>
               <div className="flex justify-between">

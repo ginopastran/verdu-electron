@@ -22,6 +22,8 @@ export interface Producto {
   precio: number;
   tipoMedida: string;
   stock?: number;
+  ivaIncluido?: boolean;
+  ivaPorcentaje?: number | null;
 }
 
 export interface DetalleFactura {

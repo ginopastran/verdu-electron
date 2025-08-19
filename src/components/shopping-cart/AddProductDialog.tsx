@@ -14,6 +14,8 @@ import { AvailableProduct } from "@/hooks/useProductSearch";
 import { Product } from "@/hooks/useCartState";
 import { useScaleWeight } from "@/hooks/useScaleWeight";
 import { useAuth } from "@/contexts/AuthContext";
+import { useBusinessInfo } from "@/hooks/useBusinessInfo";
+import { calcularPrecioVisualConIVA } from "@/utils/ivaHelpers";
 
 interface AddProductDialogProps {
   isOpen: boolean;
@@ -33,6 +35,11 @@ export function AddProductDialog({
   const [isAddingToCart, setIsAddingToCart] = useState(false);
   const weight = useScaleWeight();
   const { user } = useAuth();
+
+  // Obtener información del business para el cálculo de IVA
+  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+  const appId = import.meta.env.VITE_APP_ID || null;
+  const { businessInfo } = useBusinessInfo(API_URL, appId);
 
   // Initialize and update useManualWeight based on user permissions
   useEffect(() => {
@@ -101,6 +108,8 @@ export function AddProductDialog({
         pricePerUnit: product.pricePerUnit,
         subtotal: product.pricePerUnit * finalQuantity,
         costo: product.costo,
+        ivaIncluido: product.ivaIncluido,
+        ivaPorcentaje: product.ivaPorcentaje,
       };
 
       // Añadir al carrito
@@ -144,7 +153,16 @@ export function AddProductDialog({
             Agregar producto
           </DialogTitle>
           <DialogDescription>
-            {product?.name} - ${product?.pricePerUnit}/ {product?.unit}
+            {product?.name} - $
+            {businessInfo && product
+              ? calcularPrecioVisualConIVA(
+                  product.pricePerUnit,
+                  product.ivaIncluido || false,
+                  product.ivaPorcentaje ?? null,
+                  businessInfo.ivaIncluidoEnPrecios || false
+                ).toLocaleString()
+              : product?.pricePerUnit?.toLocaleString()}
+            / {product?.unit}
           </DialogDescription>
         </DialogHeader>
 

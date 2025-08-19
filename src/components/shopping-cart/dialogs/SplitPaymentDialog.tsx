@@ -172,12 +172,12 @@ export const SplitPaymentDialog = ({
                 $
                 {!paymentProcessor.cashAmount ||
                 isNaN(parseFloat(paymentProcessor.cashAmount))
-                  ? cartState.calculateTotal().toLocaleString()
+                  ? cartState.calculateTotalWithIVA().toLocaleString()
                   : (
-                      cartState.calculateTotal() -
+                      cartState.calculateTotalWithIVA() -
                       Math.min(
                         parseFloat(paymentProcessor.cashAmount),
-                        cartState.calculateTotal()
+                        cartState.calculateTotalWithIVA()
                       )
                     ).toLocaleString()}
               </div>

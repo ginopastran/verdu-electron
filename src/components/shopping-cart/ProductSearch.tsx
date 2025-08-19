@@ -4,6 +4,8 @@ import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { useProductSearch, AvailableProduct } from "@/hooks/useProductSearch";
 import { RefObject } from "react";
+import { useBusinessInfo } from "@/hooks/useBusinessInfo";
+import { calcularPrecioVisualConIVA } from "@/utils/ivaHelpers";
 
 interface ProductSearchProps {
   onProductSelect: (product: AvailableProduct) => void;
@@ -25,6 +27,11 @@ export function ProductSearch({
     handleSearchInputChange,
     clearSelection,
   } = useProductSearch();
+
+  // Obtener información del business para el cálculo de IVA
+  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+  const appId = import.meta.env.VITE_APP_ID || null;
+  const { businessInfo } = useBusinessInfo(API_URL, appId);
 
   // Efecto para detectar cuando el hook selecciona un producto
   useEffect(() => {
@@ -92,7 +99,16 @@ export function ProductSearch({
               <div className="text-base flex items-center justify-between">
                 <span>{product.name}</span>
                 <span className="text-emerald-600">
-                  ${product.pricePerUnit.toLocaleString()}/{product.unit}
+                  $
+                  {businessInfo
+                    ? calcularPrecioVisualConIVA(
+                        product.pricePerUnit,
+                        product.ivaIncluido || false,
+                        product.ivaPorcentaje ?? null,
+                        businessInfo.ivaIncluidoEnPrecios || false
+                      ).toLocaleString()
+                    : product.pricePerUnit.toLocaleString()}
+                  /{product.unit}
                 </span>
               </div>
             </div>

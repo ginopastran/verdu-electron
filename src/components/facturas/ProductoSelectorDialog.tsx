@@ -20,6 +20,8 @@ import {
   Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useBusinessInfo } from "@/hooks/useBusinessInfo";
+import { calcularPrecioVisualConIVA } from "@/utils/ivaHelpers";
 
 interface Producto {
   id: number;
@@ -27,6 +29,8 @@ interface Producto {
   tipoMedida: string;
   precio: number;
   stock?: number;
+  ivaIncluido?: boolean;
+  ivaPorcentaje?: number | null;
 }
 
 interface ProductoSelectorDialogProps {
@@ -50,6 +54,11 @@ const ProductoSelectorDialog: React.FC<ProductoSelectorDialogProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
 
+  // Obtener información del business para el cálculo de IVA
+  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+  const appId = import.meta.env.VITE_APP_ID || null;
+  const { businessInfo } = useBusinessInfo(API_URL, appId);
+
   const fetchProductos = useCallback(async () => {
     try {
       setLoading(true);
@@ -63,7 +72,13 @@ const ProductoSelectorDialog: React.FC<ProductoSelectorDialogProps> = ({
       }
 
       const data = await response.json();
-      setProductos(data.productos || []);
+      // Transformar productos para incluir campos de IVA
+      const productosConIVA = (data.productos || []).map((p: any) => ({
+        ...p,
+        ivaIncluido: p.ivaIncluido,
+        ivaPorcentaje: p.ivaPorcentaje,
+      }));
+      setProductos(productosConIVA);
     } catch (error) {
       console.error("Error al cargar productos:", error);
 
@@ -288,7 +303,16 @@ const ProductoSelectorDialog: React.FC<ProductoSelectorDialogProps> = ({
                         {producto.tipoMedida}
                       </span>
                       <span className="font-medium text-primary">
-                        {formatCurrency(producto.precio)}
+                        {businessInfo
+                          ? formatCurrency(
+                              calcularPrecioVisualConIVA(
+                                producto.precio,
+                                producto.ivaIncluido || false,
+                                producto.ivaPorcentaje ?? null,
+                                businessInfo.ivaIncluidoEnPrecios || false
+                              )
+                            )
+                          : formatCurrency(producto.precio)}
                       </span>
                       {producto.stock !== undefined && (
                         <span

@@ -11,6 +11,8 @@ interface BackendProduct {
   costo: number;
   codigoBarras: string | null;
   plu: string | null;
+  ivaIncluido?: boolean;
+  ivaPorcentaje?: number | null;
 }
 
 export const useProducts = (API_URL: string, appId: string | null) => {
@@ -61,6 +63,8 @@ export const useProducts = (API_URL: string, appId: string | null) => {
           costo: p.costo,
           codigoBarras: p.codigoBarras,
           plu: p.plu,
+          ivaIncluido: p.ivaIncluido,
+          ivaPorcentaje: p.ivaPorcentaje,
         })
       );
 
