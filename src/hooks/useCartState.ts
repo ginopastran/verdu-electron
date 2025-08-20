@@ -61,18 +61,26 @@ export function useCartState() {
   };
 
   const addToCart = (newItem: Product) => {
-    setScreens(
-      screens.map((screen, index) => {
+    console.log("🛒 [useCartState] addToCart llamado con:", newItem);
+
+    setScreens((prevScreens) => {
+      const updatedScreens = prevScreens.map((screen, index) => {
         if (index === activeScreen) {
+          // CAMBIO CRÍTICO: Buscar por cartId en lugar de solo id para permitir múltiples productos del mismo tipo
           const existingItem = screen.items.find(
-            (item) => item.id === newItem.id
+            (item) => item.cartId === newItem.cartId
           );
+
           if (existingItem) {
-            // Si el item ya existe, actualizar la cantidad
+            console.log(
+              "🛒 [useCartState] Item existente encontrado por cartId, actualizando cantidad:",
+              existingItem
+            );
+            // Si el item ya existe (mismo cartId), actualizar la cantidad
             return {
               ...screen,
               items: screen.items.map((item) =>
-                item.id === newItem.id
+                item.cartId === newItem.cartId
                   ? {
                       ...item,
                       quantity: item.quantity + newItem.quantity,
@@ -82,7 +90,8 @@ export function useCartState() {
               ),
             };
           } else {
-            // Si es un nuevo item, agregarlo
+            console.log("🛒 [useCartState] Nuevo item agregado:", newItem);
+            // Si es un nuevo item (cartId único), agregarlo
             return {
               ...screen,
               items: [...screen.items, newItem],
@@ -90,17 +99,36 @@ export function useCartState() {
           }
         }
         return screen;
-      })
-    );
+      });
+
+      console.log("🛒 [useCartState] Estado actualizado - screen activa:", {
+        activeScreen,
+        itemsCount: updatedScreens[activeScreen]?.items.length || 0,
+        items:
+          updatedScreens[activeScreen]?.items.map((item) => ({
+            id: item.id,
+            cartId: item.cartId,
+            name: item.name,
+            quantity: item.quantity,
+          })) || [],
+      });
+
+      return updatedScreens;
+    });
   };
 
-  const removeFromCart = (productId: number) => {
-    setScreens(
-      screens.map((screen, index) =>
+  const removeFromCart = (cartId: string) => {
+    console.log(
+      "🛒 [useCartState] removeFromCart llamado para cartId:",
+      cartId
+    );
+
+    setScreens((prevScreens) =>
+      prevScreens.map((screen, index) =>
         index === activeScreen
           ? {
               ...screen,
-              items: screen.items.filter((item) => item.id !== productId),
+              items: screen.items.filter((item) => item.cartId !== cartId),
             }
           : screen
       )
@@ -108,11 +136,27 @@ export function useCartState() {
   };
 
   const clearCart = () => {
-    setScreens(
-      screens.map((screen, index) =>
+    console.log(
+      "🧹 [useCartState] clearCart llamado - limpiando screen activa:",
+      activeScreen
+    );
+    const currentItems = screens[activeScreen]?.items || [];
+    console.log(
+      "🧹 [useCartState] Items que se van a eliminar:",
+      currentItems.map((item) => ({
+        id: item.id,
+        cartId: item.cartId,
+        name: item.name,
+      }))
+    );
+
+    setScreens((prevScreens) =>
+      prevScreens.map((screen, index) =>
         index === activeScreen ? { ...screen, items: [] } : screen
       )
     );
+
+    console.log("🧹 [useCartState] clearCart completado");
   };
 
   const addScreen = () => {

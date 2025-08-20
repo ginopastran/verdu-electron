@@ -7,7 +7,7 @@ import { calcularPrecioVisualConIVA } from "@/utils/ivaHelpers";
 
 interface CartItemProps {
   item: Product;
-  onRemove: (id: number) => void;
+  onRemove: (cartId: string) => void;
   isCancellationEnabled?: boolean;
 }
 
@@ -55,7 +55,7 @@ export function CartItem({
             variant="destructive"
             size="icon"
             className="h-8 w-8 rounded-lg bg-cancel-gradient"
-            onClick={() => onRemove(item.id)}
+            onClick={() => onRemove(item.cartId)}
             title="Eliminar producto"
           >
             <Trash2 className="h-6 w-6" />
