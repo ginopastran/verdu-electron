@@ -232,8 +232,6 @@ export const useFacturaTicketPrinting = () => {
           nombre: businessInfo?.nombre || businessName,
           razonSocial: businessInfo?.razonSocial || businessName,
           cuit: businessInfo?.cuit || facturaData.cuit,
-          condicionIva: businessInfo?.condicionIva || facturaData.condicionIva,
-          direccion: businessInfo?.direccion || facturaData.direccion,
           telefono: businessInfo?.telefono || facturaData.telefono
         };
 

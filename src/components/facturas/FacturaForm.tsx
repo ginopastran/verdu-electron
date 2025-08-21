@@ -356,36 +356,55 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
     let subtotalSinIva = 0;
     let totalIva = 0;
 
+    // Si es un remito, no calcular impuestos
+    const esRemito = formData.tipoFactura === "remito";
+
     formData.detalles.forEach((detalle) => {
       const producto = detalle.producto;
       const subtotalDetalle = detalle.subtotal;
 
-      // Determinar el porcentaje de IVA del producto (por defecto 21%)
-      const porcentajeIva = producto?.ivaPorcentaje ?? 21;
-
-      // Verificar si el producto tiene IVA incluido
-      const ivaIncluido =
-        producto?.ivaIncluido || businessInfo?.ivaIncluidoEnPrecios || false;
-
-      if (ivaIncluido) {
-        // Si el precio incluye IVA, extraer la base imponible
-        const factorIva = 1 + porcentajeIva / 100;
-        const baseImponible = round2(subtotalDetalle / factorIva);
-        const ivaDetalle = round2(subtotalDetalle - baseImponible);
-
-        subtotalSinIva += baseImponible;
-        totalIva += ivaDetalle;
+      if (esRemito) {
+        // Para remitos, verificar si necesitamos ajustar precios por IVA incluido
+        const ivaIncluido =
+          producto?.ivaIncluido || businessInfo?.ivaIncluidoEnPrecios || false;
+        
+        if (ivaIncluido) {
+          // Si el precio incluye IVA pero es un remito, restar el IVA del subtotal
+          const porcentajeIva = producto?.ivaPorcentaje ?? 21;
+          const factorIva = 1 + porcentajeIva / 100;
+          const baseImponible = round2(subtotalDetalle / factorIva);
+          subtotalSinIva += baseImponible;
+        } else {
+          // Si el precio no incluye IVA, usar el subtotal tal como está
+          subtotalSinIva += subtotalDetalle;
+        }
+        // No calcular IVA para remitos
       } else {
-        // Si el precio NO incluye IVA, calcularlo
-        const ivaDetalle = round2(subtotalDetalle * (porcentajeIva / 100));
+        // Para facturas normales, calcular IVA como antes
+        const porcentajeIva = producto?.ivaPorcentaje ?? 21;
+        const ivaIncluido =
+          producto?.ivaIncluido || businessInfo?.ivaIncluidoEnPrecios || false;
 
-        subtotalSinIva += subtotalDetalle;
-        totalIva += ivaDetalle;
+        if (ivaIncluido) {
+          // Si el precio incluye IVA, extraer la base imponible
+          const factorIva = 1 + porcentajeIva / 100;
+          const baseImponible = round2(subtotalDetalle / factorIva);
+          const ivaDetalle = round2(subtotalDetalle - baseImponible);
+
+          subtotalSinIva += baseImponible;
+          totalIva += ivaDetalle;
+        } else {
+          // Si el precio NO incluye IVA, calcularlo
+          const ivaDetalle = round2(subtotalDetalle * (porcentajeIva / 100));
+
+          subtotalSinIva += subtotalDetalle;
+          totalIva += ivaDetalle;
+        }
       }
     });
 
     const subtotal = round2(subtotalSinIva);
-    const impuestos = round2(totalIva);
+    const impuestos = esRemito ? 0 : round2(totalIva);
     const total = round2(subtotal + impuestos);
 
     return { subtotal, impuestos, total };
@@ -1085,7 +1104,7 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
                         <span>Subtotal:</span>
                         <span>{formatCurrency(subtotal)}</span>
                       </div>
-                      {impuestos > 0 && (
+                      {formData.tipoFactura !== "remito" && impuestos > 0 && (
                         <div className="flex justify-between">
                           <span>IVA:</span>
                           <span>{formatCurrency(impuestos)}</span>
