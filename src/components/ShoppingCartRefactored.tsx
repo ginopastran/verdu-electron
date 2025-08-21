@@ -578,7 +578,10 @@ const ShoppingCartRefactored = forwardRef<
       return;
     }
 
-    console.log("📄 Abriendo diálogo de factura (F6) con productos del carrito:", currentItems);
+    console.log(
+      "📄 Abriendo diálogo de factura (F6) con productos del carrito:",
+      currentItems
+    );
     setFacturaDialogOpen(true);
   };
 
@@ -2327,12 +2330,12 @@ const ShoppingCartRefactored = forwardRef<
         isOpen={facturaDialogOpen}
         onClose={handleFacturaClose}
         onSuccess={handleFacturaSuccess}
-        productosIniciales={cartState.getCurrentItems().map(item => ({
+        productosIniciales={cartState.getCurrentItems().map((item) => ({
           id: item.id,
           nombre: item.name,
           precio: item.pricePerUnit,
           cantidad: item.quantity,
-          subtotal: item.subtotal
+          subtotal: item.subtotal,
         }))}
       />
 

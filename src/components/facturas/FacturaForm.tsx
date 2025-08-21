@@ -49,6 +49,7 @@ import ClienteSelectorDialog from "./ClienteSelectorDialog";
 import ProductoSelectorDialog from "./ProductoSelectorDialog";
 import CantidadProductoDialog from "./CantidadProductoDialog";
 import { useBusinessInfo } from "@/hooks/useBusinessInfo";
+import { useFacturaTicketPrinting } from "@/hooks/useFacturaTicketPrinting";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { calcularPrecioVisualConIVA } from "@/utils/ivaHelpers";
@@ -134,6 +135,7 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
     import.meta.env.VITE_API_URL || "http://localhost:3000",
     import.meta.env.VITE_APP_ID || null
   );
+  const { handleFacturaTicketPrinting } = useFacturaTicketPrinting();
   const [loading, setLoading] = useState(false);
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
   const [showClienteDialog, setShowClienteDialog] = useState(false);
@@ -148,7 +150,9 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
   const [preciosLista, setPreciosLista] = useState<Record<number, number>>({});
 
   // 🆕 Estado para persistir la lista de precios entre sesiones del diálogo
-  const [persistedListaPrecioId, setPersistedListaPrecioId] = useState<number | undefined>(undefined);
+  const [persistedListaPrecioId, setPersistedListaPrecioId] = useState<
+    number | undefined
+  >(undefined);
 
   const [formData, setFormData] = useState<FormData>({
     clienteId: factura?.clienteId,
@@ -172,7 +176,7 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
   // 🆕 useEffect para inicializar formData con lista persistida cuando se abre el diálogo
   useEffect(() => {
     if (isOpen && mode === "create" && !factura && persistedListaPrecioId) {
-      setFormData(prev => ({
+      setFormData((prev) => ({
         ...prev,
         listaPrecioId: persistedListaPrecioId,
       }));
@@ -194,22 +198,32 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
 
   // 🆕 NUEVO: Cargar productos iniciales del carrito (solo una vez al abrir)
   useEffect(() => {
-    if (isOpen && productosIniciales.length > 0 && mode === "create" && formData.detalles.length === 0) {
-      console.log("📄 Cargando productos iniciales del carrito:", productosIniciales);
-      
+    if (
+      isOpen &&
+      productosIniciales.length > 0 &&
+      mode === "create" &&
+      formData.detalles.length === 0
+    ) {
+      console.log(
+        "📄 Cargando productos iniciales del carrito:",
+        productosIniciales
+      );
+
       const cargarProductosCompletos = async () => {
         const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
         const detallesIniciales: DetalleFactura[] = [];
-        
+
         for (const productoInicial of productosIniciales) {
           try {
-            const response = await fetch(`${API_URL}/api/productos/${productoInicial.id}`);
+            const response = await fetch(
+              `${API_URL}/api/productos/${productoInicial.id}`
+            );
             if (response.ok) {
               const productoCompleto = await response.json();
-              
+
               // 🔧 Usar precio del carrito inicialmente (se actualizará con updateExistingProductPrices si hay lista)
               const precioFinal = productoInicial.precio;
-              
+
               detallesIniciales.push({
                 productoId: productoInicial.id,
                 producto: productoCompleto,
@@ -221,7 +235,7 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
             } else {
               // Fallback si no se puede cargar el producto completo
               const precioFinal = productoInicial.precio;
-              
+
               detallesIniciales.push({
                 productoId: productoInicial.id,
                 descripcion: productoInicial.nombre,
@@ -231,10 +245,13 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
               });
             }
           } catch (error) {
-            console.log(`Error cargando producto ${productoInicial.id}:`, error);
+            console.log(
+              `Error cargando producto ${productoInicial.id}:`,
+              error
+            );
             // Fallback si hay error
             const precioFinal = productoInicial.precio;
-            
+
             detallesIniciales.push({
               productoId: productoInicial.id,
               descripcion: productoInicial.nombre,
@@ -244,12 +261,12 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
             });
           }
         }
-        
-        setFormData(prev => ({
+
+        setFormData((prev) => ({
           ...prev,
           detalles: detallesIniciales,
         }));
-        
+
         // 🔧 Si hay una lista de precios seleccionada, actualizar precios después de cargar
         if (selectedListaPrecio && Object.keys(preciosLista).length > 0) {
           setTimeout(() => {
@@ -257,14 +274,18 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
           }, 100);
         }
       };
-      
+
       cargarProductosCompletos();
     }
   }, [isOpen, productosIniciales, mode, formData.detalles.length]);
-  
+
   // 🆕 NUEVO: Actualizar precios cuando se carguen los precios de lista después de los productos iniciales
   useEffect(() => {
-    if (formData.detalles.length > 0 && selectedListaPrecio && Object.keys(preciosLista).length > 0) {
+    if (
+      formData.detalles.length > 0 &&
+      selectedListaPrecio &&
+      Object.keys(preciosLista).length > 0
+    ) {
       updateExistingProductPrices(selectedListaPrecio);
     }
   }, [preciosLista, selectedListaPrecio]);
@@ -390,13 +411,18 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
         // Obtener el precio base del producto desde la API para asegurar que sea correcto
         let precioBase = detalle.precioUnitario;
         try {
-          const productoResponse = await fetch(`${API_URL}/api/productos/${detalle.productoId}`);
+          const productoResponse = await fetch(
+            `${API_URL}/api/productos/${detalle.productoId}`
+          );
           if (productoResponse.ok) {
             const productoData = await productoResponse.json();
             precioBase = productoData.precio;
           }
         } catch (error) {
-          console.log(`Error obteniendo precio base del producto ${detalle.productoId}:`, error);
+          console.log(
+            `Error obteniendo precio base del producto ${detalle.productoId}:`,
+            error
+          );
         }
 
         let nuevoPrecio = precioBase;
@@ -466,15 +492,22 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
     setShowProductoDialog(false);
   };
 
-  const handleConfirmarCantidad = async (producto: Producto, cantidad: number) => {
+  const handleConfirmarCantidad = async (
+    producto: Producto,
+    cantidad: number
+  ) => {
     let precioFinal = producto.precio;
 
     // 🔧 Usar precios ya cargados en lugar de hacer nueva llamada a la API
     if (selectedListaPrecio && preciosLista[producto.id] !== undefined) {
       precioFinal = preciosLista[producto.id];
-      console.log(`🏷️ Usando precio de lista ${selectedListaPrecio.nombre} para ${producto.nombre}: ${precioFinal}`);
+      console.log(
+        `🏷️ Usando precio de lista ${selectedListaPrecio.nombre} para ${producto.nombre}: ${precioFinal}`
+      );
     } else {
-      console.log(`💰 Usando precio base para ${producto.nombre}: ${precioFinal}`);
+      console.log(
+        `💰 Usando precio base para ${producto.nombre}: ${precioFinal}`
+      );
     }
 
     const nuevoDetalle: DetalleFactura = {
@@ -631,6 +664,34 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
             ? "Factura creada correctamente"
             : "Factura actualizada correctamente"
         );
+      }
+
+      // 🖨️ Imprimir ticket automáticamente para facturas de cuenta corriente
+      if (mode === "create" && formData.tipoFactura !== "remito") {
+        try {
+          const facturaParaTicket = {
+            id: result.factura?.id || result.id,
+            numero: result.factura?.numero || result.numero,
+            tipoFactura: formData.tipoFactura,
+            fecha: new Date().toISOString(),
+            cliente: selectedCliente,
+            detalles: formData.detalles,
+            subtotal,
+            impuestos,
+            total,
+            observaciones: formData.observaciones,
+            afip: result.afip || null,
+          };
+
+          console.log(
+            `🖨️ [FacturaForm] Imprimiendo ticket para factura:`,
+            facturaParaTicket
+          );
+          await handleFacturaTicketPrinting(facturaParaTicket);
+        } catch (printError) {
+          console.error("Error al imprimir ticket:", printError);
+          // No mostramos error al usuario para no interrumpir el flujo
+        }
       }
 
       onSuccess();
@@ -878,188 +939,190 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
                 </div>
               </div>
 
-            {/* Productos */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold">Productos</h3>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowProductoDialog(true)}
-                  className="bg-emerald-gradient text-white hover:text-white"
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Agregar Producto
-                </Button>
-              </div>
-
-              {/* Tabla de productos */}
-              {formData.detalles.length > 0 && (
-                <div className="border border-[#A7A7A7] rounded-xl">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Producto</TableHead>
-                        <TableHead>Descripción</TableHead>
-                        <TableHead className="w-[120px]">Cantidad</TableHead>
-                        <TableHead className="w-[120px]">P. Unitario</TableHead>
-                        <TableHead className="w-[120px]">Subtotal</TableHead>
-                        <TableHead className="w-[50px]"></TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {formData.detalles.map((detalle, index) => (
-                        <TableRow key={index}>
-                          <TableCell>
-                            <div className="space-y-2">
-                              <div>
-                                <p className="font-medium">
-                                  {detalle.producto?.nombre ||
-                                    `Producto ${detalle.productoId}`}
-                                </p>
-                                <p className="text-sm text-muted-foreground">
-                                  {detalle.producto?.tipoMedida}
-                                </p>
-                              </div>
-                              {isProductoEnLista(detalle.productoId) && (
-                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-emerald-gradient text-white shadow-sm gap-1">
-                                  <FileText className="size-4" />{" "}
-                                  {selectedListaPrecio?.nombre}
-                                </span>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Input
-                              value={detalle.descripcion}
-                              onChange={(e) =>
-                                updateDetalle(
-                                  index,
-                                  "descripcion",
-                                  e.target.value
-                                )
-                              }
-                              className="w-full"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Input
-                              type="number"
-                              value={detalle.cantidad}
-                              onChange={(e) =>
-                                updateDetalle(
-                                  index,
-                                  "cantidad",
-                                  parseFloat(e.target.value) || 0
-                                )
-                              }
-                              min="0"
-                              step="0.01"
-                              className="w-full"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Input
-                              type="number"
-                              value={detalle.precioUnitario}
-                              onChange={(e) =>
-                                updateDetalle(
-                                  index,
-                                  "precioUnitario",
-                                  parseFloat(e.target.value) || 0
-                                )
-                              }
-                              min="0"
-                              step="0.01"
-                              className="w-full"
-                            />
-                          </TableCell>
-                          <TableCell className="text-right font-medium">
-                            {formatCurrency(detalle.subtotal)}
-                          </TableCell>
-                          <TableCell>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => removeDetalle(index)}
-                              className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+              {/* Productos */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold">Productos</h3>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowProductoDialog(true)}
+                    className="bg-emerald-gradient text-white hover:text-white"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Agregar Producto
+                  </Button>
                 </div>
-              )}
 
-              {/* Totales */}
-              {formData.detalles.length > 0 && (
-                <div className="flex justify-end">
-                  <div className="w-80 space-y-2 p-4 border rounded-lg bg-muted/30">
-                    <div className="flex items-center gap-2 mb-3">
-                      <Calculator className="h-4 w-4" />
-                      <span className="font-semibold">Resumen</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Subtotal:</span>
-                      <span>{formatCurrency(subtotal)}</span>
-                    </div>
-                    {impuestos > 0 && (
-                      <div className="flex justify-between">
-                        <span>IVA:</span>
-                        <span>{formatCurrency(impuestos)}</span>
+                {/* Tabla de productos */}
+                {formData.detalles.length > 0 && (
+                  <div className="border border-[#A7A7A7] rounded-xl">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Producto</TableHead>
+                          <TableHead>Descripción</TableHead>
+                          <TableHead className="w-[120px]">Cantidad</TableHead>
+                          <TableHead className="w-[120px]">
+                            P. Unitario
+                          </TableHead>
+                          <TableHead className="w-[120px]">Subtotal</TableHead>
+                          <TableHead className="w-[50px]"></TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {formData.detalles.map((detalle, index) => (
+                          <TableRow key={index}>
+                            <TableCell>
+                              <div className="space-y-2">
+                                <div>
+                                  <p className="font-medium">
+                                    {detalle.producto?.nombre ||
+                                      `Producto ${detalle.productoId}`}
+                                  </p>
+                                  <p className="text-sm text-muted-foreground">
+                                    {detalle.producto?.tipoMedida}
+                                  </p>
+                                </div>
+                                {isProductoEnLista(detalle.productoId) && (
+                                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-emerald-gradient text-white shadow-sm gap-1">
+                                    <FileText className="size-4" />{" "}
+                                    {selectedListaPrecio?.nombre}
+                                  </span>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Input
+                                value={detalle.descripcion}
+                                onChange={(e) =>
+                                  updateDetalle(
+                                    index,
+                                    "descripcion",
+                                    e.target.value
+                                  )
+                                }
+                                className="w-full"
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Input
+                                type="number"
+                                value={detalle.cantidad}
+                                onChange={(e) =>
+                                  updateDetalle(
+                                    index,
+                                    "cantidad",
+                                    parseFloat(e.target.value) || 0
+                                  )
+                                }
+                                min="0"
+                                step="0.01"
+                                className="w-full"
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Input
+                                type="number"
+                                value={detalle.precioUnitario}
+                                onChange={(e) =>
+                                  updateDetalle(
+                                    index,
+                                    "precioUnitario",
+                                    parseFloat(e.target.value) || 0
+                                  )
+                                }
+                                min="0"
+                                step="0.01"
+                                className="w-full"
+                              />
+                            </TableCell>
+                            <TableCell className="text-right font-medium">
+                              {formatCurrency(detalle.subtotal)}
+                            </TableCell>
+                            <TableCell>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => removeDetalle(index)}
+                                className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+
+                {/* Totales */}
+                {formData.detalles.length > 0 && (
+                  <div className="flex justify-end">
+                    <div className="w-80 space-y-2 p-4 border rounded-lg bg-muted/30">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Calculator className="h-4 w-4" />
+                        <span className="font-semibold">Resumen</span>
                       </div>
-                    )}
-                    <div className="border-t pt-2">
-                      <div className="flex justify-between font-bold text-lg">
-                        <span>Total:</span>
-                        <span>{formatCurrency(total)}</span>
+                      <div className="flex justify-between">
+                        <span>Subtotal:</span>
+                        <span>{formatCurrency(subtotal)}</span>
+                      </div>
+                      {impuestos > 0 && (
+                        <div className="flex justify-between">
+                          <span>IVA:</span>
+                          <span>{formatCurrency(impuestos)}</span>
+                        </div>
+                      )}
+                      <div className="border-t pt-2">
+                        <div className="flex justify-between font-bold text-lg">
+                          <span>Total:</span>
+                          <span>{formatCurrency(total)}</span>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
 
-            {/* Observaciones */}
-            <div className="space-y-2">
-              <Label htmlFor="observaciones">Observaciones</Label>
-              <Textarea
-                id="observaciones"
-                value={formData.observaciones}
-                onChange={(e) =>
-                  setFormData({ ...formData, observaciones: e.target.value })
-                }
-                placeholder="Observaciones adicionales..."
-                rows={3}
-              />
-            </div>
+              {/* Observaciones */}
+              <div className="space-y-2">
+                <Label htmlFor="observaciones">Observaciones</Label>
+                <Textarea
+                  id="observaciones"
+                  value={formData.observaciones}
+                  onChange={(e) =>
+                    setFormData({ ...formData, observaciones: e.target.value })
+                  }
+                  placeholder="Observaciones adicionales..."
+                  rows={3}
+                />
+              </div>
 
-            {/* Botones */}
-            <div className="flex justify-end gap-3 pt-4 border-t">
-              <Button type="button" variant="outline" onClick={onClose}>
-                <X className="h-4 w-4 mr-2" />
-                Cancelar
-              </Button>
-              <Button
-                onClick={handleSubmit}
-                disabled={loading}
-                className="bg-emerald-gradient text-white hover:text-white"
-              >
-                <Save className="h-4 w-4 mr-2" />
-                {loading
-                  ? "Guardando..."
-                  : mode === "create"
-                  ? "Crear Factura"
-                  : "Actualizar"}
-              </Button>
+              {/* Botones */}
+              <div className="flex justify-end gap-3 pt-4 border-t">
+                <Button type="button" variant="outline" onClick={onClose}>
+                  <X className="h-4 w-4 mr-2" />
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={handleSubmit}
+                  disabled={loading}
+                  className="bg-emerald-gradient text-white hover:text-white"
+                >
+                  <Save className="h-4 w-4 mr-2" />
+                  {loading
+                    ? "Guardando..."
+                    : mode === "create"
+                    ? "Crear Factura"
+                    : "Actualizar"}
+                </Button>
+              </div>
             </div>
           </div>
-        </div>
         </DialogContent>
       </Dialog>
 

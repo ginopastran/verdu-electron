@@ -536,6 +536,110 @@ ipcMain.handle("print-ticket", async (_, orderData) => {
   }
 });
 
+// Handler para impresión de facturas
+console.log("🔧 Registrando handler para print-factura-ticket...");
+ipcMain.handle("print-factura-ticket", async (_, facturaData) => {
+  try {
+    const tempDir = os.tmpdir();
+    const tempDataPath = path.join(tempDir, `factura-data-${Date.now()}.json`);
+    await fsPromises.writeFile(
+      tempDataPath,
+      JSON.stringify(facturaData),
+      "utf8"
+    );
+
+    const isProduction = process.env.NODE_ENV !== "development";
+    let phpScriptPath;
+    if (isProduction) {
+      phpScriptPath = path.join(
+        process.resourcesPath,
+        "resources",
+        "factura_ticket_printer.php"
+      );
+    } else {
+      phpScriptPath = path.join(
+        app.getAppPath(),
+        "resources",
+        "factura_ticket_printer.php"
+      );
+    }
+
+    // LOG: Verificar existencia del script PHP
+    if (!fs.existsSync(phpScriptPath)) {
+      console.error(
+        "❌ No se encontró el script PHP de factura:",
+        phpScriptPath
+      );
+      return {
+        success: false,
+        printerError: `No se encontró el script PHP de factura: ${phpScriptPath}`,
+        message: `No se encontró el script PHP de factura: ${phpScriptPath}`,
+      };
+    }
+
+    console.log("------ INFO DE IMPRESIÓN FACTURA ------");
+    console.log(`NODE_ENV: ${process.env.NODE_ENV}`);
+    console.log(`PHP Script: ${phpScriptPath}`);
+    console.log(`Datos: ${tempDataPath}`);
+
+    return new Promise((resolve, reject) => {
+      exec(
+        `set NODE_ENV=${process.env.NODE_ENV}&& php "${phpScriptPath}" "${tempDataPath}"`,
+        async (error, stdout, stderr) => {
+          try {
+            await fsPromises.unlink(tempDataPath);
+            console.log("[PRINT-FACTURA] error:", error);
+            console.log("[PRINT-FACTURA] stdout:", stdout);
+            console.log("[PRINT-FACTURA] stderr:", stderr);
+            if (error) {
+              console.error("[PRINT-FACTURA] Código de salida:", error.code);
+            }
+            let printerError = null;
+            if (stderr && stderr.includes("Error: ")) {
+              const errorMatch = stderr.match(/Error: (.*?)(\n|$)/);
+              if (errorMatch && errorMatch[1]) {
+                printerError = errorMatch[1];
+              }
+            }
+            if (error) {
+              resolve({
+                success: false,
+                printerError: printerError || error.message,
+                message: printerError
+                  ? `Error de impresión de factura: ${printerError}`
+                  : error.message
+                  ? `Error de impresión de factura: ${error.message}`
+                  : "Error desconocido en impresión de factura",
+              });
+              return;
+            }
+            if (printerError) {
+              resolve({
+                success: false,
+                printerError,
+                message: `Error de impresión de factura: ${printerError}`,
+              });
+              return;
+            }
+            console.log("Salida del script PHP de factura:", stdout);
+            resolve({
+              success: true,
+              printerError: null,
+              message: "Ticket de factura impreso correctamente",
+            });
+          } catch (err) {
+            console.error("Error en el callback de factura:", err);
+            reject(err);
+          }
+        }
+      );
+    });
+  } catch (error) {
+    console.error("Error en impresión de factura:", error);
+    throw error;
+  }
+});
+
 // Handler para impresión AFIP
 console.log("🔧 Registrando handler para print-afip-ticket...");
 ipcMain.handle("print-afip-ticket", async (_, afipData) => {
@@ -802,6 +906,7 @@ ipcMain.handle("print-closing", async (_, closingData) => {
 // Log de confirmación de handlers registrados
 console.log("✅ Todos los handlers IPC registrados:");
 console.log("   - print-ticket");
+console.log("   - print-factura-ticket");
 console.log("   - print-afip-ticket");
 console.log("   - print-closing");
 console.log("   - toggle-devtools");

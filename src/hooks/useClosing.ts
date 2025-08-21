@@ -1,15 +1,9 @@
+/// <reference path="../types/electron.d.ts" />
+
 import { useState } from "react";
 import { toast } from "sonner";
 
-// Declaración de tipos para window
-declare global {
-  interface Window {
-    printer?: {
-      printTicket: (orderData: any) => Promise<any>;
-      printClosing: (closingData: any) => Promise<any>;
-    };
-  }
-}
+// Los tipos de Window están definidos en src/types/electron.d.ts
 
 export const useClosing = (
   user: any,

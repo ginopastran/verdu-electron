@@ -1,20 +1,7 @@
 import { toast } from "sonner";
 import { getBusinessInfo } from "@/utils/businessHelpers";
 
-// Declaración de tipos para window
-declare global {
-  interface Window {
-    electron?: {
-      ipcRenderer: {
-        invoke: (channel: string, ...args: any[]) => Promise<any>;
-      };
-    };
-    printer?: {
-      printTicket: (orderData: any) => Promise<any>;
-      printClosing: (closingData: any) => Promise<any>;
-    };
-  }
-}
+// Los tipos de Window están definidos en src/types/electron.d.ts
 
 export const useTicketPrinting = () => {
   const formatFechaArgentina = (fecha: string | Date) => {
