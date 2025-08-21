@@ -4,9 +4,10 @@ interface CartSummaryProps {
   total: number;
   onCancel: () => void;
   onCheckout: () => void;
+  facturacionHabilitada?: boolean;
 }
 
-export function CartSummary({ total, onCancel, onCheckout }: CartSummaryProps) {
+export function CartSummary({ total, onCancel, onCheckout, facturacionHabilitada = false }: CartSummaryProps) {
   return (
     <div className="sticky bottom-0">
       <div className="flex items-center justify-between">
@@ -30,7 +31,7 @@ export function CartSummary({ total, onCancel, onCheckout }: CartSummaryProps) {
         </div>
       </div>
       <div className="text-sm text-muted-foreground mt-2">
-        F2 para pagar, F6 para cuenta corriente, F1 para cancelar, F4 para
+        F2 para pagar{facturacionHabilitada ? ", F6 para cuenta corriente" : ""}, F1 para cancelar, F4 para
         cerrar sesión
       </div>
     </div>

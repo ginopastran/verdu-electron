@@ -562,6 +562,14 @@ const ShoppingCartRefactored = forwardRef<
 
   // Handler para mostrar diálogo de factura (F6)
   const handleFacturaClick = () => {
+    // Validar que la facturación esté habilitada
+    if (!businessInfo?.facturacionHabilitada) {
+      toast.error("Funcionalidad no disponible", {
+        description: "La facturación no está habilitada para este negocio",
+      });
+      return;
+    }
+
     const currentItems = cartState.getCurrentItems();
     if (currentItems.length === 0) {
       toast.error("No hay productos en el carrito", {
@@ -1951,6 +1959,7 @@ const ShoppingCartRefactored = forwardRef<
             ? handleAfipPaymentClick
             : handlePaymentClick
         }
+        facturacionHabilitada={businessInfo?.facturacionHabilitada || false}
       />
 
       {/* Dialogs */}

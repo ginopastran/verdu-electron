@@ -145,6 +145,12 @@ export const useKeyboardShortcuts = ({
             break;
           case "F6":
             e.preventDefault();
+            if (!businessInfo?.facturacionHabilitada) {
+              toast.error("Funcionalidad no disponible", {
+                description: "La facturación no está habilitada para este negocio",
+              });
+              return;
+            }
             if (getCurrentItems().length === 0) {
               toast.error("No hay productos en el carrito", {
                 description: "Agrega al menos un producto antes de crear la factura",

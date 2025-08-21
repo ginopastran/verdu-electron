@@ -324,14 +324,15 @@ const ProductoSelectorDialog: React.FC<ProductoSelectorDialogProps> = ({
               paginatedData.map((producto) => {
                 const enLista = isProductoEnLista(producto.id);
                 const precioLista = getPrecioLista(producto.id);
-                const sinStock = producto.stock !== undefined && producto.stock <= 0;
-                
+                const sinStock =
+                  producto.stock !== undefined && producto.stock <= 0;
+
                 return (
                   <Button
                     key={producto.id}
                     variant="outline"
                     className={`w-full justify-between h-auto p-4 cursor-pointer hover:bg-accent transition-colors border-[#A7A7A7] ${
-                      enLista ? 'ring-2 ring-emerald-200 bg-emerald-50/50' : ''
+                      enLista ? "" : ""
                     }`}
                     onClick={() => handleSelectProducto(producto)}
                     disabled={loading}
@@ -344,7 +345,7 @@ const ProductoSelectorDialog: React.FC<ProductoSelectorDialogProps> = ({
                           </span>
                         )}
                         {enLista && (
-                          <span className="bg-gradient-to-r from-emerald-500 to-teal-600 text-white text-xs font-medium px-2 py-1 rounded flex items-center gap-1">
+                          <span className="bg-emerald-gradient text-white text-xs font-medium px-2 py-1 rounded flex items-center gap-1">
                             <FileText className="h-3 w-3" />
                             {selectedListaPrecio?.nombre}
                           </span>
@@ -395,11 +396,11 @@ const ProductoSelectorDialog: React.FC<ProductoSelectorDialogProps> = ({
                           </span>
                         )}
                         {/* 🆕 Indicador de sin stock pero permitido agregar */}
-                        {sinStock && (
+                        {/* {sinStock && (
                           <span className="bg-orange-100 text-orange-700 px-2 py-1 rounded text-xs">
                             Sin stock - Permitido
                           </span>
-                        )}
+                        )} */}
                       </div>
                     </div>
                     <Plus className="h-5 w-5 text-muted-foreground ml-4 flex-shrink-0" />

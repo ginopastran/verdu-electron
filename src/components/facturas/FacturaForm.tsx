@@ -192,9 +192,9 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
     fetchPreciosLista();
   }, [selectedListaPrecio]);
 
-  // 🆕 NUEVO: Cargar productos iniciales del carrito
+  // 🆕 NUEVO: Cargar productos iniciales del carrito (solo una vez al abrir)
   useEffect(() => {
-    if (isOpen && productosIniciales.length > 0 && mode === "create") {
+    if (isOpen && productosIniciales.length > 0 && mode === "create" && formData.detalles.length === 0) {
       console.log("📄 Cargando productos iniciales del carrito:", productosIniciales);
       
       const cargarProductosCompletos = async () => {
@@ -207,14 +207,8 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
             if (response.ok) {
               const productoCompleto = await response.json();
               
-              // 🔧 Calcular precio correcto considerando la lista de precios
-              let precioFinal = productoInicial.precio;
-              
-              // Si hay una lista de precios seleccionada, intentar obtener el precio de esa lista
-              if (selectedListaPrecio && preciosLista[productoInicial.id]) {
-                precioFinal = preciosLista[productoInicial.id];
-                console.log(`🏷️ Usando precio de lista para producto ${productoInicial.id}: ${precioFinal}`);
-              }
+              // 🔧 Usar precio del carrito inicialmente (se actualizará con updateExistingProductPrices si hay lista)
+              const precioFinal = productoInicial.precio;
               
               detallesIniciales.push({
                 productoId: productoInicial.id,
@@ -226,10 +220,7 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
               });
             } else {
               // Fallback si no se puede cargar el producto completo
-              let precioFinal = productoInicial.precio;
-              if (selectedListaPrecio && preciosLista[productoInicial.id]) {
-                precioFinal = preciosLista[productoInicial.id];
-              }
+              const precioFinal = productoInicial.precio;
               
               detallesIniciales.push({
                 productoId: productoInicial.id,
@@ -242,10 +233,7 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
           } catch (error) {
             console.log(`Error cargando producto ${productoInicial.id}:`, error);
             // Fallback si hay error
-            let precioFinal = productoInicial.precio;
-            if (selectedListaPrecio && preciosLista[productoInicial.id]) {
-              precioFinal = preciosLista[productoInicial.id];
-            }
+            const precioFinal = productoInicial.precio;
             
             detallesIniciales.push({
               productoId: productoInicial.id,
@@ -261,11 +249,25 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
           ...prev,
           detalles: detallesIniciales,
         }));
+        
+        // 🔧 Si hay una lista de precios seleccionada, actualizar precios después de cargar
+        if (selectedListaPrecio && Object.keys(preciosLista).length > 0) {
+          setTimeout(() => {
+            updateExistingProductPrices(selectedListaPrecio);
+          }, 100);
+        }
       };
       
       cargarProductosCompletos();
     }
-  }, [isOpen, productosIniciales, mode, selectedListaPrecio, preciosLista]);
+  }, [isOpen, productosIniciales, mode, formData.detalles.length]);
+  
+  // 🆕 NUEVO: Actualizar precios cuando se carguen los precios de lista después de los productos iniciales
+  useEffect(() => {
+    if (formData.detalles.length > 0 && selectedListaPrecio && Object.keys(preciosLista).length > 0) {
+      updateExistingProductPrices(selectedListaPrecio);
+    }
+  }, [preciosLista, selectedListaPrecio]);
 
   const fetchClienteById = async (clienteId: string) => {
     try {

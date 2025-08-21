@@ -70,22 +70,13 @@ const CantidadProductoDialog: React.FC<CantidadProductoDialogProps> = ({
       return;
     }
 
-    // Validar stock si está disponible
-    if (producto?.stock !== undefined && numValue > producto.stock) {
-      setError(`Stock insuficiente. Disponible: ${producto.stock}`);
-    } else {
-      setError(null);
-    }
-
+    // Permitir agregar productos sin validar stock
+    setError(null);
     setCantidad(numValue);
   };
 
   const handleIncrement = () => {
     const newCantidad = cantidad + 1;
-    if (producto?.stock !== undefined && newCantidad > producto.stock) {
-      setError(`Stock insuficiente. Disponible: ${producto.stock}`);
-      return;
-    }
     setCantidad(newCantidad);
     setError(null);
   };
@@ -105,11 +96,7 @@ const CantidadProductoDialog: React.FC<CantidadProductoDialogProps> = ({
       return;
     }
 
-    if (producto.stock !== undefined && cantidad > producto.stock) {
-      setError(`Stock insuficiente. Disponible: ${producto.stock}`);
-      return;
-    }
-
+    // Permitir confirmar productos sin validar stock
     onConfirm(producto, cantidad);
     onClose();
   };
@@ -227,9 +214,6 @@ const CantidadProductoDialog: React.FC<CantidadProductoDialogProps> = ({
                 variant="outline"
                 size="sm"
                 onClick={handleIncrement}
-                disabled={
-                  producto.stock !== undefined && cantidad >= producto.stock
-                }
                 className="h-10 w-10 p-0"
               >
                 <Plus className="h-4 w-4" />
