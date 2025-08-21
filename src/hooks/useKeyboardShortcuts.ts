@@ -14,6 +14,7 @@ interface UseKeyboardShortcutsProps {
   handleCancelClick: () => void;
   handlePaymentClick: () => void;
   handleAfipPaymentClick: () => void;
+  handleFacturaClick: () => void;
   getCurrentItems: () => any[];
   calculateTotal: () => number;
   businessInfo: any;
@@ -32,6 +33,7 @@ export const useKeyboardShortcuts = ({
   handleCancelClick,
   handlePaymentClick,
   handleAfipPaymentClick,
+  handleFacturaClick,
   getCurrentItems,
   calculateTotal,
   businessInfo,
@@ -141,6 +143,16 @@ export const useKeyboardShortcuts = ({
             // ✅ Con facturación habilitada, F3 crea una orden normal (sin AFIP)
             handlePaymentClick();
             break;
+          case "F6":
+            e.preventDefault();
+            if (getCurrentItems().length === 0) {
+              toast.error("No hay productos en el carrito", {
+                description: "Agrega al menos un producto antes de crear la factura",
+              });
+              return;
+            }
+            handleFacturaClick();
+            break;
         }
       }
     };
@@ -160,6 +172,7 @@ export const useKeyboardShortcuts = ({
     handleCancelClick,
     handlePaymentClick,
     handleAfipPaymentClick,
+    handleFacturaClick,
     getCurrentItems,
     calculateTotal,
     businessInfo,

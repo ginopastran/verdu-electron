@@ -24,3 +24,5 @@ dist-electron/*
 *.njsproj
 *.sln
 *.sw?
+
+code-reference

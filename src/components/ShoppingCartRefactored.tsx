@@ -77,6 +77,9 @@ import { CancellationDialog } from "./shopping-cart/dialogs/CancellationDialog";
 // Importar el nuevo componente de diálogo de órdenes recientes
 import { RecentOrdersDialog } from "./RecentOrdersDialog";
 
+// Importar el componente de factura
+import FacturaForm from "./facturas/FacturaForm";
+
 // Props para el componente
 interface ShoppingCartRefactoredProps {
   // Removido onCuentaCorrienteClick - ahora se maneja con navegación
@@ -123,6 +126,9 @@ const ShoppingCartRefactored = forwardRef<
 
   // Estados para el diálogo de órdenes recientes
   const [ordersDialogOpen, setOrdersDialogOpen] = useState(false);
+
+  // Estados para el diálogo de factura
+  const [facturaDialogOpen, setFacturaDialogOpen] = useState(false);
 
   // Estados para código de barras
   const [lastInputTime, setLastInputTime] = useState<number>(0);
@@ -356,6 +362,7 @@ const ShoppingCartRefactored = forwardRef<
       !exactPaymentDialogOpen &&
       !cashDialogOpen &&
       !ordersDialogOpen &&
+      !facturaDialogOpen &&
       !deleteScreenDialogOpen &&
       !isAddingToCart
     ) {
@@ -371,6 +378,7 @@ const ShoppingCartRefactored = forwardRef<
     exactPaymentDialogOpen,
     cashDialogOpen,
     ordersDialogOpen,
+    facturaDialogOpen,
     deleteScreenDialogOpen,
     isAddingToCart,
     focusSearchInput,
@@ -550,6 +558,37 @@ const ShoppingCartRefactored = forwardRef<
 
     setAfipPaymentDialogOpen(true);
     setPaymentDialogOpen(false); // Asegurar que el diálogo normal esté cerrado
+  };
+
+  // Handler para mostrar diálogo de factura (F6)
+  const handleFacturaClick = () => {
+    const currentItems = cartState.getCurrentItems();
+    if (currentItems.length === 0) {
+      toast.error("No hay productos en el carrito", {
+        description: "Agrega al menos un producto antes de crear la factura",
+      });
+      return;
+    }
+
+    console.log("📄 Abriendo diálogo de factura (F6) con productos del carrito:", currentItems);
+    setFacturaDialogOpen(true);
+  };
+
+  // Handler para cerrar diálogo de factura
+  const handleFacturaClose = () => {
+    setFacturaDialogOpen(false);
+    // Enfocar el input de búsqueda
+    focusSearchInput("factura cerrada");
+  };
+
+  // Handler para éxito de factura
+  const handleFacturaSuccess = () => {
+    setFacturaDialogOpen(false);
+    // Limpiar el carrito después de crear la factura exitosamente
+    cartState.clearCart();
+    // Enfocar el input de búsqueda
+    focusSearchInput("factura creada exitosamente");
+    toast.success("Factura creada correctamente");
   };
 
   // Handler para seleccionar método de pago AFIP
@@ -1332,6 +1371,7 @@ const ShoppingCartRefactored = forwardRef<
     handleCancelClick,
     handlePaymentClick,
     handleAfipPaymentClick,
+    handleFacturaClick,
     getCurrentItems: cartState.getCurrentItems,
     calculateTotal: cartState.calculateTotal,
     businessInfo,
@@ -2271,6 +2311,20 @@ const ShoppingCartRefactored = forwardRef<
         cartState={cartState}
         businessInfo={businessInfo}
         searchInputRef={searchInputRef}
+      />
+
+      {/* Diálogo de factura */}
+      <FacturaForm
+        isOpen={facturaDialogOpen}
+        onClose={handleFacturaClose}
+        onSuccess={handleFacturaSuccess}
+        productosIniciales={cartState.getCurrentItems().map(item => ({
+          id: item.id,
+          nombre: item.name,
+          precio: item.pricePerUnit,
+          cantidad: item.quantity,
+          subtotal: item.subtotal
+        }))}
       />
 
       <RecentOrdersDialog

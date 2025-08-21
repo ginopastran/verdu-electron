@@ -72,6 +72,16 @@ interface Producto {
   ivaPorcentaje?: number | null;
 }
 
+interface ListaPrecio {
+  id: number;
+  nombre: string;
+  descripcion?: string;
+  activa: boolean;
+  _count: {
+    productos: number;
+  };
+}
+
 interface DetalleFactura {
   id?: number;
   productoId: number;
@@ -90,22 +100,35 @@ interface FormData {
   detalles: DetalleFactura[];
   // 🆕 CAMPOS PARA CUENTA CORRIENTE
   pagoInicial?: number;
-  // 🆕 CAMPO PARA IVA CONFIGURABLE
-  porcentajeIva?: number;
+  // 🗑️ Eliminado: porcentajeIva - el backend calcula automáticamente
+  // 🆕 CAMPO PARA LISTA DE PRECIOS
+  listaPrecioId?: number;
+}
+
+interface ProductoInicial {
+  id: number;
+  nombre: string;
+  precio: number;
+  cantidad: number;
+  subtotal: number;
 }
 
 interface FacturaFormProps {
   factura?: any;
-  mode: "create" | "edit";
+  mode?: "create" | "edit";
   onClose: () => void;
   onSuccess: () => void;
+  isOpen?: boolean;
+  productosIniciales?: ProductoInicial[];
 }
 
 const FacturaForm: React.FC<FacturaFormProps> = ({
   factura,
-  mode,
+  mode = "create",
   onClose,
   onSuccess,
+  isOpen = true,
+  productosIniciales = [],
 }) => {
   const { businessInfo, loading: businessLoading } = useBusinessInfo(
     import.meta.env.VITE_API_URL || "http://localhost:3000",
@@ -118,23 +141,131 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
   const [showCantidadDialog, setShowCantidadDialog] = useState(false);
   const [selectedProductoForCantidad, setSelectedProductoForCantidad] =
     useState<Producto | null>(null);
+  // 🆕 ESTADOS PARA LISTAS DE PRECIOS
+  const [listasPrecios, setListasPrecios] = useState<ListaPrecio[]>([]);
+  const [selectedListaPrecio, setSelectedListaPrecio] =
+    useState<ListaPrecio | null>(null);
+  const [preciosLista, setPreciosLista] = useState<Record<number, number>>({});
+
+  // 🆕 Estado para persistir la lista de precios entre sesiones del diálogo
+  const [persistedListaPrecioId, setPersistedListaPrecioId] = useState<number | undefined>(undefined);
 
   const [formData, setFormData] = useState<FormData>({
     clienteId: factura?.clienteId,
-    tipoFactura: "remito",
+    tipoFactura: factura?.tipoFactura || "remito",
     observaciones: factura?.observaciones || "",
     detalles: factura?.detalles || [],
     // 🆕 CAMPOS PARA CUENTA CORRIENTE
     pagoInicial: factura?.pagoInicial || undefined,
-    // 🆕 CAMPO PARA IVA CONFIGURABLE
-    porcentajeIva: factura?.porcentajeIva || undefined,
+    // 🆕 CAMPO PARA LISTA DE PRECIOS - usar persistedListaPrecioId si no hay factura
+    listaPrecioId: factura?.listaPrecioId || persistedListaPrecioId,
   });
 
   useEffect(() => {
     if (formData.clienteId) {
       fetchClienteById(formData.clienteId);
     }
+    // Cargar listas de precios
+    fetchListasPrecios();
   }, []);
+
+  // 🆕 useEffect para inicializar formData con lista persistida cuando se abre el diálogo
+  useEffect(() => {
+    if (isOpen && mode === "create" && !factura && persistedListaPrecioId) {
+      setFormData(prev => ({
+        ...prev,
+        listaPrecioId: persistedListaPrecioId,
+      }));
+    }
+  }, [isOpen, mode, factura, persistedListaPrecioId]);
+
+  useEffect(() => {
+    // Si hay una lista seleccionada en formData, buscarla en las listas cargadas
+    if (formData.listaPrecioId && listasPrecios.length > 0) {
+      const lista = listasPrecios.find((l) => l.id === formData.listaPrecioId);
+      setSelectedListaPrecio(lista || null);
+    }
+  }, [formData.listaPrecioId, listasPrecios]);
+
+  useEffect(() => {
+    // Cargar precios cuando cambie la lista seleccionada
+    fetchPreciosLista();
+  }, [selectedListaPrecio]);
+
+  // 🆕 NUEVO: Cargar productos iniciales del carrito
+  useEffect(() => {
+    if (isOpen && productosIniciales.length > 0 && mode === "create") {
+      console.log("📄 Cargando productos iniciales del carrito:", productosIniciales);
+      
+      const cargarProductosCompletos = async () => {
+        const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+        const detallesIniciales: DetalleFactura[] = [];
+        
+        for (const productoInicial of productosIniciales) {
+          try {
+            const response = await fetch(`${API_URL}/api/productos/${productoInicial.id}`);
+            if (response.ok) {
+              const productoCompleto = await response.json();
+              
+              // 🔧 Calcular precio correcto considerando la lista de precios
+              let precioFinal = productoInicial.precio;
+              
+              // Si hay una lista de precios seleccionada, intentar obtener el precio de esa lista
+              if (selectedListaPrecio && preciosLista[productoInicial.id]) {
+                precioFinal = preciosLista[productoInicial.id];
+                console.log(`🏷️ Usando precio de lista para producto ${productoInicial.id}: ${precioFinal}`);
+              }
+              
+              detallesIniciales.push({
+                productoId: productoInicial.id,
+                producto: productoCompleto,
+                descripcion: productoCompleto.nombre,
+                cantidad: productoInicial.cantidad,
+                precioUnitario: precioFinal,
+                subtotal: precioFinal * productoInicial.cantidad,
+              });
+            } else {
+              // Fallback si no se puede cargar el producto completo
+              let precioFinal = productoInicial.precio;
+              if (selectedListaPrecio && preciosLista[productoInicial.id]) {
+                precioFinal = preciosLista[productoInicial.id];
+              }
+              
+              detallesIniciales.push({
+                productoId: productoInicial.id,
+                descripcion: productoInicial.nombre,
+                cantidad: productoInicial.cantidad,
+                precioUnitario: precioFinal,
+                subtotal: precioFinal * productoInicial.cantidad,
+              });
+            }
+          } catch (error) {
+            console.log(`Error cargando producto ${productoInicial.id}:`, error);
+            // Fallback si hay error
+            let precioFinal = productoInicial.precio;
+            if (selectedListaPrecio && preciosLista[productoInicial.id]) {
+              precioFinal = preciosLista[productoInicial.id];
+            }
+            
+            detallesIniciales.push({
+              productoId: productoInicial.id,
+              descripcion: productoInicial.nombre,
+              cantidad: productoInicial.cantidad,
+              precioUnitario: precioFinal,
+              subtotal: precioFinal * productoInicial.cantidad,
+            });
+          }
+        }
+        
+        setFormData(prev => ({
+          ...prev,
+          detalles: detallesIniciales,
+        }));
+      };
+      
+      cargarProductosCompletos();
+    }
+  }, [isOpen, productosIniciales, mode, selectedListaPrecio, preciosLista]);
 
   const fetchClienteById = async (clienteId: string) => {
     try {
@@ -149,17 +280,90 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
     }
   };
 
+  const fetchListasPrecios = async () => {
+    try {
+      const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+      const response = await fetch(`${API_URL}/api/listas-precios?activa=true`);
+      if (response.ok) {
+        const data = await response.json();
+        setListasPrecios(data.listasPrecios || []);
+      }
+    } catch (error) {
+      console.error("Error al obtener listas de precios:", error);
+    }
+  };
+
+  const fetchPreciosLista = async () => {
+    if (!selectedListaPrecio) {
+      setPreciosLista({});
+      return;
+    }
+
+    try {
+      const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+      const response = await fetch(
+        `${API_URL}/api/listas-precios/${selectedListaPrecio.id}/productos`
+      );
+      if (response.ok) {
+        const data = await response.json();
+        const preciosMap: Record<number, number> = {};
+        data.forEach((item: any) => {
+          const key =
+            typeof item.productoId === "number" ? item.productoId : item.id;
+          if (typeof key === "number" && typeof item.precio === "number") {
+            preciosMap[key] = item.precio;
+          }
+        });
+        setPreciosLista(preciosMap);
+      }
+    } catch (error) {
+      console.error("Error al cargar precios de lista:", error);
+      setPreciosLista({});
+    }
+  };
+
+  const isProductoEnLista = (productoId: number): boolean => {
+    return !!(selectedListaPrecio && preciosLista[productoId] !== undefined);
+  };
+
   const calculateTotals = () => {
-    const subtotal = formData.detalles.reduce(
-      (sum, detalle) => sum + detalle.subtotal,
-      0
-    );
+    // Función para redondear a 2 decimales
+    const round2 = (num: number) => Math.round(num * 100) / 100;
 
-    // Calcular IVA usando el porcentaje configurado
-    const porcentajeIva = formData.porcentajeIva || 0;
-    const impuestos = subtotal * (porcentajeIva / 100);
+    let subtotalSinIva = 0;
+    let totalIva = 0;
 
-    const total = subtotal + impuestos;
+    formData.detalles.forEach((detalle) => {
+      const producto = detalle.producto;
+      const subtotalDetalle = detalle.subtotal;
+
+      // Determinar el porcentaje de IVA del producto (por defecto 21%)
+      const porcentajeIva = producto?.ivaPorcentaje ?? 21;
+
+      // Verificar si el producto tiene IVA incluido
+      const ivaIncluido =
+        producto?.ivaIncluido || businessInfo?.ivaIncluidoEnPrecios || false;
+
+      if (ivaIncluido) {
+        // Si el precio incluye IVA, extraer la base imponible
+        const factorIva = 1 + porcentajeIva / 100;
+        const baseImponible = round2(subtotalDetalle / factorIva);
+        const ivaDetalle = round2(subtotalDetalle - baseImponible);
+
+        subtotalSinIva += baseImponible;
+        totalIva += ivaDetalle;
+      } else {
+        // Si el precio NO incluye IVA, calcularlo
+        const ivaDetalle = round2(subtotalDetalle * (porcentajeIva / 100));
+
+        subtotalSinIva += subtotalDetalle;
+        totalIva += ivaDetalle;
+      }
+    });
+
+    const subtotal = round2(subtotalSinIva);
+    const impuestos = round2(totalIva);
+    const total = round2(subtotal + impuestos);
 
     return { subtotal, impuestos, total };
   };
@@ -172,6 +376,87 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
     });
   };
 
+  // 🆕 Función para actualizar precios de productos existentes cuando cambia la lista
+  const updateExistingProductPrices = async (
+    newListaPrecio: ListaPrecio | null
+  ) => {
+    if (formData.detalles.length === 0) return;
+
+    const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+    const updatedDetalles = await Promise.all(
+      formData.detalles.map(async (detalle) => {
+        // Obtener el precio base del producto desde la API para asegurar que sea correcto
+        let precioBase = detalle.precioUnitario;
+        try {
+          const productoResponse = await fetch(`${API_URL}/api/productos/${detalle.productoId}`);
+          if (productoResponse.ok) {
+            const productoData = await productoResponse.json();
+            precioBase = productoData.precio;
+          }
+        } catch (error) {
+          console.log(`Error obteniendo precio base del producto ${detalle.productoId}:`, error);
+        }
+
+        let nuevoPrecio = precioBase;
+
+        // Si hay una nueva lista seleccionada, intentar obtener el precio de esa lista
+        if (newListaPrecio) {
+          try {
+            const response = await fetch(
+              `${API_URL}/api/listas-precios/${newListaPrecio.id}/productos/${detalle.productoId}`
+            );
+            if (response.ok) {
+              const data = await response.json();
+              if (data.precio) {
+                nuevoPrecio = data.precio;
+                console.log(
+                  `Producto ${detalle.productoId} encontrado en lista ${newListaPrecio.nombre}: ${nuevoPrecio}`
+                );
+              }
+            }
+          } catch (error) {
+            console.log(
+              `Producto ${detalle.productoId} no encontrado en lista ${newListaPrecio.nombre}, usando precio base: ${precioBase}`
+            );
+            nuevoPrecio = precioBase;
+          }
+        } else {
+          // Si no hay lista seleccionada, usar siempre el precio base del producto
+          nuevoPrecio = precioBase;
+          console.log(
+            `Sin lista seleccionada, usando precio base para producto ${detalle.productoId}: ${nuevoPrecio}`
+          );
+        }
+
+        return {
+          ...detalle,
+          precioUnitario: nuevoPrecio,
+          subtotal: detalle.cantidad * nuevoPrecio,
+        };
+      })
+    );
+
+    setFormData({
+      ...formData,
+      detalles: updatedDetalles,
+      listaPrecioId: newListaPrecio?.id || undefined,
+    });
+  };
+
+  const handleListaPrecioSelect = async (value: string) => {
+    const listaPrecioId = value === "none" ? null : parseInt(value);
+    const lista = listaPrecioId
+      ? listasPrecios.find((l) => l.id === listaPrecioId)
+      : null;
+
+    setSelectedListaPrecio(lista || null);
+    // 🆕 Persistir la selección para futuras sesiones del diálogo
+    setPersistedListaPrecioId(listaPrecioId || undefined);
+
+    // 🆕 Actualizar precios de productos existentes
+    await updateExistingProductPrices(lista || null);
+  };
+
   const handleProductoSelect = (producto: Producto) => {
     // En lugar de agregar directamente, abrir el diálogo de cantidad
     setSelectedProductoForCantidad(producto);
@@ -179,24 +464,24 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
     setShowProductoDialog(false);
   };
 
-  const handleConfirmarCantidad = (producto: Producto, cantidad: number) => {
-    // Calcular precio visual con IVA
-    const precioVisual = businessInfo
-      ? calcularPrecioVisualConIVA(
-          producto.precio,
-          producto.ivaIncluido || false,
-          producto.ivaPorcentaje ?? null,
-          businessInfo.ivaIncluidoEnPrecios || false
-        )
-      : producto.precio;
+  const handleConfirmarCantidad = async (producto: Producto, cantidad: number) => {
+    let precioFinal = producto.precio;
+
+    // 🔧 Usar precios ya cargados en lugar de hacer nueva llamada a la API
+    if (selectedListaPrecio && preciosLista[producto.id] !== undefined) {
+      precioFinal = preciosLista[producto.id];
+      console.log(`🏷️ Usando precio de lista ${selectedListaPrecio.nombre} para ${producto.nombre}: ${precioFinal}`);
+    } else {
+      console.log(`💰 Usando precio base para ${producto.nombre}: ${precioFinal}`);
+    }
 
     const nuevoDetalle: DetalleFactura = {
       productoId: producto.id,
       producto,
       descripcion: producto.nombre,
       cantidad: cantidad,
-      precioUnitario: precioVisual,
-      subtotal: precioVisual * cantidad,
+      precioUnitario: precioFinal,
+      subtotal: precioFinal * cantidad,
     };
 
     setFormData({
@@ -227,20 +512,11 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
     setFormData({ ...formData, detalles: newDetalles });
   };
 
-  // Función para establecer IVA por defecto según tipo de factura
-  const setDefaultIva = (tipoFactura: string) => {
-    let defaultIva = 0;
-
-    if (tipoFactura === "A" || tipoFactura === "C") {
-      defaultIva = 21; // 21% para facturas A y C
-    } else if (tipoFactura === "remito") {
-      defaultIva = 0; // 0% para remitos
-    }
-
+  // Función para establecer tipo de factura
+  const setTipoFactura = (tipoFactura: string) => {
     setFormData({
       ...formData,
       tipoFactura,
-      porcentajeIva: defaultIva,
     });
   };
 
@@ -284,7 +560,7 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
           clienteId: formData.clienteId,
           tipoFactura: formData.tipoFactura,
           observaciones: formData.observaciones,
-          porcentajeIva: formData.porcentajeIva || 0,
+          listaPrecioId: formData.listaPrecioId,
           pagoInicial: formData.pagoInicial || 0,
           esConsumidorFinal: false, // Siempre false porque cliente es obligatorio
           productos: formData.detalles.map((detalle) => ({
@@ -303,7 +579,7 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
           clienteId: formData.clienteId,
           tipoFactura: formData.tipoFactura,
           observaciones: formData.observaciones,
-          porcentajeIva: formData.porcentajeIva || 0,
+          listaPrecioId: formData.listaPrecioId,
           pagoInicial: formData.pagoInicial || 0,
           subtotal,
           impuestos,
@@ -418,7 +694,7 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
         <Label htmlFor="tipoFactura">Tipo de Factura</Label>
         <Select
           value={formData.tipoFactura}
-          onValueChange={(value) => setDefaultIva(value)}
+          onValueChange={(value) => setTipoFactura(value)}
         >
           <SelectTrigger>
             <SelectValue placeholder="Seleccionar tipo" />
@@ -437,7 +713,7 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
 
   return (
     <>
-      <Dialog open={true} onOpenChange={onClose}>
+      <Dialog open={isOpen} onOpenChange={onClose}>
         <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-3 text-emerald-gradient">
@@ -546,41 +822,59 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
 
                 <div className="space-y-4">
                   <div>
-                    <Label htmlFor="porcentajeIva">Porcentaje de IVA (%)</Label>
-                    <Input
-                      id="porcentajeIva"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      max="100"
-                      value={
-                        formData.porcentajeIva !== undefined
-                          ? formData.porcentajeIva.toString()
-                          : ""
-                      }
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          porcentajeIva: e.target.value
-                            ? parseFloat(e.target.value)
-                            : 0,
-                        })
-                      }
-                      placeholder="0"
-                      className="w-full"
-                    />
-                    <p className="text-sm text-muted-foreground">
-                      {formData.tipoFactura === "A" ||
-                      formData.tipoFactura === "C"
-                        ? "Por defecto: 21% para facturas A y C"
-                        : formData.tipoFactura === "remito"
-                        ? "Por defecto: 0% para remitos"
-                        : "Ingrese el porcentaje de IVA"}
+                    <Label htmlFor="listaPrecio">
+                      Lista de Precios (opcional)
+                    </Label>
+                    <Select
+                      value={selectedListaPrecio?.id.toString() || "none"}
+                      onValueChange={handleListaPrecioSelect}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccionar lista de precios" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">
+                          Sin lista específica (precios base)
+                        </SelectItem>
+                        {listasPrecios.map((lista) => (
+                          <SelectItem
+                            key={lista.id}
+                            value={lista.id.toString()}
+                          >
+                            {lista.nombre} ({lista._count.productos} productos)
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {selectedListaPrecio
+                        ? `Usando precios de "${selectedListaPrecio.nombre}". Si un producto no está en esta lista, se usará el precio base.`
+                        : "Se usarán los precios base de los productos."}
                     </p>
                   </div>
                 </div>
               </div>
-            </div>
+
+              {/* Nueva fila: Información sobre cálculo automático de IVA */}
+              <div className="grid grid-cols-1 gap-6">
+                <div className="space-y-4">
+                  <div className="p-4 bg-blue-50 border border-blue-200 rounded-2xl">
+                    <h4 className="font-medium text-blue-800 mb-2">
+                      📊 Cálculo Automático de IVA
+                    </h4>
+                    <div className="text-sm text-blue-700 space-y-1">
+                      <p>
+                        • <strong>IVA automático:</strong> Se calcula según la
+                        configuración de cada producto
+                      </p>
+                      <p>
+                        • <strong>Alícuotas soportadas:</strong> 0%, 10.5%, 21%
+                        y 27%
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
 
             {/* Productos */}
             <div className="space-y-4">
@@ -616,14 +910,22 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
                       {formData.detalles.map((detalle, index) => (
                         <TableRow key={index}>
                           <TableCell>
-                            <div>
-                              <p className="font-medium">
-                                {detalle.producto?.nombre ||
-                                  `Producto ${detalle.productoId}`}
-                              </p>
-                              <p className="text-sm text-muted-foreground">
-                                {detalle.producto?.tipoMedida}
-                              </p>
+                            <div className="space-y-2">
+                              <div>
+                                <p className="font-medium">
+                                  {detalle.producto?.nombre ||
+                                    `Producto ${detalle.productoId}`}
+                                </p>
+                                <p className="text-sm text-muted-foreground">
+                                  {detalle.producto?.tipoMedida}
+                                </p>
+                              </div>
+                              {isProductoEnLista(detalle.productoId) && (
+                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-emerald-gradient text-white shadow-sm gap-1">
+                                  <FileText className="size-4" />{" "}
+                                  {selectedListaPrecio?.nombre}
+                                </span>
+                              )}
                             </div>
                           </TableCell>
                           <TableCell>
@@ -706,7 +1008,7 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
                     </div>
                     {impuestos > 0 && (
                       <div className="flex justify-between">
-                        <span>IVA ({formData.porcentajeIva || 0}%):</span>
+                        <span>IVA:</span>
                         <span>{formatCurrency(impuestos)}</span>
                       </div>
                     )}
@@ -755,6 +1057,7 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
               </Button>
             </div>
           </div>
+        </div>
         </DialogContent>
       </Dialog>
 
@@ -771,6 +1074,8 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
         onClose={() => setShowProductoDialog(false)}
         onSelect={handleProductoSelect}
         excludeProductIds={excludeProductIds}
+        selectedListaPrecio={selectedListaPrecio}
+        preciosLista={preciosLista}
       />
 
       <CantidadProductoDialog

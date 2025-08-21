@@ -144,13 +144,13 @@ export const FacturaList: React.FC<FacturaListProps> = ({
         </div>
 
         {/* Botón Nueva Factura */}
-        <Button
+        {/* <Button
           onClick={onCreateNew}
           className="bg-emerald-gradient text-white hover:text-white "
         >
           <Plus className="w-4 h-4 mr-2" />
           Nueva Factura
-        </Button>
+        </Button> */}
       </div>
 
       {/* Lista de facturas */}

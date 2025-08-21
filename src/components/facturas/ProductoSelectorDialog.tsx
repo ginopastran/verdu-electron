@@ -18,6 +18,7 @@ import {
   ChevronRight,
   AlertCircle,
   Loader2,
+  FileText,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useBusinessInfo } from "@/hooks/useBusinessInfo";
@@ -34,11 +35,20 @@ interface Producto {
   plu?: string | null;
 }
 
+interface ListaPrecio {
+  id: number;
+  nombre: string;
+  descripcion?: string;
+  activa: boolean;
+}
+
 interface ProductoSelectorDialogProps {
   open: boolean;
   onClose: () => void;
   onSelect: (producto: Producto) => void;
   excludeProductIds?: number[];
+  selectedListaPrecio?: ListaPrecio | null;
+  preciosLista?: Record<number, number>;
 }
 
 const ITEMS_PER_PAGE = 6;
@@ -48,6 +58,8 @@ const ProductoSelectorDialog: React.FC<ProductoSelectorDialogProps> = ({
   onClose,
   onSelect,
   excludeProductIds = [],
+  selectedListaPrecio = null,
+  preciosLista = {},
 }) => {
   const [productos, setProductos] = useState<Producto[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -167,6 +179,22 @@ const ProductoSelectorDialog: React.FC<ProductoSelectorDialogProps> = ({
       setCurrentPage(Math.max(1, Math.min(page, totalPages)));
     },
     [totalPages]
+  );
+
+  // 🆕 Función para verificar si un producto está en la lista seleccionada
+  const isProductoEnLista = useCallback(
+    (productoId: number): boolean => {
+      return !!(selectedListaPrecio && preciosLista[productoId] !== undefined);
+    },
+    [selectedListaPrecio, preciosLista]
+  );
+
+  // 🆕 Función para obtener el precio de lista de un producto
+  const getPrecioLista = useCallback(
+    (productoId: number): number | null => {
+      return preciosLista[productoId] || null;
+    },
+    [preciosLista]
   );
 
   // Memoizar el texto de información de resultados
@@ -293,55 +321,91 @@ const ProductoSelectorDialog: React.FC<ProductoSelectorDialogProps> = ({
                 )}
               </div>
             ) : (
-              paginatedData.map((producto) => (
-                <Button
-                  key={producto.id}
-                  variant="outline"
-                  className="w-full justify-between h-auto p-4 cursor-pointer hover:bg-accent transition-colors border-[#A7A7A7]"
-                  onClick={() => handleSelectProducto(producto)}
-                  disabled={loading}
-                >
-                  <div className="text-left flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {producto.plu && (
-                        <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-1 rounded">
-                          PLU: {producto.plu}
+              paginatedData.map((producto) => {
+                const enLista = isProductoEnLista(producto.id);
+                const precioLista = getPrecioLista(producto.id);
+                const sinStock = producto.stock !== undefined && producto.stock <= 0;
+                
+                return (
+                  <Button
+                    key={producto.id}
+                    variant="outline"
+                    className={`w-full justify-between h-auto p-4 cursor-pointer hover:bg-accent transition-colors border-[#A7A7A7] ${
+                      enLista ? 'ring-2 ring-emerald-200 bg-emerald-50/50' : ''
+                    }`}
+                    onClick={() => handleSelectProducto(producto)}
+                    disabled={loading}
+                  >
+                    <div className="text-left flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {producto.plu && (
+                          <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-1 rounded">
+                            PLU: {producto.plu}
+                          </span>
+                        )}
+                        {enLista && (
+                          <span className="bg-gradient-to-r from-emerald-500 to-teal-600 text-white text-xs font-medium px-2 py-1 rounded flex items-center gap-1">
+                            <FileText className="h-3 w-3" />
+                            {selectedListaPrecio?.nombre}
+                          </span>
+                        )}
+                        <p className="font-medium">{producto.nombre}</p>
+                      </div>
+                      <div className="text-sm text-muted-foreground flex flex-wrap gap-2 mt-1">
+                        <span className="bg-muted px-2 py-1 rounded text-xs">
+                          {producto.tipoMedida}
                         </span>
-                      )}
-                      <p className="font-medium">{producto.nombre}</p>
-                    </div>
-                    <div className="text-sm text-muted-foreground flex flex-wrap gap-2 mt-1">
-                      <span className="bg-muted px-2 py-1 rounded text-xs">
-                        {producto.tipoMedida}
-                      </span>
-                      <span className="font-medium text-primary">
-                        {businessInfo
-                          ? formatCurrency(
-                              calcularPrecioVisualConIVA(
-                                producto.precio,
-                                producto.ivaIncluido || false,
-                                producto.ivaPorcentaje ?? null,
-                                businessInfo.ivaIncluidoEnPrecios || false
+                        {/* Mostrar precio de lista si existe, sino precio base */}
+                        <span className="font-medium text-primary">
+                          {businessInfo
+                            ? formatCurrency(
+                                calcularPrecioVisualConIVA(
+                                  precioLista || producto.precio,
+                                  producto.ivaIncluido || false,
+                                  producto.ivaPorcentaje ?? null,
+                                  businessInfo.ivaIncluidoEnPrecios || false
+                                )
                               )
-                            )
-                          : formatCurrency(producto.precio)}
-                      </span>
-                      {producto.stock !== undefined && (
-                        <span
-                          className={`px-2 py-1 rounded text-xs ${
-                            producto.stock > 0
-                              ? "bg-green-100 text-green-700"
-                              : "bg-red-100 text-red-700"
-                          }`}
-                        >
-                          Stock: {producto.stock}
+                            : formatCurrency(precioLista || producto.precio)}
                         </span>
-                      )}
+                        {/* Mostrar precio base tachado si hay precio de lista */}
+                        {precioLista && precioLista !== producto.precio && (
+                          <span className="text-xs text-muted-foreground line-through">
+                            {businessInfo
+                              ? formatCurrency(
+                                  calcularPrecioVisualConIVA(
+                                    producto.precio,
+                                    producto.ivaIncluido || false,
+                                    producto.ivaPorcentaje ?? null,
+                                    businessInfo.ivaIncluidoEnPrecios || false
+                                  )
+                                )
+                              : formatCurrency(producto.precio)}
+                          </span>
+                        )}
+                        {producto.stock !== undefined && (
+                          <span
+                            className={`px-2 py-1 rounded text-xs ${
+                              producto.stock > 0
+                                ? "bg-green-100 text-green-700"
+                                : "bg-red-100 text-red-700"
+                            }`}
+                          >
+                            Stock: {producto.stock}
+                          </span>
+                        )}
+                        {/* 🆕 Indicador de sin stock pero permitido agregar */}
+                        {sinStock && (
+                          <span className="bg-orange-100 text-orange-700 px-2 py-1 rounded text-xs">
+                            Sin stock - Permitido
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                  <Plus className="h-5 w-5 text-muted-foreground ml-4 flex-shrink-0" />
-                </Button>
-              ))
+                    <Plus className="h-5 w-5 text-muted-foreground ml-4 flex-shrink-0" />
+                  </Button>
+                );
+              })
             )}
           </div>
 

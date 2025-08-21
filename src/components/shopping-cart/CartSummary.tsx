@@ -30,8 +30,8 @@ export function CartSummary({ total, onCancel, onCheckout }: CartSummaryProps) {
         </div>
       </div>
       <div className="text-sm text-muted-foreground mt-2">
-        Atajos: ↑↓ para navegar, Enter para seleccionar, F2 para pagar, F1 para
-        cancelar, F4 para cerrar sesión
+        F2 para pagar, F6 para cuenta corriente, F1 para cancelar, F4 para
+        cerrar sesión
       </div>
     </div>
   );
