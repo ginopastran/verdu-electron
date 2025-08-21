@@ -77,17 +77,32 @@ export const useFacturaTicketPrinting = () => {
       // Simular el ticket de factura antes de imprimir
       console.log("\n====== SIMULACIÓN DEL TICKET DE FACTURA ======");
 
-      // Determinar el nombre del business de manera dinámica
-      let businessName = "Verdulería"; // Valor por defecto
-      if (facturaData.businessName && facturaData.businessName.trim() !== "") {
-        businessName = facturaData.businessName;
-        console.log(`✅ Usando nombre del business: ${businessName}`);
-      } else if (facturaData.sucursal && facturaData.sucursal.trim() !== "") {
-        businessName = facturaData.sucursal;
-        console.log(`✅ Usando nombre de sucursal: ${businessName}`);
-      } else {
-        console.log(`⚠️ Usando nombre por defecto: ${businessName}`);
-      }
+      // Determinar el nombre del business con lógica de prioridades robusta
+      let businessName = 
+        // 🆕 PRIORIDAD 1: Información del business obtenida del contexto
+        businessInfo?.nombre ||
+        businessInfo?.name ||
+        businessInfo?.razonSocial ||
+        // PRIORIDAD 2: Datos de la factura
+        facturaData.businessName ||
+        facturaData.sucursal ||
+        // PRIORIDAD 3: Datos del negocio en la factura
+        facturaData.business?.nombre ||
+        facturaData.business?.name ||
+        facturaData.business?.razonSocial ||
+        // FALLBACK
+        "Comercio";
+
+      console.log(`✅ Nombre del negocio determinado: ${businessName}`);
+      console.log(`🔍 DEBUG businessInfo:`, {
+        businessInfo_existe: !!businessInfo,
+        businessInfo_nombre: businessInfo?.nombre,
+        businessInfo_name: businessInfo?.name,
+        businessInfo_razonSocial: businessInfo?.razonSocial,
+        facturaData_businessName: facturaData.businessName,
+        facturaData_sucursal: facturaData.sucursal,
+        resultado_final: businessName
+      });
 
       console.log(businessName.toUpperCase());
       console.log(`Tipo: ${facturaData.tipoFactura || "FACTURA"}`);
@@ -208,6 +223,27 @@ export const useFacturaTicketPrinting = () => {
 
       // FUNCIÓN para llamar al script PHP de impresión de facturas
       const callFacturaPrintScript = async () => {
+        // 🆕 Construir datos mejorados para enviar al printer con businessName correcto
+        const printData = {
+          ...facturaData,
+          // Asegurar que el businessName correcto esté incluido
+          businessName: businessName,
+          // Incluir información adicional del business si está disponible
+          nombre: businessInfo?.nombre || businessName,
+          razonSocial: businessInfo?.razonSocial || businessName,
+          cuit: businessInfo?.cuit || facturaData.cuit,
+          condicionIva: businessInfo?.condicionIva || facturaData.condicionIva,
+          direccion: businessInfo?.direccion || facturaData.direccion,
+          telefono: businessInfo?.telefono || facturaData.telefono
+        };
+
+        console.log(`🔍 DEBUG: Datos enviados al printer:`, {
+          businessName_original: facturaData.businessName,
+          businessName_calculado: businessName,
+          businessName_final: printData.businessName,
+          businessInfo_disponible: !!businessInfo
+        });
+
         // Método 1: Usar window.printer (API específica para impresión de facturas)
         if (
           typeof window !== "undefined" &&
@@ -216,7 +252,7 @@ export const useFacturaTicketPrinting = () => {
           console.log(
             "🖨️ Llamando script PHP de factura via window.printer.printFacturaTicket"
           );
-          return await (window as any).printer.printFacturaTicket(facturaData);
+          return await (window as any).printer.printFacturaTicket(printData);
         }
         // Método 2: Usar window.electron.ipcRenderer (API general)
         else if (
@@ -228,7 +264,7 @@ export const useFacturaTicketPrinting = () => {
           );
           return await (window as any).electron.ipcRenderer.invoke(
             "print-factura-ticket",
-            facturaData
+            printData
           );
         }
         // Si ninguna API está disponible
