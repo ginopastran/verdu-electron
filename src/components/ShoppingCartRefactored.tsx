@@ -599,7 +599,7 @@ const ShoppingCartRefactored = forwardRef<
     cartState.clearCart();
     // Enfocar el input de búsqueda
     focusSearchInput("factura creada exitosamente");
-    toast.success("Factura creada correctamente");
+    // ✅ CORRECCIÓN: No mostrar toast aquí - ya se muestra en FacturaForm
   };
 
   // Handler para seleccionar método de pago AFIP

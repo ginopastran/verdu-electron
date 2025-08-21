@@ -277,18 +277,11 @@ export const useFacturaTicketPrinting = () => {
           const result = await callFacturaPrintScript();
           console.log("📄 Resultado impresión simple de factura:", result);
 
-          if (result?.success) {
-            toast.success("Ticket de factura impreso correctamente");
-          } else if (result?.printerError) {
-            toast.error(
-              `Error de impresión de factura: ${result.printerError}`
-            );
-          } else {
-            toast.error("Error al imprimir el ticket de factura");
-          }
+          // ✅ RETORNAR ESTADO REAL DE IMPRESIÓN (sin toasts - se manejan en FacturaForm)
+          return result?.success === true;
         }
 
-        // Siempre retornar true para no cortar el proceso de facturación
+        // ✅ RETORNAR ESTADO REAL DE IMPRESIÓN
         return true;
       } catch (electronError: any) {
         // Si no se puede acceder a Electron, mostrar error específico
@@ -307,25 +300,13 @@ export const useFacturaTicketPrinting = () => {
           typeof (window as any).electronStore
         );
 
-        toast.error("Error de conexión con la impresora de facturas", {
-          description:
-            "El sistema de impresión no está disponible. Verifica que la aplicación se esté ejecutando correctamente.",
-        });
-        return true;
+        // ✅ RETORNAR FALSE EN CASO DE ERROR DE CONEXIÓN (sin toast - se maneja en FacturaForm)
+        return false;
       }
     } catch (error: any) {
       console.error("❌ Error al imprimir factura:", error);
-      toast.error(
-        `Error al imprimir el ticket de factura: ${
-          error.message || "Desconocido"
-        }`,
-        {
-          description:
-            "La factura se creó correctamente pero no se pudo imprimir el ticket",
-        }
-      );
-      // Retornar true para no cortar el proceso de facturación
-      return true;
+      // ✅ RETORNAR FALSE EN CASO DE ERROR GENERAL (sin toast - se maneja en FacturaForm)
+      return false;
     }
   };
 

@@ -598,6 +598,7 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
           listaPrecioId: formData.listaPrecioId,
           pagoInicial: formData.pagoInicial || 0,
           esConsumidorFinal: false, // Siempre false porque cliente es obligatorio
+          sucursalId: businessInfo?.sucursalId || 1, // Campo obligatorio para AFIP
           productos: formData.detalles.map((detalle) => ({
             productoId: detalle.productoId,
             cantidad: detalle.cantidad,
@@ -654,6 +655,7 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
       const result = await response.json();
       console.log(`✅ [FacturaForm] Respuesta exitosa:`, result);
 
+      // ✅ MOSTRAR TOAST DE ÉXITO DE CREACIÓN DE FACTURA
       if (usarAfip && result.afip) {
         toast.success(
           `Factura AFIP creada correctamente\nCAE: ${result.afip.cae}\nVencimiento: ${result.afip.vencimientoCae}`
@@ -666,8 +668,8 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
         );
       }
 
-      // 🖨️ Imprimir ticket automáticamente para facturas de cuenta corriente
-      if (mode === "create" && formData.tipoFactura !== "remito") {
+      // 🖨️ INTENTAR IMPRIMIR TICKET - SIEMPRE PARA FACTURAS REMITO TAMBIÉN
+      if (mode === "create") {
         try {
           const facturaParaTicket = {
             id: result.factura?.id || result.id,
@@ -687,10 +689,22 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
             `🖨️ [FacturaForm] Imprimiendo ticket para factura:`,
             facturaParaTicket
           );
-          await handleFacturaTicketPrinting(facturaParaTicket);
+          
+          // ✅ MOSTRAR TOAST DE ESTADO DE IMPRESIÓN
+          const printingToastId = toast.loading("Imprimiendo ticket...");
+          
+          const printSuccess = await handleFacturaTicketPrinting(facturaParaTicket);
+          
+          toast.dismiss(printingToastId);
+          
+          if (printSuccess) {
+            toast.success("Ticket impreso correctamente");
+          } else {
+            toast.error("Error al imprimir el ticket");
+          }
         } catch (printError) {
           console.error("Error al imprimir ticket:", printError);
-          // No mostramos error al usuario para no interrumpir el flujo
+          toast.error("Error de conexión con la impresora");
         }
       }
 
