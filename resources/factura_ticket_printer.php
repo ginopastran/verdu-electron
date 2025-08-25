@@ -244,10 +244,16 @@ try {
     $printer->setTextSize(2, 2);
     
     // Determinar el nombre del business de manera dinámica
-    $businessName = "Verdulería"; // Valor por defecto
+    $businessName = "Mi Negocio"; // Valor por defecto
     if (isset($facturaData['businessName']) && !empty($facturaData['businessName'])) {
         $businessName = $facturaData['businessName'];
         file_put_contents('php://stderr', "✅ Usando nombre del business desde facturaData: " . $businessName . "\n");
+    } elseif (isset($facturaData['nombre']) && !empty($facturaData['nombre'])) {
+        $businessName = $facturaData['nombre'];
+        file_put_contents('php://stderr', "✅ Usando nombre del business desde facturaData.nombre: " . $businessName . "\n");
+    } elseif (isset($facturaData['razonSocial']) && !empty($facturaData['razonSocial'])) {
+        $businessName = $facturaData['razonSocial'];
+        file_put_contents('php://stderr', "✅ Usando razón social desde facturaData.razonSocial: " . $businessName . "\n");
     } elseif (isset($facturaData['sucursal']) && !empty($facturaData['sucursal'])) {
         $businessName = $facturaData['sucursal'];
         file_put_contents('php://stderr', "✅ Usando nombre de sucursal: " . $businessName . "\n");
@@ -302,16 +308,6 @@ try {
         // CUIT si está disponible
         if (isset($cliente['cuit']) && !empty($cliente['cuit'])) {
             $printer->text("CUIT: " . $cliente['cuit'] . "\n");
-        }
-        
-        // Condición fiscal
-        if (isset($cliente['condicionFiscal']) && !empty($cliente['condicionFiscal'])) {
-            $printer->text("Cond. Fiscal: " . $cliente['condicionFiscal'] . "\n");
-        }
-        
-        // Dirección si está disponible
-        if (isset($cliente['direccion']) && !empty($cliente['direccion'])) {
-            $printer->text("Dirección: " . $cliente['direccion'] . "\n");
         }
     }
     

@@ -90,8 +90,8 @@ export const useFacturaTicketPrinting = () => {
         facturaData.business?.nombre ||
         facturaData.business?.name ||
         facturaData.business?.razonSocial ||
-        // FALLBACK
-        "Comercio";
+        // FALLBACK - usar un nombre más apropiado
+        "Mi Negocio";
 
       console.log(`✅ Nombre del negocio determinado: ${businessName}`);
       console.log(`🔍 DEBUG businessInfo:`, {
@@ -139,14 +139,6 @@ export const useFacturaTicketPrinting = () => {
 
         if (cliente.cuit) {
           console.log(`CUIT: ${cliente.cuit}`);
-        }
-
-        if (cliente.condicionFiscal) {
-          console.log(`Cond. Fiscal: ${cliente.condicionFiscal}`);
-        }
-
-        if (cliente.direccion) {
-          console.log(`Dirección: ${cliente.direccion}`);
         }
       }
 

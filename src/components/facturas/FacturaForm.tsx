@@ -196,6 +196,27 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
     fetchPreciosLista();
   }, [selectedListaPrecio]);
 
+  // 🆕 NUEVO: Resetear estado del formulario cuando se abra el diálogo
+  useEffect(() => {
+    if (isOpen && mode === "create") {
+      // Resetear completamente el estado del formulario
+      setFormData({
+        clienteId: undefined,
+        tipoFactura: "remito",
+        observaciones: "",
+        detalles: [],
+        pagoInicial: undefined,
+        listaPrecioId: persistedListaPrecioId,
+      });
+      
+      // Resetear otros estados
+      setSelectedCliente(null);
+      setSelectedListaPrecio(null);
+      
+      console.log("🧹 Estado del formulario reseteado para nueva factura");
+    }
+  }, [isOpen, mode, persistedListaPrecioId]);
+
   // 🆕 NUEVO: Cargar productos iniciales del carrito (solo una vez al abrir)
   useEffect(() => {
     if (
@@ -712,7 +733,11 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
           // ✅ MOSTRAR TOAST DE ESTADO DE IMPRESIÓN
           const printingToastId = toast.loading("Imprimiendo ticket...");
           
-          const printSuccess = await handleFacturaTicketPrinting(facturaParaTicket);
+          const printSuccess = await handleFacturaTicketPrinting(
+            facturaParaTicket,
+            API_URL,
+            import.meta.env.VITE_APP_ID || null
+          );
           
           toast.dismiss(printingToastId);
           
