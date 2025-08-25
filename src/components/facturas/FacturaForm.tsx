@@ -215,7 +215,7 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
       
       console.log("🧹 Estado del formulario reseteado para nueva factura");
     }
-  }, [isOpen, mode, persistedListaPrecioId]);
+  }, [isOpen, mode]); // Removido persistedListaPrecioId de las dependencias
 
   // 🆕 NUEVO: Cargar productos iniciales del carrito (solo una vez al abrir)
   useEffect(() => {
@@ -504,11 +504,11 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
       })
     );
 
-    setFormData({
-      ...formData,
+    setFormData((prevFormData) => ({
+      ...prevFormData,
       detalles: updatedDetalles,
       listaPrecioId: newListaPrecio?.id || undefined,
-    });
+    }));
   };
 
   const handleListaPrecioSelect = async (value: string) => {
@@ -523,6 +523,8 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
 
     // 🆕 Actualizar precios de productos existentes
     await updateExistingProductPrices(lista || null);
+    
+    console.log("🏷️ Lista de precios seleccionada:", lista?.nombre, "- Cliente mantenido:", selectedCliente?.nombre);
   };
 
   const handleProductoSelect = (producto: Producto) => {
