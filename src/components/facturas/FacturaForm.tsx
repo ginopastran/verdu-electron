@@ -385,20 +385,9 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
       const subtotalDetalle = detalle.subtotal;
 
       if (esRemito) {
-        // Para remitos, verificar si necesitamos ajustar precios por IVA incluido
-        const ivaIncluido =
-          producto?.ivaIncluido || businessInfo?.ivaIncluidoEnPrecios || false;
-        
-        if (ivaIncluido) {
-          // Si el precio incluye IVA pero es un remito, restar el IVA del subtotal
-          const porcentajeIva = producto?.ivaPorcentaje ?? 21;
-          const factorIva = 1 + porcentajeIva / 100;
-          const baseImponible = round2(subtotalDetalle / factorIva);
-          subtotalSinIva += baseImponible;
-        } else {
-          // Si el precio no incluye IVA, usar el subtotal tal como está
-          subtotalSinIva += subtotalDetalle;
-        }
+        // Para remitos, siempre usar el subtotal tal como está
+        // Los remitos no manejan IVA, independientemente de la configuración
+        subtotalSinIva += subtotalDetalle;
         // No calcular IVA para remitos
       } else {
         // Para facturas normales, calcular IVA como antes
