@@ -37,18 +37,14 @@ export default function AppRouter() {
     return <Navigate to="/admin-login" replace />;
   }
 
-  // Si hay admin configurado y usuario autenticado, redirigir al dashboard
-  if (user) {
-    console.log("🔄 Redirigiendo a /dashboard (usuario autenticado)");
-    return <Navigate to="/dashboard" replace />;
-  }
-
-  // Si hay admin configurado pero no hay usuario, redirigir a UserLogin
-  console.log("🔄 Redirigiendo a /user-login (admin configurado, sin usuario)");
+  // Siempre redirigir al selector de usuarios cuando hay admin configurado
+  // Esto evita problemas de autenticación vencida y mejora la UX
+  console.log("🔄 Redirigiendo a /user-login (admin configurado)");
   console.log("🔍 Configuración válida:", {
     adminData: !!adminData,
     businessId: adminData?.businessId,
     businessName: adminData?.businessName,
+    userWasAuthenticated: !!user,
   });
 
   return <Navigate to="/user-login" replace />;

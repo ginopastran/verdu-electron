@@ -39,20 +39,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // console.log("🔄 AuthContext: Iniciando carga de usuario...");
+    console.log("🔄 AuthContext: Iniciando sin restaurar usuario automáticamente...");
+    
+    // ✅ CAMBIO: No restaurar automáticamente el usuario al iniciar la app
+    // Esto fuerza que siempre se vaya al selector de usuarios
+    // El usuario se autenticará manualmente cada vez que abra la app
+    
     try {
-      // Intentar recuperar el usuario del localStorage al cargar
+      // Limpiar cualquier sesión anterior al iniciar
       const storedUser = localStorage.getItem("user");
       if (storedUser) {
-        // console.log("✅ Usuario encontrado en localStorage");
-        setUser(JSON.parse(storedUser));
-      } else {
-        console.log("ℹ️ No hay usuario en localStorage");
+        console.log("🧹 Limpiando sesión anterior al iniciar la app");
+        localStorage.removeItem("user");
       }
+      
+      // Mantener el usuario como null para forzar re-autenticación
+      setUser(null);
+      console.log("✅ Usuario configurado como null - se requiere nueva autenticación");
     } catch (error) {
-      console.error("❌ Error al cargar usuario:", error);
+      console.error("❌ Error al limpiar sesión anterior:", error);
     } finally {
-      // console.log("✅ AuthContext: Finalizando loading");
+      console.log("✅ AuthContext: Finalizando loading");
       setLoading(false);
     }
 

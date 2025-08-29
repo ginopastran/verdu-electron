@@ -71,6 +71,7 @@ export default function UserLoginPage() {
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null);
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+  const [reconfigureDialogOpen, setReconfigureDialogOpen] = useState(false);
 
   // Initialize form for password input
   const form = useForm<z.infer<typeof passwordFormSchema>>({
@@ -321,10 +322,18 @@ export default function UserLoginPage() {
     }
   };
 
+  // Abrir diálogo de confirmación para reconfigurar
+  const handleReconfigure = () => {
+    setReconfigureDialogOpen(true);
+  };
+
   // ✅ MEJORADO: Handle reconfigure business con navegación robusta
-  const handleReconfigure = async () => {
+  const confirmReconfigure = async () => {
     try {
       console.log("🔄 Iniciando reconfiguración del negocio...");
+
+      // Cerrar el diálogo
+      setReconfigureDialogOpen(false);
 
       // Mostrar feedback visual inmediato
       toast.info("Reconfigurar negocio", {
@@ -514,6 +523,47 @@ export default function UserLoginPage() {
             </DialogContent>
           </Dialog>
         )}
+
+        {/* Reconfigure Confirmation Dialog */}
+        <Dialog
+          open={reconfigureDialogOpen}
+          onOpenChange={setReconfigureDialogOpen}
+        >
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-orange-600 text-xl font-bold flex items-center gap-2">
+                <Settings className="h-5 w-5" />
+                Confirmar Reconfiguración
+              </DialogTitle>
+            </DialogHeader>
+
+            <div className="py-4">
+              <p className="text-gray-700 mb-3">
+                ¿Estás seguro de que deseas reconfigurar el punto de venta?
+              </p>
+              <p className="text-sm text-gray-500">
+                Esta acción limpiará la configuración actual y te redirigirá al login de administrador.
+              </p>
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setReconfigureDialogOpen(false)}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                onClick={confirmReconfigure}
+                className="bg-orange-600 hover:bg-orange-700 text-white"
+              >
+                Sí, Reconfigurar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
