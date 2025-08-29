@@ -263,6 +263,9 @@ try {
         file_put_contents('php://stderr', "⚠️ Usando condición IVA por defecto: " . $condicionIva . "\n");
     }
     
+    // Capitalizar primera letra de condición IVA
+    $condicionIva = ucfirst(strtolower($condicionIva));
+    
     $printer->text("Condición IVA: " . $condicionIva . "\n");
     $printer->text("Dirección: " . ($afipData['direccion'] ?? 'Dirección no configurada') . "\n");
     
@@ -274,19 +277,21 @@ try {
     $printer->setTextSize(1, 2);
     
     // Obtener tipo de factura desde configuracionAfip si está disponible
-    $tipoFactura = 'FACTURA B'; // Valor por defecto
+    $tipoFactura = 'B'; // Valor por defecto solo la letra
     if (isset($afipData['configuracionAfip']) && is_array($afipData['configuracionAfip']) && 
         isset($afipData['configuracionAfip']['tipoFactura']) && !empty($afipData['configuracionAfip']['tipoFactura'])) {
-        $tipoFactura = 'FACTURA ' . strtoupper($afipData['configuracionAfip']['tipoFactura']);
+        $tipoFactura = strtoupper($afipData['configuracionAfip']['tipoFactura']);
         file_put_contents('php://stderr', "✅ Usando tipo de factura desde configuracionAfip: " . $tipoFactura . "\n");
     } elseif (isset($afipData['tipoFactura']) && !empty($afipData['tipoFactura'])) {
-        $tipoFactura = 'FACTURA ' . strtoupper($afipData['tipoFactura']);
+        $tipoFactura = strtoupper($afipData['tipoFactura']);
         file_put_contents('php://stderr', "✅ Usando tipo de factura desde afipData: " . $tipoFactura . "\n");
     } else {
         file_put_contents('php://stderr', "⚠️ Usando tipo de factura por defecto: " . $tipoFactura . "\n");
     }
     
-    $printer->text("$tipoFactura\n");
+    $tipoFacturaCompleto = 'FACTURA ' . $tipoFactura;
+    
+    $printer->text("$tipoFacturaCompleto\n");
     $printer->setEmphasis(false);
     $printer->setTextSize(1, 1);
     $printer->setJustification(Printer::JUSTIFY_LEFT);
