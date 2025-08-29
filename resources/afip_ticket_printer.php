@@ -182,8 +182,40 @@ try {
         file_put_contents('php://stderr', "⚠️ Usando businessName como razón social: " . $razonSocial . "\n");
     }
     
-    // Imprimir el nombre del business en grande arriba (no la razón social)
-    $printer->text(strtoupper($businessName) . "\n");
+    // Imprimir el nombre del business en grande arriba con salto de línea inteligente
+    $businessNameUpper = strtoupper($businessName);
+    $maxCharsPerLine = 16; // Máximo de caracteres por línea para texto grande
+    
+    if (strlen($businessNameUpper) <= $maxCharsPerLine) {
+        // Si cabe en una línea, imprimir normalmente
+        $printer->text($businessNameUpper . "\n");
+    } else {
+        // Si no cabe, dividir por palabras sin cortar
+        $words = explode(' ', $businessNameUpper);
+        $currentLine = '';
+        
+        foreach ($words as $word) {
+            // Si agregar esta palabra excede el límite
+            if (strlen($currentLine . ' ' . $word) > $maxCharsPerLine) {
+                // Imprimir la línea actual si no está vacía
+                if (!empty($currentLine)) {
+                    $printer->text(trim($currentLine) . "\n");
+                    $currentLine = $word;
+                } else {
+                    // Si una sola palabra es muy larga, la imprimimos completa
+                    $printer->text($word . "\n");
+                }
+            } else {
+                // Agregar la palabra a la línea actual
+                $currentLine .= (empty($currentLine) ? '' : ' ') . $word;
+            }
+        }
+        
+        // Imprimir la última línea si no está vacía
+        if (!empty($currentLine)) {
+            $printer->text(trim($currentLine) . "\n");
+        }
+    }
     $printer->setEmphasis(false);
     $printer->setTextSize(1, 1);
 
@@ -196,7 +228,21 @@ try {
         $cuitValue = substr($cuitValue, 0, 2) . '-' . substr($cuitValue, 2, 8) . '-' . substr($cuitValue, 10, 1);
     }
     $printer->text("CUIT: " . $cuitValue . "\n");
-    $printer->text("Condición IVA: " . ($afipData['condicionIva'] ?? 'Responsable Inscripto') . "\n");
+    
+    // Obtener condición IVA desde configuracionAfip si está disponible
+    $condicionIva = 'Responsable Inscripto'; // Valor por defecto
+    if (isset($afipData['configuracionAfip']) && is_array($afipData['configuracionAfip']) && 
+        isset($afipData['configuracionAfip']['condicionIva']) && !empty($afipData['configuracionAfip']['condicionIva'])) {
+        $condicionIva = $afipData['configuracionAfip']['condicionIva'];
+        file_put_contents('php://stderr', "✅ Usando condición IVA desde configuracionAfip: " . $condicionIva . "\n");
+    } elseif (isset($afipData['condicionIva']) && !empty($afipData['condicionIva'])) {
+        $condicionIva = $afipData['condicionIva'];
+        file_put_contents('php://stderr', "✅ Usando condición IVA desde afipData: " . $condicionIva . "\n");
+    } else {
+        file_put_contents('php://stderr', "⚠️ Usando condición IVA por defecto: " . $condicionIva . "\n");
+    }
+    
+    $printer->text("Condición IVA: " . $condicionIva . "\n");
     $printer->text("Dirección: " . ($afipData['direccion'] ?? 'Dirección no configurada') . "\n");
     
     $printer->text("-----------------------------\n");
@@ -205,7 +251,20 @@ try {
     $printer->setJustification(Printer::JUSTIFY_CENTER);
     $printer->setEmphasis(true);
     $printer->setTextSize(1, 2);
-    $tipoFactura = isset($afipData['tipoFactura']) ? strtoupper($afipData['tipoFactura']) : 'FACTURA B';
+    
+    // Obtener tipo de factura desde configuracionAfip si está disponible
+    $tipoFactura = 'FACTURA B'; // Valor por defecto
+    if (isset($afipData['configuracionAfip']) && is_array($afipData['configuracionAfip']) && 
+        isset($afipData['configuracionAfip']['tipoFactura']) && !empty($afipData['configuracionAfip']['tipoFactura'])) {
+        $tipoFactura = 'FACTURA ' . strtoupper($afipData['configuracionAfip']['tipoFactura']);
+        file_put_contents('php://stderr', "✅ Usando tipo de factura desde configuracionAfip: " . $tipoFactura . "\n");
+    } elseif (isset($afipData['tipoFactura']) && !empty($afipData['tipoFactura'])) {
+        $tipoFactura = 'FACTURA ' . strtoupper($afipData['tipoFactura']);
+        file_put_contents('php://stderr', "✅ Usando tipo de factura desde afipData: " . $tipoFactura . "\n");
+    } else {
+        file_put_contents('php://stderr', "⚠️ Usando tipo de factura por defecto: " . $tipoFactura . "\n");
+    }
+    
     $printer->text("$tipoFactura\n");
     $printer->setEmphasis(false);
     $printer->setTextSize(1, 1);
@@ -353,4 +412,4 @@ try {
     file_put_contents('php://stderr', "Error AFIP: " . $e->getMessage() . "\n");
     exit(1);
 }
-?> 
+?>

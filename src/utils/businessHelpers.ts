@@ -112,7 +112,7 @@ export const getBusinessInfo = async (
     console.log("🏢 Obteniendo información del business ID:", businessId);
 
     // Construir URL y headers
-    const url = `${API_URL}/api/business/${businessId}`;
+    const url = `${API_URL}/api/business/${businessId}?include=configuracionAfip`;
     const headers = {
       "Content-Type": "application/json",
       ...(appId && { "X-App-ID": appId }),

@@ -511,6 +511,8 @@ export function useAfipPaymentProcessing({
           "00-00000000-0",
 
         condicionIva:
+          fetchedBusinessInfo?.configuracionAfip?.condicionIva ||
+          businessInfo?.configuracionAfip?.condicionIva ||
           fetchedBusinessInfo?.condicionIva ||
           afipResult.business?.condicionIva ||
           afipResult.condicionIva ||
@@ -518,6 +520,12 @@ export function useAfipPaymentProcessing({
           user.business?.condicionIva ||
           user.condicionIva ||
           "Responsable Inscripto",
+
+        // 🆕 INCLUIR CONFIGURACIÓN AFIP COMPLETA
+        configuracionAfip:
+          fetchedBusinessInfo?.configuracionAfip ||
+          businessInfo?.configuracionAfip ||
+          null,
 
         // 🏢 DIRECCIÓN: Priorizar sucursal activa del businessInfo
         direccion:
