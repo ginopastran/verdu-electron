@@ -276,20 +276,33 @@ try {
     $printer->setEmphasis(true);
     $printer->setTextSize(1, 2);
     
-    // Obtener tipo de factura desde configuracionAfip si está disponible
-    $tipoFactura = 'B'; // Valor por defecto solo la letra
+    // Determinar tipo de factura basado en la condición IVA del negocio
+    $tipoFactura = 'B'; // Valor por defecto
+    
+    // Obtener condición IVA para determinar el tipo de factura
+    $condicionIvaParaTipo = '';
     if (isset($afipData['configuracionAfip']) && is_array($afipData['configuracionAfip']) && 
-        isset($afipData['configuracionAfip']['tipoFactura']) && !empty($afipData['configuracionAfip']['tipoFactura'])) {
-        $tipoFactura = strtoupper($afipData['configuracionAfip']['tipoFactura']);
-        file_put_contents('php://stderr', "✅ Usando tipo de factura desde configuracionAfip: " . $tipoFactura . "\n");
-    } elseif (isset($afipData['tipoFactura']) && !empty($afipData['tipoFactura'])) {
-        $tipoFactura = strtoupper($afipData['tipoFactura']);
-        file_put_contents('php://stderr', "✅ Usando tipo de factura desde afipData: " . $tipoFactura . "\n");
-    } else {
-        file_put_contents('php://stderr', "⚠️ Usando tipo de factura por defecto: " . $tipoFactura . "\n");
+        isset($afipData['configuracionAfip']['condicionIva']) && !empty($afipData['configuracionAfip']['condicionIva'])) {
+        $condicionIvaParaTipo = strtolower($afipData['configuracionAfip']['condicionIva']);
+    } elseif (isset($afipData['condicionIva']) && !empty($afipData['condicionIva'])) {
+        $condicionIvaParaTipo = strtolower($afipData['condicionIva']);
     }
     
-    $tipoFacturaCompleto = 'FACTURA ' . $tipoFactura;
+    // Si la condición IVA es monotributo, usar factura C, sino B
+    if ($condicionIvaParaTipo === 'monotributo') {
+        $tipoFactura = 'C';
+        file_put_contents('php://stderr', "✅ Negocio es Monotributo - Usando FACTURA C\n");
+    } else {
+        $tipoFactura = 'B';
+        file_put_contents('php://stderr', "✅ Negocio no es Monotributo (" . $condicionIvaParaTipo . ") - Usando FACTURA B\n");
+    }
+    
+    // Verificar si el valor ya contiene 'FACTURA' para evitar duplicación
+    if (strpos($tipoFactura, 'FACTURA') !== false) {
+        $tipoFacturaCompleto = $tipoFactura;
+    } else {
+        $tipoFacturaCompleto = 'FACTURA ' . $tipoFactura;
+    }
     
     $printer->text("$tipoFacturaCompleto\n");
     $printer->setEmphasis(false);
@@ -316,9 +329,20 @@ try {
 
     $printer->text("-----------------------------\n");
 
-    // Cliente (siempre Consumidor Final para Factura B)
-    $printer->text("Cliente: Consumidor Final\n");
-    $printer->text("Condición IVA: Consumidor Final\n");
+    // Obtener condición IVA desde configuracionAfip si está disponible
+    $condicionIva = 'Consumidor Final'; // Valor por defecto
+    if (isset($afipData['configuracionAfip']) && is_array($afipData['configuracionAfip']) && 
+        isset($afipData['configuracionAfip']['condicionIva']) && !empty($afipData['configuracionAfip']['condicionIva'])) {
+        $condicionIva = ucfirst(strtolower($afipData['configuracionAfip']['condicionIva']));
+        file_put_contents('php://stderr', "✅ Usando condición IVA desde configuracionAfip: " . $condicionIva . "\n");
+    } elseif (isset($afipData['condicionIva']) && !empty($afipData['condicionIva'])) {
+        $condicionIva = ucfirst(strtolower($afipData['condicionIva']));
+        file_put_contents('php://stderr', "✅ Usando condición IVA desde afipData: " . $condicionIva . "\n");
+    } else {
+        file_put_contents('php://stderr', "⚠️ Usando condición IVA por defecto: " . $condicionIva . "\n");
+    }
+    
+    $printer->text("Condición IVA: " . $condicionIva . "\n");
     
     $printer->text("-----------------------------\n");
 
