@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Card,
   CardContent,
@@ -20,9 +21,51 @@ export default function AdminLogin() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [rememberCredentials, setRememberCredentials] = useState(false);
 
   const navigate = useNavigate();
   const { setAdminData } = useBusiness();
+
+  // Cargar credenciales guardadas al montar el componente
+  useEffect(() => {
+    const loadSavedCredentials = () => {
+      try {
+        const savedEmail = localStorage.getItem('adminEmail');
+        const savedPassword = localStorage.getItem('adminPassword');
+        const savedRemember = localStorage.getItem('rememberAdminCredentials');
+        
+        if (savedEmail && savedPassword && savedRemember === 'true') {
+          setEmail(savedEmail);
+          setPassword(savedPassword);
+          setRememberCredentials(true);
+          console.log('✅ Credenciales completas del admin cargadas desde localStorage');
+        }
+      } catch (error) {
+        console.error('❌ Error al cargar credenciales guardadas:', error);
+      }
+    };
+
+    loadSavedCredentials();
+  }, []);
+
+  // Función para guardar credenciales completas
+  const saveCredentials = (email: string, password: string, remember: boolean) => {
+    try {
+      if (remember) {
+        localStorage.setItem('adminEmail', email);
+        localStorage.setItem('adminPassword', password);
+        localStorage.setItem('rememberAdminCredentials', 'true');
+        console.log('✅ Credenciales completas del admin guardadas');
+      } else {
+        localStorage.removeItem('adminEmail');
+        localStorage.removeItem('adminPassword');
+        localStorage.removeItem('rememberAdminCredentials');
+        console.log('🗑️ Credenciales del admin eliminadas');
+      }
+    } catch (error) {
+      console.error('❌ Error al guardar credenciales:', error);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -128,6 +171,9 @@ export default function AdminLogin() {
 
       await setAdminData(adminData);
 
+      // Guardar credenciales completas si el usuario lo desea
+      saveCredentials(email, password, rememberCredentials);
+
       toast.success("Configuración guardada", {
         description: `Negocio: ${businessName}`,
       });
@@ -180,6 +226,7 @@ export default function AdminLogin() {
                 placeholder="admin@empresa.com"
                 disabled={loading}
                 required
+                autoComplete="username"
               />
             </div>
 
@@ -193,7 +240,23 @@ export default function AdminLogin() {
                 placeholder="••••••••"
                 disabled={loading}
                 required
+                autoComplete="current-password"
               />
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="remember"
+                checked={rememberCredentials}
+                onCheckedChange={(checked) => setRememberCredentials(checked as boolean)}
+                disabled={loading}
+              />
+              <Label
+                htmlFor="remember"
+                className="text-sm font-normal cursor-pointer"
+              >
+                Recordar credenciales para próximas configuraciones
+              </Label>
             </div>
 
             <Button
