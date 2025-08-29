@@ -419,7 +419,11 @@ export function useAfipPaymentProcessing({
           ...(appId && { "X-App-ID": appId }),
         },
         body: JSON.stringify({
-          tipoFactura: "B", // Siempre Factura B para consumidores finales
+          tipoFactura: 
+            // 🆕 OBTENER TIPO DE FACTURA DESDE CONFIGURACIÓN AFIP
+            fetchedBusinessInfo?.configuracionAfip?.tipoFactura ||
+            businessInfo?.configuracionAfip?.tipoFactura ||
+            "C", // Factura C por defecto para consumidores finales
           esConsumidorFinal: true,
           clienteId: null, // null para consumidor final
           productos: orderItems,

@@ -50,7 +50,28 @@ try {
     file_put_contents('php://stderr', "- Total: " . ($afipData['total'] ?? 'N/A') . "\n");
     file_put_contents('php://stderr', "- Tipo Factura: " . ($afipData['tipoFactura'] ?? 'N/A') . "\n");
     file_put_contents('php://stderr', "- Business Name: " . ($afipData['businessName'] ?? 'NO DEFINIDO') . "\n");
+    file_put_contents('php://stderr', "- Condición IVA: " . ($afipData['condicionIva'] ?? 'NO DEFINIDO') . "\n");
     file_put_contents('php://stderr', "- Cantidad de items: " . (isset($afipData['items']) ? count($afipData['items']) : 'N/A') . "\n");
+    
+    // 🆕 DEBUG ESPECÍFICO DE CONFIGURACIÓN AFIP
+    file_put_contents('php://stderr', "\n🔍 DEBUG CONFIGURACIÓN AFIP:\n");
+    if (isset($afipData['configuracionAfip'])) {
+        file_put_contents('php://stderr', "- configuracionAfip existe: SÍ\n");
+        file_put_contents('php://stderr', "- configuracionAfip completa: " . json_encode($afipData['configuracionAfip']) . "\n");
+        if (isset($afipData['configuracionAfip']['condicionIva'])) {
+            file_put_contents('php://stderr', "- configuracionAfip.condicionIva: " . $afipData['configuracionAfip']['condicionIva'] . "\n");
+        } else {
+            file_put_contents('php://stderr', "- configuracionAfip.condicionIva: NO EXISTE\n");
+        }
+        if (isset($afipData['configuracionAfip']['tipoFactura'])) {
+            file_put_contents('php://stderr', "- configuracionAfip.tipoFactura: " . $afipData['configuracionAfip']['tipoFactura'] . "\n");
+        } else {
+            file_put_contents('php://stderr', "- configuracionAfip.tipoFactura: NO EXISTE\n");
+        }
+    } else {
+        file_put_contents('php://stderr', "- configuracionAfip: NO EXISTE\n");
+    }
+    file_put_contents('php://stderr', "\n");
 
     $nombre_impresora = "TP806L";
     file_put_contents('php://stderr', "Conectando a impresora AFIP: " . $nombre_impresora . "\n");
@@ -184,7 +205,7 @@ try {
     
     // Imprimir el nombre del business en grande arriba con salto de línea inteligente
     $businessNameUpper = strtoupper($businessName);
-    $maxCharsPerLine = 16; // Máximo de caracteres por línea para texto grande
+    $maxCharsPerLine = 20; // Máximo de caracteres por línea para texto grande (aumentado)
     
     if (strlen($businessNameUpper) <= $maxCharsPerLine) {
         // Si cabe en una línea, imprimir normalmente
