@@ -1958,7 +1958,7 @@ const ShoppingCartRefactored = forwardRef<
         total={Number(cartState.calculateTotalWithIVA().toFixed(2))}
         onCancel={handleCancelClick}
         onCheckout={
-          businessInfo?.facturacionHabilitada
+          businessInfo?.facturacionHabilitada && businessInfo?.afipHabilitado
             ? handleAfipPaymentClick
             : handlePaymentClick
         }

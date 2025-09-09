@@ -117,8 +117,8 @@ export const useKeyboardShortcuts = ({
               });
               return;
             }
-            // Verificar si la facturación AFIP está habilitada
-            if (businessInfo?.facturacionHabilitada) {
+            // Verificar si tanto la facturación como AFIP están habilitados
+            if (businessInfo?.facturacionHabilitada && businessInfo?.afipHabilitado) {
               handleAfipPaymentClick();
             } else {
               handlePaymentClick();
@@ -126,21 +126,14 @@ export const useKeyboardShortcuts = ({
             break;
           case "F3":
             e.preventDefault();
-            // Verificar si la facturación AFIP está habilitada
-            if (!businessInfo?.facturacionHabilitada) {
-              toast.error("Facturación AFIP no habilitada", {
-                description:
-                  "La facturación AFIP no está habilitada para este negocio",
-              });
-              return;
-            }
             if (getCurrentItems().length === 0) {
               toast.error("No hay productos en el carrito", {
                 description: "Agrega al menos un producto antes de continuar",
               });
               return;
             }
-            // ✅ Con facturación habilitada, F3 crea una orden normal (sin AFIP)
+            // F3 siempre abre el diálogo de pago normal (sin AFIP)
+            // Útil cuando facturacionHabilitada es true pero afipHabilitado es false
             handlePaymentClick();
             break;
           case "F6":

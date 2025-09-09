@@ -36,7 +36,7 @@ export function CartSummary({
         </div>
       </div>
       <div className="text-sm text-muted-foreground mt-2">
-        F2 para pagar{facturacionHabilitada ? ", F6 para cuenta corriente" : ""}
+        F2 para pagar, F3 para orden normal{facturacionHabilitada ? ", F6 para cuenta corriente" : ""}
         , F1 para cancelar, F4 para cerrar sesión
       </div>
     </div>
