@@ -16,6 +16,11 @@ export interface OrderPayloadInput {
   total?: number;
   pagos?: { metodoPago: string; monto: number }[];
   metodoPago?: string;
+  descuento?: {
+    tipo: 'percentage' | 'fixed';
+    valor: number;
+    montoDescuento: number;
+  };
   [key: string]: any;
 }
 
@@ -128,5 +133,6 @@ export function createValidOrderPayload(payload: OrderPayloadInput) {
     items: validItems,
     total: finalTotal,
     pagos,
+    ...(payload.descuento && { descuento: payload.descuento }),
   };
 }

@@ -208,11 +208,11 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
         pagoInicial: undefined,
         listaPrecioId: persistedListaPrecioId,
       });
-      
+
       // Resetear otros estados
       setSelectedCliente(null);
       setSelectedListaPrecio(null);
-      
+
       console.log("🧹 Estado del formulario reseteado para nueva factura");
     }
   }, [isOpen, mode]); // Removido persistedListaPrecioId de las dependencias
@@ -512,8 +512,13 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
 
     // 🆕 Actualizar precios de productos existentes
     await updateExistingProductPrices(lista || null);
-    
-    console.log("🏷️ Lista de precios seleccionada:", lista?.nombre, "- Cliente mantenido:", selectedCliente?.nombre);
+
+    console.log(
+      "🏷️ Lista de precios seleccionada:",
+      lista?.nombre,
+      "- Cliente mantenido:",
+      selectedCliente?.nombre
+    );
   };
 
   const handleProductoSelect = (producto: Producto) => {
@@ -720,18 +725,18 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
             `🖨️ [FacturaForm] Imprimiendo ticket para factura:`,
             facturaParaTicket
           );
-          
+
           // ✅ MOSTRAR TOAST DE ESTADO DE IMPRESIÓN
           const printingToastId = toast.loading("Imprimiendo ticket...");
-          
+
           const printSuccess = await handleFacturaTicketPrinting(
             facturaParaTicket,
             API_URL,
             import.meta.env.VITE_APP_ID || null
           );
-          
+
           toast.dismiss(printingToastId);
-          
+
           if (printSuccess) {
             toast.success("Ticket impreso correctamente");
           } else {

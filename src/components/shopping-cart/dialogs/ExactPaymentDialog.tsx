@@ -18,6 +18,13 @@ interface ExactPaymentDialogProps {
   onConfirm: (paidAmount: number, change: number) => void;
   onCancel?: () => void;
   isLoading?: boolean;
+  // Props para mostrar información de descuento
+  discountData?: {
+    type: "percentage" | "fixed";
+    value: number;
+    amount: number;
+  };
+  subtotal?: number;
 }
 
 export function ExactPaymentDialog({
@@ -27,6 +34,8 @@ export function ExactPaymentDialog({
   onConfirm,
   onCancel,
   isLoading = false,
+  discountData,
+  subtotal,
 }: ExactPaymentDialogProps) {
   const [paidAmount, setPaidAmount] = useState<string>("");
   const [change, setChange] = useState<number>(0);
@@ -39,7 +48,10 @@ export function ExactPaymentDialog({
   useEffect(() => {
     const paid = parseFloat(paidAmount);
     if (!isNaN(paid) && paid > 0) {
-      const calculatedChange = paid - totalAmount;
+      // Usar el total con descuento aplicado para calcular el cambio
+      const finalTotal =
+        discountData && subtotal ? subtotal - discountData.amount : totalAmount;
+      const calculatedChange = paid - finalTotal;
       setChange(calculatedChange);
 
       if (calculatedChange < 0) {
@@ -51,7 +63,7 @@ export function ExactPaymentDialog({
       setChange(0);
       setError("");
     }
-  }, [paidAmount, totalAmount]);
+  }, [paidAmount, totalAmount, discountData, subtotal]);
 
   // Limpiar campos al abrir/cerrar
   useEffect(() => {
@@ -82,7 +94,11 @@ export function ExactPaymentDialog({
       return;
     }
 
-    if (paid < totalAmount) {
+    // Usar el total con descuento aplicado para la validación
+    const finalTotal =
+      discountData && subtotal ? subtotal - discountData.amount : totalAmount;
+
+    if (paid < finalTotal) {
       setError("El monto pagado debe ser mayor o igual al total");
       return;
     }
@@ -117,6 +133,29 @@ export function ExactPaymentDialog({
         </DialogHeader>
 
         <div className="space-y-6 py-4">
+          {/* Información de descuento si está disponible */}
+          {discountData && subtotal && (
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Subtotal:</span>
+                <span className="text-sm">${subtotal.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">
+                  Descuento (
+                  {discountData.type === "percentage"
+                    ? `${discountData.value}%`
+                    : `$${discountData.value}`}
+                  ):
+                </span>
+                <span className="text-sm text-green-600">
+                  -${discountData.amount.toLocaleString()}
+                </span>
+              </div>
+              <hr className="border-gray-200" />
+            </div>
+          )}
+
           {/* Total a pagar */}
           <div className="bg-emerald-50 p-4 rounded-lg border border-emerald-200">
             <div className="flex justify-between items-center">
@@ -124,7 +163,10 @@ export function ExactPaymentDialog({
                 Total a pagar:
               </span>
               <span className="text-2xl font-bold text-emerald-600">
-                ${totalAmount.toLocaleString()}
+                $
+                {discountData && subtotal
+                  ? (subtotal - discountData.amount).toLocaleString()
+                  : totalAmount.toLocaleString()}
               </span>
             </div>
           </div>

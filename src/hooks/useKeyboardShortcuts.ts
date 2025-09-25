@@ -15,6 +15,8 @@ interface UseKeyboardShortcutsProps {
   handlePaymentClick: () => void;
   handleAfipPaymentClick: () => void;
   handleFacturaClick: () => void;
+  handleDiscountPaymentClick: () => void;
+  handleDiscountAfipPaymentClick: () => void;
   getCurrentItems: () => any[];
   calculateTotal: () => number;
   businessInfo: any;
@@ -34,6 +36,8 @@ export const useKeyboardShortcuts = ({
   handlePaymentClick,
   handleAfipPaymentClick,
   handleFacturaClick,
+  handleDiscountPaymentClick,
+  handleDiscountAfipPaymentClick,
   getCurrentItems,
   calculateTotal,
   businessInfo,
@@ -118,7 +122,10 @@ export const useKeyboardShortcuts = ({
               return;
             }
             // Verificar si tanto la facturación como AFIP están habilitados
-            if (businessInfo?.facturacionHabilitada && businessInfo?.afipHabilitado) {
+            if (
+              businessInfo?.facturacionHabilitada &&
+              businessInfo?.afipHabilitado
+            ) {
               handleAfipPaymentClick();
             } else {
               handlePaymentClick();
@@ -154,6 +161,35 @@ export const useKeyboardShortcuts = ({
             }
             handleFacturaClick();
             break;
+          case "F7":
+            e.preventDefault();
+            if (getCurrentItems().length === 0) {
+              toast.error("No hay productos en el carrito", {
+                description: "Agrega al menos un producto antes de continuar",
+              });
+              return;
+            }
+            // F7: Pago con descuento - si tiene AFIP y facturación habilitada, usar AFIP, sino pago normal
+            if (
+              businessInfo?.facturacionHabilitada &&
+              businessInfo?.afipHabilitado
+            ) {
+              handleDiscountAfipPaymentClick();
+            } else {
+              handleDiscountPaymentClick();
+            }
+            break;
+          case "F8":
+            e.preventDefault();
+            if (getCurrentItems().length === 0) {
+              toast.error("No hay productos en el carrito", {
+                description: "Agrega al menos un producto antes de continuar",
+              });
+              return;
+            }
+            // F8: Siempre pago normal con descuento (sin AFIP)
+            handleDiscountPaymentClick();
+            break;
         }
       }
     };
@@ -174,6 +210,8 @@ export const useKeyboardShortcuts = ({
     handlePaymentClick,
     handleAfipPaymentClick,
     handleFacturaClick,
+    handleDiscountPaymentClick,
+    handleDiscountAfipPaymentClick,
     getCurrentItems,
     calculateTotal,
     businessInfo,

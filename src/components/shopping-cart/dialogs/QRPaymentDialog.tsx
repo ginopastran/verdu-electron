@@ -21,6 +21,13 @@ interface QRPaymentDialogProps {
   cartItems?: any[];
   // ✅ NUEVO: Agregar businessInfo para verificar facturación
   businessInfo?: any;
+  // ✅ CRÍTICO: Props para mostrar información de descuento
+  discountData?: {
+    type: "percentage" | "fixed";
+    value: number;
+    amount: number;
+  };
+  subtotal?: number;
   // ✅ DEBUGGING: Info adicional para logging
   debugInfo?: any;
 }
@@ -33,6 +40,8 @@ export const QRPaymentDialog = ({
   isAfipMode = false,
   cartItems = [],
   businessInfo,
+  discountData,
+  subtotal,
   debugInfo,
 }: QRPaymentDialogProps) => {
   // ✅ DEBUG: Verificar estado del flujo AFIP
@@ -183,10 +192,39 @@ export const QRPaymentDialog = ({
                     </div>
                   </div>
                 ) : (
-                  <span>
-                    Monto a pagar: $
-                    {Number(qrData?.monto || 0).toLocaleString()}
-                  </span>
+                  <div className="space-y-2">
+                    {/* ✅ CRÍTICO: Mostrar información de descuento si existe */}
+                    {discountData && (
+                      <div className="space-y-2 text-base">
+                        <div className="flex justify-between">
+                          <span>Subtotal:</span>
+                          <span>${Number(subtotal).toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between text-green-600">
+                          <span>
+                            Descuento (
+                            {discountData.type === "percentage"
+                              ? `${discountData.value}%`
+                              : `$${discountData.value}`}
+                            ):
+                          </span>
+                          <span>-${discountData.amount.toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between font-semibold border-t pt-2 text-lg">
+                          <span>Total:</span>
+                          <span>
+                            ${(subtotal - discountData.amount).toLocaleString()}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                    {!discountData && (
+                      <span className="text-base font-medium">
+                        Monto a pagar: $
+                        {Number(qrData?.monto || 0).toLocaleString()}
+                      </span>
+                    )}
+                  </div>
                 )}
               </div>
 

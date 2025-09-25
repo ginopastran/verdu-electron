@@ -281,7 +281,8 @@ export function usePaymentProcessing({
   const processPayment = async (
     method: string,
     finalTotal: number,
-    items: Product[]
+    items: Product[],
+    discountData?: { type: "percentage" | "fixed"; value: number }
   ) => {
     console.log("🎯 PAYMENT PROCESSOR: processPayment iniciado");
     console.log("🎯 Parámetros:", {
@@ -322,6 +323,12 @@ export function usePaymentProcessing({
       nombre: item.name,
     }));
 
+    // Calcular subtotal original sin descuento
+    const subtotalOriginal = items.reduce(
+      (sum, item) => sum + item.subtotal,
+      0
+    );
+
     const orderData = {
       metodoPago: method,
       total: finalTotal,
@@ -331,6 +338,22 @@ export function usePaymentProcessing({
       vendedor: user.nombre,
       businessName: await getBusinessName(),
       createdAt: new Date().toISOString(),
+      // Campos de descuento según el backend
+      ...(discountData && {
+        tieneDescuento: true,
+        tipoDescuento:
+          discountData.type === "percentage" ? "porcentual" : "cantidad",
+        valorDescuento: discountData.value,
+        subtotalSinDescuento: Number(
+          (discountData.type === "percentage"
+            ? finalTotal / (1 - discountData.value / 100)
+            : finalTotal + discountData.value
+          ).toFixed(2)
+        ),
+      }),
+      ...(!discountData && {
+        tieneDescuento: false,
+      }),
     };
 
     try {
@@ -449,7 +472,8 @@ export function usePaymentProcessing({
   const confirmExactPayment = async (
     paidAmount: number,
     change: number,
-    items: Product[]
+    items: Product[],
+    discountData?: { type: "percentage" | "fixed"; value: number }
   ) => {
     console.log("💰 EXACT PAYMENT: Confirmando pago exacto:", {
       paidAmount,
@@ -461,7 +485,7 @@ export function usePaymentProcessing({
 
     try {
       // Procesar el pago con el monto total original (no el pagado)
-      await processPayment("efectivo", roundedAmount, items);
+      await processPayment("efectivo", roundedAmount, items, discountData);
 
       // Cerrar el diálogo de pago exacto
       setExactPaymentDialogOpen(false);
@@ -557,7 +581,14 @@ export function usePaymentProcessing({
   };
 
   // Función para generar un pago QR
-  const generateQRPayment = async (items: Product[]) => {
+  const generateQRPayment = async (
+    items: Product[],
+    discountData?: {
+      type: "percentage" | "fixed";
+      value: number;
+      amount: number;
+    }
+  ) => {
     if (!user) {
       toast.error("Debes iniciar sesión para realizar una orden");
       return;
@@ -583,7 +614,9 @@ export function usePaymentProcessing({
       }));
 
       const orderData = {
-        monto: Number(calculateTotal().toFixed(2)),
+        monto: discountData
+          ? Number((calculateTotal() - discountData.amount).toFixed(2))
+          : Number(calculateTotal().toFixed(2)),
         descripcion: `Compra de ${orderItems.length} productos`,
         vendedorId: user.id,
         sucursalId: user.sucursalId,
@@ -593,6 +626,22 @@ export function usePaymentProcessing({
         isSplitPayment: false,
         cashAmount: 0,
         afipData: null,
+        // Agregar datos de descuento si están disponibles
+        ...(discountData && {
+          tieneDescuento: true,
+          tipoDescuento:
+            discountData.type === "percentage" ? "porcentual" : "cantidad",
+          valorDescuento: discountData.value,
+          subtotalSinDescuento: Number(
+            (discountData.type === "percentage"
+              ? totalAmount / (1 - discountData.value / 100)
+              : totalAmount + discountData.value
+            ).toFixed(2)
+          ),
+        }),
+        ...(!discountData && {
+          tieneDescuento: false,
+        }),
       };
 
       console.log("📲 Generando QR (F3 - Sin AFIP) con payload:", orderData);
@@ -629,7 +678,7 @@ export function usePaymentProcessing({
         // ✅ CORRECCIÓN: Guardar la información del QR INCLUYENDO los items originales para impresión
         const qrDataWithAmount = {
           ...result,
-          monto: Number(calculateTotal().toFixed(2)),
+          // ✅ MANTENER el monto que viene del backend (ya incluye descuento)
           items: orderItems, // ✅ CRITICAL FIX: Incluir items originales para impresión
         };
         updateQrData(qrDataWithAmount);
@@ -1281,7 +1330,12 @@ export function usePaymentProcessing({
   const processSplitPayment = async (
     items: Product[],
     totalAmount: number,
-    businessInfo?: any
+    businessInfo?: any,
+    discountData?: {
+      type: "percentage" | "fixed";
+      value: number;
+      amount: number;
+    }
   ) => {
     if (!user) {
       toast.error("Debes iniciar sesión para realizar una orden");
@@ -1301,7 +1355,8 @@ export function usePaymentProcessing({
       return;
     }
 
-    // Validar que el monto de efectivo no sea mayor al total
+    // Validar que el monto de efectivo no sea mayor al total con descuento
+    // (totalAmount ya viene con descuento aplicado desde el componente)
     if (cashAmountValue > totalAmount) {
       toast.error("El monto en efectivo no puede ser mayor al total");
       return;
@@ -1326,7 +1381,8 @@ export function usePaymentProcessing({
           cashAmountValue,
           secondAmount,
           items,
-          businessInfo
+          businessInfo,
+          discountData
         );
         return;
       }
@@ -1341,9 +1397,12 @@ export function usePaymentProcessing({
         nombre: item.name,
       }));
 
+      // Calcular el total con descuento aplicado (ya viene calculado desde el componente)
+      const totalWithDiscount = totalAmount;
+
       // Crear la estructura de pagos múltiples siguiendo el formato API
       const orderData = {
-        total: Number(totalAmount.toFixed(2)),
+        total: Number(totalWithDiscount.toFixed(2)),
         items: orderItems,
         vendedorId: user.id,
         sucursalId: user.sucursalId,
@@ -1361,6 +1420,20 @@ export function usePaymentProcessing({
             monto: secondAmount,
           },
         ],
+        // Agregar datos de descuento si están disponibles
+        ...(discountData && {
+          tieneDescuento: true,
+          tipoDescuento:
+            discountData.type === "percentage" ? "porcentual" : "cantidad",
+          valorDescuento: discountData.value,
+          montoDescuento: discountData.amount,
+          // CORREGIDO: Usar calculateTotal() para obtener el subtotal original sin descuento
+          // En lugar de sumar discountData.amount a totalAmount (que ya tiene descuento aplicado)
+          subtotalSinDescuento: Number(calculateTotal().toFixed(2)),
+        }),
+        ...(!discountData && {
+          tieneDescuento: false,
+        }),
       };
 
       // ✅ ANTI-DUPLICADOS: Crear orden con verificación de duplicados
@@ -1434,7 +1507,12 @@ export function usePaymentProcessing({
     cashAmountValue: number,
     qrAmount: number,
     items: Product[],
-    businessInfo?: any
+    businessInfo?: any,
+    discountData?: {
+      type: "percentage" | "fixed";
+      value: number;
+      amount: number;
+    }
   ) => {
     if (!user) {
       toast.error("Debes iniciar sesión para realizar una orden");
@@ -1495,6 +1573,22 @@ export function usePaymentProcessing({
             monto: qrAmount,
           },
         ],
+        // Agregar datos de descuento si están disponibles
+        ...(discountData && {
+          tieneDescuento: true,
+          tipoDescuento:
+            discountData.type === "percentage" ? "porcentual" : "cantidad",
+          valorDescuento: discountData.value,
+          subtotalSinDescuento: Number(
+            (discountData.type === "percentage"
+              ? (cashAmountValue + qrAmount) / (1 - discountData.value / 100)
+              : cashAmountValue + qrAmount + discountData.value
+            ).toFixed(2)
+          ),
+        }),
+        ...(!discountData && {
+          tieneDescuento: false,
+        }),
       };
 
       try {
@@ -1576,11 +1670,13 @@ export function usePaymentProcessing({
         costo: Number(item.costo),
       }));
 
-      // ✅ CORRECCIÓN: Enviar el monto TOTAL de la venta (no solo el monto del QR)
-      const totalAmount = cashAmountValue + qrAmount;
+      // ✅ CORRECCIÓN: Calcular el monto total considerando el descuento
+      const totalWithDiscount = discountData
+        ? cashAmountValue + qrAmount - discountData.amount
+        : cashAmountValue + qrAmount;
 
       const orderData = {
-        monto: totalAmount, // ✅ CORRECTO: Monto TOTAL de la venta
+        monto: totalWithDiscount, // ✅ CORRECTO: Monto TOTAL con descuento aplicado
         descripcion: `Pago mixto: QR $${qrAmount.toFixed(
           2
         )} + Efectivo $${cashAmountValue.toFixed(2)}`,
@@ -1592,6 +1688,22 @@ export function usePaymentProcessing({
         isSplitPayment: true,
         cashAmount: cashAmountValue,
         afipData: null,
+        // Agregar datos de descuento si están disponibles
+        ...(discountData && {
+          tieneDescuento: true,
+          tipoDescuento:
+            discountData.type === "percentage" ? "porcentual" : "cantidad",
+          valorDescuento: discountData.value,
+          subtotalSinDescuento: Number(
+            (discountData.type === "percentage"
+              ? totalWithDiscount / (1 - discountData.value / 100)
+              : totalWithDiscount + discountData.value
+            ).toFixed(2)
+          ),
+        }),
+        ...(!discountData && {
+          tieneDescuento: false,
+        }),
       };
 
       console.log(
@@ -1599,12 +1711,14 @@ export function usePaymentProcessing({
         orderData
       );
       console.log(
-        "💰 CORRECCIÓN APLICADA: Enviando monto total =",
-        totalAmount,
+        "💰 CORRECCIÓN APLICADA: Enviando monto total con descuento =",
+        totalWithDiscount,
         "Efectivo =",
         cashAmountValue,
         "QR calculado =",
-        qrAmount
+        qrAmount,
+        "Descuento =",
+        discountData?.amount || 0
       );
 
       // Mostrar cargando

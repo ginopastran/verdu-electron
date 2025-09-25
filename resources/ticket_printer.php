@@ -69,6 +69,23 @@ try {
     }
     file_put_contents('php://stderr', "- Método de pago: " . ($orderData['metodoPago'] ?? 'N/A') . "\n");
     file_put_contents('php://stderr', "- Pagos múltiples: " . (isset($orderData['pagos']) ? 'SÍ (' . count($orderData['pagos']) . ')' : 'NO') . "\n");
+    
+    // Debug de descuentos
+    file_put_contents('php://stderr', "🔍 DEBUG DESCUENTOS:\n");
+    if (isset($orderData['discountData'])) {
+        file_put_contents('php://stderr', "- discountData existe: SÍ\n");
+        file_put_contents('php://stderr', "- discountData completa: " . json_encode($orderData['discountData']) . "\n");
+    } else {
+        file_put_contents('php://stderr', "- discountData: NO EXISTE\n");
+    }
+    if (isset($orderData['subtotal']) && isset($orderData['total'])) {
+        $descuentoCalculado = $orderData['subtotal'] - $orderData['total'];
+        file_put_contents('php://stderr', "- Descuento calculado (subtotal - total): -$" . number_format($descuentoCalculado, 2) . "\n");
+    }
+    if (isset($orderData['descuentoAplicado'])) {
+        file_put_contents('php://stderr', "- descuentoAplicado: " . json_encode($orderData['descuentoAplicado']) . "\n");
+    }
+    file_put_contents('php://stderr', "\n");
 
     $nombre_impresora = "TP806L";
     file_put_contents('php://stderr', "Conectando a impresora: " . $nombre_impresora . "\n");
@@ -356,6 +373,69 @@ try {
 
     // Total
     $printer->text("-----------------------------\n");
+    
+    // Mostrar subtotal y descuentos si existen
+    $hasDiscount = false;
+    $subtotalOriginal = 0;
+    $descuentoMonto = 0;
+    $tipoDescuento = '';
+    $valorDescuento = 0;
+    
+    // Verificar si hay información de descuentos
+    if (isset($orderData['discountData']) && is_array($orderData['discountData'])) {
+        $discountData = $orderData['discountData'];
+        if (isset($discountData['amount']) && $discountData['amount'] > 0) {
+            $hasDiscount = true;
+            $descuentoMonto = $discountData['amount'];
+            $tipoDescuento = $discountData['type'] ?? 'fixed';
+            $valorDescuento = $discountData['value'] ?? 0;
+            
+            // ✅ CORRECCIÓN CRÍTICA: Usar el subtotal que viene del frontend
+            // El frontend ya calcula correctamente el subtotal original antes del descuento
+            if (isset($orderData['subtotal']) && $orderData['subtotal'] > 0) {
+                $subtotalOriginal = $orderData['subtotal'];
+            } else {
+                // Fallback: calcular sumando total + descuento solo si no viene subtotal
+                $subtotalOriginal = $orderData['total'] + $descuentoMonto;
+            }
+            
+            // Debug para verificar cálculos
+            file_put_contents('php://stderr', "🔍 DESCUENTO DEBUG:\n");
+            file_put_contents('php://stderr', "- Subtotal original (del frontend): $" . number_format($subtotalOriginal, 2) . "\n");
+            file_put_contents('php://stderr', "- Descuento aplicado: -$" . number_format($descuentoMonto, 2) . "\n");
+            file_put_contents('php://stderr', "- Total final: $" . number_format($orderData['total'], 2) . "\n");
+            file_put_contents('php://stderr', "- Tipo descuento: " . $tipoDescuento . "\n");
+            file_put_contents('php://stderr', "- Valor descuento: " . $valorDescuento . "\n");
+            file_put_contents('php://stderr', "- Verificación: $" . number_format($subtotalOriginal, 2) . " - $" . number_format($descuentoMonto, 2) . " = $" . number_format($subtotalOriginal - $descuentoMonto, 2) . "\n");
+        }
+    } elseif (isset($orderData['subtotal']) && isset($orderData['total']) && $orderData['subtotal'] > $orderData['total']) {
+        // Calcular descuento basado en subtotal y total (fallback)
+        $hasDiscount = true;
+        $subtotalOriginal = $orderData['subtotal'];
+        $descuentoMonto = $subtotalOriginal - $orderData['total'];
+        
+        file_put_contents('php://stderr', "🔍 DESCUENTO FALLBACK:\n");
+        file_put_contents('php://stderr', "- Subtotal original: $" . number_format($subtotalOriginal, 2) . "\n");
+        file_put_contents('php://stderr', "- Descuento calculado: -$" . number_format($descuentoMonto, 2) . "\n");
+    }
+    
+    // Mostrar desglose si hay descuento
+    if ($hasDiscount) {
+        $printer->text("Subtotal: $" . number_format($subtotalOriginal, 2) . "\n");
+        
+        // Mostrar información del descuento
+        if (!empty($tipoDescuento) && $valorDescuento > 0) {
+            if ($tipoDescuento === 'percentage') {
+                $printer->text("Descuento (" . number_format($valorDescuento, 1) . "%): -$" . number_format($descuentoMonto, 2) . "\n");
+            } else {
+                $printer->text("Descuento: -$" . number_format($descuentoMonto, 2) . "\n");
+            }
+        } else {
+            $printer->text("Descuento aplicado: -$" . number_format($descuentoMonto, 2) . "\n");
+        }
+        $printer->text("-----------------------------\n");
+    }
+    
     $printer->setEmphasis(true);
     $printer->text(str_pad("TOTAL: $" . number_format($orderData['total'], 2), 32, " ", STR_PAD_LEFT) . "\n");
     $printer->setEmphasis(false);
@@ -397,4 +477,4 @@ try {
     file_put_contents('php://stderr', "Error: " . $e->getMessage() . "\n");
     exit(1);
 }
-?> 
+?>

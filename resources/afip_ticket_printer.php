@@ -73,6 +73,23 @@ try {
     }
     file_put_contents('php://stderr', "\n");
 
+    // Debug de descuentos AFIP
+    file_put_contents('php://stderr', "🔍 DEBUG DESCUENTOS AFIP:\n");
+    if (isset($afipData['discountData'])) {
+        file_put_contents('php://stderr', "- discountData existe: SÍ\n");
+        file_put_contents('php://stderr', "- discountData completa: " . json_encode($afipData['discountData']) . "\n");
+    } else {
+        file_put_contents('php://stderr', "- discountData: NO EXISTE\n");
+    }
+    if (isset($afipData['subtotal']) && isset($afipData['total'])) {
+        $descuentoCalculado = $afipData['subtotal'] - $afipData['total'];
+        file_put_contents('php://stderr', "- Descuento calculado (subtotal - total): -$" . number_format($descuentoCalculado, 2) . "\n");
+    }
+    if (isset($afipData['descuentoAplicado'])) {
+        file_put_contents('php://stderr', "- descuentoAplicado: " . json_encode($afipData['descuentoAplicado']) . "\n");
+    }
+    file_put_contents('php://stderr', "\n");
+
     $nombre_impresora = "TP806L";
     file_put_contents('php://stderr', "Conectando a impresora AFIP: " . $nombre_impresora . "\n");
     
@@ -382,6 +399,68 @@ try {
     }
 
     $printer->text("-----------------------------\n");
+    
+    // Mostrar subtotal y descuentos si existen
+    $hasDiscount = false;
+    $subtotalOriginal = 0;
+    $descuentoMonto = 0;
+    $tipoDescuento = '';
+    $valorDescuento = 0;
+    
+    // Verificar si hay información de descuentos
+    if (isset($afipData['discountData']) && is_array($afipData['discountData'])) {
+        $discountData = $afipData['discountData'];
+        if (isset($discountData['amount']) && $discountData['amount'] > 0) {
+            $hasDiscount = true;
+            $descuentoMonto = $discountData['amount'];
+            $tipoDescuento = $discountData['type'] ?? 'fixed';
+            $valorDescuento = $discountData['value'] ?? 0;
+            
+            // ✅ CORRECCIÓN CRÍTICA: Usar el subtotal que viene del frontend
+            // El frontend ya calcula correctamente el subtotal original antes del descuento
+            if (isset($afipData['subtotal']) && $afipData['subtotal'] > 0) {
+                $subtotalOriginal = $afipData['subtotal'];
+            } else {
+                // Fallback: calcular sumando total + descuento solo si no viene subtotal
+                $subtotalOriginal = $afipData['total'] + $descuentoMonto;
+            }
+            
+            // Debug para verificar cálculos AFIP
+            file_put_contents('php://stderr', "🔍 DESCUENTO AFIP DEBUG:\n");
+            file_put_contents('php://stderr', "- Subtotal original (del frontend): $" . number_format($subtotalOriginal, 2) . "\n");
+            file_put_contents('php://stderr', "- Descuento aplicado: -$" . number_format($descuentoMonto, 2) . "\n");
+            file_put_contents('php://stderr', "- Total final AFIP: $" . number_format($afipData['total'], 2) . "\n");
+            file_put_contents('php://stderr', "- Tipo descuento: " . $tipoDescuento . "\n");
+            file_put_contents('php://stderr', "- Valor descuento: " . $valorDescuento . "\n");
+            file_put_contents('php://stderr', "- Verificación AFIP: $" . number_format($subtotalOriginal, 2) . " - $" . number_format($descuentoMonto, 2) . " = $" . number_format($subtotalOriginal - $descuentoMonto, 2) . "\n");
+        }
+    } elseif (isset($afipData['subtotal']) && isset($afipData['total']) && $afipData['subtotal'] > $afipData['total']) {
+        // Calcular descuento basado en subtotal y total (fallback)
+        $hasDiscount = true;
+        $subtotalOriginal = $afipData['subtotal'];
+        $descuentoMonto = $subtotalOriginal - $afipData['total'];
+        
+        file_put_contents('php://stderr', "🔍 DESCUENTO AFIP FALLBACK:\n");
+        file_put_contents('php://stderr', "- Subtotal original: $" . number_format($subtotalOriginal, 2) . "\n");
+        file_put_contents('php://stderr', "- Descuento calculado: -$" . number_format($descuentoMonto, 2) . "\n");
+    }
+    
+    // Mostrar desglose si hay descuento
+    if ($hasDiscount) {
+        $printer->text("Subtotal original: $" . number_format($subtotalOriginal, 2) . "\n");
+        
+        // Mostrar información del descuento
+        if (!empty($tipoDescuento) && $valorDescuento > 0) {
+            if ($tipoDescuento === 'percentage') {
+                $printer->text("Descuento (" . number_format($valorDescuento, 1) . "%): -$" . number_format($descuentoMonto, 2) . "\n");
+            } else {
+                $printer->text("Descuento: -$" . number_format($descuentoMonto, 2) . "\n");
+            }
+        } else {
+            $printer->text("Descuento aplicado: -$" . number_format($descuentoMonto, 2) . "\n");
+        }
+        $printer->text("-----------------------------\n");
+    }
     
     // Discriminación de IVA para Factura B
     $printer->text("Subtotal: $" . number_format($subtotalNeto, 2) . "\n");

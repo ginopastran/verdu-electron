@@ -18,6 +18,11 @@ interface SplitPaymentDialogProps {
   cartState: any;
   businessInfo: any;
   searchInputRef: RefObject<HTMLInputElement | null>;
+  discountData?: {
+    type: "percentage" | "fixed";
+    value: number;
+    amount: number;
+  };
 }
 
 export const SplitPaymentDialog = ({
@@ -27,6 +32,7 @@ export const SplitPaymentDialog = ({
   cartState,
   businessInfo,
   searchInputRef,
+  discountData,
 }: SplitPaymentDialogProps) => {
   return (
     <Dialog
@@ -48,12 +54,16 @@ export const SplitPaymentDialog = ({
 
             // Verificar si el botón debería estar habilitado
             const cashAmountValue = parseFloat(paymentProcessor.cashAmount);
+            const totalWithDiscount = discountData
+              ? cartState.calculateTotal() - discountData.amount
+              : cartState.calculateTotal();
+
             const isButtonEnabled = !(
               paymentProcessor.isProcessingPayment ||
               !paymentProcessor.cashAmount ||
               isNaN(cashAmountValue) ||
               cashAmountValue <= 0 ||
-              cashAmountValue >= cartState.calculateTotal()
+              cashAmountValue >= totalWithDiscount
             );
 
             // Solo disparar la acción si el botón estaría habilitado
@@ -61,10 +71,14 @@ export const SplitPaymentDialog = ({
               console.log(
                 "⌨️ TECLADO: Enter detectado en diálogo de pago mixto"
               );
+              const totalWithDiscount = discountData
+                ? cartState.calculateTotal() - discountData.amount
+                : cartState.calculateTotal();
               paymentProcessor.processSplitPayment(
                 cartState.getCurrentItems(),
-                cartState.calculateTotal(),
-                businessInfo
+                totalWithDiscount,
+                businessInfo,
+                discountData
               );
             }
           }
@@ -79,10 +93,33 @@ export const SplitPaymentDialog = ({
         </DialogHeader>
 
         <div className="space-y-6 py-4">
+          {/* Mostrar información del descuento si existe */}
+          {discountData && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-sm font-medium text-green-800">
+                  Descuento (
+                  {discountData.type === "percentage"
+                    ? `${discountData.value}%`
+                    : `$${discountData.value}`}
+                  )
+                </span>
+                <span className="text-sm font-bold text-green-800">
+                  -${discountData.amount.toLocaleString()}
+                </span>
+              </div>
+            </div>
+          )}
+
           <div className="text-center">
             <div className="text-lg text-muted-foreground">Total a pagar</div>
             <div className="text-3xl font-bold text-emerald-600 mt-1">
-              ${cartState.calculateTotal().toLocaleString()}
+              $
+              {discountData
+                ? (
+                    cartState.calculateTotal() - discountData.amount
+                  ).toLocaleString()
+                : cartState.calculateTotal().toLocaleString()}
             </div>
           </div>
 
@@ -103,7 +140,13 @@ export const SplitPaymentDialog = ({
                   className="w-40 text-right"
                   step="0.01"
                   min="0"
-                  max={cartState.calculateTotal().toString()}
+                  max={
+                    discountData
+                      ? (
+                          cartState.calculateTotal() - discountData.amount
+                        ).toString()
+                      : cartState.calculateTotal().toString()
+                  }
                   disabled={paymentProcessor.isProcessingPayment}
                   autoFocus
                 />
@@ -170,16 +213,22 @@ export const SplitPaymentDialog = ({
               </div>
               <div className="text-xl font-semibold text-emerald-600">
                 $
-                {!paymentProcessor.cashAmount ||
-                isNaN(parseFloat(paymentProcessor.cashAmount))
-                  ? cartState.calculateTotalWithIVA().toLocaleString()
-                  : (
-                      cartState.calculateTotalWithIVA() -
-                      Math.min(
-                        parseFloat(paymentProcessor.cashAmount),
-                        cartState.calculateTotalWithIVA()
-                      )
-                    ).toLocaleString()}
+                {(() => {
+                  const totalWithDiscount = discountData
+                    ? cartState.calculateTotal() - discountData.amount
+                    : cartState.calculateTotal();
+
+                  return !paymentProcessor.cashAmount ||
+                    isNaN(parseFloat(paymentProcessor.cashAmount))
+                    ? totalWithDiscount.toLocaleString()
+                    : (
+                        totalWithDiscount -
+                        Math.min(
+                          parseFloat(paymentProcessor.cashAmount),
+                          totalWithDiscount
+                        )
+                      ).toLocaleString();
+                })()}
               </div>
             </div>
           </div>
@@ -197,20 +246,26 @@ export const SplitPaymentDialog = ({
             Cancelar
           </Button>
           <Button
-            onClick={() =>
+            onClick={() => {
+              const totalWithDiscount = discountData
+                ? cartState.calculateTotal() - discountData.amount
+                : cartState.calculateTotal();
               paymentProcessor.processSplitPayment(
                 cartState.getCurrentItems(),
-                cartState.calculateTotal(),
-                businessInfo
-              )
-            }
+                totalWithDiscount,
+                businessInfo,
+                discountData
+              );
+            }}
             disabled={
               paymentProcessor.isProcessingPayment ||
               !paymentProcessor.cashAmount ||
               isNaN(parseFloat(paymentProcessor.cashAmount)) ||
               parseFloat(paymentProcessor.cashAmount) <= 0 ||
               parseFloat(paymentProcessor.cashAmount) >=
-                cartState.calculateTotal()
+                (discountData
+                  ? cartState.calculateTotal() - discountData.amount
+                  : cartState.calculateTotal())
             }
             className="bg-emerald-gradient"
           >

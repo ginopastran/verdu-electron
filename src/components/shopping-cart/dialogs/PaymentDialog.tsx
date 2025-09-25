@@ -15,6 +15,12 @@ interface PaymentDialogProps {
   isProcessingPayment: boolean;
   selectedPaymentMethod: string | null;
   isAfipMode?: boolean;
+  discountData?: {
+    type: "percentage" | "fixed";
+    value: number;
+    amount: number;
+  } | null;
+  subtotal?: number;
 }
 
 export function PaymentDialog({
@@ -24,6 +30,8 @@ export function PaymentDialog({
   isProcessingPayment,
   selectedPaymentMethod,
   isAfipMode = false,
+  discountData = null,
+  subtotal = 0,
 }: PaymentDialogProps) {
   // console.log("🎯 PaymentDialog render:", {
   //   isOpen,
@@ -54,6 +62,36 @@ export function PaymentDialog({
               : "Presiona el número correspondiente al método de pago o haz clic en el botón"}
           </DialogDescription>
         </DialogHeader>
+
+        {/* Mostrar información del descuento si existe */}
+        {discountData && (
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+            <div className="flex justify-between items-center">
+              <div>
+                <h4 className="font-semibold text-green-800">
+                  Descuento Aplicado
+                </h4>
+                <p className="text-sm text-green-600">
+                  {discountData.type === "percentage"
+                    ? `${discountData.value}% de descuento`
+                    : `$${discountData.value.toFixed(2)} de descuento`}
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-sm text-gray-600">
+                  Subtotal: ${subtotal.toFixed(2)}
+                </p>
+                <p className="text-sm text-green-600 font-semibold">
+                  Descuento: -${discountData.amount.toFixed(2)}
+                </p>
+                <p className="font-bold text-green-800">
+                  Total: ${(subtotal - discountData.amount).toFixed(2)}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-2 gap-4">
           <Button
             onClick={() => onSelectPayment("qr")}

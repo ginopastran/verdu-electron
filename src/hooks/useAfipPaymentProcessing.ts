@@ -206,7 +206,15 @@ export function useAfipPaymentProcessing({
   };
 
   // Función para manejar efectivo AFIP (igual que el hook normal)
-  const handleAfipCashPayment = (businessInfo: any, withDiscount = false) => {
+  const handleAfipCashPayment = (
+    businessInfo: any, 
+    withDiscount = false,
+    discountData?: {
+      type: "percentage" | "fixed";
+      value: number;
+      amount: number;
+    }
+  ) => {
     console.log(
       "🛒 AFIP EFECTIVO: Iniciando proceso de pago en efectivo AFIP",
       withDiscount ? "con descuento" : ""
@@ -229,12 +237,26 @@ export function useAfipPaymentProcessing({
     console.log("💰 AFIP: Total original calculado:", originalTotal);
 
     // Aplicar descuento si es necesario
-    if (withDiscount && businessInfo?.descuentoEfectivo) {
+    if (discountData) {
+      // Usar discountData pasado como parámetro
+      if (discountData.type === "percentage") {
+        const discountAmount = (originalTotal * discountData.value) / 100;
+        finalTotal = originalTotal - discountAmount;
+      } else {
+        finalTotal = originalTotal - discountData.amount;
+      }
+      console.log("💰 AFIP DESCUENTO: Usando discountData pasado:", {
+        originalTotal,
+        discountData,
+        finalTotal,
+      });
+    } else if (withDiscount && businessInfo?.descuentoEfectivo) {
+      // Usar descuento automático del negocio
       const discountPercentage = Number(businessInfo.descuentoEfectivo);
       const discountAmount = (originalTotal * discountPercentage) / 100;
       finalTotal = originalTotal - discountAmount;
 
-      console.log("💰 AFIP DESCUENTO: Cálculos:", {
+      console.log("💰 AFIP DESCUENTO: Cálculos automáticos:", {
         originalTotal,
         discountPercentage,
         discountAmount,
@@ -291,12 +313,19 @@ export function useAfipPaymentProcessing({
   const confirmAfipExactPayment = async (
     paidAmount: number,
     change: number,
-    items: Product[]
+    items: Product[],
+    discountData?: {
+      type: "percentage" | "fixed";
+      value: number;
+      amount: number;
+    }
   ) => {
     console.log("💰 AFIP EXACT PAYMENT: Confirmando pago exacto", {
       paidAmount,
       change,
       totalAmount: roundedAmount,
+      applyingDiscount,
+      discountData,
     });
 
     if (!user) {
@@ -307,8 +336,20 @@ export function useAfipPaymentProcessing({
     try {
       setIsProcessingPayment(true);
 
-      // Procesar la factura AFIP con el monto exacto
-      await processAfipPayment("efectivo", items, roundedAmount);
+      // Usar discountData pasado como parámetro o preparar datos de descuento si se está aplicando
+      let finalDiscountData = discountData;
+      if (!finalDiscountData && applyingDiscount && businessInfo?.descuentoEfectivo) {
+        const discountPercentage = Number(businessInfo.descuentoEfectivo);
+        finalDiscountData = {
+          type: "percentage" as const,
+          value: discountPercentage,
+          amount: 0, // Se calculará en processAfipPayment
+        };
+        console.log("💰 AFIP EXACT PAYMENT: Aplicando descuento automático", finalDiscountData);
+      }
+
+      // Procesar la factura AFIP con el monto exacto y datos de descuento
+      await processAfipPayment("efectivo", items, roundedAmount, finalDiscountData);
 
       // Los estados se limpian en processAfipPayment
       console.log("✅ AFIP EXACT PAYMENT: Pago procesado exitosamente");
@@ -347,7 +388,12 @@ export function useAfipPaymentProcessing({
   const processAfipPayment = async (
     method: string,
     items: Product[],
-    totalAmount?: number
+    totalAmount?: number,
+    discountData?: { 
+      type: "percentage" | "fixed"; 
+      value: number; 
+      amount: number;
+    } | null
   ) => {
     console.log("🔥🔥🔥 PROCESS AFIP PAYMENT: INICIANDO");
     console.log("🔥🔥🔥 STACK TRACE:", new Error().stack);
@@ -419,7 +465,7 @@ export function useAfipPaymentProcessing({
           ...(appId && { "X-App-ID": appId }),
         },
         body: JSON.stringify({
-          tipoFactura: 
+          tipoFactura:
             // 🆕 OBTENER TIPO DE FACTURA DESDE CONFIGURACIÓN AFIP
             fetchedBusinessInfo?.configuracionAfip?.tipoFactura ||
             businessInfo?.configuracionAfip?.tipoFactura ||
@@ -431,6 +477,19 @@ export function useAfipPaymentProcessing({
           vendedorId: user.id,
           sucursalId: user.sucursalId,
           observaciones: "Factura generada desde Electron",
+          // Incluir datos de descuento según el backend
+          ...(discountData && {
+            tieneDescuento: true,
+            tipoDescuento:
+              discountData.type === "percentage" ? "porcentual" : "cantidad",
+            valorDescuento: discountData.value,
+            // ✅ CORRECCIÓN: El subtotalSinDescuento debe ser el total original (antes del descuento)
+            // finalTotal ya es el total CON descuento, por lo que el total original es calculateTotal()
+            subtotalSinDescuento: Number(calculateTotal().toFixed(2)),
+          }),
+          ...(!discountData && {
+            tieneDescuento: false,
+          }),
         }),
       });
 
@@ -861,7 +920,8 @@ export function useAfipPaymentProcessing({
   const processSplitPayment = async (
     items: Product[],
     totalAmount: number,
-    businessInfo?: any
+    businessInfo?: any,
+    discountData?: { type: "percentage" | "fixed"; value: number; amount: number }
   ) => {
     console.log("🧾 SPLIT PAYMENT: Iniciando processSplitPayment");
     console.log("🧾 SPLIT PAYMENT: cashAmount:", cashAmount);
@@ -887,7 +947,7 @@ export function useAfipPaymentProcessing({
       );
       console.log("🔍 CRÍTICO: Debería SOLO generar QR, NO crear factura");
       const qrAmount = totalAmount - cashAmountValue;
-      await generateAfipSplitQRPayment(cashAmountValue, qrAmount, items);
+      await generateAfipSplitQRPayment(cashAmountValue, qrAmount, items, discountData);
     } else {
       // Flujo para tarjeta de crédito/débito
       console.log(
@@ -900,7 +960,14 @@ export function useAfipPaymentProcessing({
   };
 
   // 🆕 NUEVA FUNCIÓN: Manejar QR con AFIP (generar QR primero, factura después)
-  const handleAfipQrPayment = async (items: Product[]) => {
+  const handleAfipQrPayment = async (
+    items: Product[],
+    discountData?: {
+      type: "percentage" | "fixed";
+      value: number;
+      amount: number;
+    }
+  ) => {
     console.log("🔥🔥🔥 HANDLE AFIP QR PAYMENT: INICIANDO");
     console.log("🔥🔥🔥 STACK TRACE:", new Error().stack);
     console.log("🔥🔥🔥 items count:", items.length);
@@ -919,9 +986,12 @@ export function useAfipPaymentProcessing({
       }));
 
       const total = calculateTotal();
+      const totalWithDiscount = discountData 
+        ? total - discountData.amount 
+        : total;
 
       const orderData = {
-        monto: Number(total.toFixed(2)),
+        monto: Number(totalWithDiscount.toFixed(2)),
         descripcion: `Compra de ${orderItems.length} productos con Factura AFIP`,
         vendedorId: user.id,
         sucursalId: user.sucursalId,
@@ -931,6 +1001,15 @@ export function useAfipPaymentProcessing({
         cashAmount: 0,
         // TODO: Implementar la captura de datos del cliente para facturas que no son a Consumidor Final
         afipData: null,
+        // Agregar datos de descuento si están disponibles
+        ...(discountData && {
+          descuento: {
+            tipoDescuento:
+              discountData.type === "percentage" ? "porcentual" : "cantidad",
+            valorDescuento: discountData.value,
+            montoDescuento: discountData.amount,
+          },
+        }),
       };
 
       console.log("🔥🔥🔥 HANDLE AFIP QR - PAYLOAD COMPLETO:");
@@ -1026,7 +1105,8 @@ export function useAfipPaymentProcessing({
   const generateAfipSplitQRPayment = async (
     cashAmountValue: number,
     qrAmount: number,
-    items: Product[]
+    items: Product[],
+    discountData?: { type: "percentage" | "fixed"; value: number; amount: number }
   ) => {
     console.log("🔥🔥🔥 GENERATE AFIP SPLIT QR: INICIANDO");
     console.log("🔥🔥🔥 STACK TRACE:", new Error().stack);
@@ -1056,9 +1136,12 @@ export function useAfipPaymentProcessing({
       }));
 
       const totalAmount = cashAmountValue + qrAmount;
+      const totalWithDiscount = discountData 
+        ? totalAmount - discountData.amount 
+        : totalAmount;
 
       const orderData = {
-        monto: Number(totalAmount.toFixed(2)),
+        monto: Number(totalWithDiscount.toFixed(2)),
         descripcion: `Pago mixto AFIP: QR $${qrAmount.toFixed(
           2
         )} + Efectivo $${cashAmountValue.toFixed(2)}`,
@@ -1070,6 +1153,13 @@ export function useAfipPaymentProcessing({
         isSplitPayment: true,
         cashAmount: cashAmountValue,
         afipData: null, // Consumidor final
+        ...(discountData && {
+          descuento: {
+            tipoDescuento: discountData.type === "percentage" ? "porcentual" : "cantidad",
+            valorDescuento: discountData.value,
+            montoDescuento: discountData.amount,
+          },
+        }),
       };
 
       console.log("🔥🔥🔥 PAYLOAD COMPLETO A ENVIAR:");
@@ -1392,6 +1482,11 @@ export function useAfipPaymentProcessing({
           setQrDialogOpen(false);
         }
 
+        // ✅ CRÍTICO: Cerrar también el diálogo de pago mixto si está abierto
+        if (setSplitPaymentDialogOpen) {
+          setSplitPaymentDialogOpen(false);
+        }
+
         // ✅ CRÍTICO: Limpiar carrito y estados SOLO después de que todo esté completo
         setTimeout(() => {
           clearCart();
@@ -1410,6 +1505,14 @@ export function useAfipPaymentProcessing({
 
         // ✅ CRÍTICO: Mostrar toast de pago completado aunque no haya factura
         toast.success("¡Pago QR completado! Verificando factura AFIP...");
+
+        // ✅ CRÍTICO: Cerrar diálogos aunque no haya factura AFIP
+        if (setQrDialogOpen) {
+          setQrDialogOpen(false);
+        }
+        if (setSplitPaymentDialogOpen) {
+          setSplitPaymentDialogOpen(false);
+        }
 
         // ✅ MEJORA: Solo intentar una vez más si no fue pago manual
         if (!isManualPasswordSubmitting) {
@@ -1430,6 +1533,9 @@ export function useAfipPaymentProcessing({
 
       if (setQrDialogOpen) {
         setQrDialogOpen(false);
+      }
+      if (setSplitPaymentDialogOpen) {
+        setSplitPaymentDialogOpen(false);
       }
       resetPaymentState();
     } else {

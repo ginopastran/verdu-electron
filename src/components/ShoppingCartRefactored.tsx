@@ -73,6 +73,7 @@ import {
 import { CashPaymentDialog, CancelDialog } from "./shopping-cart/dialogs";
 import { ExactPaymentDialog } from "./shopping-cart/dialogs/ExactPaymentDialog";
 import { CancellationDialog } from "./shopping-cart/dialogs/CancellationDialog";
+import { DiscountDialog } from "./shopping-cart/DiscountDialog";
 
 // Importar el nuevo componente de diálogo de órdenes recientes
 import { RecentOrdersDialog } from "./RecentOrdersDialog";
@@ -129,6 +130,22 @@ const ShoppingCartRefactored = forwardRef<
 
   // Estados para el diálogo de factura
   const [facturaDialogOpen, setFacturaDialogOpen] = useState(false);
+
+  // Estados para el diálogo de descuento
+  const [discountDialogOpen, setDiscountDialogOpen] = useState(false);
+  const [pendingDiscountAction, setPendingDiscountAction] = useState<
+    "payment" | "afip" | "auto" | null
+  >(null);
+  const [discountData, setDiscountData] = useState<
+    | {
+        type: "percentage" | "fixed";
+        value: number;
+        amount: number;
+      }
+    | undefined
+  >(undefined);
+
+  // Estado eliminado: paymentMethodDialogOpen - ahora usamos PaymentDialog directamente
 
   // Estados para código de barras
   const [lastInputTime, setLastInputTime] = useState<number>(0);
@@ -531,6 +548,9 @@ const ShoppingCartRefactored = forwardRef<
     // ✅ MARCAR: Flujo normal (F3 - Sin AFIP)
     setIsCurrentlyAfipFlow(false);
 
+    // Resetear descuento al cambiar a diálogo de pago normal
+    setDiscountData(undefined);
+
     setPaymentDialogOpen(true);
     setAfipPaymentDialogOpen(false); // Asegurar que el diálogo AFIP esté cerrado
   };
@@ -555,6 +575,9 @@ const ShoppingCartRefactored = forwardRef<
 
     // ✅ MARCAR: Flujo AFIP (F2 - Con AFIP)
     setIsCurrentlyAfipFlow(true);
+
+    // Resetear descuento al cambiar a diálogo de pago AFIP
+    setDiscountData(undefined);
 
     setAfipPaymentDialogOpen(true);
     setPaymentDialogOpen(false); // Asegurar que el diálogo normal esté cerrado
@@ -602,6 +625,98 @@ const ShoppingCartRefactored = forwardRef<
     // ✅ CORRECCIÓN: No mostrar toast aquí - ya se muestra en FacturaForm
   };
 
+  // Handler para mostrar diálogo de pago con descuento (F7)
+  const handleDiscountPaymentClick = () => {
+    const currentItems = cartState.getCurrentItems();
+    if (currentItems.length === 0) {
+      toast.error("No hay productos en el carrito", {
+        description: "Agrega al menos un producto antes de continuar",
+      });
+      return;
+    }
+
+    console.log(
+      "💰🏷️ handleDiscountPaymentClick - Artículos en carrito (F7 - Sin AFIP con descuento):",
+      currentItems
+    );
+
+    // Configurar la acción pendiente y abrir el diálogo de descuento
+    setPendingDiscountAction("payment");
+    setDiscountDialogOpen(true);
+  };
+
+  // Handler para mostrar diálogo de pago AFIP con descuento (F8)
+  const handleDiscountAfipPaymentClick = () => {
+    const currentItems = cartState.getCurrentItems();
+    if (currentItems.length === 0) {
+      toast.error("No hay productos en el carrito", {
+        description: "Agrega al menos un producto antes de continuar",
+      });
+      return;
+    }
+
+    console.log(
+      "🧾🏷️ Abriendo diálogo de pago AFIP con descuento (F8 - Con AFIP con descuento)"
+    );
+
+    // Configurar la acción pendiente y abrir el diálogo de descuento
+    setPendingDiscountAction("afip");
+    setDiscountDialogOpen(true);
+  };
+
+  // Handler para confirmar descuento y proceder con el pago
+  const handleDiscountConfirm = (discountDialogData: {
+    tieneDescuento: boolean;
+    tipoDescuento: "porcentual" | "cantidad";
+    valorDescuento: number;
+    subtotalSinDescuento: number;
+    montoDescuento: number;
+  }) => {
+    // Mapear el tipo de DiscountDialog al tipo esperado por las funciones de pago
+    const mappedDiscountData = {
+      type:
+        discountDialogData.tipoDescuento === "porcentual"
+          ? ("percentage" as const)
+          : ("fixed" as const),
+      value: discountDialogData.valorDescuento,
+      amount: discountDialogData.montoDescuento,
+    };
+
+    setDiscountData(mappedDiscountData);
+    setDiscountDialogOpen(false);
+
+    // Determinar si usar AFIP basado en la acción pendiente y configuración del negocio
+    const shouldUseAfip =
+      pendingDiscountAction === "afip" ||
+      (pendingDiscountAction === "auto" && businessInfo?.afipEnabled);
+
+    if (shouldUseAfip) {
+      // ✅ MARCAR: Flujo AFIP (F7 con AFIP habilitado o F8)
+      setIsCurrentlyAfipFlow(true);
+      setAfipPaymentDialogOpen(true);
+      setPaymentDialogOpen(false);
+    } else {
+      // ✅ MARCAR: Flujo normal (F7 sin AFIP o F8 sin AFIP)
+      setIsCurrentlyAfipFlow(false);
+      setPaymentDialogOpen(true);
+      setAfipPaymentDialogOpen(false);
+    }
+
+    // Limpiar la acción pendiente
+    setPendingDiscountAction(null);
+  };
+
+  // Handler para cancelar descuento
+  const handleDiscountCancel = () => {
+    setDiscountDialogOpen(false);
+    setPendingDiscountAction(null);
+    setDiscountData(undefined);
+    // Enfocar el input de búsqueda
+    focusSearchInput("descuento cancelado");
+  };
+
+  // Función eliminada: handlePaymentMethodSelect - ahora usamos PaymentDialog directamente
+
   // Handler para seleccionar método de pago AFIP
   const handleAfipPayment = async (method: string) => {
     if (paymentLockRef.current) return;
@@ -616,7 +731,7 @@ const ShoppingCartRefactored = forwardRef<
           toast.error("Información de negocio no disponible");
           return;
         }
-        afipPaymentProcessor.handleAfipCashPayment(businessInfo);
+        afipPaymentProcessor.handleAfipCashPayment(businessInfo, false, discountData);
         setAfipPaymentDialogOpen(false);
         paymentLockRef.current = false;
         return;
@@ -639,7 +754,9 @@ const ShoppingCartRefactored = forwardRef<
           // Procesar como transferencia directa + factura AFIP
           await afipPaymentProcessor.processAfipPayment(
             "qr", // Método QR pero sin MercadoPago
-            cartState.getCurrentItems()
+            cartState.getCurrentItems(),
+            undefined,
+            discountData
           );
 
           setAfipPaymentDialogOpen(false);
@@ -650,7 +767,8 @@ const ShoppingCartRefactored = forwardRef<
         // Si MP está habilitado, generar QR de MercadoPago + AFIP
         console.log("🧾📱 AFIP: MP habilitado - generando QR de MercadoPago");
         const qrData = await afipPaymentProcessor.handleAfipQrPayment(
-          cartState.getCurrentItems()
+          cartState.getCurrentItems(),
+          discountData
         );
 
         if (qrData) {
@@ -700,7 +818,9 @@ const ShoppingCartRefactored = forwardRef<
       // Para otros métodos (tarjeta), procesar directamente
       await afipPaymentProcessor.processAfipPayment(
         method,
-        cartState.getCurrentItems()
+        cartState.getCurrentItems(),
+        undefined,
+        discountData
       );
 
       // Los estados se limpian en el hook afipPaymentProcessor
@@ -910,7 +1030,10 @@ const ShoppingCartRefactored = forwardRef<
       }
 
       // Si MP está habilitado, generar el QR
-      paymentProcessor.generateQRPayment(cartState.getCurrentItems());
+      paymentProcessor.generateQRPayment(
+        cartState.getCurrentItems(),
+        discountData
+      );
       // No cerramos inmediatamente el diálogo: permanecerá mostrando spinner
       // El diálogo se cerrará automáticamente cuando se abra el diálogo QR
       return;
@@ -921,7 +1044,8 @@ const ShoppingCartRefactored = forwardRef<
       await paymentProcessor.processPayment(
         method,
         Number(cartState.calculateTotalWithIVA().toFixed(2)),
-        cartState.getCurrentItems()
+        cartState.getCurrentItems(),
+        discountData
       );
       // ✅ MEJORADO: Estados se limpian en processPayment, pero asegurar limpieza local
       setIsProcessingPayment(false);
@@ -990,7 +1114,8 @@ const ShoppingCartRefactored = forwardRef<
       await paymentProcessor.processPayment(
         "efectivo",
         paymentProcessor.roundedAmount,
-        cartState.getCurrentItems()
+        cartState.getCurrentItems(),
+        discountData
       );
       console.log("🔄 processPayment llamado exitosamente");
 
@@ -1382,6 +1507,8 @@ const ShoppingCartRefactored = forwardRef<
     handleCancelClick,
     handlePaymentClick,
     handleAfipPaymentClick,
+    handleDiscountPaymentClick,
+    handleDiscountAfipPaymentClick,
     handleFacturaClick,
     getCurrentItems: cartState.getCurrentItems,
     calculateTotal: cartState.calculateTotal,
@@ -1981,6 +2108,42 @@ const ShoppingCartRefactored = forwardRef<
       />
 
       <PaymentDialog
+        isOpen={afipPaymentDialogOpen}
+        onClose={() => {
+          console.log(
+            "🚪 REFACTORED: Cerrando AFIP PaymentDialog - reseteando estados"
+          );
+          console.log("🚪 AFIP Estados ANTES de cerrar:", {
+            afipIsProcessing: afipPaymentProcessor.isProcessingPayment,
+            afipSelectedMethod: afipPaymentProcessor.selectedPaymentMethod,
+          });
+
+          setAfipPaymentDialogOpen(false);
+          afipPaymentProcessor.resetPaymentState();
+          // NO tocar los estados locales del flujo normal
+
+          console.log("🚪 AFIP Estados DESPUÉS de cerrar: reseteados");
+          focusSearchInput("cerrado AFIP payment dialog");
+        }}
+        onSelectPayment={handleAfipPayment}
+        isProcessingPayment={afipPaymentProcessor.isProcessingPayment}
+        selectedPaymentMethod={afipPaymentProcessor.selectedPaymentMethod}
+        isAfipMode={true}
+        discountData={discountData}
+        subtotal={cartState.calculateTotal()}
+      />
+
+      {/* Diálogo de descuento */}
+      <DiscountDialog
+        open={discountDialogOpen}
+        onOpenChange={setDiscountDialogOpen}
+        subtotal={cartState.calculateTotal()}
+        onConfirm={handleDiscountConfirm}
+        onCancel={handleDiscountCancel}
+      />
+
+      {/* Diálogo de pago normal con descuento */}
+      <PaymentDialog
         isOpen={paymentDialogOpen}
         onClose={() => {
           console.log(
@@ -2010,30 +2173,9 @@ const ShoppingCartRefactored = forwardRef<
         onSelectPayment={handlePayment}
         isProcessingPayment={isProcessingPayment}
         selectedPaymentMethod={selectedPaymentMethod}
-      />
-
-      <PaymentDialog
-        isOpen={afipPaymentDialogOpen}
-        onClose={() => {
-          console.log(
-            "🚪 REFACTORED: Cerrando AFIP PaymentDialog - reseteando estados"
-          );
-          console.log("🚪 AFIP Estados ANTES de cerrar:", {
-            afipIsProcessing: afipPaymentProcessor.isProcessingPayment,
-            afipSelectedMethod: afipPaymentProcessor.selectedPaymentMethod,
-          });
-
-          setAfipPaymentDialogOpen(false);
-          afipPaymentProcessor.resetPaymentState();
-          // NO tocar los estados locales del flujo normal
-
-          console.log("🚪 AFIP Estados DESPUÉS de cerrar: reseteados");
-          focusSearchInput("cerrado AFIP payment dialog");
-        }}
-        onSelectPayment={handleAfipPayment}
-        isProcessingPayment={afipPaymentProcessor.isProcessingPayment}
-        selectedPaymentMethod={afipPaymentProcessor.selectedPaymentMethod}
-        isAfipMode={true}
+        isAfipMode={false}
+        discountData={discountData}
+        subtotal={cartState.calculateTotal()}
       />
 
       {/* Diálogo de efectivo para AFIP */}
@@ -2059,16 +2201,31 @@ const ShoppingCartRefactored = forwardRef<
           if (!businessInfo) return;
           afipPaymentProcessor.setRoundedAmountDialogOpen(false);
           setTimeout(() => {
-            afipPaymentProcessor.handleAfipCashPayment(businessInfo, true);
+            afipPaymentProcessor.handleAfipCashPayment(businessInfo, true, discountData);
           }, 100);
         }}
         onConfirm={async () => {
           console.log("💰 AFIP: Confirmando pago redondeado");
           try {
+            // Preparar datos de descuento en el formato correcto para processAfipPayment
+            let afipDiscountData = null;
+            if (afipPaymentProcessor.applyingDiscount && discountData) {
+              afipDiscountData = {
+                type: discountData.type,
+                value: discountData.value,
+                amount: discountData.amount, // ✅ AGREGADO: incluir amount
+              };
+              console.log(
+                "💰 AFIP: Aplicando descuento en pago redondeado",
+                afipDiscountData
+              );
+            }
+
             await afipPaymentProcessor.processAfipPayment(
               "efectivo",
               cartState.getCurrentItems(),
-              afipPaymentProcessor.roundedAmount
+              afipPaymentProcessor.roundedAmount,
+              afipDiscountData
             );
             console.log("✅ AFIP: Pago redondeado procesado exitosamente");
           } catch (error) {
@@ -2099,6 +2256,9 @@ const ShoppingCartRefactored = forwardRef<
         }}
         totalAmount={afipPaymentProcessor.roundedAmount}
         isLoading={afipPaymentProcessor.isProcessingPayment}
+        // Agregando props de descuento para AFIP ExactPaymentDialog
+        discountData={discountData}
+        subtotal={cartState.calculateTotal()}
         onConfirm={async (paidAmount: number, change: number) => {
           console.log(
             "💰 AFIP EXACT PAYMENT: Confirmando desde ShoppingCartRefactored",
@@ -2113,7 +2273,8 @@ const ShoppingCartRefactored = forwardRef<
             await afipPaymentProcessor.confirmAfipExactPayment(
               paidAmount,
               change,
-              cartState.getCurrentItems()
+              cartState.getCurrentItems(),
+              discountData
             );
 
             console.log("✅ AFIP EXACT PAYMENT: Pago procesado exitosamente");
@@ -2187,6 +2348,9 @@ const ShoppingCartRefactored = forwardRef<
         }}
         totalAmount={paymentProcessor.roundedAmount}
         isLoading={isProcessingPayment}
+        // Agregando props de descuento para ExactPaymentDialog normal
+        discountData={discountData}
+        subtotal={cartState.calculateTotal()}
         onConfirm={async (paidAmount: number, change: number) => {
           console.log(
             "💰 EXACT PAYMENT: Confirmando desde ShoppingCartRefactored",
@@ -2202,7 +2366,8 @@ const ShoppingCartRefactored = forwardRef<
             await paymentProcessor.confirmExactPayment(
               paidAmount,
               change,
-              cartState.getCurrentItems()
+              cartState.getCurrentItems(),
+              discountData
             );
 
             console.log("✅ EXACT PAYMENT: Pago procesado exitosamente");
@@ -2260,6 +2425,9 @@ const ShoppingCartRefactored = forwardRef<
         isAfipMode={isCurrentlyAfipFlow}
         cartItems={cartState.getCurrentItems()}
         businessInfo={businessInfo}
+        // ✅ CRÍTICO: Pasar datos de descuento para mostrar en el QR
+        discountData={discountData}
+        subtotal={cartState.calculateTotal()}
         // ✅ DEBUGGING: Pasar estado adicional para logging
         debugInfo={{
           isCurrentlyAfipFlow,
@@ -2313,6 +2481,7 @@ const ShoppingCartRefactored = forwardRef<
         cartState={cartState}
         businessInfo={businessInfo}
         searchInputRef={searchInputRef}
+        discountData={discountData}
       />
 
       {/* NUEVO: Diálogo de pago mixto para AFIP */}
@@ -2323,6 +2492,7 @@ const ShoppingCartRefactored = forwardRef<
         cartState={cartState}
         businessInfo={businessInfo}
         searchInputRef={searchInputRef}
+        discountData={discountData}
       />
 
       {/* Diálogo de factura */}

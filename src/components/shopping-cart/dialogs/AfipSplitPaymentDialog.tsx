@@ -18,6 +18,11 @@ interface AfipSplitPaymentDialogProps {
   cartState: any;
   businessInfo: any;
   searchInputRef: RefObject<HTMLInputElement | null>;
+  discountData?: {
+    type: "percentage" | "fixed";
+    value: number;
+    amount: number;
+  };
 }
 
 export const AfipSplitPaymentDialog = ({
@@ -27,6 +32,7 @@ export const AfipSplitPaymentDialog = ({
   cartState,
   businessInfo,
   searchInputRef,
+  discountData,
 }: AfipSplitPaymentDialogProps) => {
   return (
     <Dialog
@@ -48,12 +54,16 @@ export const AfipSplitPaymentDialog = ({
 
             // Verificar si el botón debería estar habilitado
             const cashAmountValue = parseFloat(afipPaymentProcessor.cashAmount);
+            const totalWithDiscount = discountData
+              ? cartState.calculateTotal() - discountData.amount
+              : cartState.calculateTotal();
+
             const isButtonEnabled = !(
               afipPaymentProcessor.isProcessingPayment ||
               !afipPaymentProcessor.cashAmount ||
               isNaN(cashAmountValue) ||
               cashAmountValue <= 0 ||
-              cashAmountValue >= cartState.calculateTotal()
+              cashAmountValue >= totalWithDiscount
             );
 
             // Solo disparar la acción si el botón estaría habilitado
@@ -63,8 +73,9 @@ export const AfipSplitPaymentDialog = ({
               );
               afipPaymentProcessor.processSplitPayment(
                 cartState.getCurrentItems(),
-                cartState.calculateTotal(),
-                businessInfo
+                totalWithDiscount,
+                businessInfo,
+                discountData
               );
             }
           }
@@ -81,10 +92,33 @@ export const AfipSplitPaymentDialog = ({
         </DialogHeader>
 
         <div className="space-y-6 py-4">
+          {/* Mostrar información del descuento si existe */}
+          {discountData && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-sm font-medium text-green-800">
+                  Descuento (
+                  {discountData.type === "percentage"
+                    ? `${discountData.value}%`
+                    : `$${discountData.value}`}
+                  )
+                </span>
+                <span className="text-sm font-bold text-green-800">
+                  -${discountData.amount.toLocaleString()}
+                </span>
+              </div>
+            </div>
+          )}
+
           <div className="text-center">
             <div className="text-lg text-muted-foreground">Total a pagar</div>
             <div className="text-3xl font-bold text-emerald-600 mt-1">
-              ${cartState.calculateTotal().toLocaleString()}
+              $
+              {discountData
+                ? (
+                    cartState.calculateTotal() - discountData.amount
+                  ).toLocaleString()
+                : cartState.calculateTotal().toLocaleString()}
             </div>
           </div>
 
@@ -105,7 +139,13 @@ export const AfipSplitPaymentDialog = ({
                   className="w-40 text-right"
                   step="0.01"
                   min="0"
-                  max={cartState.calculateTotal().toString()}
+                  max={
+                    discountData
+                      ? (
+                          cartState.calculateTotal() - discountData.amount
+                        ).toString()
+                      : cartState.calculateTotal().toString()
+                  }
                   disabled={afipPaymentProcessor.isProcessingPayment}
                   autoFocus
                 />
@@ -174,16 +214,22 @@ export const AfipSplitPaymentDialog = ({
               </div>
               <div className="text-xl font-semibold text-emerald-600">
                 $
-                {!afipPaymentProcessor.cashAmount ||
-                isNaN(parseFloat(afipPaymentProcessor.cashAmount))
-                  ? cartState.calculateTotalWithIVA().toLocaleString()
-                  : (
-                      cartState.calculateTotalWithIVA() -
-                      Math.min(
-                        parseFloat(afipPaymentProcessor.cashAmount),
-                        cartState.calculateTotalWithIVA()
-                      )
-                    ).toLocaleString()}
+                {(() => {
+                  const totalWithDiscount = discountData
+                    ? cartState.calculateTotal() - discountData.amount
+                    : cartState.calculateTotal();
+
+                  return !afipPaymentProcessor.cashAmount ||
+                    isNaN(parseFloat(afipPaymentProcessor.cashAmount))
+                    ? totalWithDiscount.toLocaleString()
+                    : (
+                        totalWithDiscount -
+                        Math.min(
+                          parseFloat(afipPaymentProcessor.cashAmount),
+                          totalWithDiscount
+                        )
+                      ).toLocaleString();
+                })()}
               </div>
             </div>
           </div>
@@ -201,20 +247,26 @@ export const AfipSplitPaymentDialog = ({
             Cancelar
           </Button>
           <Button
-            onClick={() =>
+            onClick={() => {
+              const totalWithDiscount = discountData
+                ? cartState.calculateTotal() - discountData.amount
+                : cartState.calculateTotal();
               afipPaymentProcessor.processSplitPayment(
                 cartState.getCurrentItems(),
-                cartState.calculateTotal(),
-                businessInfo
-              )
-            }
+                totalWithDiscount,
+                businessInfo,
+                discountData
+              );
+            }}
             disabled={
               afipPaymentProcessor.isProcessingPayment ||
               !afipPaymentProcessor.cashAmount ||
               isNaN(parseFloat(afipPaymentProcessor.cashAmount)) ||
               parseFloat(afipPaymentProcessor.cashAmount) <= 0 ||
               parseFloat(afipPaymentProcessor.cashAmount) >=
-                cartState.calculateTotal()
+                (discountData
+                  ? cartState.calculateTotal() - discountData.amount
+                  : cartState.calculateTotal())
             }
             className="bg-emerald-gradient"
           >
