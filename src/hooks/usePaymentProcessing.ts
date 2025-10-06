@@ -282,7 +282,7 @@ export function usePaymentProcessing({
     method: string,
     finalTotal: number,
     items: Product[],
-    discountData?: { type: "percentage" | "fixed"; value: number }
+    discountData?: { type: "percentage" | "fixed"; value: number; amount: number }
   ) => {
     console.log("🎯 PAYMENT PROCESSOR: processPayment iniciado");
     console.log("🎯 Parámetros:", {
@@ -476,19 +476,38 @@ export function usePaymentProcessing({
     paidAmount: number,
     change: number,
     items: Product[],
-    discountData?: { type: "percentage" | "fixed"; value: number }
+    discountData?: { type: "percentage" | "fixed"; value: number; amount: number }
   ) => {
     console.log("💰 EXACT PAYMENT: Confirmando pago exacto:", {
       paidAmount,
       change,
       totalAmount: roundedAmount,
+      applyingDiscount,
+      discountData,
     });
 
     setIsProcessingPayment(true);
 
     try {
+      // ✅ CALCULAR MONTO DEL DESCUENTO SI APLICA
+      let finalDiscountData = discountData;
+      if (discountData && applyingDiscount) {
+        const originalTotal = originalAmount || calculateTotal();
+        const discountAmount = originalTotal - roundedAmount;
+        finalDiscountData = {
+          ...discountData,
+          amount: Number(discountAmount.toFixed(2))
+        };
+        console.log("💰 EXACT PAYMENT: Descuento calculado:", {
+          originalTotal,
+          roundedAmount,
+          discountAmount,
+          finalDiscountData
+        });
+      }
+
       // Procesar el pago con el monto total original (no el pagado)
-      await processPayment("efectivo", roundedAmount, items, discountData);
+      await processPayment("efectivo", roundedAmount, items, finalDiscountData);
 
       // Cerrar el diálogo de pago exacto
       setExactPaymentDialogOpen(false);

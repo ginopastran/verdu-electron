@@ -647,6 +647,24 @@ export function useAfipPaymentProcessing({
             descuentoAplicado: originalAmount - finalTotal,
             totalOriginal: originalAmount,
           }),
+        
+        // ✅ AGREGAR DATOS DE DESCUENTO PARA SIMULACIÓN DE TICKET
+        ...(discountData && {
+          tieneDescuento: true,
+          tipoDescuento: discountData.type === "percentage" ? "porcentual" : "cantidad",
+          valorDescuento: discountData.value,
+          montoDescuento: discountData.amount,
+          subtotalSinDescuento: Number(calculateTotal().toFixed(2)), // Total original antes del descuento
+          subtotal: finalTotal, // Total final con descuento aplicado
+          discountData: {
+            type: discountData.type,
+            value: discountData.value,
+            amount: discountData.amount
+          }
+        }),
+        ...(!discountData && {
+          tieneDescuento: false
+        }),
       };
 
       console.log("📋 Datos preparados para impresión AFIP:", printData);

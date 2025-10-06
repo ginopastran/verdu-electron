@@ -1111,11 +1111,29 @@ const ShoppingCartRefactored = forwardRef<
 
     try {
       console.log("🔄 Llamando a paymentProcessor.processPayment");
+      
+      // Calcular el discountAmount si hay discountData
+      let finalDiscountData = discountData;
+      if (discountData) {
+        const subtotalOriginal = cartState.calculateTotal();
+        const discountAmount = subtotalOriginal - paymentProcessor.roundedAmount;
+        finalDiscountData = {
+          ...discountData,
+          amount: discountAmount
+        };
+        console.log("💰 ROUNDED PAYMENT: Calculando discount amount:", {
+          subtotalOriginal,
+          roundedAmount: paymentProcessor.roundedAmount,
+          discountAmount,
+          finalDiscountData
+        });
+      }
+      
       await paymentProcessor.processPayment(
         "efectivo",
         paymentProcessor.roundedAmount,
         cartState.getCurrentItems(),
-        discountData
+        finalDiscountData
       );
       console.log("🔄 processPayment llamado exitosamente");
 
