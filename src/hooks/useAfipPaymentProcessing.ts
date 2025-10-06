@@ -990,6 +990,11 @@ export function useAfipPaymentProcessing({
         ? total - discountData.amount 
         : total;
 
+      // Calcular subtotal original para descuentos (igual que en usePaymentProcessing.ts)
+      const subtotalOriginal = discountData
+        ? calculateTotal() // Usar el total del carrito SIN descuento
+        : totalWithDiscount;
+
       const orderData = {
         monto: Number(totalWithDiscount.toFixed(2)),
         descripcion: `Compra de ${orderItems.length} productos con Factura AFIP`,
@@ -1001,14 +1006,32 @@ export function useAfipPaymentProcessing({
         cashAmount: 0,
         // TODO: Implementar la captura de datos del cliente para facturas que no son a Consumidor Final
         afipData: null,
-        // Agregar datos de descuento si están disponibles
+        // Agregar datos de descuento si están disponibles (igual que en usePaymentProcessing.ts)
         ...(discountData && {
+          tieneDescuento: true,
+          tipoDescuento:
+            discountData.type === "percentage" ? "porcentual" : "cantidad",
+          valorDescuento: discountData.value,
+          subtotalSinDescuento: Number(subtotalOriginal.toFixed(2)),
+          montoDescuento: Number((subtotalOriginal - totalWithDiscount).toFixed(2)),
+          // ✅ NUEVO: Agregar formato discountData para ticket_printer.php (igual que usePaymentProcessing.ts)
+          discountData: {
+            type: discountData.type,
+            value: discountData.value,
+            amount: Number((subtotalOriginal - totalWithDiscount).toFixed(2)),
+          },
+          // ✅ NUEVO: Agregar subtotal para ticket_printer.php (igual que usePaymentProcessing.ts)
+          subtotal: Number(subtotalOriginal.toFixed(2)),
+          // Mantener compatibilidad con el formato anterior
           descuento: {
             tipoDescuento:
               discountData.type === "percentage" ? "porcentual" : "cantidad",
             valorDescuento: discountData.value,
-            montoDescuento: discountData.amount,
+            montoDescuento: Number((subtotalOriginal - totalWithDiscount).toFixed(2)),
           },
+        }),
+        ...(!discountData && {
+          tieneDescuento: false,
         }),
       };
 
@@ -1157,7 +1180,7 @@ export function useAfipPaymentProcessing({
           descuento: {
             tipoDescuento: discountData.type === "percentage" ? "porcentual" : "cantidad",
             valorDescuento: discountData.value,
-            montoDescuento: discountData.amount,
+            montoDescuento: Number((totalAmount - totalWithDiscount).toFixed(2)),
           },
         }),
       };

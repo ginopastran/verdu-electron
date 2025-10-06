@@ -162,6 +162,115 @@ export const useTicketPrinting = () => {
       }
 
       console.log("-----------------------------");
+
+      // 🆕 SIMULACIÓN DE DESCUENTOS - Replicar lógica del PHP
+      let hasDiscount = false;
+      let subtotalOriginal = 0;
+      let descuentoMonto = 0;
+      let tipoDescuento = '';
+      let valorDescuento = 0;
+
+      console.log("\n🔍 ANÁLISIS DE DESCUENTOS:");
+      console.log("- orderData.discountData:", orderData.discountData);
+      console.log("- orderData.tieneDescuento:", orderData.tieneDescuento);
+      console.log("- orderData.subtotal:", orderData.subtotal);
+      console.log("- orderData.subtotalSinDescuento:", orderData.subtotalSinDescuento);
+
+      // Verificar si hay información de descuentos (método 1: discountData)
+      if (orderData.discountData && typeof orderData.discountData === 'object') {
+        const discountData = orderData.discountData;
+        
+        // Si discountData.amount es 0 pero hay type y value, calcular el descuento
+        if (discountData.type && discountData.value > 0) {
+          hasDiscount = true;
+          tipoDescuento = discountData.type;
+          valorDescuento = discountData.value;
+          
+          // Usar el subtotal que viene del frontend como base
+          if (orderData.subtotal && orderData.subtotal > 0) {
+            subtotalOriginal = orderData.subtotal;
+          } else if (orderData.subtotalSinDescuento && orderData.subtotalSinDescuento > 0) {
+            subtotalOriginal = orderData.subtotalSinDescuento;
+          } else {
+            // Fallback: usar el total como subtotal original si no hay descuento real
+            subtotalOriginal = orderData.total;
+          }
+          
+          // Calcular el descuento basado en el tipo
+          if (discountData.type === 'percentage' || discountData.type === 'porcentual') {
+            descuentoMonto = (subtotalOriginal * valorDescuento) / 100;
+          } else {
+            descuentoMonto = valorDescuento;
+          }
+          
+          // Si discountData.amount existe y es mayor que 0, usarlo
+          if (discountData.amount && discountData.amount > 0) {
+            descuentoMonto = discountData.amount;
+          }
+          
+          console.log("✅ DESCUENTO DETECTADO (discountData):");
+          console.log(`- Subtotal original: $${subtotalOriginal.toFixed(2)}`);
+          console.log(`- Descuento aplicado: -$${descuentoMonto.toFixed(2)}`);
+          console.log(`- Total calculado: $${(subtotalOriginal - descuentoMonto).toFixed(2)}`);
+          console.log(`- Total del backend: $${orderData.total.toFixed(2)}`);
+          console.log(`- Tipo descuento: ${tipoDescuento}`);
+          console.log(`- Valor descuento: ${valorDescuento}`);
+          
+          // ⚠️ CORRECCIÓN: Si el total del backend no refleja el descuento, usar el calculado
+          const totalCalculado = subtotalOriginal - descuentoMonto;
+          if (Math.abs(orderData.total - totalCalculado) > 0.01) {
+            console.log(`⚠️ CORRECCIÓN: El total del backend ($${orderData.total.toFixed(2)}) no refleja el descuento`);
+            console.log(`📝 Usando total calculado: $${totalCalculado.toFixed(2)}`);
+            // Actualizar el total para la simulación
+            orderData.total = totalCalculado;
+          }
+        }
+      } 
+      // Verificar método 2: campos directos del backend
+      else if (orderData.tieneDescuento && orderData.subtotalSinDescuento) {
+        hasDiscount = true;
+        subtotalOriginal = orderData.subtotalSinDescuento;
+        descuentoMonto = subtotalOriginal - orderData.total;
+        tipoDescuento = orderData.tipoDescuento || 'unknown';
+        valorDescuento = orderData.valorDescuento || 0;
+        
+        console.log("✅ DESCUENTO DETECTADO (campos backend):");
+        console.log(`- Subtotal original: $${subtotalOriginal.toFixed(2)}`);
+        console.log(`- Descuento calculado: -$${descuentoMonto.toFixed(2)}`);
+        console.log(`- Total final: $${orderData.total.toFixed(2)}`);
+        console.log(`- Tipo descuento: ${tipoDescuento}`);
+        console.log(`- Valor descuento: ${valorDescuento}`);
+      }
+      // Fallback: calcular descuento basado en subtotal y total
+      else if (orderData.subtotal && orderData.total && orderData.subtotal > orderData.total) {
+        hasDiscount = true;
+        subtotalOriginal = orderData.subtotal;
+        descuentoMonto = subtotalOriginal - orderData.total;
+        
+        console.log("⚠️ DESCUENTO DETECTADO (fallback):");
+        console.log(`- Subtotal original: $${subtotalOriginal.toFixed(2)}`);
+        console.log(`- Descuento calculado: -$${descuentoMonto.toFixed(2)}`);
+      } else {
+        console.log("❌ NO SE DETECTÓ DESCUENTO");
+      }
+
+      // Mostrar desglose si hay descuento
+      if (hasDiscount) {
+        console.log(`Subtotal: $${subtotalOriginal.toFixed(2)}`);
+        
+        // Mostrar información del descuento
+        if (tipoDescuento && valorDescuento > 0) {
+          if (tipoDescuento === 'percentage' || tipoDescuento === 'porcentual') {
+            console.log(`Descuento (${valorDescuento}%): -$${descuentoMonto.toFixed(2)}`);
+          } else {
+            console.log(`Descuento: -$${descuentoMonto.toFixed(2)}`);
+          }
+        } else {
+          console.log(`Descuento aplicado: -$${descuentoMonto.toFixed(2)}`);
+        }
+        console.log("-----------------------------");
+      }
+
       console.log(`TOTAL: $${Number(orderData.total).toFixed(2)}`);
 
       // Mostrar método(s) de pago

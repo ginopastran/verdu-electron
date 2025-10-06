@@ -416,6 +416,9 @@ export function RecentOrdersDialog({
                       <TableHead className="font-semibold text-emerald-800">
                         Método de pago
                       </TableHead>
+                      <TableHead className="text-center font-semibold text-emerald-800">
+                        Descuento
+                      </TableHead>
                       <TableHead className="text-right font-semibold text-emerald-800">
                         Total
                       </TableHead>
@@ -457,9 +460,31 @@ export function RecentOrdersDialog({
                             {order.metodoPago}
                           </span>
                         </TableCell>
+                        <TableCell className="text-center py-4">
+                          {order.tieneDescuento ? (
+                            <div className="flex flex-col items-center">
+                              <span className="px-2 py-1 bg-orange-100 text-orange-800 rounded-full text-xs font-medium">
+                                {order.tipoDescuento === "percentage" || order.tipoDescuento === "porcentual"
+                                  ? `${order.valorDescuento}%`
+                                  : `$${Number(order.valorDescuento).toLocaleString()}`}
+                              </span>
+                              {order.subtotalSinDescuento && (
+                                <span className="text-xs text-gray-500 mt-1">
+                                  Subtotal: ${Number(order.subtotalSinDescuento).toLocaleString()}
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-gray-400 text-sm">Sin descuento</span>
+                          )}
+                        </TableCell>
                         <TableCell className="text-right font-semibold text-lg py-4">
                           <span className="text-emerald-700">
-                            ${Number(order.total).toLocaleString()}
+                            ${Number(
+                              order.tieneDescuento && order.montoDescuento
+                                ? order.total - order.montoDescuento
+                                : order.total
+                            ).toLocaleString()}
                           </span>
                         </TableCell>
                         <TableCell className="text-center py-4">

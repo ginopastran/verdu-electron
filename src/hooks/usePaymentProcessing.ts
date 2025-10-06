@@ -323,11 +323,11 @@ export function usePaymentProcessing({
       nombre: item.name,
     }));
 
-    // Calcular subtotal original sin descuento
-    const subtotalOriginal = items.reduce(
-      (sum, item) => sum + item.subtotal,
-      0
-    );
+    // Calcular subtotal original para descuentos
+    // El finalTotal ya viene con el descuento aplicado, necesitamos el subtotal original del carrito
+    const subtotalOriginal = discountData
+      ? calculateTotal() // Usar el total del carrito SIN descuento
+      : finalTotal;
 
     const orderData = {
       metodoPago: method,
@@ -344,12 +344,15 @@ export function usePaymentProcessing({
         tipoDescuento:
           discountData.type === "percentage" ? "porcentual" : "cantidad",
         valorDescuento: discountData.value,
-        subtotalSinDescuento: Number(
-          (discountData.type === "percentage"
-            ? finalTotal / (1 - discountData.value / 100)
-            : finalTotal + discountData.value
-          ).toFixed(2)
-        ),
+        subtotalSinDescuento: Number(subtotalOriginal.toFixed(2)),
+        // ✅ NUEVO: Agregar formato discountData para ticket_printer.php
+        discountData: {
+          type: discountData.type,
+          value: discountData.value,
+          amount: Number((subtotalOriginal - finalTotal).toFixed(2)),
+        },
+        // ✅ NUEVO: Agregar subtotal para ticket_printer.php
+        subtotal: Number(subtotalOriginal.toFixed(2)),
       }),
       ...(!discountData && {
         tieneDescuento: false,
@@ -634,8 +637,8 @@ export function usePaymentProcessing({
           valorDescuento: discountData.value,
           subtotalSinDescuento: Number(
             (discountData.type === "percentage"
-              ? totalAmount / (1 - discountData.value / 100)
-              : totalAmount + discountData.value
+              ? calculateTotal() / (1 - discountData.value / 100)
+              : calculateTotal() + discountData.value
             ).toFixed(2)
           ),
         }),
@@ -1400,6 +1403,9 @@ export function usePaymentProcessing({
       // Calcular el total con descuento aplicado (ya viene calculado desde el componente)
       const totalWithDiscount = totalAmount;
 
+      // Calcular subtotal original para descuentos
+      const subtotalOriginal = discountData ? calculateTotal() : totalAmount;
+      
       // Crear la estructura de pagos múltiples siguiendo el formato API
       const orderData = {
         total: Number(totalWithDiscount.toFixed(2)),
@@ -1426,7 +1432,7 @@ export function usePaymentProcessing({
           tipoDescuento:
             discountData.type === "percentage" ? "porcentual" : "cantidad",
           valorDescuento: discountData.value,
-          montoDescuento: discountData.amount,
+          montoDescuento: Number((subtotalOriginal - totalWithDiscount).toFixed(2)),
           // CORREGIDO: Usar calculateTotal() para obtener el subtotal original sin descuento
           // En lugar de sumar discountData.amount a totalAmount (que ya tiene descuento aplicado)
           subtotalSinDescuento: Number(calculateTotal().toFixed(2)),
