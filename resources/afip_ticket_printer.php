@@ -447,18 +447,23 @@ try {
     
     // Mostrar desglose si hay descuento
     if ($hasDiscount) {
-        $printer->text("Subtotal original: $" . number_format($subtotalOriginal, 2) . "\n");
+        $printer->text("Subtotal sin descuento: $" . number_format($subtotalOriginal, 2) . "\n");
         
-        // Mostrar información del descuento
+        // Mostrar información detallada del descuento
         if (!empty($tipoDescuento) && $valorDescuento > 0) {
             if ($tipoDescuento === 'percentage') {
-                $printer->text("Descuento (" . number_format($valorDescuento, 1) . "%): -$" . number_format($descuentoMonto, 2) . "\n");
+                $printer->text("Descuento aplicado (" . number_format($valorDescuento, 1) . "%): -$" . number_format($descuentoMonto, 2) . "\n");
+            } elseif ($tipoDescuento === 'fixed') {
+                $printer->text("Descuento fijo aplicado: -$" . number_format($descuentoMonto, 2) . "\n");
             } else {
-                $printer->text("Descuento: -$" . number_format($descuentoMonto, 2) . "\n");
+                $printer->text("Descuento aplicado: -$" . number_format($descuentoMonto, 2) . "\n");
             }
         } else {
             $printer->text("Descuento aplicado: -$" . number_format($descuentoMonto, 2) . "\n");
         }
+        
+        // Mostrar subtotal con descuento aplicado (antes de IVA)
+        $printer->text("Subtotal con descuento: $" . number_format($afipData['total'] - $totalIva, 2) . "\n");
         $printer->text("-----------------------------\n");
     }
     
