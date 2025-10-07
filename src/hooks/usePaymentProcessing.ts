@@ -324,10 +324,17 @@ export function usePaymentProcessing({
     }));
 
     // Calcular subtotal original para descuentos
-    // El finalTotal ya viene con el descuento aplicado, necesitamos el subtotal original del carrito
+    // Para tickets normales, el subtotal original debe ser el total del carrito SIN descuento
     const subtotalOriginal = discountData
       ? calculateTotal() // Usar el total del carrito SIN descuento
       : finalTotal;
+
+    console.log("🔍 DEBUG CÁLCULO DESCUENTO TICKET NORMAL:");
+    console.log("- discountData:", discountData);
+    console.log("- calculateTotal():", calculateTotal());
+    console.log("- finalTotal:", finalTotal);
+    console.log("- subtotalOriginal:", subtotalOriginal);
+    console.log("- discountData.amount original:", discountData?.amount);
 
     const orderData = {
       metodoPago: method,
@@ -345,11 +352,11 @@ export function usePaymentProcessing({
           discountData.type === "percentage" ? "porcentual" : "cantidad",
         valorDescuento: discountData.value,
         subtotalSinDescuento: Number(subtotalOriginal.toFixed(2)),
-        // ✅ NUEVO: Agregar formato discountData para ticket_printer.php
+        // ✅ CORREGIDO: Usar el amount que viene del DiscountDialog, no recalcularlo
         discountData: {
           type: discountData.type,
           value: discountData.value,
-          amount: Number((subtotalOriginal - finalTotal).toFixed(2)),
+          amount: discountData.amount, // ✅ Usar el valor correcto del DiscountDialog
         },
         // ✅ NUEVO: Agregar subtotal para ticket_printer.php
         subtotal: Number(subtotalOriginal.toFixed(2)),

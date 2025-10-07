@@ -292,6 +292,22 @@ export const useTicketPrinting = () => {
 
       // ✅ FUNCIÓN SIMPLE para llamar al script PHP de impresión
       const callPrintScript = async () => {
+        // 🆕 DEBUG DETALLADO DE DESCUENTOS ANTES DE ENVIAR AL PHP
+        console.log("🔍 DEBUG DESCUENTOS TICKET NORMAL ANTES DE IMPRESIÓN:");
+        console.log("- orderData completo:", orderData);
+        console.log("- orderData.discountData:", orderData.discountData);
+        console.log("- orderData.tieneDescuento:", orderData.tieneDescuento);
+        console.log("- orderData.tipoDescuento:", orderData.tipoDescuento);
+        console.log("- orderData.valorDescuento:", orderData.valorDescuento);
+        console.log("- orderData.montoDescuento:", orderData.montoDescuento);
+        console.log("- orderData.subtotalSinDescuento:", orderData.subtotalSinDescuento);
+        console.log("- orderData.subtotal:", orderData.subtotal);
+        console.log("- orderData.total:", orderData.total);
+        console.log("- orderData.totalConDescuento:", orderData.totalConDescuento);
+        console.log("- orderData.descuentoAplicado:", orderData.descuentoAplicado);
+        console.log("- Diferencia subtotal-total:", (orderData.subtotal || 0) - (orderData.total || 0));
+        console.log("🔍 FIN DEBUG DESCUENTOS TICKET NORMAL");
+
         // Método 1: Usar window.printer (API específica para impresión)
         if (typeof window !== "undefined" && window.printer?.printTicket) {
           console.log("🖨️ Llamando script PHP via window.printer.printTicket");

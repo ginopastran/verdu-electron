@@ -110,6 +110,19 @@ export function useAfipPaymentProcessing({
     try {
       console.log("🧾 Iniciando impresión de ticket AFIP...");
       console.log("📄 Datos AFIP para impresión:", afipData);
+      
+      // 🆕 DEBUG DETALLADO DE DESCUENTOS ANTES DE ENVIAR AL PHP
+      console.log("🔍 DEBUG DESCUENTOS AFIP ANTES DE IMPRESIÓN:");
+      console.log("- afipData.discountData:", afipData.discountData);
+      console.log("- afipData.tieneDescuento:", afipData.tieneDescuento);
+      console.log("- afipData.tipoDescuento:", afipData.tipoDescuento);
+      console.log("- afipData.valorDescuento:", afipData.valorDescuento);
+      console.log("- afipData.montoDescuento:", afipData.montoDescuento);
+      console.log("- afipData.subtotalSinDescuento:", afipData.subtotalSinDescuento);
+      console.log("- afipData.subtotal:", afipData.subtotal);
+      console.log("- afipData.total:", afipData.total);
+      console.log("- Diferencia subtotal-total:", (afipData.subtotal || 0) - (afipData.total || 0));
+      console.log("🔍 FIN DEBUG DESCUENTOS AFIP");
 
       // Verificar APIs disponibles
       console.log("🔍 Verificando APIs disponibles:");
