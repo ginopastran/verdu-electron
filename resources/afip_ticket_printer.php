@@ -392,11 +392,22 @@ try {
         $subtotal = str_pad('$' . number_format($item['subtotal'], 2), 8);
         
         $printer->text("$nombre $cantidad $precio $subtotal\n");
-        
-        // Calcular subtotal neto (sin IVA) y IVA
-        $subtotalNeto += $item['subtotal'] / 1.21; // Asumiendo IVA 21%
-        $totalIva += $item['subtotal'] - ($item['subtotal'] / 1.21);
     }
+
+    // ✅ CORRECCIÓN CRÍTICA: Calcular IVA sobre el total final (con descuento aplicado)
+    // Si hay descuento, el IVA debe calcularse sobre el precio final, no sobre el original
+    $totalConDescuento = $afipData['total']; // Este es el total final con descuento aplicado
+    
+    // El total final ya incluye IVA, extraemos el IVA de ese monto
+    $subtotalNeto = $totalConDescuento / 1.21; // Subtotal sin IVA del precio con descuento
+    $totalIva = $totalConDescuento - $subtotalNeto; // IVA calculado sobre precio con descuento
+    
+    // Debug del cálculo corregido
+    file_put_contents('php://stderr', "🔍 CÁLCULO IVA CORREGIDO:\n");
+    file_put_contents('php://stderr', "- Total con descuento (incluye IVA): $" . number_format($totalConDescuento, 2) . "\n");
+    file_put_contents('php://stderr', "- Subtotal neto (sin IVA): $" . number_format($subtotalNeto, 2) . "\n");
+    file_put_contents('php://stderr', "- IVA (21% del precio con descuento): $" . number_format($totalIva, 2) . "\n");
+    file_put_contents('php://stderr', "- Verificación: $" . number_format($subtotalNeto, 2) . " + $" . number_format($totalIva, 2) . " = $" . number_format($subtotalNeto + $totalIva, 2) . "\n");
 
     $printer->text("-----------------------------\n");
     
@@ -463,7 +474,7 @@ try {
         }
         
         // Mostrar subtotal con descuento aplicado (antes de IVA)
-        $printer->text("Subtotal con descuento: $" . number_format($afipData['total'] - $totalIva, 2) . "\n");
+        $printer->text("Subtotal con descuento: $" . number_format($subtotalNeto, 2) . "\n");
         $printer->text("-----------------------------\n");
     }
     
