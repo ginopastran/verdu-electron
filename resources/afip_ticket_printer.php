@@ -482,8 +482,9 @@ try {
     $printer->text("Subtotal: $" . number_format($subtotalNeto, 2) . "\n");
     $printer->text("IVA (21%): $" . number_format($totalIva, 2) . "\n");
     
-    // Total - usar el total con descuento si hay descuento
-    $totalFinal = $afipData['tieneDescuento'] ? $totalConDescuento : $afipData['total'];
+    // CORRECCIÓN: El TOTAL debe ser el subtotal con descuento, no el total original
+    // El subtotal con descuento ya es el precio final que debe pagar el cliente
+    $totalFinal = $afipData['tieneDescuento'] ? $subtotalNeto : $afipData['total'];
     $printer->setEmphasis(true);
     $printer->text(str_pad("TOTAL: $" . number_format($totalFinal, 2), 32, " ", STR_PAD_LEFT) . "\n");
     $printer->setEmphasis(false);
