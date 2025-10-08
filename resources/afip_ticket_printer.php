@@ -482,9 +482,10 @@ try {
     $printer->text("Subtotal: $" . number_format($subtotalNeto, 2) . "\n");
     $printer->text("IVA (21%): $" . number_format($totalIva, 2) . "\n");
     
-    // Total
+    // Total - usar el total con descuento si hay descuento
+    $totalFinal = $afipData['tieneDescuento'] ? $totalConDescuento : $afipData['total'];
     $printer->setEmphasis(true);
-    $printer->text(str_pad("TOTAL: $" . number_format($afipData['total'], 2), 32, " ", STR_PAD_LEFT) . "\n");
+    $printer->text(str_pad("TOTAL: $" . number_format($totalFinal, 2), 32, " ", STR_PAD_LEFT) . "\n");
     $printer->setEmphasis(false);
 
     // Información AFIP obligatoria
