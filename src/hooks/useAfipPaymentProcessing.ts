@@ -1112,7 +1112,7 @@ export function useAfipPaymentProcessing({
         // ✅ CORRECCIÓN: Incluir items originales para impresión AFIP
         const qrDataWithAmount = {
           ...result,
-          monto: total,
+          monto: orderData.monto, // Usar el monto calculado que se envió al backend (ya incluye descuento)
           items: orderItems, // ✅ CRITICAL FIX: Incluir items originales para impresión AFIP
         };
         updateQrData(qrDataWithAmount);

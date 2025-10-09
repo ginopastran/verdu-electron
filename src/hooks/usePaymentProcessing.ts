@@ -707,7 +707,8 @@ export function usePaymentProcessing({
         // ✅ CORRECCIÓN: Guardar la información del QR INCLUYENDO los items originales para impresión
         const qrDataWithAmount = {
           ...result,
-          // ✅ MANTENER el monto que viene del backend (ya incluye descuento)
+          // ✅ AGREGAR EXPLÍCITAMENTE el monto (igual que en QR mixto y AFIP)
+          monto: orderData.monto, // Usar el monto calculado que se envió al backend (ya incluye descuento)
           items: orderItems, // ✅ CRITICAL FIX: Incluir items originales para impresión
         };
         updateQrData(qrDataWithAmount);
