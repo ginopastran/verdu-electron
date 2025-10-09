@@ -41,39 +41,39 @@ export function MainLayout({ children, onProductSelect }: MainLayoutProps) {
   const keyboardShortcuts = [
     {
       key: "F1",
-      description: "para cancelar",
+      description: "cancelar",
       showAlways: true,
     },
     {
       key: "F2",
-      description: isAfipEnabled ? "para pagar con AFIP" : "para pagar",
+      description: isAfipEnabled ? "pagar con AFIP" : "pagar",
       showAlways: true,
     },
     {
       key: "F7",
       description: isAfipEnabled
-        ? "para pagar con descuento AFIP"
-        : "para pagar con descuento",
+        ? "pagar con descuento AFIP"
+        : "pagar con descuento",
       showAlways: true,
     },
     {
       key: "F3",
-      description: "para pagar orden",
+      description: "pagar orden",
       showAlways: isAfipEnabled, // Solo mostrar si AFIP está habilitado
     },
     {
       key: "F8",
-      description: "para pagar con descuento orden",
+      description: "pagar con descuento orden",
       showAlways: isAfipEnabled, // Solo mostrar si AFIP está habilitado
     },
     {
       key: "F6",
-      description: "para cuenta corriente",
+      description: "cuenta corriente",
       showAlways: isFacturacionEnabled, // Solo mostrar si facturación está habilitada
     },
     {
       key: "F4",
-      description: "para cerrar sesión",
+      description: "cerrar sesión",
       showAlways: true,
     },
   ];
@@ -104,7 +104,7 @@ export function MainLayout({ children, onProductSelect }: MainLayoutProps) {
           )}
         </div>
 
-        <div className="w-full h-full flex flex-col justify-end p-2 text-muted-foreground font-light">
+        <div className="w-full h-full flex flex-col justify-end p-2 text-muted-foreground ">
           <div className="w-full bg-gray-50 min-h-32 rounded-lg p-1 flex flex-col gap-1.5">
             {keyboardShortcuts
               .filter((shortcut) => shortcut.showAlways)
@@ -115,7 +115,7 @@ export function MainLayout({ children, onProductSelect }: MainLayoutProps) {
                     alt={shortcut.key}
                     className="size-10"
                   />
-                  <span>{shortcut.description}</span>
+                  <span className="uppercase">{shortcut.description}</span>
                 </div>
               ))}
           </div>
