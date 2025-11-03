@@ -48,10 +48,9 @@ export function ExactPaymentDialog({
   useEffect(() => {
     const paid = parseFloat(paidAmount);
     if (!isNaN(paid) && paid > 0) {
-      // Usar el total con descuento aplicado para calcular el cambio
-      const finalTotal =
-        discountData && subtotal ? subtotal - discountData.amount : totalAmount;
-      const calculatedChange = paid - finalTotal;
+      // CORRECCIÓN: Usar totalAmount directamente ya que viene con el descuento aplicado
+      // No recalcular el descuento aquí para evitar aplicarlo dos veces
+      const calculatedChange = paid - totalAmount;
       setChange(calculatedChange);
 
       if (calculatedChange < 0) {
@@ -63,7 +62,7 @@ export function ExactPaymentDialog({
       setChange(0);
       setError("");
     }
-  }, [paidAmount, totalAmount, discountData, subtotal]);
+  }, [paidAmount, totalAmount]);
 
   // Limpiar campos al abrir/cerrar
   useEffect(() => {
@@ -94,11 +93,8 @@ export function ExactPaymentDialog({
       return;
     }
 
-    // Usar el total con descuento aplicado para la validación
-    const finalTotal =
-      discountData && subtotal ? subtotal - discountData.amount : totalAmount;
-
-    if (paid < finalTotal) {
+    // CORRECCIÓN: Usar totalAmount directamente ya que viene con el descuento aplicado
+    if (paid < totalAmount) {
       setError("El monto pagado debe ser mayor o igual al total");
       return;
     }
@@ -163,10 +159,7 @@ export function ExactPaymentDialog({
                 Total a pagar:
               </span>
               <span className="text-2xl font-bold text-emerald-600">
-                $
-                {discountData && subtotal
-                  ? (subtotal - discountData.amount).toLocaleString()
-                  : totalAmount.toLocaleString()}
+                ${totalAmount.toLocaleString()}
               </span>
             </div>
           </div>
