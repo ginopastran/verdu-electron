@@ -496,42 +496,25 @@ export function usePaymentProcessing({
     setIsProcessingPayment(true);
 
     try {
-      // ✅ CALCULAR MONTO DEL DESCUENTO Y TOTAL A COBRAR
-      const originalTotal = originalAmount || calculateTotal();
-
-      let finalAmount = roundedAmount;
+      // ✅ CALCULAR MONTO DEL DESCUENTO SI APLICA
       let finalDiscountData = discountData;
-
-      if (discountData) {
-        // Si no viene amount, calcularlo según el tipo de descuento
-        let discountAmount = discountData.amount || 0;
-        if (!discountAmount || discountAmount <= 0) {
-          discountAmount =
-            discountData.type === "percentage"
-              ? (originalTotal * discountData.value) / 100
-              : discountData.value;
-        }
-
+      if (discountData && applyingDiscount) {
+        const originalTotal = originalAmount || calculateTotal();
+        const discountAmount = originalTotal - roundedAmount;
         finalDiscountData = {
           ...discountData,
-          amount: Number(discountAmount.toFixed(2)),
+          amount: Number(discountAmount.toFixed(2))
         };
-
-        // En pago exacto con descuento manual, el total a cobrar debe ser original - descuento
-        if (!applyingDiscount) {
-          finalAmount = Number((originalTotal - discountAmount).toFixed(2));
-        }
-
-        console.log("💰 EXACT PAYMENT: Datos de descuento finales:", {
+        console.log("💰 EXACT PAYMENT: Descuento calculado:", {
           originalTotal,
           roundedAmount,
-          finalAmount,
-          finalDiscountData,
+          discountAmount,
+          finalDiscountData
         });
       }
 
-      // Procesar el pago con el monto final calculado
-      await processPayment("efectivo", finalAmount, items, finalDiscountData);
+      // Procesar el pago con el monto total original (no el pagado)
+      await processPayment("efectivo", roundedAmount, items, finalDiscountData);
 
       // Cerrar el diálogo de pago exacto
       setExactPaymentDialogOpen(false);

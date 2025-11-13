@@ -390,9 +390,11 @@ try {
             $tipoDescuento = $discountData['type'] ?? 'fixed';
             $valorDescuento = $discountData['value'] ?? 0;
             
-            // ✅ CORRECCIÓN CRÍTICA: Usar el subtotal que viene del frontend
-            // El frontend ya calcula correctamente el subtotal original antes del descuento
-            if (isset($orderData['subtotal']) && $orderData['subtotal'] > 0) {
+            // ✅ Preferir el subtotal SIN descuento si está disponible
+            if (isset($orderData['subtotalSinDescuento']) && $orderData['subtotalSinDescuento'] > 0) {
+                $subtotalOriginal = $orderData['subtotalSinDescuento'];
+            } elseif (isset($orderData['subtotal']) && $orderData['subtotal'] > 0) {
+                // Compatibilidad: usar 'subtotal' si es el valor sin descuento
                 $subtotalOriginal = $orderData['subtotal'];
             } else {
                 // Fallback: calcular sumando total + descuento solo si no viene subtotal

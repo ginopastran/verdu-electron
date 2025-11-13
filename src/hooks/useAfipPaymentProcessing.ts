@@ -667,8 +667,9 @@ export function useAfipPaymentProcessing({
           tipoDescuento: discountData.type === "percentage" ? "porcentual" : "cantidad",
           valorDescuento: discountData.value,
           montoDescuento: discountData.amount,
-          subtotalSinDescuento: Number(calculateTotal().toFixed(2)), // Total original antes del descuento
-          subtotal: finalTotal, // Total final con descuento aplicado
+          // Enviar explícitamente el subtotal ORIGINAL (sin descuento) para impresión
+          subtotalSinDescuento: Number(calculateTotal().toFixed(2)),
+          subtotal: Number(calculateTotal().toFixed(2)),
           discountData: {
             type: discountData.type,
             value: discountData.value,

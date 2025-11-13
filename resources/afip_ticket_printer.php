@@ -394,19 +394,29 @@ try {
         $printer->text("$nombre $cantidad $precio $subtotal\n");
     }
 
-    // ⚙️ Cálculo de descuentos y totales
-    // Primero determinamos si hay descuento y el subtotal original con IVA.
-    // Luego calculamos el total con descuento y recién después discriminamos IVA.
+    // ✅ CORRECCIÓN CRÍTICA: Calcular IVA sobre el total final (con descuento aplicado)
+    // Si hay descuento, el IVA debe calcularse sobre el precio final, no sobre el original
+    $totalConDescuento = $afipData['total']; // Este es el total final con descuento aplicado
+    
+    // El total final ya incluye IVA, extraemos el IVA de ese monto
+    $subtotalNeto = $totalConDescuento / 1.21; // Subtotal sin IVA del precio con descuento
+    $totalIva = $totalConDescuento - $subtotalNeto; // IVA calculado sobre precio con descuento
+    
+    // Debug del cálculo corregido
+    file_put_contents('php://stderr', "🔍 CÁLCULO IVA CORREGIDO:\n");
+    file_put_contents('php://stderr', "- Total con descuento (incluye IVA): $" . number_format($totalConDescuento, 2) . "\n");
+    file_put_contents('php://stderr', "- Subtotal neto (sin IVA): $" . number_format($subtotalNeto, 2) . "\n");
+    file_put_contents('php://stderr', "- IVA (21% del precio con descuento): $" . number_format($totalIva, 2) . "\n");
+    file_put_contents('php://stderr', "- Verificación: $" . number_format($subtotalNeto, 2) . " + $" . number_format($totalIva, 2) . " = $" . number_format($subtotalNeto + $totalIva, 2) . "\n");
 
     $printer->text("-----------------------------\n");
-
+    
     // Mostrar subtotal y descuentos si existen
     $hasDiscount = false;
     $subtotalOriginal = 0;
     $descuentoMonto = 0;
     $tipoDescuento = '';
     $valorDescuento = 0;
-    $totalConDescuento = $afipData['total'] ?? 0; // Usar total recibido por defecto
     
     // Verificar si hay información de descuentos
     if (isset($afipData['discountData']) && is_array($afipData['discountData'])) {
@@ -417,9 +427,11 @@ try {
             $tipoDescuento = $discountData['type'] ?? 'fixed';
             $valorDescuento = $discountData['value'] ?? 0;
             
-            // ✅ CORRECCIÓN CRÍTICA: Usar el subtotal que viene del frontend
-            // El frontend ya calcula correctamente el subtotal original antes del descuento
-            if (isset($afipData['subtotal']) && $afipData['subtotal'] > 0) {
+            // ✅ Preferir el subtotal SIN descuento si está disponible
+            if (isset($afipData['subtotalSinDescuento']) && $afipData['subtotalSinDescuento'] > 0) {
+                $subtotalOriginal = $afipData['subtotalSinDescuento'];
+            } elseif (isset($afipData['subtotal']) && $afipData['subtotal'] > 0) {
+                // Compatibilidad: usar 'subtotal' si es el valor sin descuento
                 $subtotalOriginal = $afipData['subtotal'];
             } else {
                 // Fallback: calcular sumando total + descuento solo si no viene subtotal
@@ -430,50 +442,21 @@ try {
             file_put_contents('php://stderr', "🔍 DESCUENTO AFIP DEBUG:\n");
             file_put_contents('php://stderr', "- Subtotal original (del frontend): $" . number_format($subtotalOriginal, 2) . "\n");
             file_put_contents('php://stderr', "- Descuento aplicado: -$" . number_format($descuentoMonto, 2) . "\n");
-            file_put_contents('php://stderr', "- Total recibido AFIP (antes de ajuste): $" . number_format($afipData['total'], 2) . "\n");
+            file_put_contents('php://stderr', "- Total final AFIP: $" . number_format($afipData['total'], 2) . "\n");
             file_put_contents('php://stderr', "- Tipo descuento: " . $tipoDescuento . "\n");
             file_put_contents('php://stderr', "- Valor descuento: " . $valorDescuento . "\n");
             file_put_contents('php://stderr', "- Verificación AFIP: $" . number_format($subtotalOriginal, 2) . " - $" . number_format($descuentoMonto, 2) . " = $" . number_format($subtotalOriginal - $descuentoMonto, 2) . "\n");
-
-            // Ajustar total con descuento basado en subtotal original
-            $totalConDescuento = $subtotalOriginal - $descuentoMonto;
         }
     } elseif (isset($afipData['subtotal']) && isset($afipData['total']) && $afipData['subtotal'] > $afipData['total']) {
         // Calcular descuento basado en subtotal y total (fallback)
         $hasDiscount = true;
         $subtotalOriginal = $afipData['subtotal'];
         $descuentoMonto = $subtotalOriginal - $afipData['total'];
-        $totalConDescuento = $afipData['total'];
         
         file_put_contents('php://stderr', "🔍 DESCUENTO AFIP FALLBACK:\n");
         file_put_contents('php://stderr', "- Subtotal original: $" . number_format($subtotalOriginal, 2) . "\n");
         file_put_contents('php://stderr', "- Descuento calculado: -$" . number_format($descuentoMonto, 2) . "\n");
     }
-
-    // ✅ SANITY CHECK: asegurar coherencia del total con descuento antes de discriminar IVA
-    if ($hasDiscount) {
-        $calculado = round($subtotalOriginal - $descuentoMonto, 2);
-        $recibido = isset($afipData['total']) ? round($afipData['total'], 2) : $calculado;
-        // Si difieren más de 1 centavo, priorizar el calculado desde subtotal/desc.
-        if (abs($calculado - $recibido) > 0.01) {
-            file_put_contents('php://stderr', "⚠️ SANITY: Ajustando totalConDescuento. calculado={$calculado} recibido={$recibido}\n");
-            $totalConDescuento = $calculado;
-        } else {
-            $totalConDescuento = $recibido; // usar el recibido si coincide
-        }
-    }
-
-    // ✅ Calcular IVA sobre el total con descuento (incluye IVA)
-    // El IVA debe calcularse sobre el precio final con descuento
-    $subtotalNeto = $totalConDescuento / 1.21; // Subtotal sin IVA del precio con descuento
-    $totalIva = $totalConDescuento - $subtotalNeto; // IVA calculado sobre precio con descuento
-
-    // Debug del cálculo de IVA
-    file_put_contents('php://stderr', "🔍 CÁLCULO IVA (usando totalConDescuento):\n");
-    file_put_contents('php://stderr', "- Total con descuento (incluye IVA): $" . number_format($totalConDescuento, 2) . "\n");
-    file_put_contents('php://stderr', "- Subtotal neto (sin IVA): $" . number_format($subtotalNeto, 2) . "\n");
-    file_put_contents('php://stderr', "- IVA (21% del precio con descuento): $" . number_format($totalIva, 2) . "\n");
-    file_put_contents('php://stderr', "- Verificación: $" . number_format($subtotalNeto, 2) . " + $" . number_format($totalIva, 2) . " = $" . number_format($subtotalNeto + $totalIva, 2) . "\n");
     
     // Mostrar desglose si hay descuento
     if ($hasDiscount) {
@@ -492,8 +475,9 @@ try {
             $printer->text("Descuento aplicado: -$" . number_format($descuentoMonto, 2) . "\n");
         }
         
-        // Mostrar subtotal con descuento aplicado (incluye IVA)
-        $printer->text("Subtotal con descuento: $" . number_format($totalConDescuento, 2) . "\n");
+        // Mostrar subtotal con descuento aplicado
+        // En comprobante AFIP, el subtotal con descuento debe ser el TOTAL final (con IVA)
+        $printer->text("Subtotal con descuento: $" . number_format($afipData['total'], 2) . "\n");
         $printer->text("-----------------------------\n");
     }
     
@@ -501,8 +485,8 @@ try {
     $printer->text("Subtotal: $" . number_format($subtotalNeto, 2) . "\n");
     $printer->text("IVA (21%): $" . number_format($totalIva, 2) . "\n");
     
-    // TOTAL debe ser el total con descuento (incluye IVA)
-    $totalFinal = $totalConDescuento;
+    // El TOTAL a pagar siempre es el monto final con IVA proveniente del frontend
+    $totalFinal = $afipData['total'];
     $printer->setEmphasis(true);
     $printer->text(str_pad("TOTAL: $" . number_format($totalFinal, 2), 32, " ", STR_PAD_LEFT) . "\n");
     $printer->setEmphasis(false);
