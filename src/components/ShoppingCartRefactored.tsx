@@ -867,9 +867,10 @@ const ShoppingCartRefactored = forwardRef<
     // Si es efectivo, manejar con el sistema de redondeo. Pasa el control.
     if (method === "efectivo") {
       console.log("💰 Seleccionando efectivo - businessInfo:", businessInfo);
+      console.log("💰 Descuento disponible:", discountData);
       // NO establecer isProcessingPayment aquí, solo cuando se confirme el pago
       setSelectedPaymentMethod("efectivo");
-      paymentProcessor.handleCashPayment(businessInfo);
+      paymentProcessor.handleCashPayment(businessInfo, !!discountData, discountData);
       setPaymentDialogOpen(false);
       paymentLockRef.current = false;
       return;

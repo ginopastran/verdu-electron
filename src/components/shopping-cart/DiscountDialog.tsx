@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -43,6 +43,10 @@ export const DiscountDialog = ({
   const [amountValue, setAmountValue] = useState<string>("");
   const [calculatedDiscount, setCalculatedDiscount] = useState<number>(0);
   const [finalTotal, setFinalTotal] = useState<number>(subtotal);
+  
+  // ✅ NUEVO: Refs para los inputs
+  const percentageInputRef = useRef<HTMLInputElement>(null);
+  const amountInputRef = useRef<HTMLInputElement>(null);
 
   // Calcular descuento en tiempo real
   useEffect(() => {
@@ -94,6 +98,18 @@ export const DiscountDialog = ({
     onConfirm(discountData);
   };
 
+  // ✅ NUEVO: Manejar tecla Enter para aplicar descuento
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && isValidDiscount) {
+      e.preventDefault();
+      handleConfirm();
+    }
+    if (e.key === "Escape") {
+      e.preventDefault();
+      handleCancel();
+    }
+  };
+
   const handleCancel = () => {
     onCancel();
     onOpenChange(false);
@@ -103,7 +119,10 @@ export const DiscountDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent 
+        className="sm:max-w-md"
+        onKeyDown={handleKeyDown}
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Percent className="h-5 w-5" />
@@ -142,6 +161,7 @@ export const DiscountDialog = ({
                 </Label>
                 <Input
                   id="percentage"
+                  ref={percentageInputRef}
                   type="number"
                   min="1"
                   max="100"
@@ -149,6 +169,7 @@ export const DiscountDialog = ({
                   placeholder="Ej: 10"
                   value={percentageValue}
                   onChange={(e) => setPercentageValue(e.target.value)}
+                  onKeyDown={handleKeyDown}
                   className="text-center text-lg"
                   autoFocus
                 />
@@ -160,6 +181,7 @@ export const DiscountDialog = ({
                 <Label htmlFor="amount">Cantidad fija de descuento</Label>
                 <Input
                   id="amount"
+                  ref={amountInputRef}
                   type="number"
                   min="0.01"
                   max={subtotal}
@@ -167,6 +189,7 @@ export const DiscountDialog = ({
                   placeholder={`Máximo: $${subtotal.toFixed(2)}`}
                   value={amountValue}
                   onChange={(e) => setAmountValue(e.target.value)}
+                  onKeyDown={handleKeyDown}
                   className="text-center text-lg"
                 />
               </div>

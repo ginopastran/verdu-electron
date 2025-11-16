@@ -533,7 +533,15 @@ export function usePaymentProcessing({
   };
 
   // Función para manejar un pago en efectivo con redondeo o pago exacto
-  const handleCashPayment = (businessInfo: any, withDiscount = false) => {
+  const handleCashPayment = (
+    businessInfo: any, 
+    withDiscount = false,
+    discountData?: {
+      type: "percentage" | "fixed";
+      value: number;
+      amount: number;
+    }
+  ) => {
     console.log(
       "🛒 EFECTIVO: Iniciando proceso de pago en efectivo",
       withDiscount ? "con descuento" : ""
@@ -543,11 +551,12 @@ export function usePaymentProcessing({
       businessInfo,
       sistemaPago: businessInfo?.sistemaPago,
       descuentoEfectivo: businessInfo?.descuentoEfectivo,
+      discountData,
     });
 
     // Establecer efectivo como método seleccionado
     setSelectedPaymentMethod("efectivo");
-    setApplyingDiscount(withDiscount);
+    setApplyingDiscount(withDiscount || !!discountData);
 
     // Calcular los importes para cualquier caso
     const originalTotal = Number(calculateTotal().toFixed(2));
@@ -556,12 +565,26 @@ export function usePaymentProcessing({
     console.log("💰 Total original calculado:", originalTotal);
 
     // Aplicar descuento si es necesario
-    if (withDiscount && businessInfo?.descuentoEfectivo) {
+    if (discountData) {
+      // Usar discountData pasado como parámetro (prioridad)
+      if (discountData.type === "percentage") {
+        const discountAmount = (originalTotal * discountData.value) / 100;
+        finalTotal = originalTotal - discountAmount;
+      } else {
+        finalTotal = originalTotal - discountData.amount;
+      }
+      console.log("💰 DESCUENTO: Usando discountData pasado:", {
+        originalTotal,
+        discountData,
+        finalTotal,
+      });
+    } else if (withDiscount && businessInfo?.descuentoEfectivo) {
+      // Usar descuento automático del negocio
       const discountPercentage = Number(businessInfo.descuentoEfectivo);
       const discountAmount = (originalTotal * discountPercentage) / 100;
       finalTotal = originalTotal - discountAmount;
 
-      console.log("💰 DESCUENTO: Cálculos:", {
+      console.log("💰 DESCUENTO: Cálculos automáticos:", {
         originalTotal,
         discountPercentage,
         discountAmount,
@@ -1163,6 +1186,10 @@ export function usePaymentProcessing({
               const businessName =
                 businessInfo?.nombre || businessInfo?.name || "Verdulería";
 
+              // ✅ NUEVO: Obtener datos del descuento desde qrDataRef si están disponibles
+              const discountDataFromQr = qrDataRef.current?.discountData;
+              const hasDiscount = qrDataRef.current?.tieneDescuento || false;
+
               orderDataForPrint = {
                 id: paymentData.orderId,
                 idReal: paymentData.orderId,
@@ -1175,6 +1202,22 @@ export function usePaymentProcessing({
                 businessName: businessName, // ✅ CRITICAL FIX
                 estado: "COMPLETADA",
                 createdAt: new Date().toISOString(),
+                // ✅ NUEVO: Incluir datos del descuento si están disponibles
+                ...(hasDiscount && discountDataFromQr && {
+                  tieneDescuento: true,
+                  tipoDescuento: qrDataRef.current.tipoDescuento,
+                  valorDescuento: qrDataRef.current.valorDescuento,
+                  subtotalSinDescuento: qrDataRef.current.subtotalSinDescuento,
+                  subtotal: qrDataRef.current.subtotal,
+                  discountData: {
+                    type: discountDataFromQr.type,
+                    value: discountDataFromQr.value,
+                    amount: discountDataFromQr.amount,
+                  },
+                }),
+                ...(!hasDiscount && {
+                  tieneDescuento: false,
+                }),
               };
 
               console.log(
