@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useBusinessInfo } from "@/hooks/useBusinessInfo";
 import { calcularPrecioVisualConIVA } from "@/utils/ivaHelpers";
 
@@ -21,8 +21,38 @@ export interface CartScreen {
 }
 
 export function useCartState() {
-  const [screens, setScreens] = useState<CartScreen[]>([{ id: 0, items: [] }]);
-  const [activeScreen, setActiveScreen] = useState(0);
+  // ✅ NUEVO: Cargar estado inicial desde localStorage
+  const loadStateFromStorage = (): { screens: CartScreen[]; activeScreen: number } => {
+    try {
+      const saved = localStorage.getItem("cartScreens");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return {
+          screens: parsed.screens || [{ id: 0, items: [] }],
+          activeScreen: parsed.activeScreen || 0,
+        };
+      }
+    } catch (error) {
+      console.error("Error cargando estado del carrito desde localStorage:", error);
+    }
+    return { screens: [{ id: 0, items: [] }], activeScreen: 0 };
+  };
+
+  const initialState = loadStateFromStorage();
+  const [screens, setScreens] = useState<CartScreen[]>(initialState.screens);
+  const [activeScreen, setActiveScreen] = useState(initialState.activeScreen);
+
+  // ✅ NUEVO: Guardar estado en localStorage cuando cambie
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        "cartScreens",
+        JSON.stringify({ screens, activeScreen })
+      );
+    } catch (error) {
+      console.error("Error guardando estado del carrito en localStorage:", error);
+    }
+  }, [screens, activeScreen]);
 
   // Obtener información del business para el cálculo de IVA
   const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
@@ -135,6 +165,7 @@ export function useCartState() {
     );
   };
 
+  // ✅ NUEVO: Función para limpiar solo la orden activa (no todas)
   const clearCart = () => {
     console.log(
       "🧹 [useCartState] clearCart llamado - limpiando screen activa:",
@@ -159,12 +190,21 @@ export function useCartState() {
     console.log("🧹 [useCartState] clearCart completado");
   };
 
+  // ✅ NUEVO: Función para limpiar todas las órdenes (solo cuando sea necesario)
+  const clearAllScreens = () => {
+    console.log("🧹 [useCartState] clearAllScreens llamado - limpiando todas las órdenes");
+    setScreens([{ id: 0, items: [] }]);
+    setActiveScreen(0);
+    localStorage.removeItem("cartScreens");
+  };
+
   const addScreen = () => {
     if (screens.length >= 4) {
       return false;
     }
     const newId = screens.length;
-    setScreens([...screens, { id: newId, items: [] }]);
+    const newScreens = [...screens, { id: newId, items: [] }];
+    setScreens(newScreens);
     setActiveScreen(newId);
     return true;
   };
@@ -178,8 +218,14 @@ export function useCartState() {
     setScreens(newScreens);
 
     // Si la pantalla activa es la que se eliminó, cambiar a la primera pantalla
+    let newActiveScreen = activeScreen;
     if (activeScreen === screenId) {
+      newActiveScreen = 0;
       setActiveScreen(0);
+    } else if (activeScreen > screenId) {
+      // Si la pantalla activa es posterior a la eliminada, ajustar el índice
+      newActiveScreen = activeScreen - 1;
+      setActiveScreen(newActiveScreen);
     }
 
     return true;
@@ -196,6 +242,7 @@ export function useCartState() {
     addToCart,
     removeFromCart,
     clearCart,
+    clearAllScreens, // ✅ NUEVO: Exportar función para limpiar todo
     calculateTotal,
     calculateTotalWithIVA,
     calculateTotalWithoutIVA,

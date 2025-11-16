@@ -1160,7 +1160,12 @@ const ShoppingCartRefactored = forwardRef<
     const result = cartState.addScreen();
     if (!result) {
       toast.error("No se pueden crear más de 4 pantallas");
+      return;
     }
+    // ✅ NUEVO: Enfocar el input después de crear una nueva orden
+    setTimeout(() => {
+      focusSearchInput("nueva orden creada");
+    }, 100);
   };
 
   const handleDeleteScreen = (screenId: number) => {
@@ -1173,8 +1178,21 @@ const ShoppingCartRefactored = forwardRef<
       const result = cartState.deleteScreen(screenId);
       if (result) {
         toast.success("Pantalla eliminada correctamente");
+        // ✅ NUEVO: Enfocar el input después de eliminar una orden
+        setTimeout(() => {
+          focusSearchInput("orden eliminada");
+        }, 100);
       }
     }
+  };
+
+  // ✅ NUEVO: Manejar cambio de orden y enfocar input
+  const handleChangeScreen = (screenId: number) => {
+    cartState.setActiveScreen(screenId);
+    // Enfocar el input cuando se cambia de orden
+    setTimeout(() => {
+      focusSearchInput(`cambio a orden ${screenId + 1}`);
+    }, 100);
   };
 
   // ✅ CRÍTICO: Función centralizada para agregar productos escaneados
@@ -2051,7 +2069,7 @@ const ShoppingCartRefactored = forwardRef<
           <CartTabs
             screens={cartState.screens}
             activeScreen={cartState.activeScreen}
-            onChangeScreen={cartState.setActiveScreen}
+            onChangeScreen={handleChangeScreen} // ✅ CAMBIAR: Usar handleChangeScreen en lugar de cartState.setActiveScreen
             onAddScreen={handleAddScreen}
             onDeleteScreen={handleDeleteScreen}
           />
