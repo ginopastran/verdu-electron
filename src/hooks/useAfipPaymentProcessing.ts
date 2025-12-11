@@ -490,12 +490,13 @@ export function useAfipPaymentProcessing({
           vendedorId: user.id,
           sucursalId: user.sucursalId,
           observaciones: "Factura generada desde Electron",
-          // Incluir datos de descuento según el backend
+          // ✅ CORRECCIÓN: Incluir datos de descuento completos según el backend
           ...(discountData && {
             tieneDescuento: true,
             tipoDescuento:
               discountData.type === "percentage" ? "porcentual" : "cantidad",
             valorDescuento: discountData.value,
+            montoDescuento: discountData.amount, // ✅ AGREGADO: Incluir monto del descuento
             // ✅ CORRECCIÓN: El subtotalSinDescuento debe ser el total original (antes del descuento)
             // finalTotal ya es el total CON descuento, por lo que el total original es calculateTotal()
             subtotalSinDescuento: Number(calculateTotal().toFixed(2)),
@@ -520,9 +521,16 @@ export function useAfipPaymentProcessing({
       }
 
       // 🆕 PREPARAR DATOS MEJORADO: Usar businessInfo como fuente principal
+      // ✅ CORRECCIÓN: Normalizar método de pago para asegurar consistencia
+      const metodoPagoNormalizado = method === "tarjeta" ? "tarjeta" : 
+                                    method === "transferencia" ? "transferencia" :
+                                    method === "qr" ? "qr" :
+                                    method === "efectivo" ? "efectivo" :
+                                    method === "split" ? "split" : method;
+      
       const printData = {
         ...afipResult,
-        metodoPago: method,
+        metodoPago: metodoPagoNormalizado,
         items: orderItems,
         total: finalTotal,
         usuario: user.nombre || "Vendedor",

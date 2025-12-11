@@ -480,12 +480,15 @@ export function RecentOrdersDialog({
                         </TableCell>
                         <TableCell className="text-right font-semibold text-lg py-4">
                           <span className="text-emerald-700">
-                            ${Number(
-                              order.tieneDescuento && order.montoDescuento
-                                ? order.total - order.montoDescuento
-                                : order.total
-                            ).toLocaleString()}
+                            {/* ✅ CORRECCIÓN: El total ya viene con descuento aplicado del backend */}
+                            ${Number(order.total).toLocaleString()}
                           </span>
+                          {/* ✅ Mostrar descuento aplicado si existe */}
+                          {order.tieneDescuento && order.montoDescuento && (
+                            <div className="text-xs text-gray-500 mt-1">
+                              Descuento: -${Number(order.montoDescuento).toLocaleString()}
+                            </div>
+                          )}
                         </TableCell>
                         <TableCell className="text-center py-4">
                           <Button
