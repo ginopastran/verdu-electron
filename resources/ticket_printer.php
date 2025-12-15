@@ -457,8 +457,30 @@ try {
             $printer->text("$metodoPago: $$monto\n");
         }
     } else {
-        // Para pagos con un solo método, mantener el comportamiento actual
-        $printer->text("Método de pago: " . strtoupper($orderData['metodoPago']) . "\n");
+        // Para pagos con un solo método, normalizar el método de pago para mostrar correctamente
+        $metodoPago = $orderData['metodoPago'] ?? 'N/A';
+        $metodoPagoDisplay = '';
+        switch (strtolower($metodoPago)) {
+            case 'tarjeta':
+                $metodoPagoDisplay = 'TARJETA';
+                break;
+            case 'transferencia':
+                $metodoPagoDisplay = 'TRANSFERENCIA';
+                break;
+            case 'efectivo':
+                $metodoPagoDisplay = 'EFECTIVO';
+                break;
+            case 'qr':
+                $metodoPagoDisplay = 'QR / MERCADOPAGO';
+                break;
+            case 'split':
+                $metodoPagoDisplay = 'PAGO MIXTO';
+                break;
+            default:
+                $metodoPagoDisplay = strtoupper($metodoPago);
+                break;
+        }
+        $printer->text("Método de pago: " . $metodoPagoDisplay . "\n");
     }
 
     // Pie de página

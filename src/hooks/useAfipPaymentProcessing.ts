@@ -406,7 +406,12 @@ export function useAfipPaymentProcessing({
       type: "percentage" | "fixed"; 
       value: number; 
       amount: number;
-    } | null
+    } | null,
+    splitPaymentData?: {
+      cashAmount: number;
+      secondPaymentMethod: string;
+      secondAmount: number;
+    }
   ) => {
     console.log("🔥🔥🔥 PROCESS AFIP PAYMENT: INICIANDO");
     console.log("🔥🔥🔥 STACK TRACE:", new Error().stack);
@@ -503,6 +508,19 @@ export function useAfipPaymentProcessing({
           }),
           ...(!discountData && {
             tieneDescuento: false,
+          }),
+          // ✅ CORRECCIÓN: Incluir pagos múltiples cuando el método es "split"
+          ...(method === "split" && splitPaymentData && {
+            pagos: [
+              {
+                metodoPago: "efectivo",
+                monto: splitPaymentData.cashAmount,
+              },
+              {
+                metodoPago: splitPaymentData.secondPaymentMethod,
+                monto: splitPaymentData.secondAmount,
+              },
+            ],
           }),
         }),
       });
@@ -686,6 +704,19 @@ export function useAfipPaymentProcessing({
         }),
         ...(!discountData && {
           tieneDescuento: false
+        }),
+        // ✅ CORRECCIÓN: Incluir pagos múltiples en printData cuando el método es "split"
+        ...(method === "split" && splitPaymentData && {
+          pagos: [
+            {
+              metodoPago: "efectivo",
+              monto: splitPaymentData.cashAmount,
+            },
+            {
+              metodoPago: splitPaymentData.secondPaymentMethod,
+              monto: splitPaymentData.secondAmount,
+            },
+          ],
         }),
       };
 
@@ -994,7 +1025,20 @@ export function useAfipPaymentProcessing({
         "🧾 SPLIT PAYMENT: Procesando pago mixto AFIP con tarjeta..."
       );
       console.log("🔍 CRÍTICO: Tarjeta puede crear factura inmediatamente");
-      await processAfipPayment("split", items);
+      
+      // ✅ CORRECCIÓN: Para pago mixto con tarjeta, necesitamos pasar los pagos múltiples
+      // Calcular el monto del segundo método (tarjeta)
+      const secondAmount = totalAmount - cashAmountValue;
+      
+      // Llamar a processAfipPayment con método "split" y los datos necesarios
+      // El backend deberá manejar los pagos múltiples basándose en el método "split"
+      // Nota: El backend necesita recibir los pagos múltiples, pero por ahora pasamos
+      // el método "split" y el totalAmount con descuento aplicado
+      await processAfipPayment("split", items, totalAmount, discountData, {
+        cashAmount: cashAmountValue,
+        secondPaymentMethod: secondPaymentMethod,
+        secondAmount: secondAmount,
+      });
       setIsProcessingPayment(false); // Limpiar solo si no es QR
     }
   };
@@ -1216,12 +1260,27 @@ export function useAfipPaymentProcessing({
         isSplitPayment: true,
         cashAmount: cashAmountValue,
         afipData: null, // Consumidor final
+        // ✅ CORRECCIÓN: Incluir todos los campos de descuento en formato estándar
         ...(discountData && {
+          tieneDescuento: true,
+          tipoDescuento: discountData.type === "percentage" ? "porcentual" : "cantidad",
+          valorDescuento: discountData.value,
+          montoDescuento: discountData.amount,
+          subtotalSinDescuento: Number(totalAmount.toFixed(2)),
+          discountData: {
+            type: discountData.type,
+            value: discountData.value,
+            amount: discountData.amount,
+          },
+          // Mantener compatibilidad con formato anterior
           descuento: {
             tipoDescuento: discountData.type === "percentage" ? "porcentual" : "cantidad",
             valorDescuento: discountData.value,
-            montoDescuento: Number((totalAmount - totalWithDiscount).toFixed(2)),
+            montoDescuento: discountData.amount,
           },
+        }),
+        ...(!discountData && {
+          tieneDescuento: false,
         }),
       };
 
