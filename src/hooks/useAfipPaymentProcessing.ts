@@ -572,7 +572,12 @@ export function useAfipPaymentProcessing({
           subtotalSinDescuento: afipResult.factura.subtotalSinDescuento,
           subtotal: afipResult.factura.subtotal,
           total: afipResult.factura.total,
-          impuestos: afipResult.factura.impuestos
+          impuestos: afipResult.factura.impuestos,
+          discountData: {
+            type: afipResult.factura.tipoDescuento === "porcentual" ? "percentage" : "fixed",
+            value: afipResult.factura.valorDescuento,
+            amount: afipResult.factura.montoDescuento,
+          },
         }),
         // Si no hay descuento en la respuesta de API, usar datos locales de descuento
         ...(discountData && !afipResult.factura?.tieneDescuento && {
