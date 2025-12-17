@@ -223,10 +223,56 @@ export const useClosing = (
 
         console.log("-------------------------------------");
         console.log(
-          `TOTAL GENERAL: $${Number(
+          `TOTAL VENTAS NORMALES: $${Number(
             cierreData.totalVentas
           ).toLocaleString()} (${cierreData.cantidadVentas} ventas)`
         );
+
+        // ✅ NUEVO: Mostrar ventas por cuenta corriente si existen
+        if (cierreData.cuentaCorriente) {
+          console.log("-------------------------------------");
+          console.log("VENTAS POR CUENTA CORRIENTE:");
+          
+          // Mostrar métodos de pago de cuenta corriente si están disponibles
+          if (cierreData.cuentaCorriente.ventasPorMetodo) {
+            Object.entries(cierreData.cuentaCorriente.ventasPorMetodo).forEach(
+              ([metodo, total]: [string, any]) => {
+                console.log(
+                  `  ${metodo.toUpperCase()}: $${Number(total).toLocaleString()}`
+                );
+              }
+            );
+          }
+          
+          console.log(
+            `TOTAL CUENTA CORRIENTE: $${Number(
+              cierreData.cuentaCorriente.total
+            ).toLocaleString()} (${cierreData.cuentaCorriente.cantidad} ventas)`
+          );
+        }
+
+        // ✅ NUEVO: Mostrar total general combinado si existe resumen
+        if (cierreData.resumen) {
+          console.log("-------------------------------------");
+          console.log("TOTAL GENERAL:");
+          console.log(
+            `  (Cuenta Corriente + Ventas Normales): $${Number(
+              cierreData.resumen.totalCombinado
+            ).toLocaleString()} (${cierreData.resumen.cantidadTotalCombinada} ventas)`
+          );
+        } else if (cierreData.cuentaCorriente) {
+          // Si no hay resumen pero hay cuenta corriente, calcular manualmente
+          const totalCombinado = cierreData.totalVentas + cierreData.cuentaCorriente.total;
+          const cantidadCombinada = cierreData.cantidadVentas + cierreData.cuentaCorriente.cantidad;
+          console.log("-------------------------------------");
+          console.log("TOTAL GENERAL:");
+          console.log(
+            `  (Cuenta Corriente + Ventas Normales): $${Number(
+              totalCombinado
+            ).toLocaleString()} (${cantidadCombinada} ventas)`
+          );
+        }
+        
         console.log("=====================================\n");
 
         // Intentar imprimir - usar window.printer API específica

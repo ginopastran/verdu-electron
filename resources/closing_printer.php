@@ -374,10 +374,24 @@ try {
         
         // NO mostrar línea de diferencia, simplemente ir al total
 
-        // ✅ NUEVO: Sección de ventas por cuenta corriente
+        // ✅ NUEVO: Sección de ventas por cuenta corriente (usando nueva estructura API)
         $totalCuentaCorriente = 0;
         $cantidadCuentaCorriente = 0;
-        if (isset($closingData['ventasCuentaCorriente'])) {
+        $metodosPagoCC = [];
+        
+        // Usar nueva estructura 'cuentaCorriente' de la API
+        if (isset($closingData['cuentaCorriente']) && is_array($closingData['cuentaCorriente'])) {
+            $cuentaCorriente = $closingData['cuentaCorriente'];
+            $totalCuentaCorriente = isset($cuentaCorriente['total']) ? floatval($cuentaCorriente['total']) : 0;
+            $cantidadCuentaCorriente = isset($cuentaCorriente['cantidad']) ? intval($cuentaCorriente['cantidad']) : 0;
+            
+            // Obtener métodos de pago de cuenta corriente si están disponibles
+            if (isset($cuentaCorriente['ventasPorMetodo']) && is_array($cuentaCorriente['ventasPorMetodo'])) {
+                $metodosPagoCC = $cuentaCorriente['ventasPorMetodo'];
+            }
+        }
+        // Compatibilidad con estructura antigua 'ventasCuentaCorriente'
+        elseif (isset($closingData['ventasCuentaCorriente'])) {
             $ventasCC = $closingData['ventasCuentaCorriente'];
             $totalCuentaCorriente = isset($ventasCC['total']) ? floatval($ventasCC['total']) : 0;
             $cantidadCuentaCorriente = isset($ventasCC['cantidad']) ? intval($ventasCC['cantidad']) : 0;
@@ -392,22 +406,42 @@ try {
             $printer->setEmphasis(false);
             $printer->setJustification(Printer::JUSTIFY_LEFT);
             $printer->text("-----------------------------\n");
+            
+            // Mostrar métodos de pago de cuenta corriente si están disponibles
+            if (!empty($metodosPagoCC)) {
+                foreach ($metodosPagoCC as $metodo => $monto) {
+                    if ($monto > 0) {
+                        $nombreFormateado = ucfirst($metodo);
+                        $printer->text(str_pad($nombreFormateado, 15));
+                        $printer->text(str_pad('$' . number_format($monto, 2), 17, " ", STR_PAD_LEFT) . "\n");
+                    }
+                }
+                $printer->text("-----------------------------\n");
+            }
+            
             $printer->text(str_pad("TOTAL CUENTA CORRIENTE: $" . number_format($totalCuentaCorriente, 2), 32, " ", STR_PAD_LEFT) . "\n");
             $printer->text(str_pad("CANT. VENTAS CC: " . $cantidadCuentaCorriente, 32, " ", STR_PAD_LEFT) . "\n");
             $printer->text("-----------------------------\n");
         }
 
-        // Total general
+        // Total general (ventas normales)
         $printer->text("-----------------------------\n");
         $printer->setEmphasis(true);
-        $printer->text(str_pad("TOTAL: $" . number_format($closingData['totalVentas'], 2), 32, " ", STR_PAD_LEFT) . "\n");
-        $printer->text(str_pad("CANT. VENTAS: " . $closingData['cantidadVentas'], 32, " ", STR_PAD_LEFT) . "\n");
+        $printer->text(str_pad("TOTAL VENTAS NORMALES: $" . number_format($closingData['totalVentas'], 2), 32, " ", STR_PAD_LEFT) . "\n");
+        $printer->text(str_pad("CANT. VENTAS NORMALES: " . $closingData['cantidadVentas'], 32, " ", STR_PAD_LEFT) . "\n");
         $printer->setEmphasis(false);
         
         // ✅ NUEVO: Sección combinada (cuenta corriente + ventas normales) solo si hay ventas de cuenta corriente
         if ($totalCuentaCorriente > 0) {
-            $totalCombinado = $closingData['totalVentas'] + $totalCuentaCorriente;
-            $cantidadCombinada = $closingData['cantidadVentas'] + $cantidadCuentaCorriente;
+            // Usar resumen.totalCombinado si está disponible, sino calcular
+            $totalCombinado = isset($closingData['resumen']['totalCombinado']) 
+                ? floatval($closingData['resumen']['totalCombinado'])
+                : $closingData['totalVentas'] + $totalCuentaCorriente;
+            
+            $cantidadCombinada = isset($closingData['resumen']['cantidadTotalCombinada'])
+                ? intval($closingData['resumen']['cantidadTotalCombinada'])
+                : $closingData['cantidadVentas'] + $cantidadCuentaCorriente;
+            
             $printer->text("-----------------------------\n");
             $printer->setJustification(Printer::JUSTIFY_CENTER);
             $printer->setEmphasis(true);
