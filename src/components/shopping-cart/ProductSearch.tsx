@@ -48,7 +48,6 @@ export function ProductSearch({
     const timer = setTimeout(() => {
       if (inputRef.current) {
         inputRef.current.focus();
-        console.log("🎯 ProductSearch: Input enfocado al montar");
       }
     }, 300);
 

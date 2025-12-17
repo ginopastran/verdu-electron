@@ -454,10 +454,12 @@ export function RecentOrdersDialog({
                                 ? "bg-blue-100 text-blue-800"
                                 : order.metodoPago === "qr"
                                 ? "bg-purple-100 text-purple-800"
+                                : order.metodoPago === "split"
+                                ? "bg-orange-100 text-orange-800"
                                 : "bg-gray-100 text-gray-800"
                             )}
                           >
-                            {order.metodoPago}
+                            {order.metodoPago === "split" ? "Mixto" : order.metodoPago}
                           </span>
                         </TableCell>
                         <TableCell className="text-center py-4">
@@ -480,13 +482,24 @@ export function RecentOrdersDialog({
                         </TableCell>
                         <TableCell className="text-right font-semibold text-lg py-4">
                           <span className="text-emerald-700">
-                            {/* ✅ CORRECCIÓN: El total ya viene con descuento aplicado del backend */}
-                            ${Number(order.total).toLocaleString()}
+                            {/* ✅ CORRECCIÓN: Calcular total real cuando hay descuento */}
+                            {order.tieneDescuento && order.subtotalSinDescuento && order.montoDescuento
+                              ? `$${Number(order.subtotalSinDescuento - order.montoDescuento).toLocaleString("es-AR", {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2,
+                                })}`
+                              : `$${Number(order.total).toLocaleString("es-AR", {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2,
+                                })}`}
                           </span>
                           {/* ✅ Mostrar descuento aplicado si existe */}
                           {order.tieneDescuento && order.montoDescuento && (
                             <div className="text-xs text-gray-500 mt-1">
-                              Descuento: -${Number(order.montoDescuento).toLocaleString()}
+                              Descuento: -${Number(order.montoDescuento).toLocaleString("es-AR", {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              })}
                             </div>
                           )}
                         </TableCell>

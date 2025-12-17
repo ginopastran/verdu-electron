@@ -25,53 +25,18 @@ export const useFacturaTicketPrinting = () => {
     appId?: string | null
   ) => {
     try {
-      // DEBUG: Verificar APIs disponibles al inicio
-      console.log("🔍 Verificación inicial de APIs para impresión de factura:");
-      console.log("- window existe:", typeof window !== "undefined");
-      console.log("- window.electron:", typeof (window as any).electron);
-      console.log("- window.printer:", typeof (window as any).printer);
-      console.log(
-        "- window.electronStore:",
-        typeof (window as any).electronStore
-      );
-
       // Obtener información del business para verificar doble impresión
       let businessInfo = null;
       let dobleImpresionEnabled = false;
 
-      console.log("🔍 DEBUG: ANTES DE LA DECISIÓN DE OBTENER BUSINESS INFO:", {
-        API_URL_proporcionado: !!API_URL,
-        API_URL_valor: API_URL,
-        appId_proporcionado: appId !== undefined,
-        appId_valor: appId,
-        appId_tipo: typeof appId,
-        condicionIf: API_URL && appId !== undefined,
-      });
-
       if (API_URL && appId !== undefined) {
-        console.log(
-          "🏢 Obteniendo información del business para doble impresión de factura..."
-        );
-
         try {
           businessInfo = await getBusinessInfo(API_URL, appId);
-
-          // Evaluar dobleImpresionEnabled
           dobleImpresionEnabled = businessInfo?.dobleImpresionEnabled === true;
-
-          console.log("📋 Business info obtenida para factura:", {
-            businessInfo: !!businessInfo,
-            dobleImpresionEnabled_final: dobleImpresionEnabled,
-            valor_original: businessInfo?.dobleImpresionEnabled,
-          });
         } catch (error) {
           console.error("❌ Error al obtener business info:", error);
           dobleImpresionEnabled = false;
         }
-      } else {
-        console.log(
-          "⚠️ No se proporcionaron API_URL o appId, usando impresión simple para factura"
-        );
       }
 
       // Simular el ticket de factura antes de imprimir
@@ -93,16 +58,6 @@ export const useFacturaTicketPrinting = () => {
         // FALLBACK - usar un nombre más apropiado
         "Mi Negocio";
 
-      console.log(`✅ Nombre del negocio determinado: ${businessName}`);
-      console.log(`🔍 DEBUG businessInfo:`, {
-        businessInfo_existe: !!businessInfo,
-        businessInfo_nombre: businessInfo?.nombre,
-        businessInfo_name: businessInfo?.name,
-        businessInfo_razonSocial: businessInfo?.razonSocial,
-        facturaData_businessName: facturaData.businessName,
-        facturaData_sucursal: facturaData.sucursal,
-        resultado_final: businessName
-      });
 
       console.log(businessName.toUpperCase());
       console.log(`Tipo: ${facturaData.tipoFactura || "FACTURA"}`);
@@ -227,21 +182,11 @@ export const useFacturaTicketPrinting = () => {
           telefono: businessInfo?.telefono || facturaData.telefono
         };
 
-        console.log(`🔍 DEBUG: Datos enviados al printer:`, {
-          businessName_original: facturaData.businessName,
-          businessName_calculado: businessName,
-          businessName_final: printData.businessName,
-          businessInfo_disponible: !!businessInfo
-        });
-
         // Método 1: Usar window.printer (API específica para impresión de facturas)
         if (
           typeof window !== "undefined" &&
           (window as any).printer?.printFacturaTicket
         ) {
-          console.log(
-            "🖨️ Llamando script PHP de factura via window.printer.printFacturaTicket"
-          );
           return await (window as any).printer.printFacturaTicket(printData);
         }
         // Método 2: Usar window.electron.ipcRenderer (API general)
@@ -249,9 +194,6 @@ export const useFacturaTicketPrinting = () => {
           typeof window !== "undefined" &&
           (window as any).electron?.ipcRenderer
         ) {
-          console.log(
-            "🖨️ Llamando script PHP sde factura via window.electron.ipcRenderer"
-          );
           return await (window as any).electron.ipcRenderer.invoke(
             "print-factura-ticket",
             printData
@@ -268,20 +210,12 @@ export const useFacturaTicketPrinting = () => {
       // LÓGICA: Si dobleImpresionEnabled = true, hacer 2 llamadas
       try {
         if (dobleImpresionEnabled === true) {
-          console.log(
-            "🖨️🖨️ DOBLE IMPRESIÓN DE FACTURA ACTIVADA - Mandando 2 impresiones al script PHP"
-          );
-
           // PRIMERA IMPRESIÓN
-          console.log("📄 1️⃣ Primera llamada al script PHP de factura...");
           const result1 = await callFacturaPrintScript();
-          console.log("📄 1️⃣ Resultado primera impresión de factura:", result1);
 
           // SEGUNDA IMPRESIÓN (después de un pequeño delay)
           await new Promise((resolve) => setTimeout(resolve, 500));
-          console.log("📄 2️⃣ Segunda llamada al script PHP de factura...");
           const result2 = await callFacturaPrintScript();
-          console.log("📄 2️⃣ Resultado segunda impresión de factura:", result2);
 
           // Mostrar resultado
           if (result1?.success && result2?.success) {
@@ -296,13 +230,7 @@ export const useFacturaTicketPrinting = () => {
             });
           }
         } else {
-          console.log(
-            "🖨️ IMPRESIÓN SIMPLE DE FACTURA - Mandando 1 impresión al script PHP"
-          );
-          console.log("📄 Única llamada al script PHP de factura...");
           const result = await callFacturaPrintScript();
-          console.log("📄 Resultado impresión simple de factura:", result);
-
           // ✅ RETORNAR ESTADO REAL DE IMPRESIÓN (sin toasts - se manejan en FacturaForm)
           return result?.success === true;
         }
@@ -314,16 +242,6 @@ export const useFacturaTicketPrinting = () => {
         console.error(
           "❌ Error al acceder a Electron para factura:",
           electronError
-        );
-
-        // Mostrar información de debug para ayudar a diagnosticar
-        console.log("🔍 Debug detallado - Estado del preload para facturas:");
-        console.log("- window existe:", typeof window !== "undefined");
-        console.log("- window.electron:", typeof (window as any).electron);
-        console.log("- window.printer:", typeof (window as any).printer);
-        console.log(
-          "- window.electronStore:",
-          typeof (window as any).electronStore
         );
 
         // ✅ RETORNAR FALSE EN CASO DE ERROR DE CONEXIÓN (sin toast - se maneja en FacturaForm)

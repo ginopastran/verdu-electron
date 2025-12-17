@@ -46,24 +46,15 @@ interface Vendor {
 }
 
 export default function UserLoginPage() {
-  console.log("🚀 UserLogin: Componente montándose...");
-
   const { updateUser } = useAuth();
   const { businessId, adminData, clearAdminData } = useBusiness();
   const { isOnline } = useOfflineMode();
   const { saveOfflineCredentials } = useOfflineAuth();
   const navigate = useNavigate();
 
-  console.log("📊 UserLogin state:", {
-    businessId,
-    adminData: !!adminData,
-    isOnline,
-  });
-
   // SAFETY: Si businessId está undefined pero tenemos adminData,
   // extraer businessId del adminData
   const effectiveBusinessId = businessId || adminData?.businessId;
-  console.log("🔧 Usando businessId:", effectiveBusinessId);
 
   const [redirectTo, setRedirectTo] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -83,28 +74,16 @@ export default function UserLoginPage() {
 
   // Fetch vendors from API
   const fetchVendors = useCallback(async () => {
-    console.log("🔄 UserLogin: Iniciando carga de vendors...");
-    console.log(
-      "📊 businessId:",
-      businessId,
-      "effectiveBusinessId:",
-      effectiveBusinessId,
-      "isOnline:",
-      isOnline
-    );
-
     try {
       setLoadingVendors(true);
 
       if (!isOnline) {
-        console.log("❌ Sin conexión a internet");
         toast.error("No hay conexión a internet");
         setLoadingVendors(false);
         return;
       }
 
       if (!effectiveBusinessId) {
-        console.log("❌ No hay businessId configurado");
         toast.error("No se ha configurado el negocio");
         setLoadingVendors(false);
         return;
@@ -112,11 +91,6 @@ export default function UserLoginPage() {
 
       const API_URL = import.meta.env.VITE_API_URL;
       const appId = import.meta.env.VITE_APP_ID;
-
-      console.log(
-        "🌐 Haciendo petición a API...",
-        `${API_URL}/api/usuarios/vendedores?businessId=${effectiveBusinessId}`
-      );
 
       const response = await fetch(
         `${API_URL}/api/usuarios/vendedores?businessId=${effectiveBusinessId}`,
@@ -128,18 +102,11 @@ export default function UserLoginPage() {
         }
       );
 
-      console.log(
-        "📡 Respuesta recibida:",
-        response.status,
-        response.statusText
-      );
-
       if (!response.ok) {
         throw new Error("Error al obtener vendedores");
       }
 
       const data = await response.json();
-      console.log("✅ Vendors cargados:", data.length, "vendors");
       setVendors(data);
     } catch (error) {
       console.error("❌ Error fetching vendors:", error);
@@ -147,21 +114,14 @@ export default function UserLoginPage() {
         description: "Por favor, intenta nuevamente más tarde.",
       });
     } finally {
-      console.log("✅ fetchVendors terminado, setLoadingVendors(false)");
       setLoadingVendors(false);
     }
   }, [businessId, effectiveBusinessId, isOnline]);
 
   // Fetch vendors on component mount
   useEffect(() => {
-    console.log(
-      "🔄 UserLogin useEffect triggered - effectiveBusinessId:",
-      effectiveBusinessId
-    );
     if (effectiveBusinessId) {
       fetchVendors();
-    } else {
-      console.log("⏳ Esperando businessId...");
     }
   }, [effectiveBusinessId, isOnline, fetchVendors]);
 
@@ -330,8 +290,6 @@ export default function UserLoginPage() {
   // ✅ MEJORADO: Handle reconfigure business con navegación robusta
   const confirmReconfigure = async () => {
     try {
-      console.log("🔄 Iniciando reconfiguración del negocio...");
-
       // Cerrar el diálogo
       setReconfigureDialogOpen(false);
 
@@ -343,37 +301,28 @@ export default function UserLoginPage() {
 
       // Limpiar datos del admin
       await clearAdminData();
-      console.log("✅ Datos del admin limpiados");
 
       // Limpiar cualquier estado de autenticación actual
       updateUser(null);
-      console.log("✅ Usuario deslogueado");
 
       // Limpiar cualquier cache/estado local adicional
       if (typeof window !== "undefined") {
         // Limpiar localStorage relacionado con autenticación
         localStorage.removeItem("offlineCredentials");
-        console.log("✅ Cache offline limpiado");
       }
 
       // Usar navegación programática directa con fallback
-      console.log("🚀 Navegando a /admin-login");
       navigate("/admin-login", { replace: true });
 
       // Verificar navegación después de un tiempo
       setTimeout(() => {
-        console.log("🔍 Verificando navegación...");
-        console.log("🌐 URL actual:", window.location.pathname);
-
         if (window.location.pathname !== "/admin-login") {
-          console.log("⚠️ Navegación falló, intentando forzar...");
           // Fallback usando window.location
           window.location.href = "#/admin-login";
 
           // Si aún falla, recargar completamente
           setTimeout(() => {
             if (window.location.pathname !== "/admin-login") {
-              console.log("🔄 Forzando recarga para limpiar estado...");
               window.location.reload();
             }
           }, 1000);

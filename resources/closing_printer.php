@@ -374,12 +374,53 @@ try {
         
         // NO mostrar línea de diferencia, simplemente ir al total
 
+        // ✅ NUEVO: Sección de ventas por cuenta corriente
+        $totalCuentaCorriente = 0;
+        $cantidadCuentaCorriente = 0;
+        if (isset($closingData['ventasCuentaCorriente'])) {
+            $ventasCC = $closingData['ventasCuentaCorriente'];
+            $totalCuentaCorriente = isset($ventasCC['total']) ? floatval($ventasCC['total']) : 0;
+            $cantidadCuentaCorriente = isset($ventasCC['cantidad']) ? intval($ventasCC['cantidad']) : 0;
+        }
+        
+        // Solo mostrar sección de cuenta corriente si hay ventas de cuenta corriente
+        if ($totalCuentaCorriente > 0) {
+            $printer->text("-----------------------------\n");
+            $printer->setJustification(Printer::JUSTIFY_CENTER);
+            $printer->setEmphasis(true);
+            $printer->text("VENTAS POR CUENTA CORRIENTE\n");
+            $printer->setEmphasis(false);
+            $printer->setJustification(Printer::JUSTIFY_LEFT);
+            $printer->text("-----------------------------\n");
+            $printer->text(str_pad("TOTAL CUENTA CORRIENTE: $" . number_format($totalCuentaCorriente, 2), 32, " ", STR_PAD_LEFT) . "\n");
+            $printer->text(str_pad("CANT. VENTAS CC: " . $cantidadCuentaCorriente, 32, " ", STR_PAD_LEFT) . "\n");
+            $printer->text("-----------------------------\n");
+        }
+
         // Total general
         $printer->text("-----------------------------\n");
         $printer->setEmphasis(true);
         $printer->text(str_pad("TOTAL: $" . number_format($closingData['totalVentas'], 2), 32, " ", STR_PAD_LEFT) . "\n");
         $printer->text(str_pad("CANT. VENTAS: " . $closingData['cantidadVentas'], 32, " ", STR_PAD_LEFT) . "\n");
         $printer->setEmphasis(false);
+        
+        // ✅ NUEVO: Sección combinada (cuenta corriente + ventas normales) solo si hay ventas de cuenta corriente
+        if ($totalCuentaCorriente > 0) {
+            $totalCombinado = $closingData['totalVentas'] + $totalCuentaCorriente;
+            $cantidadCombinada = $closingData['cantidadVentas'] + $cantidadCuentaCorriente;
+            $printer->text("-----------------------------\n");
+            $printer->setJustification(Printer::JUSTIFY_CENTER);
+            $printer->setEmphasis(true);
+            $printer->text("TOTAL GENERAL\n");
+            $printer->setEmphasis(false);
+            $printer->setJustification(Printer::JUSTIFY_LEFT);
+            $printer->text("(Cuenta Corriente + Ventas Normales)\n");
+            $printer->text("-----------------------------\n");
+            $printer->setEmphasis(true);
+            $printer->text(str_pad("TOTAL GENERAL: $" . number_format($totalCombinado, 2), 32, " ", STR_PAD_LEFT) . "\n");
+            $printer->text(str_pad("CANT. TOTAL: " . $cantidadCombinada, 32, " ", STR_PAD_LEFT) . "\n");
+            $printer->setEmphasis(false);
+        }
         
         // Ventas por vendedor (nuevo)
         if (isset($closingData['ventasPorVendedor']) && is_array($closingData['ventasPorVendedor'])) {

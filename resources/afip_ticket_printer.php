@@ -207,7 +207,7 @@ try {
         file_put_contents('php://stderr', "⚠️ Usando nombre por defecto: " . $businessName . "\n");
     }
     
-    // Buscar razón social en la nueva estructura configuracionAfip
+    // ✅ CORRECCIÓN: Buscar razón social en la nueva estructura configuracionAfip (prioridad)
     if (isset($afipData['configuracionAfip']) && is_array($afipData['configuracionAfip']) && 
         isset($afipData['configuracionAfip']['razonSocial']) && !empty($afipData['configuracionAfip']['razonSocial'])) {
         $razonSocial = $afipData['configuracionAfip']['razonSocial'];
@@ -218,6 +218,17 @@ try {
     } else {
         $razonSocial = $businessName;
         file_put_contents('php://stderr', "⚠️ Usando businessName como razón social: " . $razonSocial . "\n");
+    }
+    
+    // ✅ CORRECCIÓN: Buscar CUIT en configuracionAfip (prioridad)
+    $cuitValue = '00-00000000-0';
+    if (isset($afipData['configuracionAfip']) && is_array($afipData['configuracionAfip']) && 
+        isset($afipData['configuracionAfip']['cuit']) && !empty($afipData['configuracionAfip']['cuit'])) {
+        $cuitValue = $afipData['configuracionAfip']['cuit'];
+        file_put_contents('php://stderr', "✅ Usando CUIT desde configuracionAfip.cuit: " . $cuitValue . "\n");
+    } elseif (isset($afipData['cuit']) && !empty($afipData['cuit'])) {
+        $cuitValue = $afipData['cuit'];
+        file_put_contents('php://stderr', "✅ Usando CUIT desde afipData.cuit: " . $cuitValue . "\n");
     }
     
     // Imprimir el nombre del business en grande arriba con salto de línea inteligente
@@ -260,8 +271,7 @@ try {
     // Información AFIP requerida
     $printer->text("Razón Social: " . $razonSocial . "\n");
 
-    // Formatear CUIT si viene sin guiones (11 dígitos)
-    $cuitValue = $afipData['cuit'] ?? '00-00000000-0';
+    // ✅ CORRECCIÓN: Formatear CUIT si viene sin guiones (11 dígitos)
     if (preg_match('/^\d{11}$/', $cuitValue)) {
         $cuitValue = substr($cuitValue, 0, 2) . '-' . substr($cuitValue, 2, 8) . '-' . substr($cuitValue, 10, 1);
     }
@@ -327,7 +337,13 @@ try {
     $printer->setJustification(Printer::JUSTIFY_LEFT);
     
     // Número de factura y fecha
-    $printer->text("Nro: " . ($afipData['puntoVenta'] ?? '0001') . "-" . str_pad($afipData['numeroFactura'] ?? '1', 8, '0', STR_PAD_LEFT) . "\n");
+    // ✅ CORRECCIÓN: Usar número real de factura de ARCA o sistema interno
+    $numeroFactura = $afipData['numeroFactura'] ?? 
+                     $afipData['numero'] ?? 
+                     ($afipData['factura']['numero'] ?? null) ||
+                     ($afipData['factura']['numeroFactura'] ?? null) ||
+                     '1';
+    $printer->text("Nro: " . ($afipData['puntoVenta'] ?? '0001') . "-" . str_pad($numeroFactura, 8, '0', STR_PAD_LEFT) . "\n");
     date_default_timezone_set('America/Argentina/Buenos_Aires');
     $fechaFactura = $afipData['fechaHora'] ?? date("d/m/Y H:i:s");
     $printer->text("Fecha: " . $fechaFactura . "\n");
@@ -505,29 +521,64 @@ try {
     // ✅ CORRECCIÓN: Mostrar método de pago correctamente
     $printer->text("-----------------------------\n");
     $metodoPago = $afipData['metodoPago'] ?? 'N/A';
-    // Normalizar método de pago para mostrar correctamente
-    $metodoPagoDisplay = '';
-    switch (strtolower($metodoPago)) {
-        case 'tarjeta':
-            $metodoPagoDisplay = 'TARJETA';
-            break;
-        case 'transferencia':
-            $metodoPagoDisplay = 'TRANSFERENCIA';
-            break;
-        case 'efectivo':
-            $metodoPagoDisplay = 'EFECTIVO';
-            break;
-        case 'qr':
-            $metodoPagoDisplay = 'QR / MERCADOPAGO';
-            break;
-        case 'split':
-            $metodoPagoDisplay = 'PAGO MIXTO';
-            break;
-        default:
-            $metodoPagoDisplay = strtoupper($metodoPago);
-            break;
+    
+    // ✅ CORRECCIÓN: Verificar si es un pago con múltiples métodos (split)
+    if (isset($afipData['pagos']) && is_array($afipData['pagos']) && count($afipData['pagos']) > 0) {
+        // Si hay múltiples pagos, mostrar como "MÉTODOS DE PAGO"
+        if (count($afipData['pagos']) > 1) {
+            $printer->text("MÉTODOS DE PAGO:\n");
+        } else {
+            $printer->text("MÉTODO DE PAGO:\n");
+        }
+        
+        foreach ($afipData['pagos'] as $pago) {
+            $metodoPagoItem = strtolower($pago['metodoPago'] ?? '');
+            $metodoPagoDisplay = '';
+            switch ($metodoPagoItem) {
+                case 'tarjeta':
+                    $metodoPagoDisplay = 'TARJETA';
+                    break;
+                case 'transferencia':
+                    $metodoPagoDisplay = 'TRANSFERENCIA';
+                    break;
+                case 'efectivo':
+                    $metodoPagoDisplay = 'EFECTIVO';
+                    break;
+                case 'qr':
+                    $metodoPagoDisplay = 'QR / MERCADOPAGO';
+                    break;
+                default:
+                    $metodoPagoDisplay = strtoupper($pago['metodoPago'] ?? 'N/A');
+                    break;
+            }
+            $monto = number_format($pago['monto'] ?? 0, 2);
+            $printer->text("$metodoPagoDisplay: $$monto\n");
+        }
+    } else {
+        // Para pagos con un solo método, normalizar el método de pago para mostrar correctamente
+        $metodoPagoDisplay = '';
+        switch (strtolower($metodoPago)) {
+            case 'tarjeta':
+                $metodoPagoDisplay = 'TARJETA';
+                break;
+            case 'transferencia':
+                $metodoPagoDisplay = 'TRANSFERENCIA';
+                break;
+            case 'efectivo':
+                $metodoPagoDisplay = 'EFECTIVO';
+                break;
+            case 'qr':
+                $metodoPagoDisplay = 'QR / MERCADOPAGO';
+                break;
+            case 'split':
+                $metodoPagoDisplay = 'PAGO MIXTO';
+                break;
+            default:
+                $metodoPagoDisplay = strtoupper($metodoPago);
+                break;
+        }
+        $printer->text("Método de pago: " . $metodoPagoDisplay . "\n");
     }
-    $printer->text("Método de pago: " . $metodoPagoDisplay . "\n");
     
     // Debug del método de pago
     file_put_contents('php://stderr', "💳 Método de pago recibido: " . $metodoPago . "\n");

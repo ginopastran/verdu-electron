@@ -31,49 +31,19 @@ export const getBusinessName = async (): Promise<string> => {
 // Helper para obtener información completa del admin/business
 export const getAdminData = async () => {
   try {
-    console.log("🔍 DEBUG getAdminData: Iniciando...");
-    console.log("🔍 DEBUG: Estado del window:", {
-      hasWindow: typeof window !== "undefined",
-      hasElectronStore:
-        typeof window !== "undefined" && !!(window as any).electronStore,
-      windowKeys:
-        typeof window !== "undefined"
-          ? Object.keys(window)
-              .filter((k) => k.includes("electron"))
-              .slice(0, 5)
-          : [],
-    });
-
     if (typeof window !== "undefined" && (window as any).electronStore) {
-      console.log("🔍 DEBUG: Obteniendo adminData desde electronStore...");
       const result = await (window as any).electronStore.get("adminData");
-      console.log("🔍 DEBUG: AdminData desde electronStore:", {
-        result,
-        hasBusinessId: !!result?.businessId,
-        businessId: result?.businessId,
-        allKeys: result ? Object.keys(result) : [],
-      });
       return result;
     }
 
     if (typeof window !== "undefined") {
-      console.log("🔍 DEBUG: Obteniendo adminData desde localStorage...");
       const adminData = localStorage.getItem("adminData");
-      console.log("🔍 DEBUG: AdminData raw desde localStorage:", adminData);
 
       if (adminData) {
         const parsed = JSON.parse(adminData);
-        console.log("🔍 DEBUG: AdminData parseado desde localStorage:", {
-          parsed,
-          hasBusinessId: !!parsed?.businessId,
-          businessId: parsed?.businessId,
-          allKeys: Object.keys(parsed),
-        });
         return parsed;
       }
     }
-
-    console.log("🔍 DEBUG: No se encontró adminData en ningún lado");
     return null;
   } catch (error) {
     console.error("❌ Error obteniendo adminData:", error);
@@ -88,20 +58,8 @@ export const getBusinessInfo = async (
   appId: string | null
 ): Promise<any> => {
   try {
-    console.log("🔍 DEBUG getBusinessInfo: Iniciando...");
-    console.log("🔍 DEBUG: Parámetros de entrada:", {
-      API_URL,
-      appId,
-      appIdType: typeof appId,
-    });
-
     // Primero obtener businessId
     const adminData = await getAdminData();
-    console.log("🔍 DEBUG: AdminData obtenida:", {
-      adminData,
-      hasBusinessId: !!adminData?.businessId,
-      businessId: adminData?.businessId,
-    });
 
     if (!adminData?.businessId) {
       console.warn("⚠️ No se encontró businessId en adminData");
@@ -109,7 +67,6 @@ export const getBusinessInfo = async (
     }
 
     const businessId = adminData.businessId;
-    console.log("🏢 Obteniendo información del business ID:", businessId);
 
     // Construir URL y headers
     const url = `${API_URL}/api/business/${businessId}?include=configuracionAfip`;
@@ -118,21 +75,8 @@ export const getBusinessInfo = async (
       ...(appId && { "X-App-ID": appId }),
     };
 
-    console.log("🔍 DEBUG: Llamada HTTP:", {
-      url,
-      headers,
-      method: "GET",
-    });
-
     // Hacer llamada a la API
     const response = await fetch(url, { headers });
-
-    console.log("🔍 DEBUG: Respuesta HTTP:", {
-      status: response.status,
-      statusText: response.statusText,
-      ok: response.ok,
-      headers: Object.fromEntries(response.headers.entries()),
-    });
 
     if (!response.ok) {
       console.error(
@@ -143,7 +87,6 @@ export const getBusinessInfo = async (
     }
 
     const businessInfo = await response.json();
-    console.log("✅ Información del business obtenida:", businessInfo);
 
     // ✅ NUEVO: Debug específico para doble impresión
     // console.log("🖨️ DEBUG DOBLE IMPRESIÓN:");

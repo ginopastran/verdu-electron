@@ -68,9 +68,6 @@ export const AfipSplitPaymentDialog = ({
 
             // Solo disparar la acción si el botón estaría habilitado
             if (isButtonEnabled) {
-              console.log(
-                "⌨️ TECLADO: Enter detectado en diálogo de pago mixto AFIP"
-              );
               afipPaymentProcessor.processSplitPayment(
                 cartState.getCurrentItems(),
                 totalWithDiscount,

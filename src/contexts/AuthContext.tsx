@@ -39,33 +39,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    console.log("🔄 AuthContext: Iniciando sin restaurar usuario automáticamente...");
-    
     // ✅ CAMBIO: No restaurar automáticamente el usuario al iniciar la app
     // Esto fuerza que siempre se vaya al selector de usuarios
     // El usuario se autenticará manualmente cada vez que abra la app
-    
+
     try {
       // Limpiar cualquier sesión anterior al iniciar
       const storedUser = localStorage.getItem("user");
       if (storedUser) {
-        console.log("🧹 Limpiando sesión anterior al iniciar la app");
         localStorage.removeItem("user");
       }
-      
+
       // Mantener el usuario como null para forzar re-autenticación
       setUser(null);
-      console.log("✅ Usuario configurado como null - se requiere nueva autenticación");
     } catch (error) {
       console.error("❌ Error al limpiar sesión anterior:", error);
     } finally {
-      console.log("✅ AuthContext: Finalizando loading");
       setLoading(false);
     }
 
     // Safety timeout para AuthContext también
     const safetyTimeout = setTimeout(() => {
-      console.log("⚠️ SAFETY: AuthContext timeout - forzando fin de loading");
       setLoading(false);
     }, 8000);
 
@@ -105,7 +99,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshUserData = async () => {
     // Ya no realizamos la petición HTTP a /api/usuarios/[id]
     // Simplemente usamos los datos que ya tenemos en memoria
-    console.log("La actualización de datos de usuario ha sido desactivada");
 
     // Si en el futuro necesitas volver a implementar esta función,
     // aquí estaría el código para hacer una petición a la API

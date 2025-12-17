@@ -68,7 +68,6 @@ export const useProducts = (API_URL: string, appId: string | null) => {
         })
       );
 
-      console.log("✅ Productos cargados:", transformedProducts.length);
       setAvailableProducts(transformedProducts);
     } catch (error) {
       console.error("Error al cargar productos:", error);

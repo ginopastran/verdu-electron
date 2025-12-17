@@ -68,12 +68,10 @@ export function usePaymentProcessing({
 
   const markOrderAsProcessed = (orderId: string): void => {
     processedOrders.add(orderId);
-    console.log(`✅ TOAST CONTROL: Orden ${orderId} marcada como procesada`);
   };
 
   const clearProcessedOrdersTracking = () => {
     processedOrders.clear();
-    console.log("🧹 TOAST CONTROL: Tracking de órdenes procesadas limpiado");
   };
 
   // ✅ NUEVO: Control de impresión para evitar duplicados
@@ -93,13 +91,11 @@ export function usePaymentProcessing({
   ): void => {
     const key = `${orderType}-${orderId}`;
     printedOrders.add(key);
-    console.log(`✅ IMPRESIÓN CONTROL: Orden ${key} marcada como impresa`);
   };
 
   // ✅ FUNCIÓN PARA LIMPIAR CONTROL DE IMPRESIÓN
   const clearPrintedOrdersTracking = () => {
     printedOrders.clear();
-    console.log("🧹 IMPRESIÓN CONTROL: Tracking de órdenes impresas limpiado");
   };
 
   // Estado para datos del QR
@@ -174,18 +170,12 @@ export function usePaymentProcessing({
   // ✅ ANTI-DUPLICADOS: Función para crear órdenes verificando duplicados
   const createOrderWithDuplicateCheck = async (orderData: any) => {
     if (isProcessingOrder) {
-      console.log(
-        "⏳ ANTI-DUPLICADOS: Orden ya en proceso, evitando duplicado..."
-      );
       return null;
     }
 
     setIsProcessingOrder(true);
 
     try {
-      console.log(
-        "📋 ANTI-DUPLICADOS: Creando orden con verificación de duplicados"
-      );
 
       const validPayload = createValidOrderPayload(orderData);
 
@@ -203,10 +193,6 @@ export function usePaymentProcessing({
 
       // ✅ CRÍTICO: Verificar si es duplicado
       if (result.isDuplicate) {
-        console.log(
-          "✅ ANTI-DUPLICADOS: Orden ya existe, evitando duplicado:",
-          result.id
-        );
         return {
           ...result,
           isDuplicate: true,
@@ -214,7 +200,6 @@ export function usePaymentProcessing({
         };
       }
 
-      console.log("✅ ANTI-DUPLICADOS: Nueva orden creada:", result.id);
       return {
         ...result,
         isDuplicate: false,
@@ -258,21 +243,13 @@ export function usePaymentProcessing({
 
     // Si el resto es 0 y no hay decimales, ya está redondeado a 50
     if (remainder === 0 && decimalPart === 0) {
-      console.log("🧮 Ya está redondeado a 50:", amountFixed);
       return amountFixed;
     }
 
     // Redondear hacia abajo a múltiplo de 50
     const roundedDown = integerPart - remainder;
 
-    console.log("🧮 DEBUG Redondeo:", {
-      original: amount,
-      redondeadoA2Decimales: amountFixed,
-      parteEntera: integerPart,
-      parteDecimal: decimalPart,
-      resto: remainder,
-      redondeadoA50: roundedDown,
-    });
+    return roundedDown;
 
     return roundedDown;
   };
@@ -284,30 +261,15 @@ export function usePaymentProcessing({
     items: Product[],
     discountData?: { type: "percentage" | "fixed"; value: number; amount: number }
   ) => {
-    console.log("🎯 PAYMENT PROCESSOR: processPayment iniciado");
-    console.log("🎯 Parámetros:", {
-      method,
-      finalTotal,
-      itemsCount: items.length,
-      user: user?.id,
-      isProcessingPayment,
-    });
-
     if (!user) {
-      console.log("❌ PAYMENT PROCESSOR: Usuario no logueado");
       toast.error("Debes iniciar sesión para realizar una orden");
       resetPaymentState();
       return;
     }
 
     if (isProcessingPayment) {
-      console.log("❌ PAYMENT PROCESSOR: Ya hay un pago en proceso");
       return;
     }
-
-    console.log(
-      "✅ PAYMENT PROCESSOR: Validaciones pasadas, iniciando procesamiento"
-    );
 
     // Mantener en sync el método de pago seleccionado para que la UI se actualice
     setSelectedPaymentMethod(method);
@@ -329,12 +291,6 @@ export function usePaymentProcessing({
       ? calculateTotal() // Usar el total del carrito SIN descuento
       : finalTotal;
 
-    console.log("🔍 DEBUG CÁLCULO DESCUENTO TICKET NORMAL:");
-    console.log("- discountData:", discountData);
-    console.log("- calculateTotal():", calculateTotal());
-    console.log("- finalTotal:", finalTotal);
-    console.log("- subtotalOriginal:", subtotalOriginal);
-    console.log("- discountData.amount original:", discountData?.amount);
 
     const orderData = {
       metodoPago: method,
@@ -371,21 +327,15 @@ export function usePaymentProcessing({
       const orderResult = await createOrderWithDuplicateCheck(orderData);
 
       if (!orderResult) {
-        console.log("⏳ PROCESS PAYMENT: Orden cancelada por concurrencia");
         return;
       }
 
       if (orderResult.isDuplicate) {
-        console.log(
-          "✅ PROCESS PAYMENT: Orden duplicada detectada, usando existente"
-        );
         toast.success("Orden completada exitosamente");
         clearCart();
         resetPaymentState();
         return;
       }
-
-      console.log("📋 PROCESS PAYMENT: Nueva orden creada:", orderResult);
 
       // Añadir el idReal a los datos de la orden para impresión
       const enrichedOrderData = {
@@ -394,7 +344,6 @@ export function usePaymentProcessing({
         id: orderResult.id || null,
       };
 
-      console.log("✅ Datos enriquecidos para impresión:", enrichedOrderData);
 
       // Mostrar toast de carga para la impresión ANTES de imprimir
       const printingToastId = toast.loading("Imprimiendo ticket...");
@@ -412,13 +361,7 @@ export function usePaymentProcessing({
             ).getBusinessInfo(API_URL, appId);
 
             if (businessInfo?.dobleImpresionEnabled === true) {
-              console.log(
-                "🖨️🖨️ NORMAL DOBLE IMPRESIÓN: Imprimiendo segunda copia..."
-              );
               await handleTicketPrinting(enrichedOrderData);
-              console.log(
-                "✅ NORMAL DOBLE IMPRESIÓN: Segunda copia impresa exitosamente"
-              );
             }
           } catch (error) {
             console.error(
@@ -485,14 +428,6 @@ export function usePaymentProcessing({
     items: Product[],
     discountData?: { type: "percentage" | "fixed"; value: number; amount: number }
   ) => {
-    console.log("💰 EXACT PAYMENT: Confirmando pago exacto:", {
-      paidAmount,
-      change,
-      totalAmount: roundedAmount,
-      applyingDiscount,
-      discountData,
-    });
-
     setIsProcessingPayment(true);
 
     try {
@@ -505,12 +440,6 @@ export function usePaymentProcessing({
           ...discountData,
           amount: Number(discountAmount.toFixed(2))
         };
-        console.log("💰 EXACT PAYMENT: Descuento calculado:", {
-          originalTotal,
-          roundedAmount,
-          discountAmount,
-          finalDiscountData
-        });
       }
 
       // Procesar el pago con el monto total original (no el pagado)
@@ -523,7 +452,6 @@ export function usePaymentProcessing({
       setPaidAmount(paidAmount);
       setChangeAmount(change);
 
-      console.log("✅ EXACT PAYMENT: Pago completado exitosamente");
     } catch (error) {
       console.error("❌ EXACT PAYMENT: Error al procesar pago:", error);
       toast.error("Error al procesar el pago exacto");
@@ -542,18 +470,6 @@ export function usePaymentProcessing({
       amount: number;
     }
   ) => {
-    console.log(
-      "🛒 EFECTIVO: Iniciando proceso de pago en efectivo",
-      withDiscount ? "con descuento" : ""
-    );
-
-    console.log("🏢 businessInfo recibido:", {
-      businessInfo,
-      sistemaPago: businessInfo?.sistemaPago,
-      descuentoEfectivo: businessInfo?.descuentoEfectivo,
-      discountData,
-    });
-
     // Establecer efectivo como método seleccionado
     setSelectedPaymentMethod("efectivo");
     setApplyingDiscount(withDiscount || !!discountData);
@@ -561,8 +477,6 @@ export function usePaymentProcessing({
     // Calcular los importes para cualquier caso
     const originalTotal = Number(calculateTotal().toFixed(2));
     let finalTotal = originalTotal;
-
-    console.log("💰 Total original calculado:", originalTotal);
 
     // Aplicar descuento si es necesario
     if (discountData) {
@@ -573,59 +487,29 @@ export function usePaymentProcessing({
       } else {
         finalTotal = originalTotal - discountData.amount;
       }
-      console.log("💰 DESCUENTO: Usando discountData pasado:", {
-        originalTotal,
-        discountData,
-        finalTotal,
-      });
     } else if (withDiscount && businessInfo?.descuentoEfectivo) {
       // Usar descuento automático del negocio
       const discountPercentage = Number(businessInfo.descuentoEfectivo);
       const discountAmount = (originalTotal * discountPercentage) / 100;
       finalTotal = originalTotal - discountAmount;
 
-      console.log("💰 DESCUENTO: Cálculos automáticos:", {
-        originalTotal,
-        discountPercentage,
-        discountAmount,
-        finalTotal,
-      });
     }
 
     // Decidir qué flujo usar según el sistemaPago
     if (businessInfo?.sistemaPago === "pago-exacto") {
-      console.log("💰 EFECTIVO: Usando sistema de pago exacto con vuelto");
-
       // Guardar los montos para el sistema de pago exacto
       setOriginalAmount(originalTotal);
       setRoundedAmount(finalTotal); // En pago exacto, el monto final es el que hay que cobrar
-
-      console.log("💾 Abriendo diálogo de pago exacto para total:", finalTotal);
 
       // Abrir diálogo de pago exacto
       setExactPaymentDialogOpen(true);
     } else {
       // Sistema de redondeo (por defecto)
-      console.log("🧮 EFECTIVO: Usando sistema de redondeo tradicional");
-
       let roundedTotal = roundToNearest50(finalTotal);
-      console.log("🧮 EFECTIVO: Cálculos de redondeo:", {
-        finalTotal,
-        roundedTotal,
-        diferencia: finalTotal - roundedTotal,
-        sistemaRedondeo: businessInfo?.sistemaPago,
-        redondeoAplicado: true,
-      });
 
       // Guardar los montos calculados en el estado
       setOriginalAmount(originalTotal);
       setRoundedAmount(roundedTotal);
-
-      console.log("💾 Valores guardados en estado:", {
-        originalAmount: originalTotal,
-        roundedAmount: roundedTotal,
-        diferencia: originalTotal - roundedTotal,
-      });
 
       // Mostrar diálogo de redondeo o confirmación
       setRoundedAmountDialogOpen(true);
@@ -696,7 +580,6 @@ export function usePaymentProcessing({
         }),
       };
 
-      console.log("📲 Generando QR (F3 - Sin AFIP) con payload:", orderData);
 
       const headers: HeadersInit = {
         "Content-Type": "application/json",
@@ -721,7 +604,6 @@ export function usePaymentProcessing({
       }
 
       const result = await response.json();
-      console.log("📲 Respuesta del backend (QR):", result);
 
       if (result.qrData) {
         // ✅ CORRECCIÓN: Limpiar toast de loading ANTES de continuar
@@ -765,14 +647,11 @@ export function usePaymentProcessing({
   const startPaymentStatusPolling = (orderId: string) => {
     // ✅ CRÍTICO: Verificar si ya hay un polling activo para esta orden
     if (currentPollingOrderId.current === orderId && pollingInterval) {
-      console.log(`🔄 Polling ya activo para orden ${orderId}, saltando`);
       return;
     }
 
     // ✅ CRÍTICO: Limpiar cualquier polling anterior ANTES de iniciar uno nuevo
     cleanupPolling();
-
-    console.log("🌐 API_URL en polling:", API_URL);
 
     const POLLING_INTERVAL = 3000;
     const MAX_POLLING_TIME = 10 * 60 * 1000;
@@ -785,9 +664,6 @@ export function usePaymentProcessing({
 
     // ✅ CRÍTICO: Verificar si la orden ya fue procesada ANTES de iniciar polling
     if (isOrderAlreadyProcessed(orderId)) {
-      console.log(
-        `🛡️ POLLING CONTROL: Orden ${orderId} ya fue procesada, saltando polling`
-      );
       return;
     }
 
@@ -796,23 +672,12 @@ export function usePaymentProcessing({
       try {
         // ✅ CRÍTICO: Verificar si la orden ya fue procesada en cada llamada
         if (isOrderAlreadyProcessed(orderId)) {
-          console.log(
-            `🛡️ POLLING CONTROL: Orden ${orderId} ya fue procesada, deteniendo polling`
-          );
           cleanupPolling();
           return;
         }
 
         // Utilizar siempre la versión más reciente de qrData mediante el ref
         const currentQrData = qrDataRef.current;
-
-        console.log(
-          "🔄 Verificando estado del pago (llamada inmediata/intervalo)..."
-        );
-        console.log(
-          "🌐 Haciendo petición a:",
-          `${API_URL}/api/mercadopago/check-status/${orderId}`
-        );
 
         const response = await fetch(
           `${API_URL}/api/mercadopago/check-status/${orderId}`,
@@ -825,9 +690,6 @@ export function usePaymentProcessing({
         if (!response.ok) {
           // ✅ CRÍTICO: Si es 404, la orden ya no existe (probablemente completada)
           if (response.status === 404) {
-            console.log(
-              `🛡️ POLLING CONTROL: Orden ${orderId} no encontrada (404), probablemente ya completada`
-            );
             cleanupPolling();
             return;
           }
@@ -835,7 +697,6 @@ export function usePaymentProcessing({
         }
 
         const statusData = await response.json();
-        console.log("✅ Respuesta del backend:", statusData);
         setRetryCount(0);
 
         // Normalizar el status que devuelve el backend para que coincida con los textos mostrados en el diálogo
@@ -857,15 +718,11 @@ export function usePaymentProcessing({
         if (statusData.isCompleted || statusData.isCancelled) {
           // ✅ CRÍTICO: Verificar si ya se procesó esta orden
           if (isOrderAlreadyProcessed(orderId)) {
-            console.log(
-              `🛡️ POLLING CONTROL: Orden ${orderId} ya fue procesada, solo limpiando polling`
-            );
             cleanupPolling();
             return;
           }
 
           // ✅ CRÍTICO: Limpiar polling ANTES de procesar el resultado
-          console.log("🎯 Pago completado o cancelado - limpiando polling");
           cleanupPolling();
 
           // ✅ CRÍTICO: Verificar que realmente se limpió el polling
@@ -880,15 +737,8 @@ export function usePaymentProcessing({
           if (statusData.isCompleted) {
             // ✅ TOAST CONTROL: Verificar si ya se procesó esta orden
             if (isOrderAlreadyProcessed(orderId)) {
-              console.log(
-                `🛡️ TOAST CONTROL: Orden ${orderId} ya fue procesada, saltando toasts`
-              );
               return;
             }
-
-            console.log(
-              `🔄 Finalizando pago para orden ${orderId} - primera vez`
-            );
 
             const cartData = {
               items: currentQrData?.items || [],
@@ -896,16 +746,9 @@ export function usePaymentProcessing({
             };
 
             // ✅ CRÍTICO: Mostrar toast de éxito ANTES de finalizar
-            console.log("🎉 Mostrando toast de éxito para pago completado");
             toast.success("¡Pago completado exitosamente!", {
               id: `payment-success-${orderId}`, // ✅ NUEVO: ID único para evitar duplicados
             });
-
-            console.log(
-              "🖨️ POLLING: Llamando a finalizeMPPayment con skipPrinting: false"
-            );
-            console.log("🖨️ POLLING: Datos de statusData:", statusData);
-            console.log("🖨️ POLLING: Datos de cartData:", cartData);
 
             await finalizeMPPayment(
               {
@@ -916,14 +759,12 @@ export function usePaymentProcessing({
             );
 
             // ✅ CRÍTICO: Cerrar diálogo y limpiar carrito inmediatamente
-            console.log("🔒 Cerrando diálogo QR y limpiando carrito");
             if (setQrDialogOpenRef) {
               setQrDialogOpenRef(false);
             }
             resetPaymentState();
             clearCart();
           } else {
-            console.log("❌ Pago cancelado o rechazado");
             toast.error("El pago ha sido cancelado o rechazado");
             if (setQrDialogOpenRef) {
               setQrDialogOpenRef(false);
@@ -939,9 +780,6 @@ export function usePaymentProcessing({
           error.message?.includes("404") ||
           error.message?.includes("Not Found")
         ) {
-          console.log(
-            `🛡️ POLLING CONTROL: Orden ${orderId} no encontrada, deteniendo polling`
-          );
           cleanupPolling();
           return;
         }
@@ -966,31 +804,16 @@ export function usePaymentProcessing({
     // Llamada inmediata antes de iniciar el intervalo continuo
     fetchStatus();
 
-    console.log(
-      "⏰ CREANDO setInterval con intervalo de",
-      POLLING_INTERVAL,
-      "ms"
-    );
     const interval = setInterval(() => {
-      console.log(
-        "⏰ setInterval EJECUTÁNDOSE - llamada periódica para orden:",
-        orderId
-      );
       fetchStatus();
     }, POLLING_INTERVAL);
-
-    console.log("📌 setInterval creado con ID:", interval);
 
     // ✅ CRÍTICO: Guardar en referencia directa Y en estado
     currentPollingInterval.current = interval;
     setPollingInterval(interval);
-    console.log("✅ pollingInterval guardado en estado y referencia");
 
     // ✅ NUEVO: Timeout de seguridad para detener el polling después de 10 minutos
     pollingSafetyTimeout.current = setTimeout(() => {
-      console.log(
-        "⏰ TIMEOUT DE SEGURIDAD: Deteniendo polling después de 10 minutos"
-      );
       if (pollingInterval === interval) {
         cleanupPolling();
         toast.error(
@@ -1002,8 +825,6 @@ export function usePaymentProcessing({
 
   // Función para cancelar QR
   const cancelQRPayment = () => {
-    console.log("🔴 Cancelando pago QR");
-
     // ✅ CORRECCIÓN: Limpiar toast de loading al cancelar
     toast.dismiss("qr-loading");
 
@@ -1027,37 +848,20 @@ export function usePaymentProcessing({
     if (setQrDialogOpenRef) {
       setQrDialogOpenRef(false);
     }
-
-    console.log("✅ Pago QR cancelado y estados limpiados");
   };
 
   // Limpiar el polling
   const cleanupPolling = () => {
-    console.log("🧹 Limpiando polling y estados");
-
     // ✅ CRÍTICO: Usar la referencia directa para limpiar el intervalo
     if (currentPollingInterval.current) {
-      console.log(
-        "🧹 Limpiando intervalo de polling con ID:",
-        currentPollingInterval.current
-      );
       clearInterval(currentPollingInterval.current);
       currentPollingInterval.current = null;
-      console.log(
-        "✅ Intervalo de polling limpiado correctamente desde referencia"
-      );
-    } else {
-      console.log(
-        "ℹ️ No hay intervalo de polling activo en referencia para limpiar"
-      );
     }
 
     // ✅ CRÍTICO: También limpiar desde el estado por si acaso
     if (pollingInterval) {
-      console.log("🧹 Limpiando también desde estado con ID:", pollingInterval);
       clearInterval(pollingInterval);
       setPollingInterval(null);
-      console.log("✅ Intervalo de polling limpiado también desde estado");
     }
 
     // ✅ NUEVO: Limpiar la referencia de la orden actual
@@ -1071,8 +875,6 @@ export function usePaymentProcessing({
 
     // ✅ CRÍTICO: Limpiar también el tracking de órdenes procesadas
     clearProcessedOrdersTracking();
-
-    console.log("🧹 Polling y estados limpiados completamente");
   };
 
   // Función para finalizar el pago después de que MP confirme
@@ -1081,13 +883,8 @@ export function usePaymentProcessing({
     skipPrinting: boolean = false
   ) => {
     try {
-      console.log("🔄 Finalizando pago con datos:", paymentData);
-
       // ✅ CRITICAL FIX: No ejecutar si se está procesando manualmente
       if (isProcessingManualPayment.current) {
-        console.log(
-          "🛑 FINALIZE MP: Cancelando flujo automático - procesamiento manual en curso"
-        );
         return;
       }
 
@@ -1101,80 +898,27 @@ export function usePaymentProcessing({
       }
 
       if (paymentData.isCompleted) {
-        console.log("💰 Pago QR completado exitosamente por el backend");
-
         // ✅ TOAST CONTROL: Verificar si ya se procesó esta orden
         const orderId =
           paymentData.orderId || paymentData.orderData?.id || "unknown";
         if (isOrderAlreadyProcessed(orderId)) {
-          console.log(
-            `🛡️ TOAST CONTROL: Orden ${orderId} ya fue procesada en finalizeMPPayment, saltando`
-          );
           return;
         }
 
-        console.log(`🔄 Finalizando pago para orden ${orderId} - primera vez`);
-
-        // ✅ NUEVO: Verificar que se marcó correctamente
-        console.log(
-          `✅ Orden ${orderId} marcada como procesada en finalizeMPPayment`
-        );
-
         // ✅ CRÍTICO: Mostrar toast de éxito solo si no se mostró antes
         if (!skipPrinting && !isOrderAlreadyProcessed(orderId)) {
-          console.log("🎉 Mostrando toast de éxito para pago completado");
           toast.success("¡Pago completado! Procesando ticket...", {
             id: `payment-processing-${orderId}`, // ✅ NUEVO: ID único para evitar duplicados
           });
-        } else {
-          console.log(
-            "ℹ️ Saltando toast de éxito (skipPrinting = true o ya procesada)"
-          );
         }
 
-        console.log(
-          "🖨️ FINALIZE MP: skipPrinting =",
-          skipPrinting,
-          "orden procesada =",
-          isOrderAlreadyProcessed(orderId)
-        );
-
-        // ✅ CORRECCIÓN: El backend refactorizado ya maneja todo automáticamente
-        // Pero aún necesitamos imprimir el ticket con los datos de la orden
-        console.log(
-          "✅ FINALIZE MP: Backend ya procesó la orden automáticamente"
-        );
-
         try {
-          console.log("🖨️ FINALIZE MP: Iniciando proceso de impresión...");
-          console.log(
-            "🖨️ FINALIZE MP: paymentData.orderData =",
-            paymentData.orderData
-          );
-          console.log(
-            "🖨️ FINALIZE MP: paymentData.orderId =",
-            paymentData.orderId
-          );
-
           // ✅ OBTENER DATOS DE LA ORDEN DESDE EL BACKEND PARA IMPRESIÓN
           if (paymentData.orderData || paymentData.orderId) {
-            console.log("🖨️ FINALIZE MP: Obteniendo datos para impresión");
-
             let orderDataForPrint = paymentData.orderData;
 
             // Si no tenemos datos completos pero sí tenemos un orderId, construir datos básicos
             if (!orderDataForPrint && paymentData.orderId) {
-              console.log(
-                "🖨️ FINALIZE MP: Construyendo datos básicos para impresión"
-              );
-              console.log(
-                "🖨️ FINALIZE MP: paymentData.cartData =",
-                paymentData.cartData
-              );
-              console.log(
-                "🖨️ FINALIZE MP: qrDataRef.current =",
-                qrDataRef.current
-              );
 
               // Obtener datos del carrito actual/QR para impresión
               const cartData = paymentData.cartData || {
@@ -1219,19 +963,9 @@ export function usePaymentProcessing({
                   tieneDescuento: false,
                 }),
               };
-
-              console.log(
-                "🖨️ FINALIZE MP: orderDataForPrint construido:",
-                orderDataForPrint
-              );
             }
 
             if (orderDataForPrint) {
-              console.log("🖨️ FINALIZE MP: Iniciando impresión de ticket QR");
-              console.log(
-                "🖨️ FINALIZE MP: orderDataForPrint encontrado, procediendo con impresión"
-              );
-
               // ✅ SIMULACIÓN: Log detallado de los datos que se van a imprimir
               console.log("🎯 SIMULACIÓN DE TICKET QR AUTOMÁTICO SIN AFIP:");
               console.log("📋 === DATOS PARA IMPRESIÓN ===");
@@ -1251,9 +985,6 @@ export function usePaymentProcessing({
               const printingToastId = toast.loading("Imprimiendo ticket...");
 
               try {
-                console.log(
-                  "🖨️ FINALIZE MP: Llamando a handleTicketPrinting..."
-                );
                 // Llamar a impresión
                 const printSuccess = await handleTicketPrinting(
                   orderDataForPrint
@@ -1262,44 +993,19 @@ export function usePaymentProcessing({
                 // Cerrar toast de impresión
                 toast.dismiss(printingToastId);
 
-                console.log(
-                  "🖨️ FINALIZE MP: Resultado de impresión:",
-                  printSuccess
-                );
-
                 if (printSuccess) {
                   // ✅ CRÍTICO: Marcar como impresa para evitar duplicados
                   markOrderAsPrinted(orderDataForPrint.id, "qr");
                   toast.success("Ticket impreso correctamente");
-                  console.log(
-                    "🖨️ FINALIZE MP: Ticket marcado como impreso correctamente"
-                  );
                 } else {
                   toast.error("Error al imprimir el ticket");
-                  console.log(
-                    "🖨️ FINALIZE MP: Error en la impresión del ticket"
-                  );
                 }
               } catch (printError) {
                 console.error("❌ Error al imprimir ticket:", printError);
                 toast.dismiss(printingToastId);
                 toast.error("Error al imprimir el ticket");
               }
-            } else {
-              console.log(
-                "❌ FINALIZE MP: No se pudieron obtener datos para impresión"
-              );
-              console.log(
-                "❌ FINALIZE MP: paymentData.orderData =",
-                paymentData.orderData
-              );
-              console.log(
-                "❌ FINALIZE MP: paymentData.orderId =",
-                paymentData.orderId
-              );
             }
-          } else {
-            console.log("❌ FINALIZE MP: No hay datos de orden para procesar");
           }
         } catch (printError) {
           console.error("❌ Error al procesar impresión:", printError);
@@ -1308,14 +1014,9 @@ export function usePaymentProcessing({
 
         // ✅ CRÍTICO: Marcar como procesada DESPUÉS de completar todo el proceso
         markOrderAsProcessed(orderId);
-        console.log(
-          `✅ FINALIZE MP: Orden ${orderId} marcada como procesada después de completar todo`
-        );
 
         // ✅ CRÍTICO: Mostrar toast final de éxito
         toast.success("¡Pago completado exitosamente!");
-      } else {
-        console.log("❌ Pago no completado, estado:", paymentData.status);
       }
     } catch (error: any) {
       console.error("❌ Error en finalizeMPPayment:", error);
@@ -1325,8 +1026,6 @@ export function usePaymentProcessing({
 
   // Preparar pago mixto
   const handleSplitPayment = () => {
-    console.log("🔄 handleSplitPayment llamado");
-
     if (!user) {
       toast.error("Debes iniciar sesión para realizar una orden");
       return;
@@ -1334,11 +1033,8 @@ export function usePaymentProcessing({
 
     // Prevenir procesamiento duplicado
     if (isProcessingPayment) {
-      console.log("⚠️ Ya hay un pago en proceso");
       return;
     }
-
-    console.log("🔄 Configurando pago mixto...");
 
     // Establecer el método seleccionado
     setSelectedPaymentMethod("split");
@@ -1350,14 +1046,7 @@ export function usePaymentProcessing({
     setSecondPaymentMethod("tarjeta");
 
     // Abrir el diálogo de pago mixto
-    console.log("🔄 Intentando abrir diálogo de pago mixto...");
-    console.log(
-      "🔄 setSplitPaymentDialogOpenRef:",
-      setSplitPaymentDialogOpenRef
-    );
-
     if (setSplitPaymentDialogOpenRef) {
-      console.log("✅ Abriendo diálogo de pago mixto");
       setSplitPaymentDialogOpenRef(true);
     } else {
       console.error("❌ setSplitPaymentDialogOpenRef no está definido");
@@ -1366,7 +1055,6 @@ export function usePaymentProcessing({
 
   // Resetear el estado del procesador de pagos
   const resetPaymentState = () => {
-    console.log("🧹 Reseteando estados del hook de procesamiento de pagos");
     setQrData(null);
     setPaymentStatus(null);
     setIsProcessingPayment(false);
@@ -1396,7 +1084,6 @@ export function usePaymentProcessing({
     // Limpiar bandera de procesamiento manual
     isProcessingManualPayment.current = false;
 
-    console.log("✅ Estados del hook de procesamiento de pagos reseteados");
   };
 
   // Función para procesar pagos mixtos
@@ -1516,7 +1203,6 @@ export function usePaymentProcessing({
       const orderResult = await createOrderWithDuplicateCheck(orderData);
 
       if (!orderResult) {
-        console.log("⏳ PROCESS SPLIT: Orden cancelada por concurrencia");
         return;
       }
 
@@ -1533,7 +1219,6 @@ export function usePaymentProcessing({
         return;
       }
 
-      console.log("📋 PROCESS SPLIT: Nueva orden creada:", orderResult);
 
       // Añadir el idReal a los datos de la orden para impresión
       const enrichedOrderData = {
@@ -1595,12 +1280,7 @@ export function usePaymentProcessing({
       return;
     }
 
-    console.log("🔄 Generando QR para pago mixto:", {
-      cashAmount: cashAmountValue,
-      qrAmount,
-      businessInfo: businessInfo?.mpEnabled,
-      facturacionHabilitada: businessInfo?.facturacionHabilitada,
-    });
+    // Generando QR para pago mixto
 
     // ✅ VERIFICACIÓN F3: Asegurar que el pago mixto QR no active AFIP cuando no debe
     if (businessInfo?.facturacionHabilitada !== true) {

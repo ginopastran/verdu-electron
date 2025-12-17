@@ -41,7 +41,6 @@ export const FacturasPage: React.FC<FacturasPageProps> = ({}) => {
 
   const handleVer = (factura: Factura) => {
     // Esta función ya no se usa, la navegación se maneja directamente en FacturaCard
-    console.log("Ver factura:", factura);
   };
 
   const handleEditar = (factura: Factura) => {
@@ -56,7 +55,6 @@ export const FacturasPage: React.FC<FacturasPageProps> = ({}) => {
   const handleEliminar = async (id: string) => {
     if (confirm("¿Estás seguro de que quieres eliminar esta factura?")) {
       // Implementar eliminación
-      console.log("Eliminar factura:", id);
     }
   };
 

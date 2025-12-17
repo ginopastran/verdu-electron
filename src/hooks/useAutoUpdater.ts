@@ -36,13 +36,11 @@ export const useAutoUpdater = () => {
 
   const checkForUpdates = useCallback(async () => {
     if (!window.autoUpdater) {
-      console.log("Auto-updater no disponible (probablemente en desarrollo)");
       return;
     }
 
     try {
       setChecking(true);
-      console.log("📞 Llamando a checkForUpdates...");
 
       // Timeout de 30 segundos para evitar que se cuelgue
       const timeoutPromise = new Promise<any>((_, reject) =>
@@ -54,8 +52,6 @@ export const useAutoUpdater = () => {
 
       const updatePromise = window.autoUpdater.checkForUpdates();
       const result = await Promise.race([updatePromise, timeoutPromise]);
-
-      console.log("📋 Resultado de checkForUpdates:", result);
 
       if (result.error) {
         console.error("Error al verificar actualizaciones:", result.error);
@@ -80,16 +76,6 @@ export const useAutoUpdater = () => {
             onClick: downloadUpdate,
           },
         });
-      } else {
-        console.log("No hay actualizaciones disponibles");
-        // Solo mostrar toast si no hay mensaje específico
-        if (
-          !result.info?.message ||
-          result.info.message.includes("actualizaciones disponibles")
-        ) {
-          // No mostrar toast automático para evitar spam
-          console.log("✅ Aplicación actualizada");
-        }
       }
     } catch (error) {
       console.error("Error al verificar actualizaciones:", error);
@@ -100,7 +86,6 @@ export const useAutoUpdater = () => {
       }
     } finally {
       setChecking(false);
-      console.log("🏁 Verificación de actualizaciones completada");
     }
   }, []);
 
@@ -163,9 +148,6 @@ export const useAutoUpdater = () => {
   useEffect(() => {
     if (checking) {
       const safetyTimer = setTimeout(() => {
-        console.log(
-          "⚠️ SAFETY: Limpiando estado checking después de 45 segundos"
-        );
         setChecking(false);
       }, 45000); // 45 segundos de seguridad
 
@@ -178,15 +160,10 @@ export const useAutoUpdater = () => {
     // Verificar después de 5 segundos de cargar la app, solo en producción
     if (window.autoUpdater) {
       const timer = setTimeout(() => {
-        console.log(
-          "🔍 Iniciando verificación automática de actualizaciones..."
-        );
         checkForUpdates();
       }, 5000);
 
       return () => clearTimeout(timer);
-    } else {
-      console.log("⚠️ Auto-updater no disponible en desarrollo");
     }
   }, [checkForUpdates]);
 

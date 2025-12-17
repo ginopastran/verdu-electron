@@ -38,7 +38,6 @@ export default function AdminLogin() {
           setEmail(savedEmail);
           setPassword(savedPassword);
           setRememberCredentials(true);
-          console.log('✅ Credenciales completas del admin cargadas desde localStorage');
         }
       } catch (error) {
         console.error('❌ Error al cargar credenciales guardadas:', error);
@@ -55,12 +54,10 @@ export default function AdminLogin() {
         localStorage.setItem('adminEmail', email);
         localStorage.setItem('adminPassword', password);
         localStorage.setItem('rememberAdminCredentials', 'true');
-        console.log('✅ Credenciales completas del admin guardadas');
       } else {
         localStorage.removeItem('adminEmail');
         localStorage.removeItem('adminPassword');
         localStorage.removeItem('rememberAdminCredentials');
-        console.log('🗑️ Credenciales del admin eliminadas');
       }
     } catch (error) {
       console.error('❌ Error al guardar credenciales:', error);

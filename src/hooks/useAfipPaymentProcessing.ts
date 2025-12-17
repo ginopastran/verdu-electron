@@ -87,55 +87,18 @@ export function useAfipPaymentProcessing({
     const decimalPart = amountFixed - integerPart;
 
     if (remainder === 0 && decimalPart === 0) {
-      console.log("🧮 AFIP: Ya está redondeado a 50:", amountFixed);
       return amountFixed;
     }
 
     const roundedDown = integerPart - remainder;
-
-    console.log("🧮 AFIP: DEBUG Redondeo:", {
-      original: amount,
-      redondeadoA2Decimales: amountFixed,
-      parteEntera: integerPart,
-      parteDecimal: decimalPart,
-      resto: remainder,
-      redondeadoA50: roundedDown,
-    });
-
     return roundedDown;
   };
 
   // Helper para llamar al script PHP de impresión AFIP
   const handleAfipTicketPrinting = async (afipData: any) => {
     try {
-      console.log("🧾 Iniciando impresión de ticket AFIP...");
-      console.log("📄 Datos AFIP para impresión:", afipData);
-      
-      // 🆕 DEBUG DETALLADO DE DESCUENTOS ANTES DE ENVIAR AL PHP
-      console.log("🔍 DEBUG DESCUENTOS AFIP ANTES DE IMPRESIÓN:");
-      console.log("- afipData.discountData:", afipData.discountData);
-      console.log("- afipData.tieneDescuento:", afipData.tieneDescuento);
-      console.log("- afipData.tipoDescuento:", afipData.tipoDescuento);
-      console.log("- afipData.valorDescuento:", afipData.valorDescuento);
-      console.log("- afipData.montoDescuento:", afipData.montoDescuento);
-      console.log("- afipData.subtotalSinDescuento:", afipData.subtotalSinDescuento);
-      console.log("- afipData.subtotal:", afipData.subtotal);
-      console.log("- afipData.total:", afipData.total);
-      console.log("- Diferencia subtotal-total:", (afipData.subtotal || 0) - (afipData.total || 0));
-      console.log("🔍 FIN DEBUG DESCUENTOS AFIP");
 
       // Verificar APIs disponibles
-      console.log("🔍 Verificando APIs disponibles:");
-      console.log("  - window.printer:", !!(window as any).printer);
-      console.log(
-        "  - window.printer.printAfipTicket:",
-        !!(window as any).printer?.printAfipTicket
-      );
-      console.log("  - window.electron:", !!(window as any).electron);
-      console.log(
-        "  - window.electron.ipcRenderer:",
-        !!(window as any).electron?.ipcRenderer
-      );
 
       let result;
 
@@ -144,34 +107,23 @@ export function useAfipPaymentProcessing({
         typeof window !== "undefined" &&
         (window as any).printer?.printAfipTicket
       ) {
-        console.log("🖨️ Usando window.printer.printAfipTicket");
         result = await (window as any).printer.printAfipTicket(afipData);
-        console.log("📝 Resultado detallado de printAfipTicket:", result);
       }
       // Método 2: Usar window.electron.ipcRenderer (API general)
       else if (
         typeof window !== "undefined" &&
         (window as any).electron?.ipcRenderer
       ) {
-        console.log(
-          "🖨️ Usando window.electron.ipcRenderer.invoke('print-afip-ticket')"
-        );
         result = await (window as any).electron.ipcRenderer.invoke(
           "print-afip-ticket",
           afipData
         );
-        console.log("📝 Resultado de print-afip-ticket:", result);
       }
       // Si ninguna API está disponible
       else {
         console.error("❌ Ninguna API de impresión AFIP disponible");
         throw new Error("API de Electron no disponible para impresión AFIP");
       }
-
-      // 🆕 VALIDACIÓN MEJORADA: Verificar que la impresión fue realmente exitosa
-      console.log("🔍 VALIDANDO RESULTADO DE IMPRESIÓN:");
-      console.log("- Tipo de resultado:", typeof result);
-      console.log("- Resultado completo:", result);
 
       // Verificar diferentes formatos de respuesta
       if (result === undefined || result === null) {
@@ -204,7 +156,6 @@ export function useAfipPaymentProcessing({
         }
       }
 
-      console.log("✅ Impresión AFIP aparentemente exitosa");
       return result;
     } catch (error: any) {
       console.error("❌ Error al imprimir ticket AFIP:", error);
@@ -228,17 +179,6 @@ export function useAfipPaymentProcessing({
       amount: number;
     }
   ) => {
-    console.log(
-      "🛒 AFIP EFECTIVO: Iniciando proceso de pago en efectivo AFIP",
-      withDiscount ? "con descuento" : ""
-    );
-
-    console.log("🏢 businessInfo recibido:", {
-      businessInfo,
-      sistemaPago: businessInfo?.sistemaPago,
-      descuentoEfectivo: businessInfo?.descuentoEfectivo,
-    });
-
     // Establecer efectivo como método seleccionado
     setSelectedPaymentMethod("efectivo");
     setApplyingDiscount(withDiscount);
@@ -246,8 +186,6 @@ export function useAfipPaymentProcessing({
     // Calcular los importes para cualquier caso
     const originalTotal = Number(calculateTotal().toFixed(2));
     let finalTotal = originalTotal;
-
-    console.log("💰 AFIP: Total original calculado:", originalTotal);
 
     // Aplicar descuento si es necesario
     if (discountData) {
@@ -258,63 +196,33 @@ export function useAfipPaymentProcessing({
       } else {
         finalTotal = originalTotal - discountData.amount;
       }
-      console.log("💰 AFIP DESCUENTO: Usando discountData pasado:", {
-        originalTotal,
-        discountData,
-        finalTotal,
-      });
     } else if (withDiscount && businessInfo?.descuentoEfectivo) {
       // Usar descuento automático del negocio
       const discountPercentage = Number(businessInfo.descuentoEfectivo);
       const discountAmount = (originalTotal * discountPercentage) / 100;
       finalTotal = originalTotal - discountAmount;
 
-      console.log("💰 AFIP DESCUENTO: Cálculos automáticos:", {
-        originalTotal,
-        discountPercentage,
-        discountAmount,
-        finalTotal,
-      });
     }
 
     // Decidir qué flujo usar según el sistemaPago
     if (businessInfo?.sistemaPago === "pago-exacto") {
-      console.log("💰 AFIP EFECTIVO: Usando sistema de pago exacto con vuelto");
 
       // Guardar los montos para el sistema de pago exacto
       setOriginalAmount(originalTotal);
       setRoundedAmount(finalTotal);
 
-      console.log(
-        "💾 AFIP: Abriendo diálogo de pago exacto para total:",
-        finalTotal
-      );
 
       // Cerrar diálogo de pago AFIP y abrir diálogo de pago exacto
       setPaymentDialogOpen(false);
       setExactPaymentDialogOpen(true);
     } else {
       // Sistema de redondeo (por defecto)
-      console.log("🧮 AFIP EFECTIVO: Usando sistema de redondeo tradicional");
 
       let roundedTotal = roundToNearest50(finalTotal);
-      console.log("🧮 AFIP EFECTIVO: Cálculos de redondeo:", {
-        finalTotal,
-        roundedTotal,
-        diferencia: finalTotal - roundedTotal,
-        sistemaRedondeo: businessInfo?.sistemaPago,
-        redondeoAplicado: true,
-      });
 
       // Guardar los montos calculados en el estado
       setOriginalAmount(originalTotal);
       setRoundedAmount(roundedTotal);
-
-      console.log("💾 AFIP: Valores guardados en estado:", {
-        originalAmount: originalTotal,
-        roundedAmount: roundedTotal,
-        diferencia: originalTotal - roundedTotal,
-      });
 
       // Cerrar diálogo de pago AFIP y mostrar diálogo de redondeo
       setPaymentDialogOpen(false);
@@ -333,14 +241,6 @@ export function useAfipPaymentProcessing({
       amount: number;
     }
   ) => {
-    console.log("💰 AFIP EXACT PAYMENT: Confirmando pago exacto", {
-      paidAmount,
-      change,
-      totalAmount: roundedAmount,
-      applyingDiscount,
-      discountData,
-    });
-
     if (!user) {
       toast.error("Debes iniciar sesión para realizar una factura AFIP");
       return;
@@ -358,14 +258,10 @@ export function useAfipPaymentProcessing({
           value: discountPercentage,
           amount: 0, // Se calculará en processAfipPayment
         };
-        console.log("💰 AFIP EXACT PAYMENT: Aplicando descuento automático", finalDiscountData);
       }
 
       // Procesar la factura AFIP con el monto exacto y datos de descuento
       await processAfipPayment("efectivo", items, roundedAmount, finalDiscountData);
-
-      // Los estados se limpian en processAfipPayment
-      console.log("✅ AFIP EXACT PAYMENT: Pago procesado exitosamente");
     } catch (error: any) {
       console.error("❌ AFIP EXACT PAYMENT: Error al procesar:", error);
       toast.error(`Error en factura AFIP: ${error.message}`);
@@ -374,7 +270,6 @@ export function useAfipPaymentProcessing({
   };
 
   const resetPaymentState = () => {
-    console.log("🧹 Reseteando estados del hook de procesamiento AFIP");
     setQrData(null);
     setPaymentStatus(null);
     setIsProcessingPayment(false);
@@ -394,8 +289,6 @@ export function useAfipPaymentProcessing({
 
     // Limpiar polling
     cleanupPolling();
-
-    console.log("✅ Estados del hook de procesamiento AFIP reseteados");
   };
 
   const processAfipPayment = async (
@@ -413,14 +306,6 @@ export function useAfipPaymentProcessing({
       secondAmount: number;
     }
   ) => {
-    console.log("🔥🔥🔥 PROCESS AFIP PAYMENT: INICIANDO");
-    console.log("🔥🔥🔥 STACK TRACE:", new Error().stack);
-    console.log("🔥🔥🔥 method:", method);
-    console.log("🔥🔥🔥 items count:", items.length);
-    console.log("🔥🔥🔥 totalAmount:", totalAmount);
-    console.log("🔥🔥🔥 ⚠️⚠️⚠️ ESTA FUNCIÓN CREA FACTURA INMEDIATAMENTE");
-    console.log("🔥🔥🔥 ⚠️⚠️⚠️ NO DEBERÍA LLAMARSE PARA QR SIN CONFIRMAR PAGO");
-
     if (!user) {
       console.error("❌ Usuario no encontrado");
       toast.error("Debes iniciar sesión para realizar una factura");
@@ -431,7 +316,6 @@ export function useAfipPaymentProcessing({
 
     // 🚦 PREVENIR PROCESOS DUPLICADOS Y MOSTRAR CARGA INSTANTÁNEA
     if (isProcessingPayment) {
-      console.log("⚠️ Ya hay un pago AFIP en proceso");
       return;
     }
 
@@ -445,10 +329,6 @@ export function useAfipPaymentProcessing({
       fetchedBusinessInfo = await (
         await import("@/utils/businessHelpers")
       ).getBusinessInfo(API_URL, appId);
-      console.log(
-        "🏢 AFIP: businessInfo obtenido dentro de processAfipPayment",
-        fetchedBusinessInfo
-      );
     } catch (err) {
       console.warn(
         "⚠️ AFIP: No se pudo obtener businessInfo, usando valores por defecto",
@@ -458,9 +338,6 @@ export function useAfipPaymentProcessing({
 
     // Si es efectivo y no viene de los diálogos de efectivo, manejar redondeo
     if (method === "efectivo" && !totalAmount) {
-      console.log(
-        "💰 AFIP: Efectivo detectado sin totalAmount, necesita redondeo"
-      );
       throw new Error("Use handleAfipCashPayment para pagos en efectivo");
     }
 
@@ -473,8 +350,6 @@ export function useAfipPaymentProcessing({
     }));
 
     try {
-      console.log("🧾 Creando factura AFIP...");
-
       // Crear la factura AFIP usando el endpoint
       const afipResponse = await fetch(`${API_URL}/api/facturas/crear-afip`, {
         method: "POST",
@@ -505,6 +380,8 @@ export function useAfipPaymentProcessing({
             // ✅ CORRECCIÓN: El subtotalSinDescuento debe ser el total original (antes del descuento)
             // finalTotal ya es el total CON descuento, por lo que el total original es calculateTotal()
             subtotalSinDescuento: Number(calculateTotal().toFixed(2)),
+            // ✅ CRÍTICO: Enviar el total final con descuento aplicado para que el backend calcule correctamente los componentes de AFIP
+            total: Number(finalTotal.toFixed(2)),
           }),
           ...(!discountData && {
             tieneDescuento: false,
@@ -531,7 +408,6 @@ export function useAfipPaymentProcessing({
       }
 
       const afipResult = await afipResponse.json();
-      console.log("✅ Factura AFIP creada:", afipResult);
 
       // Verificar que tenemos los datos de AFIP
       if (!afipResult.afip?.cae) {
@@ -602,6 +478,9 @@ export function useAfipPaymentProcessing({
           "Comercio",
 
         cuit:
+          // ✅ CORRECCIÓN: Priorizar CUIT desde configuracionAfip
+          fetchedBusinessInfo?.configuracionAfip?.cuit ||
+          businessInfo?.configuracionAfip?.cuit ||
           fetchedBusinessInfo?.cuit ||
           fetchedBusinessInfo?.CUIT ||
           afipResult.business?.cuit ||
@@ -664,6 +543,9 @@ export function useAfipPaymentProcessing({
           afipResult.punto_venta ||
           "0001",
         numeroFactura:
+          // ✅ CORRECCIÓN: Priorizar número real de factura de ARCA o sistema interno
+          afipResult.factura?.numero ||
+          afipResult.factura?.numeroFactura ||
           afipResult.afip?.numeroFactura ||
           afipResult.numeroFactura ||
           afipResult.numero_factura ||
@@ -680,15 +562,20 @@ export function useAfipPaymentProcessing({
           afipResult.idReal ||
           (afipResult.factura && afipResult.factura.idReal) ||
           null,
-        // Calcular descuento si aplica
-        ...(method === "efectivo" &&
-          originalAmount > finalTotal && {
-            descuentoAplicado: originalAmount - finalTotal,
-            totalOriginal: originalAmount,
-          }),
-        
         // ✅ AGREGAR DATOS DE DESCUENTO PARA SIMULACIÓN DE TICKET
-        ...(discountData && {
+        // Priorizar datos de descuento desde la respuesta de la API (afipResult.factura)
+        ...(afipResult.factura?.tieneDescuento && {
+          tieneDescuento: afipResult.factura.tieneDescuento,
+          tipoDescuento: afipResult.factura.tipoDescuento,
+          valorDescuento: afipResult.factura.valorDescuento,
+          montoDescuento: afipResult.factura.montoDescuento,
+          subtotalSinDescuento: afipResult.factura.subtotalSinDescuento,
+          subtotal: afipResult.factura.subtotal,
+          total: afipResult.factura.total,
+          impuestos: afipResult.factura.impuestos
+        }),
+        // Si no hay descuento en la respuesta de API, usar datos locales de descuento
+        ...(discountData && !afipResult.factura?.tieneDescuento && {
           tieneDescuento: true,
           tipoDescuento: discountData.type === "percentage" ? "porcentual" : "cantidad",
           valorDescuento: discountData.value,
@@ -702,56 +589,30 @@ export function useAfipPaymentProcessing({
             amount: discountData.amount
           }
         }),
-        ...(!discountData && {
+        ...(!discountData && !afipResult.factura?.tieneDescuento && {
           tieneDescuento: false
         }),
         // ✅ CORRECCIÓN: Incluir pagos múltiples en printData cuando el método es "split"
-        ...(method === "split" && splitPaymentData && {
-          pagos: [
-            {
-              metodoPago: "efectivo",
-              monto: splitPaymentData.cashAmount,
-            },
-            {
-              metodoPago: splitPaymentData.secondPaymentMethod,
-              monto: splitPaymentData.secondAmount,
-            },
-          ],
-        }),
+        // Priorizar pagos desde la respuesta de la API si están disponibles
+        ...(afipResult.factura?.pagos && Array.isArray(afipResult.factura.pagos) && afipResult.factura.pagos.length > 0
+          ? {
+              pagos: afipResult.factura.pagos,
+            }
+          : method === "split" && splitPaymentData
+          ? {
+              pagos: [
+                {
+                  metodoPago: "efectivo",
+                  monto: splitPaymentData.cashAmount,
+                },
+                {
+                  metodoPago: splitPaymentData.secondPaymentMethod,
+                  monto: splitPaymentData.secondAmount,
+                },
+              ],
+            }
+          : {}),
       };
-
-      console.log("📋 Datos preparados para impresión AFIP:", printData);
-
-      // 🔍 DEBUG MEJORADO: Mostrar fuentes de datos
-      console.log("🔍 DEBUG FUENTES DE DATOS:");
-      console.log("- businessInfo:", businessInfo);
-      console.log(
-        "- businessInfo.sucursalActiva:",
-        businessInfo?.sucursalActiva
-      );
-      console.log(
-        "- businessInfo.configuracionAfip:",
-        businessInfo?.configuracionAfip
-      );
-      console.log("- fetchedBusinessInfo:", fetchedBusinessInfo);
-      console.log(
-        "- fetchedBusinessInfo.configuracionAfip:",
-        fetchedBusinessInfo?.configuracionAfip
-      );
-      console.log("- afipResult.business:", afipResult.business);
-      console.log("- user:", user);
-
-      // DEBUG: Verificar qué valores están siendo seleccionados en printData
-      console.log("🎯 VALORES FINALES SELECCIONADOS:");
-      console.log("- businessName final:", printData.businessName);
-      console.log("- razonSocial final:", printData.razonSocial);
-      console.log("- cuit final:", printData.cuit);
-      console.log("- condicionIva final:", printData.condicionIva);
-      console.log("- direccion final:", printData.direccion);
-      console.log("- telefono final:", printData.telefono);
-      console.log("- cae final:", printData.cae);
-      console.log("- fechaVtoCae final:", printData.fechaVtoCae);
-      console.log("- vendedor final:", printData.vendedor);
 
       // Simular el ticket AFIP antes de imprimir
       console.log("\n🎭 ====== SIMULACIÓN DEL TICKET AFIP ======");
@@ -789,8 +650,7 @@ export function useAfipPaymentProcessing({
 
       // Mostrar productos
       const items = printData.items || [];
-      let subtotalNeto = 0;
-      let totalIva = 0;
+      let subtotalBruto = 0; // Subtotal sin descuento
 
       if (items && items.length > 0) {
         items.forEach((item: any) => {
@@ -807,22 +667,129 @@ export function useAfipPaymentProcessing({
 
           console.log(`${nombre} ${cantidad} ${precio} ${subtotal}`);
 
-          // Calcular subtotal neto (sin IVA) y IVA
+          // Sumar al subtotal bruto (precio total de productos sin descuento)
           const itemSubtotal = Number(item.subtotal || 0);
-          subtotalNeto += itemSubtotal / 1.21; // Asumiendo IVA 21%
-          totalIva += itemSubtotal - itemSubtotal / 1.21;
+          subtotalBruto += itemSubtotal;
         });
       } else {
-        console.log("❌ No hay items en la factura AFIP");
+        // No hay items en la factura AFIP
       }
 
       console.log(`-----------------------------`);
-      console.log(`Subtotal: $${subtotalNeto.toFixed(2)}`);
-      console.log(`IVA (21%): $${totalIva.toFixed(2)}`);
-      console.log(
-        `                 TOTAL: $${Number(printData.total).toFixed(2)}`
-      );
+
+      // Mostrar descuento si existe
+      if (printData.tieneDescuento && printData.montoDescuento > 0) {
+        console.log(`Subtotal: $${Number(printData.subtotalSinDescuento || subtotalBruto).toFixed(2)}`);
+
+        // Mostrar tipo y valor del descuento
+        const tipoDescuento = printData.tipoDescuento === "porcentual" ? "%" : "";
+        const valorDescuento = printData.tipoDescuento === "porcentual"
+          ? printData.valorDescuento
+          : `$${printData.valorDescuento}`;
+        console.log(`Descuento (${valorDescuento}${tipoDescuento}): -$${Number(printData.montoDescuento).toFixed(2)}`);
+
+        // Calcular el total correcto: subtotalSinDescuento - montoDescuento
+        const totalConDescuento = (printData.subtotalSinDescuento || subtotalBruto) - printData.montoDescuento;
+        console.log(`Total c/descuento: $${Number(totalConDescuento).toFixed(2)}`);
+      } else {
+        console.log(`Subtotal: $${Number(printData.subtotal || subtotalBruto).toFixed(2)}`);
+        console.log(`IVA (21%): $${Number(printData.impuestos || 0).toFixed(2)}`);
+        console.log(
+          `                 TOTAL: $${Number(printData.total || 0).toFixed(2)}`
+        );
+      }
       console.log(`-----------------------------`);
+      
+      // ✅ NUEVO: Mostrar métodos de pago si hay múltiples pagos
+      if (printData.pagos && Array.isArray(printData.pagos) && printData.pagos.length > 1) {
+        console.log(`MÉTODOS DE PAGO:`);
+        printData.pagos.forEach((pago: any) => {
+          const metodoPago = pago.metodoPago || pago.metodo_pago || "N/A";
+          const monto = pago.monto || 0;
+          let metodoDisplay = "";
+          
+          switch (metodoPago.toLowerCase()) {
+            case "tarjeta":
+              metodoDisplay = "TARJETA";
+              break;
+            case "transferencia":
+              metodoDisplay = "TRANSFERENCIA";
+              break;
+            case "efectivo":
+              metodoDisplay = "EFECTIVO";
+              break;
+            case "qr":
+              metodoDisplay = "QR / MERCADOPAGO";
+              break;
+            default:
+              metodoDisplay = metodoPago.toUpperCase();
+              break;
+          }
+          
+          console.log(`${metodoDisplay}: $${Number(monto).toFixed(2)}`);
+        });
+        console.log(`-----------------------------`);
+      } else if (printData.pagos && Array.isArray(printData.pagos) && printData.pagos.length === 1) {
+        // Si hay un solo pago, mostrarlo también
+        const pago = printData.pagos[0];
+        const metodoPago = pago.metodoPago || pago.metodo_pago || printData.metodoPago || "N/A";
+        const monto = pago.monto || printData.total || 0;
+        let metodoDisplay = "";
+        
+        switch (metodoPago.toLowerCase()) {
+          case "tarjeta":
+            metodoDisplay = "TARJETA";
+            break;
+          case "transferencia":
+            metodoDisplay = "TRANSFERENCIA";
+            break;
+          case "efectivo":
+            metodoDisplay = "EFECTIVO";
+            break;
+          case "qr":
+            metodoDisplay = "QR / MERCADOPAGO";
+            break;
+          case "split":
+            metodoDisplay = "PAGO MIXTO";
+            break;
+          default:
+            metodoDisplay = metodoPago.toUpperCase();
+            break;
+        }
+        
+        console.log(`Método de pago: ${metodoDisplay}`);
+        console.log(`Monto pagado: $${Number(monto).toFixed(2)}`);
+        console.log(`-----------------------------`);
+      } else if (printData.metodoPago) {
+        // Si no hay array de pagos pero hay método de pago único
+        const metodoPago = printData.metodoPago;
+        let metodoDisplay = "";
+        
+        switch (metodoPago.toLowerCase()) {
+          case "tarjeta":
+            metodoDisplay = "TARJETA";
+            break;
+          case "transferencia":
+            metodoDisplay = "TRANSFERENCIA";
+            break;
+          case "efectivo":
+            metodoDisplay = "EFECTIVO";
+            break;
+          case "qr":
+            metodoDisplay = "QR / MERCADOPAGO";
+            break;
+          case "split":
+            metodoDisplay = "PAGO MIXTO";
+            break;
+          default:
+            metodoDisplay = metodoPago.toUpperCase();
+            break;
+        }
+        
+        console.log(`Método de pago: ${metodoDisplay}`);
+        console.log(`-----------------------------`);
+      }
+      
       console.log(`     COMPROBANTE AUTORIZADO`);
       console.log(`        CAE: ${printData.cae || "NO DISPONIBLE"}`);
 
@@ -869,7 +836,6 @@ export function useAfipPaymentProcessing({
         (businessInfo?.dobleImpresionEnabled === true ||
           fetchedBusinessInfo?.dobleImpresionEnabled === true)
       ) {
-        console.log("🖨️🖨️ AFIP DOBLE IMPRESIÓN: Imprimiendo segunda copia...");
         try {
           const secondPrintResult = await handleAfipTicketPrinting(printData);
 
@@ -920,6 +886,11 @@ export function useAfipPaymentProcessing({
       clearCart();
       resetPaymentState();
       setPaymentDialogOpen(false);
+      
+      // ✅ CRÍTICO: Cerrar también el diálogo de pago mixto si está abierto
+      if (setSplitPaymentDialogOpen) {
+        setSplitPaymentDialogOpen(false);
+      }
 
       // Devolver el foco al input de búsqueda
       setTimeout(() => {
@@ -949,6 +920,11 @@ export function useAfipPaymentProcessing({
 
       resetPaymentState();
       setPaymentDialogOpen(false);
+      
+      // ✅ CRÍTICO: Cerrar también el diálogo de pago mixto si está abierto
+      if (setSplitPaymentDialogOpen) {
+        setSplitPaymentDialogOpen(false);
+      }
 
       // También devolver el foco en caso de error
       setTimeout(() => {
@@ -961,8 +937,6 @@ export function useAfipPaymentProcessing({
 
   // Helper para abrir diálogo de pago mixto
   const handleSplitPayment = () => {
-    console.log("🔄 AFIP handleSplitPayment llamado");
-
     if (!user) {
       toast.error("Debes iniciar sesión para realizar una factura");
       return;
@@ -970,7 +944,6 @@ export function useAfipPaymentProcessing({
 
     // Evitar duplicados
     if (isProcessingPayment) {
-      console.log("⚠️ Ya hay un proceso AFIP activo");
       return;
     }
 
@@ -994,10 +967,6 @@ export function useAfipPaymentProcessing({
     businessInfo?: any,
     discountData?: { type: "percentage" | "fixed"; value: number; amount: number }
   ) => {
-    console.log("🧾 SPLIT PAYMENT: Iniciando processSplitPayment");
-    console.log("🧾 SPLIT PAYMENT: cashAmount:", cashAmount);
-    console.log("🧾 SPLIT PAYMENT: secondPaymentMethod:", secondPaymentMethod);
-
     const cashAmountValue = parseFloat(cashAmount);
 
     if (
@@ -1013,18 +982,10 @@ export function useAfipPaymentProcessing({
     setSelectedPaymentMethod("split");
 
     if (secondPaymentMethod === "qr") {
-      console.log(
-        "🧾 SPLIT PAYMENT: Proceso de pago mixto AFIP iniciado con QR."
-      );
-      console.log("🔍 CRÍTICO: Debería SOLO generar QR, NO crear factura");
       const qrAmount = totalAmount - cashAmountValue;
       await generateAfipSplitQRPayment(cashAmountValue, qrAmount, items, discountData);
     } else {
       // Flujo para tarjeta de crédito/débito
-      console.log(
-        "🧾 SPLIT PAYMENT: Procesando pago mixto AFIP con tarjeta..."
-      );
-      console.log("🔍 CRÍTICO: Tarjeta puede crear factura inmediatamente");
       
       // ✅ CORRECCIÓN: Para pago mixto con tarjeta, necesitamos pasar los pagos múltiples
       // Calcular el monto del segundo método (tarjeta)
@@ -1052,10 +1013,6 @@ export function useAfipPaymentProcessing({
       amount: number;
     }
   ) => {
-    console.log("🔥🔥🔥 HANDLE AFIP QR PAYMENT: INICIANDO");
-    console.log("🔥🔥🔥 STACK TRACE:", new Error().stack);
-    console.log("🔥🔥🔥 items count:", items.length);
-    console.log("🧾 Iniciando generación de QR para pago normal con AFIP...");
     setIsProcessingPayment(true);
     setSelectedPaymentMethod("qr");
 
@@ -1119,14 +1076,6 @@ export function useAfipPaymentProcessing({
         }),
       };
 
-      console.log("🔥🔥🔥 HANDLE AFIP QR - PAYLOAD COMPLETO:");
-      console.log("🔥🔥🔥", JSON.stringify(orderData, null, 2));
-      console.log("🔥🔥🔥 requiresAfipInvoice:", orderData.requiresAfipInvoice);
-      console.log("🔥🔥🔥 isSplitPayment:", orderData.isSplitPayment);
-      console.log("🔥🔥🔥 cashAmount:", orderData.cashAmount);
-      console.log("🔥🔥🔥 ATENCIÓN: Enviando a /api/mercadopago/generate-qr");
-      console.log("🔥🔥🔥 ESTE ENDPOINT SOLO DEBERÍA CREAR QR, NO FACTURA");
-      console.log("📲 Generando QR (F2 - Con AFIP) con payload:", orderData);
 
       const headers: HeadersInit = {
         "Content-Type": "application/json",
@@ -1135,18 +1084,11 @@ export function useAfipPaymentProcessing({
         (headers as Record<string, string>)["X-App-ID"] = appId;
       }
 
-      console.log("🔥🔥🔥 HANDLE AFIP QR - ENVIANDO REQUEST...");
       const response = await fetch(`${API_URL}/api/mercadopago/generate-qr`, {
         method: "POST",
         headers,
         body: JSON.stringify(orderData),
       });
-
-      console.log(
-        "🔥🔥🔥 HANDLE AFIP QR - RESPUESTA RECIBIDA, status:",
-        response.status
-      );
-      console.log("🔥🔥🔥 HANDLE AFIP QR - RESPUESTA ok:", response.ok);
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -1157,9 +1099,6 @@ export function useAfipPaymentProcessing({
       }
 
       const result = await response.json();
-      console.log("🔥🔥🔥 HANDLE AFIP QR - RESULTADO COMPLETO:");
-      console.log("🔥🔥🔥", JSON.stringify(result, null, 2));
-      console.log("🧾 Respuesta del backend (QR AFIP):", result);
 
       if (result.qrData && result.id) {
         // ✅ CORRECCIÓN: Incluir items originales para impresión AFIP
@@ -1169,20 +1108,15 @@ export function useAfipPaymentProcessing({
           items: orderItems, // ✅ CRITICAL FIX: Incluir items originales para impresión AFIP
         };
         updateQrData(qrDataWithAmount);
-        console.log("🧾✅ Estado QR actualizado.");
         setPaymentStatus("PENDIENTE");
 
         if (setQrDialogOpen) {
-          console.log("🧾✅ Abriendo diálogo QR...");
           setQrDialogOpen(true);
         }
         if (setPaymentDialogOpen) {
-          console.log("🧾✅ Cerrando diálogo de pago principal...");
           setPaymentDialogOpen(false);
         }
 
-        console.log(`🧾✅ Iniciando polling para orderId: ${result.id}`);
-        console.log("🔍 CRÍTICO: Solo debería hacer polling, NO crear factura");
         startPaymentStatusPolling(String(result.id), true);
 
         // ✅ CORREGIDO: Retornar los datos del QR
@@ -1215,11 +1149,6 @@ export function useAfipPaymentProcessing({
     items: Product[],
     discountData?: { type: "percentage" | "fixed"; value: number; amount: number }
   ) => {
-    console.log("🔥🔥🔥 GENERATE AFIP SPLIT QR: INICIANDO");
-    console.log("🔥🔥🔥 STACK TRACE:", new Error().stack);
-    console.log("🔥🔥🔥 cashAmountValue:", cashAmountValue);
-    console.log("🔥🔥🔥 qrAmount:", qrAmount);
-    console.log("🔥🔥🔥 items count:", items.length);
 
     if (!user) {
       console.error("❌ Usuario no encontrado");
@@ -1227,11 +1156,7 @@ export function useAfipPaymentProcessing({
       return;
     }
 
-    console.log("🧾🔁 Generando QR para pago mixto AFIP...", {
-      cashAmountValue,
-      qrAmount,
-    });
-
+    // Generando QR para pago mixto AFIP
     try {
       const orderItems = items.map((item) => ({
         productoId: item.id,
@@ -1284,13 +1209,6 @@ export function useAfipPaymentProcessing({
         }),
       };
 
-      console.log("🔥🔥🔥 PAYLOAD COMPLETO A ENVIAR:");
-      console.log("🔥🔥🔥", JSON.stringify(orderData, null, 2));
-      console.log("🔥🔥🔥 requiresAfipInvoice:", orderData.requiresAfipInvoice);
-      console.log("🔥🔥🔥 isSplitPayment:", orderData.isSplitPayment);
-      console.log("🔥🔥🔥 cashAmount:", orderData.cashAmount);
-      console.log("🔥🔥🔥 ATENCIÓN: Enviando a /api/mercadopago/generate-qr");
-      console.log("🔥🔥🔥 ESTE ENDPOINT SOLO DEBERÍA CREAR QR, NO FACTURA");
 
       const headers: HeadersInit = {
         "Content-Type": "application/json",
@@ -1304,15 +1222,11 @@ export function useAfipPaymentProcessing({
         id: "qr-loading",
       });
 
-      console.log("🔥🔥🔥 ENVIANDO REQUEST...");
       const response = await fetch(`${API_URL}/api/mercadopago/generate-qr`, {
         method: "POST",
         headers,
         body: JSON.stringify(orderData),
       });
-
-      console.log("🔥🔥🔥 RESPUESTA RECIBIDA, status:", response.status);
-      console.log("🔥🔥🔥 RESPUESTA ok:", response.ok);
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -1323,16 +1237,10 @@ export function useAfipPaymentProcessing({
       }
 
       const result = await response.json();
-      console.log("🔥🔥🔥 RESULTADO COMPLETO:");
-      console.log("🔥🔥🔥", JSON.stringify(result, null, 2));
-      console.log("🧾🔁 Respuesta del backend (QR mixto AFIP):", result);
 
       if (result.qrData && result.id) {
         // ✅ CORRECCIÓN: Limpiar toast de loading ANTES de continuar
         toast.dismiss("qr-loading");
-
-        console.log("🧾🔁✅ Estado QR mixto actualizado.");
-        console.log("🔍 CRÍTICO: QR creado, NO debería crear factura aún");
 
         // ✅ CORRECCIÓN: Incluir items originales para impresión AFIP mixta
         const qrDataWithAmount = {
@@ -1344,16 +1252,12 @@ export function useAfipPaymentProcessing({
         setPaymentStatus("PENDIENTE");
 
         if (setQrDialogOpen) {
-          console.log("🧾🔁✅ Abriendo diálogo de QR...");
           setQrDialogOpen(true);
         }
         if (setSplitPaymentDialogOpen) {
-          console.log("🧾🔁✅ Cerrando diálogo de pago mixto...");
           setSplitPaymentDialogOpen(false);
         }
 
-        console.log(`🧾🔁✅ Iniciando polling para orderId: ${result.id}`);
-        console.log("🔍 CRÍTICO: Solo debería hacer polling, NO crear factura");
         startPaymentStatusPolling(String(result.id), true); // true for AFIP flow
       } else {
         console.error("🔥🔥🔥 DATOS FALTANTES EN RESPUESTA:");
@@ -1376,8 +1280,6 @@ export function useAfipPaymentProcessing({
     orderId: string,
     isAfip: boolean = false
   ) => {
-    console.log("🔄 AFIP POLLING: Iniciando polling para orden:", orderId);
-    console.log("🔄 AFIP POLLING: isAfip:", isAfip);
     console.log(
       "🔍 CRÍTICO: Polling SOLO verifica estado, factura se crea automáticamente en backend"
     );
@@ -1387,9 +1289,6 @@ export function useAfipPaymentProcessing({
 
     // ✅ CRÍTICO: Verificar si la orden ya fue procesada ANTES de iniciar polling
     if (isOrderAlreadyProcessed(orderId)) {
-      console.log(
-        `🛡️ AFIP POLLING CONTROL: Orden ${orderId} ya fue procesada, saltando polling`
-      );
       return;
     }
 
@@ -1404,18 +1303,12 @@ export function useAfipPaymentProcessing({
 
       // ✅ CRÍTICO: Verificar si la orden ya fue procesada en cada llamada
       if (isOrderAlreadyProcessed(orderId)) {
-        console.log(
-          `🛡️ AFIP POLLING CONTROL: Orden ${orderId} ya fue procesada, deteniendo polling`
-        );
         clearInterval(interval);
         setPollingInterval(null);
         return;
       }
 
       if (pollCount > maxPolls) {
-        console.log(
-          "🔄 AFIP POLLING: Tiempo máximo excedido, finalizando polling."
-        );
         clearInterval(interval);
         setPollingInterval(null);
         toast.error(
@@ -1441,9 +1334,6 @@ export function useAfipPaymentProcessing({
         if (!response.ok) {
           // ✅ CRÍTICO: Si es 404, la orden ya no existe (probablemente completada)
           if (response.status === 404) {
-            console.log(
-              `🛡️ AFIP POLLING CONTROL: Orden ${orderId} no encontrada (404), probablemente ya completada`
-            );
             clearInterval(interval);
             setPollingInterval(null);
             return;
@@ -1454,7 +1344,6 @@ export function useAfipPaymentProcessing({
 
           // Si es 404, podría ser que el endpoint no existe, intentar con query params
           if (response.status === 404) {
-            console.log("🔄 AFIP POLLING: Intentando con query parameters...");
             const altResponse = await fetch(
               `${API_URL}/api/mercadopago/check-status/${orderId}`,
               {
@@ -1468,10 +1357,6 @@ export function useAfipPaymentProcessing({
 
             if (altResponse.ok) {
               const altStatusData = await altResponse.json();
-              console.log(
-                "🔄 AFIP POLLING: Estado con query params:",
-                altStatusData
-              );
               await handlePollingResponse(
                 altStatusData,
                 orderId,
@@ -1486,11 +1371,6 @@ export function useAfipPaymentProcessing({
         }
 
         const statusData = await response.json();
-        console.log(
-          "🔄 AFIP POLLING: Estado actualizado para orden:",
-          orderId,
-          statusData
-        );
 
         await handlePollingResponse(statusData, orderId, interval, isAfip);
       } catch (error: any) {
@@ -1581,7 +1461,6 @@ export function useAfipPaymentProcessing({
 
         // ✅ CRÍTICO: Intentar imprimir la factura AFIP
         try {
-          console.log("🖨️ AFIP POLLING: Iniciando impresión de factura AFIP");
           const printingToastId = toast.loading("Imprimiendo factura AFIP...");
 
           const printSuccess = await handleAfipTicketPrinting(
@@ -1613,7 +1492,6 @@ export function useAfipPaymentProcessing({
         setTimeout(() => {
           clearCart();
           resetPaymentState();
-          console.log("🛒 Carrito limpiado después de pago QR AFIP exitoso");
 
           // Enfocar input de búsqueda
           if (searchInputRef?.current) {
@@ -1621,9 +1499,6 @@ export function useAfipPaymentProcessing({
           }
         }, 2000);
       } else {
-        console.log(
-          "🔄 AFIP POLLING: ⚠️ Pago completado pero factura AFIP no encontrada"
-        );
 
         // ✅ CRÍTICO: Mostrar toast de pago completado aunque no haya factura
         toast.success("¡Pago QR completado! Verificando factura AFIP...");
@@ -1648,7 +1523,6 @@ export function useAfipPaymentProcessing({
       status === "cancelled" ||
       status === "rejected"
     ) {
-      console.log("🔄 AFIP POLLING: ❌ Pago cancelado o rechazado");
       clearInterval(interval);
       setPollingInterval(null);
       toast.error("El pago ha sido cancelado o rechazado");
@@ -1661,19 +1535,12 @@ export function useAfipPaymentProcessing({
       }
       resetPaymentState();
     } else {
-      console.log(
-        "🔄 AFIP POLLING: ⏳ Pago aún pendiente, continuando polling..."
-      );
     }
   };
 
   // ✅ NUEVA FUNCIÓN: Verificar factura AFIP después de confirmación de pago
   const checkForAfipInvoice = async (orderId: string) => {
     try {
-      console.log(
-        "🔍 AFIP INVOICE CHECK: Verificando factura para orden:",
-        orderId
-      );
 
       const response = await fetch(
         `${API_URL}/api/mercadopago/check-status/${orderId}`,
@@ -1729,9 +1596,6 @@ export function useAfipPaymentProcessing({
       console.error("🔍 AFIP INVOICE CHECK: Error:", error);
       // ✅ MEJORA: No mostrar error al usuario ya que el pago fue exitoso
       // El error aquí es solo de verificación, no afecta el resultado del pago
-      console.log(
-        "🔍 AFIP INVOICE CHECK: Error en verificación pero pago exitoso"
-      );
 
       if (setQrDialogOpen) {
         setQrDialogOpen(false);
@@ -1749,21 +1613,13 @@ export function useAfipPaymentProcessing({
   };
 
   const cleanupPolling = () => {
-    console.log("🧹 AFIP: Limpiando polling y estados");
-
     if (pollingInterval) {
-      console.log(
-        "🧹 AFIP: Limpiando intervalo de polling con ID:",
-        pollingInterval
-      );
       clearInterval(pollingInterval);
       setPollingInterval(null);
     }
 
     // ✅ CRÍTICO: Limpiar también el tracking de órdenes procesadas
     clearProcessedOrdersTracking();
-
-    console.log("🧹 AFIP: Polling y estados limpiados");
   };
 
   // ✅ NUEVO: Estado para proteger contra envíos múltiples de contraseña manual
@@ -1774,7 +1630,6 @@ export function useAfipPaymentProcessing({
   const handleManualQrPasswordSubmit = async () => {
     // ✅ PROTECCIÓN: Evitar envíos múltiples
     if (isManualPasswordSubmitting) {
-      console.log("🛡️ AFIP: Ignorando envío múltiple de contraseña manual");
       return;
     }
 
@@ -1784,20 +1639,13 @@ export function useAfipPaymentProcessing({
     }
 
     const orderId = qrData.orderId;
-    console.log(
-      `🔧 AFIP: Completando manualmente orden ${orderId} con requiresAfipInvoice: true`
-    );
 
     // ✅ TOAST CONTROL: Verificar si ya se procesó esta orden
     if (isOrderAlreadyProcessed(orderId)) {
-      console.log(
-        `🛡️ TOAST CONTROL AFIP: Orden ${orderId} ya fue procesada manualmente, saltando`
-      );
       return;
     }
 
     // ✅ CORRECCIÓN: Limpiar polling INMEDIATAMENTE para evitar 404s
-    console.log("🧹 AFIP: Limpiando polling antes del pago manual");
     cleanupPolling();
 
     // ✅ PROTECCIÓN: Marcar como enviando
@@ -1816,8 +1664,6 @@ export function useAfipPaymentProcessing({
         requiresAfipInvoice: true, // ✅ SIEMPRE true para AFIP
       };
 
-      console.log("🔧 AFIP: Enviando a /manual-complete:", body);
-
       const response = await fetch(
         `${API_URL}/api/mercadopago/manual-complete`,
         {
@@ -1835,7 +1681,6 @@ export function useAfipPaymentProcessing({
       }
 
       const result = await response.json();
-      console.log("✅ AFIP: Pago manual completado:", result);
 
       // ✅ TOAST CONTROL: Marcar como procesada ANTES de mostrar toasts
       markOrderAsProcessed(orderId);
@@ -1908,16 +1753,10 @@ export function useAfipPaymentProcessing({
 
   const markOrderAsProcessed = (orderId: string): void => {
     processedOrders.add(orderId);
-    console.log(
-      `✅ TOAST CONTROL AFIP: Orden ${orderId} marcada como procesada`
-    );
   };
 
   const clearProcessedOrdersTracking = () => {
     processedOrders.clear();
-    console.log(
-      "🧹 TOAST CONTROL AFIP: Tracking de órdenes procesadas limpiado"
-    );
   };
 
   // Estado para datos del QR

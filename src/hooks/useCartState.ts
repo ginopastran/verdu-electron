@@ -91,8 +91,6 @@ export function useCartState() {
   };
 
   const addToCart = (newItem: Product) => {
-    console.log("🛒 [useCartState] addToCart llamado con:", newItem);
-
     setScreens((prevScreens) => {
       const updatedScreens = prevScreens.map((screen, index) => {
         if (index === activeScreen) {
@@ -102,10 +100,6 @@ export function useCartState() {
           );
 
           if (existingItem) {
-            console.log(
-              "🛒 [useCartState] Item existente encontrado por cartId, actualizando cantidad:",
-              existingItem
-            );
             // Si el item ya existe (mismo cartId), actualizar la cantidad
             return {
               ...screen,
@@ -120,7 +114,6 @@ export function useCartState() {
               ),
             };
           } else {
-            console.log("🛒 [useCartState] Nuevo item agregado:", newItem);
             // Si es un nuevo item (cartId único), agregarlo
             return {
               ...screen,
@@ -131,28 +124,11 @@ export function useCartState() {
         return screen;
       });
 
-      console.log("🛒 [useCartState] Estado actualizado - screen activa:", {
-        activeScreen,
-        itemsCount: updatedScreens[activeScreen]?.items.length || 0,
-        items:
-          updatedScreens[activeScreen]?.items.map((item) => ({
-            id: item.id,
-            cartId: item.cartId,
-            name: item.name,
-            quantity: item.quantity,
-          })) || [],
-      });
-
       return updatedScreens;
     });
   };
 
   const removeFromCart = (cartId: string) => {
-    console.log(
-      "🛒 [useCartState] removeFromCart llamado para cartId:",
-      cartId
-    );
-
     setScreens((prevScreens) =>
       prevScreens.map((screen, index) =>
         index === activeScreen
@@ -167,32 +143,15 @@ export function useCartState() {
 
   // ✅ NUEVO: Función para limpiar solo la orden activa (no todas)
   const clearCart = () => {
-    console.log(
-      "🧹 [useCartState] clearCart llamado - limpiando screen activa:",
-      activeScreen
-    );
-    const currentItems = screens[activeScreen]?.items || [];
-    console.log(
-      "🧹 [useCartState] Items que se van a eliminar:",
-      currentItems.map((item) => ({
-        id: item.id,
-        cartId: item.cartId,
-        name: item.name,
-      }))
-    );
-
     setScreens((prevScreens) =>
       prevScreens.map((screen, index) =>
         index === activeScreen ? { ...screen, items: [] } : screen
       )
     );
-
-    console.log("🧹 [useCartState] clearCart completado");
   };
 
   // ✅ NUEVO: Función para limpiar todas las órdenes (solo cuando sea necesario)
   const clearAllScreens = () => {
-    console.log("🧹 [useCartState] clearAllScreens llamado - limpiando todas las órdenes");
     setScreens([{ id: 0, items: [] }]);
     setActiveScreen(0);
     localStorage.removeItem("cartScreens");

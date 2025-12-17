@@ -23,83 +23,18 @@ export const useTicketPrinting = () => {
     appId?: string | null
   ) => {
     try {
-      // DEBUG: Verificar APIs disponibles al inicio
-      console.log("🔍 Verificación inicial de APIs:");
-      console.log("- window existe:", typeof window !== "undefined");
-      console.log("- window.electron:", typeof window.electron);
-      console.log("- window.printer:", typeof window.printer);
-      console.log(
-        "- window.electronStore:",
-        typeof (window as any).electronStore
-      );
-      console.log("- window.autoUpdater:", typeof (window as any).autoUpdater);
-      console.log("- window.pesoReader:", typeof (window as any).pesoReader);
-
       // ✅ NUEVO: Obtener información del business para verificar doble impresión
       let businessInfo = null;
       let dobleImpresionEnabled = false;
 
-      console.log("🔍 DEBUG: ANTES DE LA DECISIÓN DE OBTENER BUSINESS INFO:", {
-        API_URL_proporcionado: !!API_URL,
-        API_URL_valor: API_URL,
-        appId_proporcionado: appId !== undefined,
-        appId_valor: appId,
-        appId_tipo: typeof appId,
-        condicionIf: API_URL && appId !== undefined,
-      });
-
       if (API_URL && appId !== undefined) {
-        console.log(
-          "🏢 Obteniendo información del business para doble impresión..."
-        );
-
         try {
           businessInfo = await getBusinessInfo(API_URL, appId);
-
-          // console.log("🔍 DEBUG: RESULTADO DE getBusinessInfo:", {
-          //   businessInfo_existe: !!businessInfo,
-          //   businessInfo_completo: businessInfo,
-          //   dobleImpresionEnabled_raw: businessInfo?.dobleImpresionEnabled,
-          //   dobleImpresionEnabled_tipo:
-          //     typeof businessInfo?.dobleImpresionEnabled,
-          // });
-
-          // Evaluar dobleImpresionEnabled con diferentes comparaciones
-          const comparaciones = {
-            estricta_true: businessInfo?.dobleImpresionEnabled === true,
-            flexible_true: businessInfo?.dobleImpresionEnabled == true,
-            string_true: businessInfo?.dobleImpresionEnabled === "true",
-            truthy: !!businessInfo?.dobleImpresionEnabled,
-            numero_1: businessInfo?.dobleImpresionEnabled === 1,
-          };
-
-          console.log(
-            "🔍 DEBUG: COMPARACIONES dobleImpresionEnabled:",
-            comparaciones
-          );
-
-          // Usar la comparación estricta por defecto
           dobleImpresionEnabled = businessInfo?.dobleImpresionEnabled === true;
-
-          // console.log("📋 Business info obtenida:", {
-          //   businessInfo: !!businessInfo,
-          //   dobleImpresionEnabled_final: dobleImpresionEnabled,
-          //   valor_original: businessInfo?.dobleImpresionEnabled,
-          // });
         } catch (error) {
           console.error("❌ Error al obtener business info:", error);
           dobleImpresionEnabled = false;
         }
-      } else {
-        console.log(
-          "⚠️ No se proporcionaron API_URL o appId, usando impresión simple"
-        );
-        console.log("🔍 DEBUG: Razones para usar impresión simple:", {
-          API_URL_missing: !API_URL,
-          appId_undefined: appId === undefined,
-          API_URL_actual: API_URL,
-          appId_actual: appId,
-        });
       }
 
       // Simular el ticket antes de imprimir
@@ -109,12 +44,8 @@ export const useTicketPrinting = () => {
       let businessName = "Verdulería"; // Valor por defecto
       if (orderData.businessName && orderData.businessName.trim() !== "") {
         businessName = orderData.businessName;
-        console.log(`✅ Usando nombre del business: ${businessName}`);
-      } else if (orderData.sucursal && orderData.sucursal.trim() !== "") {
+        } else if (orderData.sucursal && orderData.sucursal.trim() !== "") {
         businessName = orderData.sucursal;
-        console.log(`✅ Usando nombre de sucursal: ${businessName}`);
-      } else {
-        console.log(`⚠️ Usando nombre por defecto: ${businessName}`);
       }
 
       console.log(businessName.toUpperCase());
@@ -126,15 +57,8 @@ export const useTicketPrinting = () => {
       // Mostrar ID de la orden si está disponible
       if (orderData.idReal && orderData.idReal !== "") {
         console.log(`Orden #${orderData.idReal}`);
-        console.log(`✅ ID Real encontrado: ${orderData.idReal}`);
       } else if (orderData.id && orderData.id !== "") {
         console.log(`Orden #${orderData.id}`);
-        console.log(`⚠️ Usando ID regular: ${orderData.id}`);
-      } else {
-        console.log(`❌ No se encontró ID de orden`);
-        console.log(
-          `🔍 Claves disponibles: ${Object.keys(orderData).join(", ")}`
-        );
       }
 
       console.log("-----------------------------");
@@ -158,7 +82,7 @@ export const useTicketPrinting = () => {
           console.log(`${nombre} ${cantidad} ${precio} ${subtotal}`);
         });
       } else {
-        console.log("❌ No hay items en la orden");
+        // No hay items en la orden
       }
 
       console.log("-----------------------------");
@@ -170,11 +94,6 @@ export const useTicketPrinting = () => {
       let tipoDescuento = '';
       let valorDescuento = 0;
 
-      console.log("\n🔍 ANÁLISIS DE DESCUENTOS:");
-      console.log("- orderData.discountData:", orderData.discountData);
-      console.log("- orderData.tieneDescuento:", orderData.tieneDescuento);
-      console.log("- orderData.subtotal:", orderData.subtotal);
-      console.log("- orderData.subtotalSinDescuento:", orderData.subtotalSinDescuento);
 
       // Verificar si hay información de descuentos (método 1: discountData)
       if (orderData.discountData && typeof orderData.discountData === 'object') {
@@ -208,19 +127,9 @@ export const useTicketPrinting = () => {
             descuentoMonto = discountData.amount;
           }
           
-          console.log("✅ DESCUENTO DETECTADO (discountData):");
-          console.log(`- Subtotal original: $${subtotalOriginal.toFixed(2)}`);
-          console.log(`- Descuento aplicado: -$${descuentoMonto.toFixed(2)}`);
-          console.log(`- Total calculado: $${(subtotalOriginal - descuentoMonto).toFixed(2)}`);
-          console.log(`- Total del backend: $${orderData.total.toFixed(2)}`);
-          console.log(`- Tipo descuento: ${tipoDescuento}`);
-          console.log(`- Valor descuento: ${valorDescuento}`);
-          
           // ⚠️ CORRECCIÓN: Si el total del backend no refleja el descuento, usar el calculado
           const totalCalculado = subtotalOriginal - descuentoMonto;
           if (Math.abs(orderData.total - totalCalculado) > 0.01) {
-            console.log(`⚠️ CORRECCIÓN: El total del backend ($${orderData.total.toFixed(2)}) no refleja el descuento`);
-            console.log(`📝 Usando total calculado: $${totalCalculado.toFixed(2)}`);
             // Actualizar el total para la simulación
             orderData.total = totalCalculado;
           }
@@ -234,12 +143,6 @@ export const useTicketPrinting = () => {
         tipoDescuento = orderData.tipoDescuento || 'unknown';
         valorDescuento = orderData.valorDescuento || 0;
         
-        console.log("✅ DESCUENTO DETECTADO (campos backend):");
-        console.log(`- Subtotal original: $${subtotalOriginal.toFixed(2)}`);
-        console.log(`- Descuento calculado: -$${descuentoMonto.toFixed(2)}`);
-        console.log(`- Total final: $${orderData.total.toFixed(2)}`);
-        console.log(`- Tipo descuento: ${tipoDescuento}`);
-        console.log(`- Valor descuento: ${valorDescuento}`);
       }
       // Fallback: calcular descuento basado en subtotal y total
       else if (orderData.subtotal && orderData.total && orderData.subtotal > orderData.total) {
@@ -247,11 +150,6 @@ export const useTicketPrinting = () => {
         subtotalOriginal = orderData.subtotal;
         descuentoMonto = subtotalOriginal - orderData.total;
         
-        console.log("⚠️ DESCUENTO DETECTADO (fallback):");
-        console.log(`- Subtotal original: $${subtotalOriginal.toFixed(2)}`);
-        console.log(`- Descuento calculado: -$${descuentoMonto.toFixed(2)}`);
-      } else {
-        console.log("❌ NO SE DETECTÓ DESCUENTO");
       }
 
       // Mostrar desglose si hay descuento
@@ -292,25 +190,8 @@ export const useTicketPrinting = () => {
 
       // ✅ FUNCIÓN SIMPLE para llamar al script PHP de impresión
       const callPrintScript = async () => {
-        // 🆕 DEBUG DETALLADO DE DESCUENTOS ANTES DE ENVIAR AL PHP
-        console.log("🔍 DEBUG DESCUENTOS TICKET NORMAL ANTES DE IMPRESIÓN:");
-        console.log("- orderData completo:", orderData);
-        console.log("- orderData.discountData:", orderData.discountData);
-        console.log("- orderData.tieneDescuento:", orderData.tieneDescuento);
-        console.log("- orderData.tipoDescuento:", orderData.tipoDescuento);
-        console.log("- orderData.valorDescuento:", orderData.valorDescuento);
-        console.log("- orderData.montoDescuento:", orderData.montoDescuento);
-        console.log("- orderData.subtotalSinDescuento:", orderData.subtotalSinDescuento);
-        console.log("- orderData.subtotal:", orderData.subtotal);
-        console.log("- orderData.total:", orderData.total);
-        console.log("- orderData.totalConDescuento:", orderData.totalConDescuento);
-        console.log("- orderData.descuentoAplicado:", orderData.descuentoAplicado);
-        console.log("- Diferencia subtotal-total:", (orderData.subtotal || 0) - (orderData.total || 0));
-        console.log("🔍 FIN DEBUG DESCUENTOS TICKET NORMAL");
-
         // Método 1: Usar window.printer (API específica para impresión)
         if (typeof window !== "undefined" && window.printer?.printTicket) {
-          console.log("🖨️ Llamando script PHP via window.printer.printTicket");
           return await window.printer.printTicket(orderData);
         }
         // Método 2: Usar window.electron.ipcRenderer (API general)
@@ -318,7 +199,6 @@ export const useTicketPrinting = () => {
           typeof window !== "undefined" &&
           window.electron?.ipcRenderer
         ) {
-          console.log("🖨️ Llamando script PHP via window.electron.ipcRenderer");
           return await window.electron.ipcRenderer.invoke(
             "print-ticket",
             orderData
@@ -398,12 +278,6 @@ export const useTicketPrinting = () => {
         console.log(
           "- window.electronStore:",
           typeof (window as any).electronStore
-        );
-        console.log(
-          "- Todas las propiedades de window:",
-          Object.keys(window).filter(
-            (key) => key.includes("electron") || key.includes("printer")
-          )
         );
 
         toast.error("Error de conexión con la impresora", {

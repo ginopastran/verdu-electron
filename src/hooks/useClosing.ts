@@ -164,7 +164,6 @@ export const useClosing = (
       }
 
       const cierreData = await responseData;
-      console.log("✅ Datos de cierre recibidos:", cierreData);
 
       try {
         // ====== SIMULACIÓN DEL TICKET DE CIERRE ======
@@ -233,12 +232,7 @@ export const useClosing = (
         // Intentar imprimir - usar window.printer API específica
         try {
           if (typeof window !== "undefined" && window.printer?.printClosing) {
-            console.log(
-              "📄 Enviando datos para impresión de cierre:",
-              cierreData
-            );
             const result = await window.printer.printClosing(cierreData);
-            console.log("📄 Resultado de impresión de cierre:", result);
 
             if (result.success && !result.printerError) {
               toast.success("Ticket de cierre impreso correctamente");
