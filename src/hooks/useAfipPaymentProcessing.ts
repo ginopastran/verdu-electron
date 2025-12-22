@@ -987,6 +987,20 @@ export function useAfipPaymentProcessing({
     setSelectedPaymentMethod("split");
 
     if (secondPaymentMethod === "qr") {
+      // ✅ VERIFICAR SI MP ESTÁ HABILITADO ANTES DE GENERAR QR
+      if (businessInfo?.mpEnabled === false) {
+        // Procesar como transferencia directa + factura AFIP sin MercadoPago
+        const qrAmount = totalAmount - cashAmountValue;
+        await processAfipPayment("split", items, totalAmount, discountData, {
+          cashAmount: cashAmountValue,
+          secondPaymentMethod: "qr", // Transferencia sin MP
+          secondAmount: qrAmount,
+        });
+        setIsProcessingPayment(false);
+        return;
+      }
+
+      // Si MP está habilitado, generar QR de MercadoPago + AFIP
       const qrAmount = totalAmount - cashAmountValue;
       await generateAfipSplitQRPayment(cashAmountValue, qrAmount, items, discountData);
     } else {
@@ -1172,13 +1186,27 @@ export function useAfipPaymentProcessing({
         costo: Number(item.costo),
       }));
 
-      const totalAmount = cashAmountValue + qrAmount;
-      const totalWithDiscount = discountData 
-        ? totalAmount - discountData.amount 
-        : totalAmount;
+      // ✅ CORRECCIÓN: El monto del QR es el qrAmount directamente (ya incluye descuento si aplica)
+      // No recalcular totalAmount y restar descuento nuevamente
+      // El totalAmount que viene de processSplitPayment ya tiene descuento aplicado
+      const totalAmount = cashAmountValue + qrAmount; // Total con descuento ya aplicado
+      
+      // Calcular subtotal sin descuento para el backend
+      // Si hay descuento, calcular el total original sin descuento
+      let subtotalSinDescuento = totalAmount;
+      if (discountData) {
+        if (discountData.type === "percentage") {
+          // Si es porcentual: totalSinDescuento = totalConDescuento / (1 - porcentaje/100)
+          subtotalSinDescuento = totalAmount / (1 - discountData.value / 100);
+        } else {
+          // Si es fijo: totalSinDescuento = totalConDescuento + montoDescuento
+          subtotalSinDescuento = totalAmount + discountData.amount;
+        }
+      }
 
       const orderData = {
-        monto: Number(totalWithDiscount.toFixed(2)),
+        // ✅ CORRECCIÓN: El monto debe ser el qrAmount (monto del QR), no el total
+        monto: Number(qrAmount.toFixed(2)),
         descripcion: `Pago mixto AFIP: QR $${qrAmount.toFixed(
           2
         )} + Efectivo $${cashAmountValue.toFixed(2)}`,
@@ -1196,7 +1224,7 @@ export function useAfipPaymentProcessing({
           tipoDescuento: discountData.type === "percentage" ? "porcentual" : "cantidad",
           valorDescuento: discountData.value,
           montoDescuento: discountData.amount,
-          subtotalSinDescuento: Number(totalAmount.toFixed(2)),
+          subtotalSinDescuento: Number(subtotalSinDescuento.toFixed(2)),
           discountData: {
             type: discountData.type,
             value: discountData.value,
