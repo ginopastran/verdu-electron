@@ -605,16 +605,16 @@ export function useAfipPaymentProcessing({
             }
           : method === "split" && splitPaymentData
           ? {
-              pagos: [
-                {
-                  metodoPago: "efectivo",
-                  monto: splitPaymentData.cashAmount,
-                },
-                {
-                  metodoPago: splitPaymentData.secondPaymentMethod,
-                  monto: splitPaymentData.secondAmount,
-                },
-              ],
+          pagos: [
+            {
+              metodoPago: "efectivo",
+              monto: splitPaymentData.cashAmount,
+            },
+            {
+              metodoPago: splitPaymentData.secondPaymentMethod,
+              monto: splitPaymentData.secondAmount,
+            },
+          ],
             }
           : {}),
       };
@@ -699,9 +699,9 @@ export function useAfipPaymentProcessing({
       } else {
         console.log(`Subtotal: $${Number(printData.subtotal || subtotalBruto).toFixed(2)}`);
         console.log(`IVA (21%): $${Number(printData.impuestos || 0).toFixed(2)}`);
-        console.log(
+      console.log(
           `                 TOTAL: $${Number(printData.total || 0).toFixed(2)}`
-        );
+      );
       }
       console.log(`-----------------------------`);
       

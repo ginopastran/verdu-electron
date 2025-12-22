@@ -101,6 +101,7 @@ interface FormData {
   detalles: DetalleFactura[];
   // 🆕 CAMPOS PARA CUENTA CORRIENTE
   pagoInicial?: number;
+  fechaVencimiento?: string;
   // 🗑️ Eliminado: porcentajeIva - el backend calcula automáticamente
   // 🆕 CAMPO PARA LISTA DE PRECIOS
   listaPrecioId?: number;
@@ -161,6 +162,7 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
     detalles: factura?.detalles || [],
     // 🆕 CAMPOS PARA CUENTA CORRIENTE
     pagoInicial: factura?.pagoInicial || undefined,
+    fechaVencimiento: factura?.fechaVencimiento || undefined,
     // 🆕 CAMPO PARA LISTA DE PRECIOS - usar persistedListaPrecioId si no hay factura
     listaPrecioId: factura?.listaPrecioId || persistedListaPrecioId,
   });
@@ -206,6 +208,7 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
         observaciones: "",
         detalles: [],
         pagoInicial: undefined,
+        fechaVencimiento: undefined,
         listaPrecioId: persistedListaPrecioId,
       });
 
@@ -627,6 +630,11 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
       if (mode === "create" && usarAfip) {
         // Usar endpoint de AFIP para facturas A, B, C
         url = `${API_URL}/api/facturas/crear-afip`;
+        
+        // 🆕 Siempre es cuenta corriente cuando se crea desde FacturaForm
+        // FacturaForm es específicamente para crear facturas/remitos de cuenta corriente
+        const esCuentaCorriente = true;
+        
         dataToSend = {
           clienteId: formData.clienteId,
           tipoFactura: formData.tipoFactura,
@@ -640,6 +648,11 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
             cantidad: detalle.cantidad,
             precio: detalle.precioUnitario,
           })),
+          // 🆕 Campos de cuenta corriente para facturas AFIP - siempre true
+          esCuentaCorriente: true,
+          ...(formData.fechaVencimiento && {
+            fechaVencimiento: formData.fechaVencimiento,
+          }),
         };
       } else {
         // Usar endpoint estándar para remitos o cuando AFIP no está habilitado
@@ -647,6 +660,11 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
           mode === "create"
             ? `${API_URL}/api/facturas`
             : `${API_URL}/api/facturas/${factura.id}`;
+        
+        // 🆕 Siempre es cuenta corriente cuando se crea desde FacturaForm
+        // FacturaForm es específicamente para crear facturas/remitos de cuenta corriente
+        const esCuentaCorriente = true;
+        
         dataToSend = {
           clienteId: formData.clienteId,
           tipoFactura: formData.tipoFactura,
@@ -663,6 +681,11 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
             precioUnitario: detalle.precioUnitario,
             subtotal: detalle.subtotal,
           })),
+          // 🆕 Campos de cuenta corriente para remitos - siempre true
+          esCuentaCorriente: true,
+          ...(formData.fechaVencimiento && {
+            fechaVencimiento: formData.fechaVencimiento,
+          }),
         };
       }
 
@@ -935,6 +958,31 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
                       </p>
                     )}
                   </div>
+                  
+                  {/* Campo de fecha de vencimiento para cuenta corriente (remitos y facturas AFIP) */}
+                  {formData.pagoInicial && formData.pagoInicial > 0 && formData.pagoInicial < total && (
+                    <div>
+                      <Label htmlFor="fechaVencimiento">Fecha de vencimiento (opcional)</Label>
+                      <Input
+                        id="fechaVencimiento"
+                        type="date"
+                        value={
+                          formData.fechaVencimiento
+                            ? new Date(formData.fechaVencimiento).toISOString().split('T')[0]
+                            : ""
+                        }
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            fechaVencimiento: e.target.value
+                              ? new Date(e.target.value).toISOString()
+                              : undefined,
+                          })
+                        }
+                        className="w-full"
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-4">

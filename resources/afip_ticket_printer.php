@@ -476,41 +476,64 @@ try {
     
     // Mostrar desglose si hay descuento
     if ($hasDiscount) {
-        // ✅ CORRECCIÓN: Calcular subtotal original sin IVA para mostrar correctamente
-        // El subtotalOriginal viene del frontend como total con IVA antes del descuento
-        $subtotalOriginalSinIva = $subtotalOriginal / 1.21; // Subtotal original sin IVA
-        
-        // ✅ CORRECCIÓN: Calcular descuento sin IVA (el descuento se aplicó sobre el total con IVA)
-        // Para mostrar correctamente, calculamos el descuento proporcional sin IVA
-        $descuentoMontoSinIva = $descuentoMonto / 1.21;
-        
-        $printer->text("Subtotal sin descuento: $" . number_format($subtotalOriginalSinIva, 2) . "\n");
-        
-        // Mostrar información detallada del descuento
-        if (!empty($tipoDescuento) && $valorDescuento > 0) {
-            if ($tipoDescuento === 'percentage') {
-                $printer->text("Descuento aplicado (" . number_format($valorDescuento, 1) . "%): -$" . number_format($descuentoMontoSinIva, 2) . "\n");
-            } elseif ($tipoDescuento === 'fixed') {
-                $printer->text("Descuento fijo aplicado: -$" . number_format($descuentoMontoSinIva, 2) . "\n");
+        // ✅ CORRECCIÓN: Para descuentos de cantidad fija (amount/fixed), mostrar valores con IVA incluido
+        // Para descuentos porcentuales, mostrar valores sin IVA
+        if ($tipoDescuento === 'amount' || $tipoDescuento === 'fixed') {
+            // Descuento de cantidad fija: mostrar tal cual viene del backend (con IVA incluido)
+            $subtotalOriginalAMostrar = $subtotalOriginal; // $2040 (con IVA)
+            $descuentoAMostrar = $descuentoMonto; // $1000 (con IVA)
+            $totalConDescuentoAMostrar = $afipData['total']; // $1040 (con IVA)
+            
+            $printer->text("Subtotal sin descuento: $" . number_format($subtotalOriginalAMostrar, 2) . "\n");
+            
+            // Mostrar información detallada del descuento
+            if (!empty($valorDescuento) && $valorDescuento > 0) {
+                if ($tipoDescuento === 'fixed') {
+                    $printer->text("Descuento fijo aplicado: -$" . number_format($descuentoAMostrar, 2) . "\n");
+                } else {
+                    $printer->text("Descuento ($" . number_format($valorDescuento, 2) . "): -$" . number_format($descuentoAMostrar, 2) . "\n");
+                }
+            } else {
+                $printer->text("Descuento aplicado: -$" . number_format($descuentoAMostrar, 2) . "\n");
+            }
+            
+            $printer->text("Total c/descuento: $" . number_format($totalConDescuentoAMostrar, 2) . "\n");
+        } else {
+            // Descuento porcentual: mostrar valores sin IVA (cálculo proporcional)
+            $subtotalOriginalSinIva = $subtotalOriginal / 1.21; // Subtotal original sin IVA
+            $descuentoMontoSinIva = $descuentoMonto / 1.21; // Descuento sin IVA
+            
+            $printer->text("Subtotal sin descuento: $" . number_format($subtotalOriginalSinIva, 2) . "\n");
+            
+            // Mostrar información detallada del descuento
+            if (!empty($tipoDescuento) && $valorDescuento > 0) {
+                if ($tipoDescuento === 'percentage') {
+                    $printer->text("Descuento aplicado (" . number_format($valorDescuento, 1) . "%): -$" . number_format($descuentoMontoSinIva, 2) . "\n");
+                } else {
+                    $printer->text("Descuento aplicado: -$" . number_format($descuentoMontoSinIva, 2) . "\n");
+                }
             } else {
                 $printer->text("Descuento aplicado: -$" . number_format($descuentoMontoSinIva, 2) . "\n");
             }
-        } else {
-            $printer->text("Descuento aplicado: -$" . number_format($descuentoMontoSinIva, 2) . "\n");
+            
+            // Mostrar subtotal con descuento (sin IVA)
+            $printer->text("Subtotal con descuento: $" . number_format($subtotalNeto, 2) . "\n");
         }
         
-        // ✅ CORRECCIÓN: Mostrar subtotal con descuento (sin IVA) correctamente
-        // El subtotal con descuento es el subtotalNeto que ya calculamos arriba (total final / 1.21)
-        $printer->text("Subtotal con descuento: $" . number_format($subtotalNeto, 2) . "\n");
         $printer->text("-----------------------------\n");
     }
     
     // Discriminación de IVA para Factura B
-    // ✅ CORRECCIÓN: Solo mostrar si NO hay descuento (si hay descuento ya se mostró arriba)
+    // ✅ CORRECCIÓN: Mostrar IVA desglosado solo cuando NO hay descuento o cuando el descuento es porcentual
+    // Para descuentos de cantidad fija, el IVA ya está incluido en el "Total c/descuento"
     if (!$hasDiscount) {
         $printer->text("Subtotal: $" . number_format($subtotalNeto, 2) . "\n");
+        $printer->text("IVA (21%): $" . number_format($totalIva, 2) . "\n");
+    } elseif ($hasDiscount && ($tipoDescuento === 'percentage')) {
+        // Para descuentos porcentuales, mostrar IVA desglosado
+        $printer->text("IVA (21%): $" . number_format($totalIva, 2) . "\n");
     }
-    $printer->text("IVA (21%): $" . number_format($totalIva, 2) . "\n");
+    // Para descuentos de cantidad fija, no mostrar IVA desglosado (ya está incluido en el total)
     
     // El TOTAL a pagar siempre es el monto final con IVA proveniente del frontend
     $totalFinal = $afipData['total'];
@@ -556,28 +579,28 @@ try {
         }
     } else {
         // Para pagos con un solo método, normalizar el método de pago para mostrar correctamente
-        $metodoPagoDisplay = '';
-        switch (strtolower($metodoPago)) {
-            case 'tarjeta':
-                $metodoPagoDisplay = 'TARJETA';
-                break;
-            case 'transferencia':
-                $metodoPagoDisplay = 'TRANSFERENCIA';
-                break;
-            case 'efectivo':
-                $metodoPagoDisplay = 'EFECTIVO';
-                break;
-            case 'qr':
-                $metodoPagoDisplay = 'QR / MERCADOPAGO';
-                break;
-            case 'split':
-                $metodoPagoDisplay = 'PAGO MIXTO';
-                break;
-            default:
-                $metodoPagoDisplay = strtoupper($metodoPago);
-                break;
-        }
-        $printer->text("Método de pago: " . $metodoPagoDisplay . "\n");
+    $metodoPagoDisplay = '';
+    switch (strtolower($metodoPago)) {
+        case 'tarjeta':
+            $metodoPagoDisplay = 'TARJETA';
+            break;
+        case 'transferencia':
+            $metodoPagoDisplay = 'TRANSFERENCIA';
+            break;
+        case 'efectivo':
+            $metodoPagoDisplay = 'EFECTIVO';
+            break;
+        case 'qr':
+            $metodoPagoDisplay = 'QR / MERCADOPAGO';
+            break;
+        case 'split':
+            $metodoPagoDisplay = 'PAGO MIXTO';
+            break;
+        default:
+            $metodoPagoDisplay = strtoupper($metodoPago);
+            break;
+    }
+    $printer->text("Método de pago: " . $metodoPagoDisplay . "\n");
     }
     
     // Debug del método de pago

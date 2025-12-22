@@ -44,7 +44,7 @@ export const useTicketPrinting = () => {
       let businessName = "Verdulería"; // Valor por defecto
       if (orderData.businessName && orderData.businessName.trim() !== "") {
         businessName = orderData.businessName;
-        } else if (orderData.sucursal && orderData.sucursal.trim() !== "") {
+      } else if (orderData.sucursal && orderData.sucursal.trim() !== "") {
         businessName = orderData.sucursal;
       }
 

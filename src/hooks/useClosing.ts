@@ -192,85 +192,139 @@ export const useClosing = (
         }
 
         console.log("-------------------------------------");
-        console.log("VENTAS POR VENDEDOR:");
-
-        // Mostrar ventas por vendedor
-        if (
-          cierreData.ventasPorVendedor &&
-          Array.isArray(cierreData.ventasPorVendedor)
-        ) {
-          cierreData.ventasPorVendedor.forEach((vendedor: any) => {
-            console.log(
-              `${vendedor.nombre}: $${Number(
-                vendedor.totalVentas
-              ).toLocaleString()} (${vendedor.cantidadVentas} ventas)`
-            );
-
-            // Mostrar métodos de pago por vendedor si existen
-            if (vendedor.metodosPago) {
-              Object.entries(vendedor.metodosPago).forEach(
-                ([metodo, total]) => {
-                  console.log(
-                    `  ${metodo.toUpperCase()}: $${Number(
-                      total
-                    ).toLocaleString()}`
-                  );
-                }
-              );
-            }
-          });
-        }
-
-        console.log("-------------------------------------");
         console.log(
           `TOTAL VENTAS NORMALES: $${Number(
             cierreData.totalVentas
           ).toLocaleString()} (${cierreData.cantidadVentas} ventas)`
         );
 
-        // ✅ NUEVO: Mostrar ventas por cuenta corriente si existen
-        if (cierreData.cuentaCorriente) {
+        // ✅ Mostrar ventas por cuenta corriente si existen (solo totales, sin lista detallada)
+        const cuentaCorriente = cierreData.ventas?.cuentaCorriente || cierreData.cuentaCorriente;
+        if (cuentaCorriente && cuentaCorriente.total > 0) {
           console.log("-------------------------------------");
           console.log("VENTAS POR CUENTA CORRIENTE:");
           
           // Mostrar métodos de pago de cuenta corriente si están disponibles
-          if (cierreData.cuentaCorriente.ventasPorMetodo) {
-            Object.entries(cierreData.cuentaCorriente.ventasPorMetodo).forEach(
+          if (cuentaCorriente.ventasPorMetodo) {
+            console.log("MÉTODOS DE PAGO:");
+            Object.entries(cuentaCorriente.ventasPorMetodo).forEach(
               ([metodo, total]: [string, any]) => {
-                console.log(
-                  `  ${metodo.toUpperCase()}: $${Number(total).toLocaleString()}`
-                );
+                if (Number(total) > 0) {
+                  console.log(
+                    `  ${metodo.toUpperCase()}: $${Number(total).toLocaleString()}`
+                  );
+                }
               }
             );
+            console.log("-------------------------------------");
+          }
+          
+          // Mostrar ventas por vendedor de cuenta corriente si hay datos
+          if (cuentaCorriente.ventasPorVendedor && Array.isArray(cuentaCorriente.ventasPorVendedor) && cuentaCorriente.ventasPorVendedor.length > 0) {
+            console.log("VENTAS POR VENDEDOR:");
+            cuentaCorriente.ventasPorVendedor.forEach((vendedor: any) => {
+              console.log(`  ${vendedor.nombre.toUpperCase()}`);
+              console.log(`  Email: ${vendedor.email}`);
+              if (vendedor.metodosPago) {
+                Object.entries(vendedor.metodosPago).forEach(
+                  ([metodo, total]: [string, any]) => {
+                    if (Number(total) > 0) {
+                      console.log(`  ${metodo.toUpperCase()}: $${Number(total).toLocaleString()}`);
+                    }
+                  }
+                );
+              }
+              console.log(`  Total: $${Number(vendedor.totalVentas).toLocaleString()}`);
+              console.log(`  Cantidad: ${vendedor.cantidadVentas}`);
+              console.log("-------------------------------------");
+            });
           }
           
           console.log(
             `TOTAL CUENTA CORRIENTE: $${Number(
-              cierreData.cuentaCorriente.total
-            ).toLocaleString()} (${cierreData.cuentaCorriente.cantidad} ventas)`
+              cuentaCorriente.total
+            ).toLocaleString()}`
           );
+          console.log(
+            `CANT. VENTAS CC: ${cuentaCorriente.cantidad}`
+          );
+          console.log("-------------------------------------");
         }
 
-        // ✅ NUEVO: Mostrar total general combinado si existe resumen
-        if (cierreData.resumen) {
+        // ✅ Mostrar total general combinado si existe resumen (nueva estructura ventas.resumen)
+        const resumen = cierreData.ventas?.resumen || cierreData.resumen;
+        if (resumen && resumen.totalCombinado) {
           console.log("-------------------------------------");
-          console.log("TOTAL GENERAL:");
+          console.log("TOTAL GENERAL");
+          console.log("(Cuenta Corriente + Ventas Normales)");
+          console.log("-------------------------------------");
           console.log(
-            `  (Cuenta Corriente + Ventas Normales): $${Number(
-              cierreData.resumen.totalCombinado
-            ).toLocaleString()} (${cierreData.resumen.cantidadTotalCombinada} ventas)`
+            `TOTAL GENERAL: $${Number(
+              resumen.totalCombinado
+            ).toLocaleString()}`
           );
-        } else if (cierreData.cuentaCorriente) {
+          console.log(
+            `CANT. TOTAL: ${resumen.cantidadTotalCombinada}`
+          );
+        } else if (cuentaCorriente && cuentaCorriente.total > 0) {
           // Si no hay resumen pero hay cuenta corriente, calcular manualmente
-          const totalCombinado = cierreData.totalVentas + cierreData.cuentaCorriente.total;
-          const cantidadCombinada = cierreData.cantidadVentas + cierreData.cuentaCorriente.cantidad;
+          const totalCombinado = cierreData.totalVentas + cuentaCorriente.total;
+          const cantidadCombinada = cierreData.cantidadVentas + cuentaCorriente.cantidad;
           console.log("-------------------------------------");
-          console.log("TOTAL GENERAL:");
+          console.log("TOTAL GENERAL");
+          console.log("(Cuenta Corriente + Ventas Normales)");
+          console.log("-------------------------------------");
           console.log(
-            `  (Cuenta Corriente + Ventas Normales): $${Number(
+            `TOTAL GENERAL: $${Number(
               totalCombinado
-            ).toLocaleString()} (${cantidadCombinada} ventas)`
+            ).toLocaleString()}`
           );
+          console.log(
+            `CANT. TOTAL: ${cantidadCombinada}`
+          );
+        }
+        
+        // Ventas por vendedor (normales)
+        if (
+          cierreData.ventasPorVendedor &&
+          Array.isArray(cierreData.ventasPorVendedor)
+        ) {
+          console.log("\n\n");
+          console.log("VENTAS POR VENDEDOR");
+          console.log("=============================");
+          console.log("");
+          
+          cierreData.ventasPorVendedor.forEach((vendedor: any) => {
+            console.log(vendedor.nombre.toUpperCase());
+            console.log(`Email: ${vendedor.email}`);
+
+            // Mostrar métodos de pago por vendedor si existen
+            if (vendedor.metodosPago) {
+              Object.entries(vendedor.metodosPago).forEach(
+                ([metodo, total]) => {
+                  if (Number(total) > 0) {
+                    const metodoFormateado = metodo.charAt(0).toUpperCase() + metodo.slice(1);
+                    console.log(
+                      `${metodoFormateado}: $${Number(total).toLocaleString()}`
+                    );
+                  }
+                }
+              );
+            }
+            
+            console.log(
+              `Total: $${Number(vendedor.totalVentas).toLocaleString()}`
+            );
+            
+            // Mostrar Total con cuenta corriente usando el campo del backend
+            const totalConCuentaCorriente = vendedor.totalVentasConCuentaCorriente || vendedor.totalVentas;
+            console.log(
+              `Total con CC: $${Number(totalConCuentaCorriente).toLocaleString()}`
+            );
+            
+            console.log(`Cantidad: ${vendedor.cantidadVentas}`);
+            console.log("-------------------------------------");
+          });
         }
         
         console.log("=====================================\n");

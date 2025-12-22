@@ -33,6 +33,8 @@ try {
     file_put_contents('php://stderr', "totalVentas: " . ($closingData['totalVentas'] ?? 'NO DEFINIDO') . "\n");
     file_put_contents('php://stderr', "cantidadVentas: " . ($closingData['cantidadVentas'] ?? 'NO DEFINIDO') . "\n");
     file_put_contents('php://stderr', "ventasPorMetodo existe: " . (isset($closingData['ventasPorMetodo']) ? 'SÍ' : 'NO') . "\n");
+    file_put_contents('php://stderr', "ventas.cuentaCorriente existe: " . (isset($closingData['ventas']['cuentaCorriente']) ? 'SÍ' : 'NO') . "\n");
+    file_put_contents('php://stderr', "ventas.resumen existe: " . (isset($closingData['ventas']['resumen']) ? 'SÍ' : 'NO') . "\n");
     
     if (isset($closingData['ventasPorMetodo'])) {
         if (isset($closingData['ventasPorMetodo']['ventasPorMetodo'])) {
@@ -335,57 +337,77 @@ try {
             file_put_contents('php://stderr', "⚠️ ADVERTENCIA: Hay una diferencia de $diferencia entre la suma de métodos y el total general\n");
         }
 
-        // Detalles por método de pago
-        $printer->text("VENTAS POR MÉTODO DE PAGO:\n");
-        $printer->text("-----------------------------\n");
-        
-        // Para depuración - mostrar lo que realmente hay después de procesamiento
-        file_put_contents('php://stderr', "MÉTODOS DE PAGO PARA IMPRESIÓN (después de procesamiento):\n");
+        // Detalles por método de pago - Solo mostrar si hay métodos con valores > 0
+        $tieneMetodosPago = false;
         foreach ($metodosPago as $metodo => $monto) {
-            file_put_contents('php://stderr', "  " . $metodo . ": " . $monto . "\n");
-        }
-        
-        // Forzar el orden QR, Tarjeta, Efectivo (solo los que tengan valor > 0)
-        $metodosOrdenados = array(
-            'qr'       => isset($metodosPago['qr']) ? $metodosPago['qr'] : 0,
-            'tarjeta'  => isset($metodosPago['tarjeta']) ? $metodosPago['tarjeta'] : 0,
-            'efectivo' => isset($metodosPago['efectivo']) ? $metodosPago['efectivo'] : 0
-        );
-        
-        // Imprimir métodos con valores positivos
-        foreach ($metodosOrdenados as $metodo => $monto) {
             if ($monto > 0) {
-                $nombreFormateado = ucfirst($metodo); // Primera letra en mayúscula
-                $printer->text(str_pad($nombreFormateado, 15));
-                $printer->text(str_pad('$' . number_format($monto, 2), 17, " ", STR_PAD_LEFT) . "\n");
-                file_put_contents('php://stderr', "✓ Imprimiendo método: " . $metodo . " - $" . number_format($monto, 2) . "\n");
+                $tieneMetodosPago = true;
+                break;
             }
         }
         
-        // Imprimir otros métodos que no estén en la lista predefinida
-        foreach ($metodosPago as $metodo => $monto) {
-            if (!array_key_exists($metodo, $metodosOrdenados) && $monto > 0) {
-                $nombreFormateado = ucfirst($metodo);
-                $printer->text(str_pad($nombreFormateado, 15));
-                $printer->text(str_pad('$' . number_format($monto, 2), 17, " ", STR_PAD_LEFT) . "\n");
-                file_put_contents('php://stderr', "✓ Imprimiendo método adicional: " . $metodo . " - $" . number_format($monto, 2) . "\n");
+        if ($tieneMetodosPago) {
+            $printer->text("VENTAS POR MÉTODO DE PAGO:\n");
+            $printer->text("-----------------------------\n");
+            
+            // Para depuración - mostrar lo que realmente hay después de procesamiento
+            file_put_contents('php://stderr', "MÉTODOS DE PAGO PARA IMPRESIÓN (después de procesamiento):\n");
+            foreach ($metodosPago as $metodo => $monto) {
+                file_put_contents('php://stderr', "  " . $metodo . ": " . $monto . "\n");
+            }
+            
+            // Forzar el orden QR, Tarjeta, Efectivo (solo los que tengan valor > 0)
+            $metodosOrdenados = array(
+                'qr'       => isset($metodosPago['qr']) ? $metodosPago['qr'] : 0,
+                'tarjeta'  => isset($metodosPago['tarjeta']) ? $metodosPago['tarjeta'] : 0,
+                'efectivo' => isset($metodosPago['efectivo']) ? $metodosPago['efectivo'] : 0
+            );
+            
+            // Imprimir métodos con valores positivos
+            foreach ($metodosOrdenados as $metodo => $monto) {
+                if ($monto > 0) {
+                    $nombreFormateado = ucfirst($metodo); // Primera letra en mayúscula
+                    $printer->text(str_pad($nombreFormateado, 15));
+                    $printer->text(str_pad('$' . number_format($monto, 2), 17, " ", STR_PAD_LEFT) . "\n");
+                    file_put_contents('php://stderr', "✓ Imprimiendo método: " . $metodo . " - $" . number_format($monto, 2) . "\n");
+                }
+            }
+            
+            // Imprimir otros métodos que no estén en la lista predefinida
+            foreach ($metodosPago as $metodo => $monto) {
+                if (!array_key_exists($metodo, $metodosOrdenados) && $monto > 0) {
+                    $nombreFormateado = ucfirst($metodo);
+                    $printer->text(str_pad($nombreFormateado, 15));
+                    $printer->text(str_pad('$' . number_format($monto, 2), 17, " ", STR_PAD_LEFT) . "\n");
+                    file_put_contents('php://stderr', "✓ Imprimiendo método adicional: " . $metodo . " - $" . number_format($monto, 2) . "\n");
+                }
             }
         }
         
         // NO mostrar línea de diferencia, simplemente ir al total
 
-        // ✅ NUEVO: Sección de ventas por cuenta corriente (usando nueva estructura API)
+        // Inicializar variables de cuenta corriente (para usar después)
         $totalCuentaCorriente = 0;
         $cantidadCuentaCorriente = 0;
         $metodosPagoCC = [];
         
-        // Usar nueva estructura 'cuentaCorriente' de la API
-        if (isset($closingData['cuentaCorriente']) && is_array($closingData['cuentaCorriente'])) {
-            $cuentaCorriente = $closingData['cuentaCorriente'];
+        // Usar nueva estructura 'ventas.cuentaCorriente' de la API
+        if (isset($closingData['ventas']['cuentaCorriente']) && is_array($closingData['ventas']['cuentaCorriente'])) {
+            $cuentaCorriente = $closingData['ventas']['cuentaCorriente'];
             $totalCuentaCorriente = isset($cuentaCorriente['total']) ? floatval($cuentaCorriente['total']) : 0;
             $cantidadCuentaCorriente = isset($cuentaCorriente['cantidad']) ? intval($cuentaCorriente['cantidad']) : 0;
             
             // Obtener métodos de pago de cuenta corriente si están disponibles
+            if (isset($cuentaCorriente['ventasPorMetodo']) && is_array($cuentaCorriente['ventasPorMetodo'])) {
+                $metodosPagoCC = $cuentaCorriente['ventasPorMetodo'];
+            }
+        }
+        // Compatibilidad con estructura antigua (nivel raíz)
+        elseif (isset($closingData['cuentaCorriente']) && is_array($closingData['cuentaCorriente'])) {
+            $cuentaCorriente = $closingData['cuentaCorriente'];
+            $totalCuentaCorriente = isset($cuentaCorriente['total']) ? floatval($cuentaCorriente['total']) : 0;
+            $cantidadCuentaCorriente = isset($cuentaCorriente['cantidad']) ? intval($cuentaCorriente['cantidad']) : 0;
+            
             if (isset($cuentaCorriente['ventasPorMetodo']) && is_array($cuentaCorriente['ventasPorMetodo'])) {
                 $metodosPagoCC = $cuentaCorriente['ventasPorMetodo'];
             }
@@ -396,33 +418,6 @@ try {
             $totalCuentaCorriente = isset($ventasCC['total']) ? floatval($ventasCC['total']) : 0;
             $cantidadCuentaCorriente = isset($ventasCC['cantidad']) ? intval($ventasCC['cantidad']) : 0;
         }
-        
-        // Solo mostrar sección de cuenta corriente si hay ventas de cuenta corriente
-        if ($totalCuentaCorriente > 0) {
-            $printer->text("-----------------------------\n");
-            $printer->setJustification(Printer::JUSTIFY_CENTER);
-            $printer->setEmphasis(true);
-            $printer->text("VENTAS POR CUENTA CORRIENTE\n");
-            $printer->setEmphasis(false);
-            $printer->setJustification(Printer::JUSTIFY_LEFT);
-            $printer->text("-----------------------------\n");
-            
-            // Mostrar métodos de pago de cuenta corriente si están disponibles
-            if (!empty($metodosPagoCC)) {
-                foreach ($metodosPagoCC as $metodo => $monto) {
-                    if ($monto > 0) {
-                        $nombreFormateado = ucfirst($metodo);
-                        $printer->text(str_pad($nombreFormateado, 15));
-                        $printer->text(str_pad('$' . number_format($monto, 2), 17, " ", STR_PAD_LEFT) . "\n");
-                    }
-                }
-                $printer->text("-----------------------------\n");
-            }
-            
-            $printer->text(str_pad("TOTAL CUENTA CORRIENTE: $" . number_format($totalCuentaCorriente, 2), 32, " ", STR_PAD_LEFT) . "\n");
-            $printer->text(str_pad("CANT. VENTAS CC: " . $cantidadCuentaCorriente, 32, " ", STR_PAD_LEFT) . "\n");
-            $printer->text("-----------------------------\n");
-        }
 
         // Total general (ventas normales)
         $printer->text("-----------------------------\n");
@@ -431,16 +426,125 @@ try {
         $printer->text(str_pad("CANT. VENTAS NORMALES: " . $closingData['cantidadVentas'], 32, " ", STR_PAD_LEFT) . "\n");
         $printer->setEmphasis(false);
         
-        // ✅ NUEVO: Sección combinada (cuenta corriente + ventas normales) solo si hay ventas de cuenta corriente
-        if ($totalCuentaCorriente > 0) {
-            // Usar resumen.totalCombinado si está disponible, sino calcular
-            $totalCombinado = isset($closingData['resumen']['totalCombinado']) 
-                ? floatval($closingData['resumen']['totalCombinado'])
-                : $closingData['totalVentas'] + $totalCuentaCorriente;
+        // ✅ Sección de ventas por cuenta corriente (solo totales, sin lista detallada)
+        if ($totalCuentaCorriente > 0 && $cantidadCuentaCorriente > 0) {
+            $printer->text("-----------------------------\n");
+            $printer->setJustification(Printer::JUSTIFY_CENTER);
+            $printer->setEmphasis(true);
+            $printer->text("VENTAS POR CUENTA CORRIENTE\n");
+            $printer->setEmphasis(false);
+            $printer->setJustification(Printer::JUSTIFY_LEFT);
+            $printer->text("-----------------------------\n");
             
-            $cantidadCombinada = isset($closingData['resumen']['cantidadTotalCombinada'])
-                ? intval($closingData['resumen']['cantidadTotalCombinada'])
-                : $closingData['cantidadVentas'] + $cantidadCuentaCorriente;
+            // Validar si hay métodos de pago de cuenta corriente con valores > 0
+            $tieneMetodosPagoCC = false;
+            if (!empty($metodosPagoCC) && is_array($metodosPagoCC)) {
+                foreach ($metodosPagoCC as $metodo => $monto) {
+                    if ($monto > 0) {
+                        $tieneMetodosPagoCC = true;
+                        break;
+                    }
+                }
+            }
+            
+            // Mostrar métodos de pago de cuenta corriente solo si hay métodos con valores > 0
+            if ($tieneMetodosPagoCC) {
+                $printer->text("MÉTODOS DE PAGO:\n");
+                foreach ($metodosPagoCC as $metodo => $monto) {
+                    if ($monto > 0) {
+                        $nombreFormateado = ucfirst(str_replace('_', ' ', $metodo));
+                        $printer->text(str_pad($nombreFormateado, 15));
+                        $printer->text(str_pad('$' . number_format($monto, 2), 17, " ", STR_PAD_LEFT) . "\n");
+                    }
+                }
+                $printer->text("-----------------------------\n");
+            }
+            
+            // Obtener ventas por vendedor de cuenta corriente si están disponibles
+            $ventasPorVendedorCC = [];
+            if (isset($closingData['ventas']['cuentaCorriente']['ventasPorVendedor']) && is_array($closingData['ventas']['cuentaCorriente']['ventasPorVendedor'])) {
+                $ventasPorVendedorCC = $closingData['ventas']['cuentaCorriente']['ventasPorVendedor'];
+            } elseif (isset($closingData['cuentaCorriente']['ventasPorVendedor']) && is_array($closingData['cuentaCorriente']['ventasPorVendedor'])) {
+                $ventasPorVendedorCC = $closingData['cuentaCorriente']['ventasPorVendedor'];
+            }
+            
+            // Validar que haya vendedores con datos válidos antes de mostrar
+            $vendedoresCCValidos = [];
+            if (!empty($ventasPorVendedorCC) && is_array($ventasPorVendedorCC)) {
+                foreach ($ventasPorVendedorCC as $vendedor) {
+                    // Validar que el vendedor tenga nombre y total válido
+                    if (isset($vendedor['nombre']) && !empty($vendedor['nombre']) && 
+                        isset($vendedor['totalVentas']) && floatval($vendedor['totalVentas']) > 0) {
+                        $vendedoresCCValidos[] = $vendedor;
+                    }
+                }
+            }
+            
+            // Mostrar ventas por vendedor de cuenta corriente solo si hay vendedores válidos
+            if (!empty($vendedoresCCValidos)) {
+                $printer->text("VENTAS POR VENDEDOR:\n");
+                foreach ($vendedoresCCValidos as $vendedor) {
+                    $printer->setEmphasis(true);
+                    $printer->text(strtoupper($vendedor['nombre']) . "\n");
+                    $printer->setEmphasis(false);
+                    
+                    // Mostrar email solo si existe y no está vacío
+                    if (isset($vendedor['email']) && !empty($vendedor['email'])) {
+                        $printer->text("Email: " . $vendedor['email'] . "\n");
+                    }
+                    
+                    // Mostrar métodos de pago solo si existen y tienen valores > 0
+                    $tieneMetodosVendedor = false;
+                    if (isset($vendedor['metodosPago']) && is_array($vendedor['metodosPago'])) {
+                        $metodosPago = $vendedor['metodosPago'];
+                        if (is_string($metodosPago) && substr($metodosPago, 0, 1) === '{') {
+                            $metodosPago = json_decode($metodosPago, true);
+                        }
+                        
+                        foreach ($metodosPago as $metodo => $monto) {
+                            if ($monto > 0) {
+                                $tieneMetodosVendedor = true;
+                                break;
+                            }
+                        }
+                        
+                        if ($tieneMetodosVendedor) {
+                            foreach ($metodosPago as $metodo => $monto) {
+                                if ($monto > 0) {
+                                    $nombreFormateado = ucfirst(str_replace('_', ' ', $metodo));
+                                    $printer->text("$nombreFormateado: $" . number_format(floatval($monto), 2) . "\n");
+                                }
+                            }
+                        }
+                    }
+                    
+                    $printer->text("Total: $" . number_format($vendedor['totalVentas'], 2) . "\n");
+                    if (isset($vendedor['cantidadVentas'])) {
+                        $printer->text("Cantidad: " . $vendedor['cantidadVentas'] . "\n");
+                    }
+                    $printer->text("-----------------------------\n");
+                }
+            }
+            
+            $printer->text(str_pad("TOTAL CUENTA CORRIENTE: $" . number_format($totalCuentaCorriente, 2), 32, " ", STR_PAD_LEFT) . "\n");
+            $printer->text(str_pad("CANT. VENTAS CC: " . $cantidadCuentaCorriente, 32, " ", STR_PAD_LEFT) . "\n");
+            $printer->text("-----------------------------\n");
+        }
+        
+        // ✅ Sección combinada (cuenta corriente + ventas normales) solo si hay ventas de cuenta corriente
+        if ($totalCuentaCorriente > 0) {
+            // Usar resumen.totalCombinado si está disponible (nueva estructura ventas.resumen)
+            $totalCombinado = isset($closingData['ventas']['resumen']['totalCombinado']) 
+                ? floatval($closingData['ventas']['resumen']['totalCombinado'])
+                : (isset($closingData['resumen']['totalCombinado']) 
+                    ? floatval($closingData['resumen']['totalCombinado'])
+                    : $closingData['totalVentas'] + $totalCuentaCorriente);
+            
+            $cantidadCombinada = isset($closingData['ventas']['resumen']['cantidadTotalCombinada'])
+                ? intval($closingData['ventas']['resumen']['cantidadTotalCombinada'])
+                : (isset($closingData['resumen']['cantidadTotalCombinada'])
+                    ? intval($closingData['resumen']['cantidadTotalCombinada'])
+                    : $closingData['cantidadVentas'] + $cantidadCuentaCorriente);
             
             $printer->text("-----------------------------\n");
             $printer->setJustification(Printer::JUSTIFY_CENTER);
@@ -456,71 +560,128 @@ try {
             $printer->setEmphasis(false);
         }
         
-        // Ventas por vendedor (nuevo)
-        if (isset($closingData['ventasPorVendedor']) && is_array($closingData['ventasPorVendedor'])) {
-            file_put_contents('php://stderr', "=== DEPURACIÓN AVANZADA VENTAS POR VENDEDOR ===\n");
-            file_put_contents('php://stderr', "Estructura completa de ventasPorVendedor: " . json_encode($closingData['ventasPorVendedor']) . "\n");
-            
-            $printer->text("\n\n");
-            $printer->setJustification(Printer::JUSTIFY_CENTER);
-            $printer->setEmphasis(true);
-            $printer->text("VENTAS POR VENDEDOR\n");
-            $printer->setEmphasis(false);
-            $printer->text("=============================\n\n");
-            $printer->setJustification(Printer::JUSTIFY_LEFT);
-            
+        // Ventas por vendedor (nuevo) - Solo mostrar si hay vendedores válidos
+        if (isset($closingData['ventasPorVendedor']) && is_array($closingData['ventasPorVendedor']) && !empty($closingData['ventasPorVendedor'])) {
+            // Validar que haya al menos un vendedor con datos válidos
+            $vendedoresValidos = [];
             foreach ($closingData['ventasPorVendedor'] as $vendedor) {
-                // Añadir log para ver la estructura completa del vendedor
-                file_put_contents('php://stderr', "ESTRUCTURA COMPLETA DEL VENDEDOR: " . json_encode($vendedor) . "\n");
-                
-                $printer->setEmphasis(true);
-                $printer->text(strtoupper($vendedor['nombre']) . "\n");
-                $printer->setEmphasis(false);
-                $printer->text("Email: " . $vendedor['email'] . "\n");
-                
-                // Intentar acceder a los datos con diferentes formatos posibles
-                if (isset($vendedor['metodosPago'])) {
-                    // Si existe metodosPago como objeto
-                    file_put_contents('php://stderr', "USANDO metodosPago: " . json_encode($vendedor['metodosPago']) . "\n");
-                    
-                    // Si es un objeto JSON en string, decodificarlo
-                    $metodosPago = $vendedor['metodosPago'];
-                    if (is_string($metodosPago) && substr($metodosPago, 0, 1) === '{') {
-                        $metodosPago = json_decode($metodosPago, true);
-                    }
-                    
-                    if (isset($metodosPago['qr'])) {
-                        $printer->text("QR: $" . number_format(floatval($metodosPago['qr']), 2) . "\n");
-                    }
-                    if (isset($metodosPago['tarjeta'])) {
-                        $printer->text("Tarjeta: $" . number_format(floatval($metodosPago['tarjeta']), 2) . "\n");
-                    }
-                    if (isset($metodosPago['efectivo'])) {
-                        $printer->text("Efectivo: $" . number_format(floatval($metodosPago['efectivo']), 2) . "\n");
-                    }
-                } else {
-                    // Imprimir directamente de las propiedades del vendedor
-                    file_put_contents('php://stderr', "USANDO PROPIEDADES DIRECTAS\n");
-                    
-                    // QR
-                    if (isset($vendedor['qr'])) {
-                        $printer->text("QR: $" . number_format(floatval($vendedor['qr']), 2) . "\n");
-                    }
-                    
-                    // Tarjeta
-                    if (isset($vendedor['tarjeta'])) {
-                        $printer->text("Tarjeta: $" . number_format(floatval($vendedor['tarjeta']), 2) . "\n");
-                    }
-                    
-                    // Efectivo
-                    if (isset($vendedor['efectivo'])) {
-                        $printer->text("Efectivo: $" . number_format(floatval($vendedor['efectivo']), 2) . "\n");
-                    }
+                // Validar que el vendedor tenga nombre y total válido
+                if (isset($vendedor['nombre']) && !empty($vendedor['nombre']) && 
+                    isset($vendedor['totalVentas']) && floatval($vendedor['totalVentas']) >= 0) {
+                    $vendedoresValidos[] = $vendedor;
                 }
+            }
+            
+            // Solo mostrar la sección si hay vendedores válidos
+            if (!empty($vendedoresValidos)) {
+                file_put_contents('php://stderr', "=== DEPURACIÓN AVANZADA VENTAS POR VENDEDOR ===\n");
+                file_put_contents('php://stderr', "Estructura completa de ventasPorVendedor: " . json_encode($closingData['ventasPorVendedor']) . "\n");
                 
-                $printer->text("Total: $" . number_format($vendedor['totalVentas'], 2) . "\n");
-                $printer->text("Cantidad: " . $vendedor['cantidadVentas'] . "\n");
-                $printer->text("-----------------------------\n");
+                $printer->text("\n\n");
+                $printer->setJustification(Printer::JUSTIFY_CENTER);
+                $printer->setEmphasis(true);
+                $printer->text("VENTAS POR VENDEDOR\n");
+                $printer->setEmphasis(false);
+                $printer->text("=============================\n\n");
+                $printer->setJustification(Printer::JUSTIFY_LEFT);
+                
+                foreach ($vendedoresValidos as $vendedor) {
+                    // Añadir log para ver la estructura completa del vendedor
+                    file_put_contents('php://stderr', "ESTRUCTURA COMPLETA DEL VENDEDOR: " . json_encode($vendedor) . "\n");
+                    
+                    $printer->setEmphasis(true);
+                    $printer->text(strtoupper($vendedor['nombre']) . "\n");
+                    $printer->setEmphasis(false);
+                    
+                    // Mostrar email solo si existe y no está vacío
+                    if (isset($vendedor['email']) && !empty($vendedor['email'])) {
+                        $printer->text("Email: " . $vendedor['email'] . "\n");
+                    }
+                    
+                    // Validar si hay métodos de pago con valores > 0
+                    $tieneMetodosVendedor = false;
+                    $metodosPagoVendedor = [];
+                    
+                    // Intentar acceder a los datos con diferentes formatos posibles
+                    if (isset($vendedor['metodosPago'])) {
+                        // Si existe metodosPago como objeto
+                        file_put_contents('php://stderr', "USANDO metodosPago: " . json_encode($vendedor['metodosPago']) . "\n");
+                        
+                        // Si es un objeto JSON en string, decodificarlo
+                        $metodosPago = $vendedor['metodosPago'];
+                        if (is_string($metodosPago) && substr($metodosPago, 0, 1) === '{') {
+                            $metodosPago = json_decode($metodosPago, true);
+                        }
+                        
+                        if (is_array($metodosPago)) {
+                            $metodosPagoVendedor = $metodosPago;
+                            foreach ($metodosPago as $metodo => $monto) {
+                                if ($monto > 0) {
+                                    $tieneMetodosVendedor = true;
+                                    break;
+                                }
+                            }
+                        }
+                    } else {
+                        // Imprimir directamente de las propiedades del vendedor
+                        file_put_contents('php://stderr', "USANDO PROPIEDADES DIRECTAS\n");
+                        
+                        // Construir array de métodos desde propiedades directas
+                        if (isset($vendedor['qr']) && $vendedor['qr'] > 0) {
+                            $metodosPagoVendedor['qr'] = $vendedor['qr'];
+                            $tieneMetodosVendedor = true;
+                        }
+                        if (isset($vendedor['tarjeta']) && $vendedor['tarjeta'] > 0) {
+                            $metodosPagoVendedor['tarjeta'] = $vendedor['tarjeta'];
+                            $tieneMetodosVendedor = true;
+                        }
+                        if (isset($vendedor['efectivo']) && $vendedor['efectivo'] > 0) {
+                            $metodosPagoVendedor['efectivo'] = $vendedor['efectivo'];
+                            $tieneMetodosVendedor = true;
+                        }
+                    }
+                    
+                    // Mostrar métodos de pago solo si hay métodos con valores > 0
+                    if ($tieneMetodosVendedor && !empty($metodosPagoVendedor)) {
+                        // Mostrar en orden: QR, Tarjeta, Efectivo
+                        if (isset($metodosPagoVendedor['qr']) && $metodosPagoVendedor['qr'] > 0) {
+                            $printer->text("QR: $" . number_format(floatval($metodosPagoVendedor['qr']), 2) . "\n");
+                        }
+                        if (isset($metodosPagoVendedor['tarjeta']) && $metodosPagoVendedor['tarjeta'] > 0) {
+                            $printer->text("Tarjeta: $" . number_format(floatval($metodosPagoVendedor['tarjeta']), 2) . "\n");
+                        }
+                        if (isset($metodosPagoVendedor['efectivo']) && $metodosPagoVendedor['efectivo'] > 0) {
+                            $printer->text("Efectivo: $" . number_format(floatval($metodosPagoVendedor['efectivo']), 2) . "\n");
+                        }
+                        
+                        // Mostrar otros métodos que no estén en la lista predefinida
+                        foreach ($metodosPagoVendedor as $metodo => $monto) {
+                            if (!in_array($metodo, ['qr', 'tarjeta', 'efectivo']) && $monto > 0) {
+                                $nombreFormateado = ucfirst(str_replace('_', ' ', $metodo));
+                                $printer->text("$nombreFormateado: $" . number_format(floatval($monto), 2) . "\n");
+                            }
+                        }
+                    }
+                    
+                    // Mostrar total solo si existe y es válido
+                    if (isset($vendedor['totalVentas'])) {
+                        $printer->text("Total: $" . number_format(floatval($vendedor['totalVentas']), 2) . "\n");
+                    }
+                    
+                    // Usar totalVentasConCuentaCorriente del backend si existe, sino usar totalVentas como fallback
+                    $totalConCuentaCorriente = isset($vendedor['totalVentasConCuentaCorriente']) 
+                        ? floatval($vendedor['totalVentasConCuentaCorriente']) 
+                        : (isset($vendedor['totalVentas']) ? floatval($vendedor['totalVentas']) : 0);
+                    
+                    $printer->text("Total con CC: $" . number_format($totalConCuentaCorriente, 2) . "\n");
+                    
+                    // Mostrar cantidad solo si existe
+                    if (isset($vendedor['cantidadVentas'])) {
+                        $printer->text("Cantidad: " . $vendedor['cantidadVentas'] . "\n");
+                    }
+                    
+                    $printer->text("-----------------------------\n");
+                }
             }
         }
 

@@ -86,6 +86,7 @@ export interface CreateFacturaData {
   total: number;
   esCuentaCorriente: boolean;
   pagoInicial?: number;
+  fechaVencimiento?: string;
   detalles: Omit<DetalleFactura, "id" | "producto">[];
 }
 

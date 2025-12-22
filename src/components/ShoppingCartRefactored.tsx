@@ -966,23 +966,23 @@ const ShoppingCartRefactored = forwardRef<
     setIsProcessingPayment(true);
 
     try {
-    // Calcular el discountAmount si hay discountData
-    let finalDiscountData = discountData;
-    if (discountData) {
-      const subtotalOriginal = cartState.calculateTotal();
-      const discountAmount = subtotalOriginal - paymentProcessor.roundedAmount;
-      finalDiscountData = {
-        ...discountData,
-        amount: discountAmount
-      };
-    }
-
-    await paymentProcessor.processPayment(
-      "efectivo",
-      paymentProcessor.roundedAmount,
-      cartState.getCurrentItems(),
-      finalDiscountData
-    );
+      // Calcular el discountAmount si hay discountData
+      let finalDiscountData = discountData;
+      if (discountData) {
+        const subtotalOriginal = cartState.calculateTotal();
+        const discountAmount = subtotalOriginal - paymentProcessor.roundedAmount;
+        finalDiscountData = {
+          ...discountData,
+          amount: discountAmount
+        };
+      }
+      
+      await paymentProcessor.processPayment(
+        "efectivo",
+        paymentProcessor.roundedAmount,
+        cartState.getCurrentItems(),
+        finalDiscountData
+      );
 
       // ✅ MEJORADO: Limpiar estados locales después de éxito
       setIsProcessingPayment(false);
@@ -1112,15 +1112,15 @@ const ShoppingCartRefactored = forwardRef<
         return;
       }
 
-    // ✅ VALIDACIÓN: Productos cargados
-    if (!availableProducts || availableProducts.length === 0) {
-      return;
-    }
+      // ✅ VALIDACIÓN: Productos cargados
+      if (!availableProducts || availableProducts.length === 0) {
+        return;
+      }
 
-    // ✅ VALIDACIÓN: Código no vacío
-    if (!completeCode || completeCode.trim().length === 0) {
-      return;
-    }
+      // ✅ VALIDACIÓN: Código no vacío
+      if (!completeCode || completeCode.trim().length === 0) {
+        return;
+      }
 
       // ✅ PATRÓN 1: Código de barras estándar (13 dígitos)
       if (completeCode.length === 13 && /^\d{13}$/.test(completeCode)) {
@@ -1227,17 +1227,17 @@ const ShoppingCartRefactored = forwardRef<
     businessInfo,
   });
 
-      // 🆕 NUEVO: Limpiar tracking de órdenes procesadas cuando se cierre el diálogo QR
-      useEffect(() => {
-        if (!qrDialogOpen) {
-          // Limpiar tracking en ambos hooks
-          paymentProcessor.clearProcessedOrdersTracking?.();
-          afipPaymentProcessor.clearProcessedOrdersTracking?.();
+  // 🆕 NUEVO: Limpiar tracking de órdenes procesadas cuando se cierre el diálogo QR
+  useEffect(() => {
+    if (!qrDialogOpen) {
+      // Limpiar tracking en ambos hooks
+      paymentProcessor.clearProcessedOrdersTracking?.();
+      afipPaymentProcessor.clearProcessedOrdersTracking?.();
 
-          // ✅ NUEVO: NO limpiar el polling automáticamente al cerrar el diálogo
-          // El polling debe continuar hasta que el pago se complete o falle
-        }
-      }, [qrDialogOpen, paymentProcessor, afipPaymentProcessor]);
+      // ✅ NUEVO: NO limpiar el polling automáticamente al cerrar el diálogo
+      // El polling debe continuar hasta que el pago se complete o falle
+    }
+  }, [qrDialogOpen, paymentProcessor, afipPaymentProcessor]);
 
 
   // ✅ CRÍTICO: Limpiar intervalos solo al desmontar el componente
