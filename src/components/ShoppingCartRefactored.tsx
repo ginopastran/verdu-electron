@@ -1042,17 +1042,14 @@ const ShoppingCartRefactored = forwardRef<
 
   // ✅ CRÍTICO: Función centralizada para agregar productos escaneados
   const addScannedProduct = useCallback(
-    (product: any, quantity: number = 1) => {
-      // ✅ BLOQUEO INMEDIATO: Si ya estamos procesando, salir
+    async (product: any, quantity: number = 1) => {
       if (isProcessingRef.current) {
         return;
       }
 
-      // ✅ BLOQUEO INMEDIATO: Marcar como procesando
       isProcessingRef.current = true;
 
       try {
-        // ✅ VALIDACIÓN DE DUPLICADOS: Verificar código reciente
         const now = Date.now();
         const productKey = `${product.id}-${product.name}`;
 
@@ -1061,15 +1058,52 @@ const ShoppingCartRefactored = forwardRef<
           (lastProcessedCode.current.code === productKey ||
             lastProcessedCode.current.code === product.codigoBarras ||
             lastProcessedCode.current.code === product.plu) &&
-          now - lastProcessedCode.current.timestamp < 1000 // 1 segundo de debounce
+          now - lastProcessedCode.current.timestamp < 1000
         ) {
           return;
         }
 
-        // ✅ MARCAR COMO PROCESADO
         lastProcessedCode.current = { code: productKey, timestamp: now };
 
-        // ✅ CREAR ITEM ÚNICO
+        let pricePerUnit = product.pricePerUnit;
+        let listaPrecioId: number | null = null;
+        let listaPrecioNombre: string | null = null;
+        const defId = businessInfo?.listaPrecioPorDefectoId;
+        const etiquetaBase = (
+          businessInfo?.etiquetaPrecioBase || "Precio catálogo"
+        ).trim();
+
+        if (defId != null && API_URL) {
+          try {
+            const headers: Record<string, string> = {
+              "Content-Type": "application/json",
+            };
+            const aid = getAppId();
+            if (aid) headers["X-App-ID"] = aid;
+            const res = await fetch(
+              `${API_URL}/api/productos/${product.id}/listas-precios`,
+              { credentials: "include", headers }
+            );
+            if (res.ok) {
+              const data = await res.json();
+              const rows = data.productos || [];
+              const row = rows.find(
+                (x: any) =>
+                  x.listaPrecioId === defId &&
+                  x.activa &&
+                  x.listaPrecio?.activa
+              );
+              if (row) {
+                pricePerUnit = row.precio;
+                listaPrecioId = defId;
+                listaPrecioNombre = row.listaPrecio?.nombre ?? null;
+              }
+            }
+          } catch {
+            pricePerUnit = product.pricePerUnit;
+          }
+        }
+
         const uniqueId = `${product.id}-${Date.now()}-${Math.random()
           .toString(36)
           .substring(2, 10)}`;
@@ -1079,16 +1113,17 @@ const ShoppingCartRefactored = forwardRef<
           name: product.name,
           quantity: quantity,
           unit: product.unit || "Unidad",
-          pricePerUnit: product.pricePerUnit,
-          subtotal: Number((product.pricePerUnit * quantity).toFixed(2)),
+          pricePerUnit,
+          subtotal: Number((pricePerUnit * quantity).toFixed(2)),
           costo: product.costo,
           ivaIncluido: product.ivaIncluido,
           ivaPorcentaje: product.ivaPorcentaje,
+          listaPrecioId,
+          listaPrecioNombre: listaPrecioNombre ?? (listaPrecioId ? null : etiquetaBase),
         };
 
         cartState.addToCart(newItem);
 
-        // ✅ LIMPIAR INPUT
         if (searchInputRef.current) {
           searchInputRef.current.value = "";
           setSearchQuery("");
@@ -1097,11 +1132,10 @@ const ShoppingCartRefactored = forwardRef<
       } catch (error) {
         console.error("Error al agregar producto:", error);
       } finally {
-        // ✅ DESBLOQUEO: Siempre liberar el bloqueo
         isProcessingRef.current = false;
       }
     },
-    [cartState]
+    [cartState, businessInfo, API_URL]
   );
 
   // ✅ CRÍTICO: Función para procesar códigos completos

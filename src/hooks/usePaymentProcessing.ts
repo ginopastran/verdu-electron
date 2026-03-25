@@ -283,6 +283,7 @@ export function usePaymentProcessing({
       precioHistorico: item.pricePerUnit,
       costo: Number(item.costo),
       nombre: item.name,
+      listaPrecioId: item.listaPrecioId ?? null,
     }));
 
     // Calcular subtotal original para descuentos
@@ -547,6 +548,7 @@ export function usePaymentProcessing({
         subtotal: Number(item.subtotal.toFixed(2)),
         precioHistorico: item.pricePerUnit,
         costo: Number(item.costo),
+        listaPrecioId: item.listaPrecioId ?? null,
       }));
 
       const orderData = {
@@ -1155,6 +1157,7 @@ export function usePaymentProcessing({
         precioHistorico: item.pricePerUnit,
         costo: Number(item.costo),
         nombre: item.name,
+        listaPrecioId: item.listaPrecioId ?? null,
       }));
 
       // Calcular el total con descuento aplicado (ya viene calculado desde el componente)
@@ -1312,6 +1315,7 @@ export function usePaymentProcessing({
         precioHistorico: item.pricePerUnit,
         costo: Number(item.costo),
         nombre: item.name,
+        listaPrecioId: item.listaPrecioId ?? null,
       }));
 
       const orderData = {
@@ -1435,6 +1439,7 @@ export function usePaymentProcessing({
         subtotal: Number(item.subtotal.toFixed(2)),
         precioHistorico: item.pricePerUnit,
         costo: Number(item.costo),
+        listaPrecioId: item.listaPrecioId ?? null,
       }));
 
       // ✅ CORRECCIÓN: Calcular el monto total considerando el descuento

@@ -13,6 +13,8 @@ export interface Product {
   costo: number;
   ivaIncluido?: boolean;
   ivaPorcentaje?: number | null;
+  listaPrecioId?: number | null;
+  listaPrecioNombre?: string | null;
 }
 
 export interface CartScreen {

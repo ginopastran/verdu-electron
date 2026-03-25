@@ -1043,6 +1043,7 @@ export function useAfipPaymentProcessing({
         subtotal: Number(item.subtotal.toFixed(2)),
         precioHistorico: item.pricePerUnit,
         costo: Number(item.costo),
+        listaPrecioId: item.listaPrecioId ?? null,
       }));
 
       const total = calculateTotal();
@@ -1184,6 +1185,7 @@ export function useAfipPaymentProcessing({
         subtotal: Number(item.subtotal.toFixed(2)),
         precioHistorico: item.pricePerUnit,
         costo: Number(item.costo),
+        listaPrecioId: item.listaPrecioId ?? null,
       }));
 
       // ✅ CORRECCIÓN: El monto del QR es el qrAmount directamente (ya incluye descuento si aplica)

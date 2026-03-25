@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
   DialogContent,
@@ -24,6 +25,12 @@ interface AddProductDialogProps {
   onAddToCart: (product: Product) => void;
 }
 
+type FilaLista = {
+  listaPrecioId: number;
+  precio: number;
+  nombreLista: string;
+};
+
 export function AddProductDialog({
   isOpen,
   product,
@@ -33,17 +40,23 @@ export function AddProductDialog({
   const [quantity, setQuantity] = useState<string>("");
   const [useManualWeight, setUseManualWeight] = useState(false);
   const [isAddingToCart, setIsAddingToCart] = useState(false);
+  const [filasLista, setFilasLista] = useState<FilaLista[]>([]);
+  const [listaPreciosLoading, setListaPreciosLoading] = useState(false);
+  const [selectedBase, setSelectedBase] = useState(true);
+  const [selectedListaId, setSelectedListaId] = useState<number | null>(null);
   const weight = useScaleWeight();
   const { user } = useAuth();
 
-  // Obtener información del business para el cálculo de IVA
   const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
   const appId = import.meta.env.VITE_APP_ID || null;
   const { businessInfo } = useBusinessInfo(API_URL, appId);
 
-  // Initialize and update useManualWeight based on user permissions
+  const authHeaders: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(appId ? { "X-App-ID": appId } : {}),
+  };
+
   useEffect(() => {
-    // Set weight mode based on user permissions
     if (user?.permisos?.pesoManualEnabled === true) {
       setUseManualWeight(true);
     } else {
@@ -51,23 +64,100 @@ export function AddProductDialog({
     }
   }, [user]);
 
-  // Cleanup when dialog closes
   useEffect(() => {
     if (!isOpen) {
       setQuantity("");
       setIsAddingToCart(false);
+      setFilasLista([]);
+      setListaPreciosLoading(false);
+      setSelectedBase(true);
+      setSelectedListaId(null);
     }
   }, [isOpen]);
 
+  useEffect(() => {
+    if (!isOpen || !product) return;
+    let cancelled = false;
+    setListaPreciosLoading(true);
+    setFilasLista([]);
+    (async () => {
+      try {
+        const res = await fetch(
+          `${API_URL}/api/productos/${product.id}/listas-precios`,
+          { credentials: "include", headers: authHeaders }
+        );
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        const productos = data.productos || [];
+        const rows: FilaLista[] = productos
+          .filter(
+            (x: any) => x.activa && x.listaPrecio?.activa
+          )
+          .map((x: any) => ({
+            listaPrecioId: x.listaPrecioId,
+            precio: x.precio,
+            nombreLista: x.listaPrecio.nombre,
+          }));
+        if (cancelled) return;
+        setFilasLista(rows);
+        const defId = businessInfo?.listaPrecioPorDefectoId;
+        const match =
+          defId != null ? rows.find((r) => r.listaPrecioId === defId) : null;
+        if (match) {
+          setSelectedBase(false);
+          setSelectedListaId(match.listaPrecioId);
+        } else {
+          setSelectedBase(true);
+          setSelectedListaId(null);
+        }
+      } catch {
+        if (!cancelled) {
+          setFilasLista([]);
+          setSelectedBase(true);
+          setSelectedListaId(null);
+        }
+      } finally {
+        if (!cancelled) setListaPreciosLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    isOpen,
+    product?.id,
+    businessInfo?.listaPrecioPorDefectoId,
+    API_URL,
+  ]);
+
+  const etiquetaBase =
+    (businessInfo?.etiquetaPrecioBase || "Precio catálogo").trim();
+
+  const precioUnitarioEfectivo = (() => {
+    if (!product) return 0;
+    if (selectedBase || selectedListaId == null) return product.pricePerUnit;
+    const row = filasLista.find((r) => r.listaPrecioId === selectedListaId);
+    return row?.precio ?? product.pricePerUnit;
+  })();
+
+  const precioVisualLinea = (unit: number) =>
+    businessInfo && product
+      ? calcularPrecioVisualConIVA(
+          unit,
+          product.ivaIncluido || false,
+          product.ivaPorcentaje ?? null,
+          businessInfo.ivaIncluidoEnPrecios || false
+        )
+      : unit;
+
   const handleAddToCart = () => {
-    if (isAddingToCart || !product) return;
+    if (isAddingToCart || listaPreciosLoading || !product) return;
 
     setIsAddingToCart(true);
 
     try {
       let finalQuantity: number;
 
-      // Validación específica para productos de tipo Kg
       if (product.unit === "Kg") {
         if (useManualWeight) {
           if (!quantity) {
@@ -75,9 +165,9 @@ export function AddProductDialog({
               "Se requiere especificar una cantidad para este producto"
             );
           }
-          finalQuantity = parseFloat(quantity) / 1000; // Convertir gramos a kilos
+          finalQuantity = parseFloat(quantity) / 1000;
         } else {
-          finalQuantity = weight / 1000; // Convertir gramos a kilos
+          finalQuantity = weight / 1000;
         }
       } else {
         if (!quantity) {
@@ -88,40 +178,43 @@ export function AddProductDialog({
         finalQuantity = parseFloat(quantity);
       }
 
-      // Validación adicional de la cantidad
       if (isNaN(finalQuantity) || finalQuantity <= 0) {
         throw new Error("La cantidad debe ser un número mayor que cero");
       }
 
-      // Crear un ID único para el item del carrito
       const uniqueId = `${product.id}-${Date.now()}-${Math.random()
         .toString(36)
         .substring(2, 10)}-${Math.random().toString(36).substring(2, 10)}`;
 
-      // Crear el objeto a añadir
+      const rowSel =
+        !selectedBase && selectedListaId != null
+          ? filasLista.find((r) => r.listaPrecioId === selectedListaId)
+          : null;
+
       const newItem: Product = {
         id: product.id,
         cartId: uniqueId,
         name: product.name,
         quantity: finalQuantity,
         unit: product.unit,
-        pricePerUnit: product.pricePerUnit,
-        subtotal: product.pricePerUnit * finalQuantity,
+        pricePerUnit: precioUnitarioEfectivo,
+        subtotal: Number((precioUnitarioEfectivo * finalQuantity).toFixed(2)),
         costo: product.costo,
         ivaIncluido: product.ivaIncluido,
         ivaPorcentaje: product.ivaPorcentaje,
+        listaPrecioId: selectedBase ? null : selectedListaId,
+        listaPrecioNombre: selectedBase
+          ? etiquetaBase
+          : rowSel?.nombreLista ?? null,
       };
 
-      // Añadir al carrito
       onAddToCart(newItem);
 
-      // Cerrar el diálogo y limpiar
       onClose();
     } catch (error: any) {
       console.error("Error:", error.message);
       alert(error.message || "Error al añadir producto");
     } finally {
-      // Aseguramos que el estado isAddingToCart se resetea
       setTimeout(() => {
         setIsAddingToCart(false);
       }, 500);
@@ -129,7 +222,7 @@ export function AddProductDialog({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !isAddingToCart) {
+    if (e.key === "Enter" && !isAddingToCart && !listaPreciosLoading) {
       e.preventDefault();
 
       if (product?.unit === "Kg" && !useManualWeight) {
@@ -139,6 +232,11 @@ export function AddProductDialog({
       }
     }
   };
+
+  const selectValue =
+    selectedBase || selectedListaId == null
+      ? "base"
+      : String(selectedListaId);
 
   return (
     <Dialog
@@ -153,18 +251,61 @@ export function AddProductDialog({
             Agregar producto
           </DialogTitle>
           <DialogDescription>
-            {product?.name} - $
-            {businessInfo && product
-              ? calcularPrecioVisualConIVA(
-                  product.pricePerUnit,
-                  product.ivaIncluido || false,
-                  product.ivaPorcentaje ?? null,
-                  businessInfo.ivaIncluidoEnPrecios || false
-                ).toLocaleString()
-              : product?.pricePerUnit?.toLocaleString()}
-            / {product?.unit}
+            {product?.name}
+            {selectedBase || selectedListaId == null
+              ? ` — ${etiquetaBase}`
+              : filasLista.find((r) => r.listaPrecioId === selectedListaId)
+                ? ` — ${
+                    filasLista.find((r) => r.listaPrecioId === selectedListaId)
+                      ?.nombreLista
+                  }`
+                : ""}{" "}
+            — $
+            {precioVisualLinea(precioUnitarioEfectivo).toLocaleString()} /{" "}
+            {product?.unit}
           </DialogDescription>
         </DialogHeader>
+
+        {listaPreciosLoading && (
+          <div className="space-y-2" aria-busy="true" aria-label="Cargando listas de precios">
+            <Skeleton className="h-4 w-36" />
+            <Skeleton className="h-10 w-full" />
+          </div>
+        )}
+
+        {!listaPreciosLoading && filasLista.length > 0 && (
+          <div className="space-y-1">
+            <label
+              htmlFor="lista-precio-pos"
+              className="text-sm font-medium text-gray-700"
+            >
+              Lista de precios
+            </label>
+            <select
+              id="lista-precio-pos"
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              value={selectValue}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (v === "base") {
+                  setSelectedBase(true);
+                  setSelectedListaId(null);
+                } else {
+                  setSelectedBase(false);
+                  setSelectedListaId(Number(v));
+                }
+              }}
+            >
+              <option value="base">{etiquetaBase}</option>
+              {filasLista.map((r) => (
+                <option key={r.listaPrecioId} value={String(r.listaPrecioId)}>
+                  {r.nombreLista} — $
+                  {precioVisualLinea(r.precio).toLocaleString()}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {product?.unit === "Kg" && (
           <div className="flex items-center space-x-4 py-2">
@@ -223,7 +364,7 @@ export function AddProductDialog({
             onClick={handleAddToCart}
             className="bg-emerald-gradient text-white hover:text-white text-base"
             type="button"
-            disabled={isAddingToCart}
+            disabled={isAddingToCart || listaPreciosLoading}
             autoFocus={!(product?.unit !== "Kg" || useManualWeight)}
             tabIndex={1}
           >
