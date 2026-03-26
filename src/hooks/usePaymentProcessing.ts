@@ -186,7 +186,14 @@ export function usePaymentProcessing({
       });
 
       if (!orderResponse.ok) {
-        throw new Error("Error al crear la orden");
+        const errBody = await orderResponse.json().catch(() => ({}));
+        const msg =
+          typeof (errBody as { message?: string }).message === "string"
+            ? (errBody as { message: string }).message
+            : typeof (errBody as { error?: string }).error === "string"
+              ? (errBody as { error: string }).error
+              : "Error al crear la orden";
+        throw new Error(msg);
       }
 
       const result = await orderResponse.json();
@@ -284,6 +291,7 @@ export function usePaymentProcessing({
       costo: Number(item.costo),
       nombre: item.name,
       listaPrecioId: item.listaPrecioId ?? null,
+      listaPrecioNombre: item.listaPrecioNombre ?? undefined,
     }));
 
     // Calcular subtotal original para descuentos

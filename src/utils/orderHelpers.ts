@@ -77,13 +77,34 @@ export function createValidOrderPayload(payload: OrderPayloadInput) {
       return null; // indicador de item inválido
     }
 
-    return {
+    const rawLid = raw.listaPrecioId;
+    const lidParsed =
+      rawLid != null && rawLid !== "" ? Number(rawLid) : NaN;
+    const listaPrecioId = Number.isFinite(lidParsed) ? lidParsed : null;
+
+    const out: Record<string, unknown> = {
       productoId,
       cantidad,
       subtotal,
       costo,
       precioHistorico,
       nombre: raw.nombre,
+      listaPrecioId,
+    };
+
+    if (typeof raw.listaPrecioNombre === "string" && raw.listaPrecioNombre) {
+      out.listaPrecioNombre = raw.listaPrecioNombre;
+    }
+
+    return out as {
+      productoId: number;
+      cantidad: number;
+      subtotal: number;
+      costo: number;
+      precioHistorico: number;
+      nombre?: string;
+      listaPrecioId: number | null;
+      listaPrecioNombre?: string;
     };
   });
 
