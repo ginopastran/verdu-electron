@@ -781,6 +781,8 @@ const ShoppingCartRefactored = forwardRef<
           precioHistorico: item.pricePerUnit,
           costo: Number(item.costo),
           nombre: item.name,
+          listaPrecioId: item.listaPrecioId ?? null,
+          listaPrecioNombre: item.listaPrecioNombre ?? undefined,
         }));
 
         // Calcular total con descuento si existe
