@@ -5,6 +5,7 @@ if (!file_exists($autoloaderPath)) {
 }
 
 require $autoloaderPath;
+require_once __DIR__ . '/ticket_formatter.php';
 
 // Verificar que la clase existe
 if (!class_exists('Mike42\Escpos\PrintConnectors\WindowsPrintConnector')) {
@@ -311,12 +312,12 @@ try {
         }
     }
     
-    $printer->text("-----------------------------\n");
+    $printer->text(build_ticket_separator() . "\n");
 
     // Detalles de productos
     $printer->setJustification(Printer::JUSTIFY_LEFT);
-    $printer->text("PRODUCTO      CANT    PRECIO    TOTAL\n");
-    $printer->text("-----------------------------\n");
+    $printer->text(build_ticket_columns_header() . "\n");
+    $printer->text(build_ticket_separator() . "\n");
 
     // Verificar si hay detalles para imprimir
     if (isset($facturaData['detalles']) && is_array($facturaData['detalles']) && count($facturaData['detalles']) > 0) {
@@ -355,12 +356,9 @@ try {
                 $subtotal = $cantidad * $precio;
             }
             
-            $nombre = str_pad(substr($nombreProducto, 0, 12), 12);
-            $cantidadFormateada = str_pad(number_format($cantidad, 3), 8);
-            $precioFormateado = str_pad('$' . number_format($precio, 2), 8);
-            $subtotalFormateado = str_pad('$' . number_format($subtotal, 2), 8);
-            
-            $printer->text("$nombre $cantidadFormateada $precioFormateado $subtotalFormateado\n");
+            foreach (format_ticket_item_lines((string) $nombreProducto, (float) $cantidad, (float) $precio, (float) $subtotal) as $line) {
+                $printer->text($line . "\n");
+            }
         }
     } else {
         file_put_contents('php://stderr', "⚠️ No hay detalles para imprimir o detalles está vacío\n");
@@ -368,7 +366,7 @@ try {
     }
 
     // Totales
-    $printer->text("-----------------------------\n");
+    $printer->text(build_ticket_separator() . "\n");
     
     // Subtotal (sin IVA)
     if (isset($facturaData['subtotal'])) {

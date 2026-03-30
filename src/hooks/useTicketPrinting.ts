@@ -1,5 +1,10 @@
 import { toast } from "sonner";
 import { getBusinessInfo } from "@/utils/businessHelpers";
+import {
+  buildTicketColumnsHeader,
+  buildTicketSeparator,
+  formatTicketPreviewLines,
+} from "@/utils/ticketPrintFormatter";
 
 // Los tipos de Window están definidos en src/types/electron.d.ts
 
@@ -61,31 +66,27 @@ export const useTicketPrinting = () => {
         console.log(`Orden #${orderData.id}`);
       }
 
-      console.log("-----------------------------");
-      console.log("PRODUCTO      CANT    PRECIO    TOTAL");
-      console.log("-----------------------------");
+      console.log(buildTicketSeparator());
+      console.log(buildTicketColumnsHeader());
+      console.log(buildTicketSeparator());
 
       // Mostrar productos
       const items = orderData.items || orderData.detalles || [];
       if (items && items.length > 0) {
         items.forEach((item: any) => {
-          const nombre = (item.nombre || item.producto?.nombre || "").padEnd(
-            12
-          );
-          const cantidad = (item.cantidad || 0).toString().padStart(8);
-          const precio = `$${Number(
-            item.precioHistorico || item.precio || 0
-          ).toFixed(2)}`.padStart(8);
-          const subtotal = `$${Number(item.subtotal || 0).toFixed(2)}`.padStart(
-            8
-          );
-          console.log(`${nombre} ${cantidad} ${precio} ${subtotal}`);
+          const lines = formatTicketPreviewLines({
+            name: item.nombre || item.producto?.nombre || "Producto",
+            quantity: Number(item.cantidad || 0),
+            price: Number(item.precioHistorico || item.precio || 0),
+            subtotal: Number(item.subtotal || 0),
+          });
+          lines.forEach((line) => console.log(line));
         });
       } else {
         // No hay items en la orden
       }
 
-      console.log("-----------------------------");
+      console.log(buildTicketSeparator());
 
       // 🆕 SIMULACIÓN DE DESCUENTOS - Replicar lógica del PHP
       let hasDiscount = false;

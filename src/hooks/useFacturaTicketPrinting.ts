@@ -2,6 +2,11 @@
 
 import { toast } from "sonner";
 import { getBusinessInfo } from "@/utils/businessHelpers";
+import {
+  buildTicketColumnsHeader,
+  buildTicketSeparator,
+  formatTicketPreviewLines,
+} from "@/utils/ticketPrintFormatter";
 
 // Los tipos de Window están definidos en src/types/electron.d.ts
 
@@ -97,9 +102,9 @@ export const useFacturaTicketPrinting = () => {
         }
       }
 
-      console.log("-----------------------------");
-      console.log("PRODUCTO      CANT    PRECIO    TOTAL");
-      console.log("-----------------------------");
+      console.log(buildTicketSeparator());
+      console.log(buildTicketColumnsHeader());
+      console.log(buildTicketSeparator());
 
       // Mostrar productos
       const detalles = facturaData.detalles || [];
@@ -121,22 +126,19 @@ export const useFacturaTicketPrinting = () => {
             nombreProducto = "Producto";
           }
 
-          const nombre = nombreProducto.substring(0, 12).padEnd(12);
-          const cantidad = (detalle.cantidad || 0).toString().padStart(8);
-          const precio = `$${Number(
-            detalle.precioUnitario || detalle.precio || 0
-          ).toFixed(2)}`.padStart(8);
-          const subtotal = `$${Number(detalle.subtotal || 0).toFixed(
-            2
-          )}`.padStart(8);
-
-          console.log(`${nombre} ${cantidad} ${precio} ${subtotal}`);
+          const lines = formatTicketPreviewLines({
+            name: nombreProducto,
+            quantity: Number(detalle.cantidad || 0),
+            price: Number(detalle.precioUnitario || detalle.precio || 0),
+            subtotal: Number(detalle.subtotal || 0),
+          });
+          lines.forEach((line) => console.log(line));
         });
       } else {
         console.log("❌ No hay detalles en la factura");
       }
 
-      console.log("-----------------------------");
+      console.log(buildTicketSeparator());
 
       // Mostrar totales
       if (facturaData.subtotal) {
