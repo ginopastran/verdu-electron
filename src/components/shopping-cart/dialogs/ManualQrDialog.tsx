@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useRef } from "react";
 
 interface ManualQrDialogProps {
   open: boolean;
@@ -26,6 +27,16 @@ export function ManualQrDialog({
   onSubmit,
   isLoading = false,
 }: ManualQrDialogProps) {
+  const submitCalledRef = useRef(false);
+
+  const handleSubmit = () => {
+    if (isLoading || submitCalledRef.current) return;
+    submitCalledRef.current = true;
+    onSubmit();
+    // Reset after short delay to allow isLoading to take over
+    setTimeout(() => { submitCalledRef.current = false; }, 500);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
@@ -42,8 +53,9 @@ export function ManualQrDialog({
             value={password}
             onChange={(e) => onPasswordChange(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && !isLoading) {
-                onSubmit();
+              if (e.key === "Enter") {
+                e.preventDefault();
+                handleSubmit();
               }
             }}
             disabled={isLoading}
@@ -61,7 +73,7 @@ export function ManualQrDialog({
           </Button>
           <Button
             type="button"
-            onClick={onSubmit}
+            onClick={handleSubmit}
             disabled={isLoading}
             className="bg-emerald-600 hover:bg-emerald-700"
           >
