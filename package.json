@@ -1,6 +1,6 @@
 {
   "name": "andex-market",
-  "version": "3.5.26",
+  "version": "3.5.27",
   "description": "Sistema de punto de venta AndexMarket",
   "author": "AndexTech",
   "main": "dist-electron/main.js",
