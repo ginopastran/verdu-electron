@@ -28,6 +28,7 @@ import { getBusinessName } from "@/utils/businessHelpers";
 // Componentes
 import {
   AddProductDialog,
+  ScanListaPrecioDialog,
   CartItem,
   CartSummary,
   CartTabs,
@@ -48,6 +49,7 @@ import { DiscountDialog } from "./shopping-cart/DiscountDialog";
 
 // Importar el nuevo componente de diálogo de órdenes recientes
 import { RecentOrdersDialog } from "./RecentOrdersDialog";
+import type { FilaListaScan } from "./shopping-cart/ScanListaPrecioDialog";
 
 // Importar el componente de factura
 import FacturaForm from "./facturas/FacturaForm";
@@ -95,6 +97,14 @@ const ShoppingCartRefactored = forwardRef<
   const [afipPaymentDialogOpen, setAfipPaymentDialogOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] =
     useState<AvailableProduct | null>(null);
+
+  // Estado para el popup de selección de lista de precios al escanear
+  const [scanListaDialog, setScanListaDialog] = useState<{
+    open: boolean;
+    product: AvailableProduct;
+    rows: FilaListaScan[];
+    quantity: number;
+  } | null>(null);
 
   // Estados para el diálogo de órdenes recientes
   const [ordersDialogOpen, setOrdersDialogOpen] = useState(false);
@@ -368,6 +378,26 @@ const ShoppingCartRefactored = forwardRef<
 
     // Enfocar el input de búsqueda
     focusSearchInput("agregado producto");
+  };
+
+  // Handlers del popup de lista de precios al escanear
+  const handleScanListaAdd = (product: Product) => {
+    cartState.addToCart(product);
+    setScanListaDialog(null);
+    if (searchInputRef.current) {
+      searchInputRef.current.value = "";
+      setSearchQuery("");
+      searchInputRef.current.focus();
+    }
+  };
+
+  const handleScanListaClose = () => {
+    setScanListaDialog(null);
+    if (searchInputRef.current) {
+      searchInputRef.current.value = "";
+      setSearchQuery("");
+      searchInputRef.current.focus();
+    }
   };
 
   // Handler para mostrar diálogo de cancelación
@@ -1070,12 +1100,11 @@ const ShoppingCartRefactored = forwardRef<
         let pricePerUnit = product.pricePerUnit;
         let listaPrecioId: number | null = null;
         let listaPrecioNombre: string | null = null;
-        const defId = businessInfo?.listaPrecioPorDefectoId;
         const etiquetaBase = (
           businessInfo?.etiquetaPrecioBase || "Precio catálogo"
         ).trim();
 
-        if (defId != null && API_URL) {
+        if (API_URL) {
           try {
             const headers: Record<string, string> = {
               "Content-Type": "application/json",
@@ -1088,16 +1117,25 @@ const ShoppingCartRefactored = forwardRef<
             );
             if (res.ok) {
               const data = await res.json();
-              const rows = data.productos || [];
-              const row = rows.find(
-                (x: any) =>
-                  x.listaPrecioId === defId &&
-                  x.activa &&
-                  x.listaPrecio?.activa
+              const activeRows = (data.productos || []).filter(
+                (x: any) => x.activa && x.listaPrecio?.activa
               );
-              if (row) {
+
+              if (activeRows.length >= 2) {
+                const filas: FilaListaScan[] = activeRows.map((x: any) => ({
+                  listaPrecioId: x.listaPrecioId,
+                  precio: x.precio,
+                  nombreLista:
+                    x.listaPrecio?.nombre ?? `Lista #${x.listaPrecioId}`,
+                }));
+                setScanListaDialog({ open: true, product, rows: filas, quantity });
+                return;
+              }
+
+              if (activeRows.length === 1) {
+                const row = activeRows[0];
                 pricePerUnit = row.precio;
-                listaPrecioId = defId;
+                listaPrecioId = row.listaPrecioId;
                 listaPrecioNombre = row.listaPrecio?.nombre ?? null;
               }
             }
@@ -1578,6 +1616,15 @@ const ShoppingCartRefactored = forwardRef<
         product={selectedProduct}
         onClose={() => setDialogOpen(false)}
         onAddToCart={handleAddToCart}
+      />
+
+      <ScanListaPrecioDialog
+        isOpen={scanListaDialog?.open ?? false}
+        product={scanListaDialog?.product ?? null}
+        rows={scanListaDialog?.rows ?? []}
+        quantity={scanListaDialog?.quantity ?? 1}
+        onClose={handleScanListaClose}
+        onAddToCart={handleScanListaAdd}
       />
 
       <CancelDialog

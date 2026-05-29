@@ -1,6 +1,7 @@
 // Componentes principales
 export { ProductSearch } from "./ProductSearch";
 export { AddProductDialog } from "./AddProductDialog";
+export { ScanListaPrecioDialog } from "./ScanListaPrecioDialog";
 export { CartItem } from "./CartItem";
 export { CartSummary } from "./CartSummary";
 export { CartTabs } from "./CartTabs";
