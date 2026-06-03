@@ -1121,22 +1121,18 @@ const ShoppingCartRefactored = forwardRef<
                 (x: any) => x.activa && x.listaPrecio?.activa
               );
 
-              if (activeRows.length >= 2) {
+              // Mostrar el popup siempre que el producto tenga al menos 1 lista
+              // activa, para que el vendedor elija lista/medida (incluye precio base).
+              if (activeRows.length >= 1) {
                 const filas: FilaListaScan[] = activeRows.map((x: any) => ({
                   listaPrecioId: x.listaPrecioId,
                   precio: x.precio,
                   nombreLista:
                     x.listaPrecio?.nombre ?? `Lista #${x.listaPrecioId}`,
+                  tipoMedida: x.tipoMedida ?? null,
                 }));
                 setScanListaDialog({ open: true, product, rows: filas, quantity });
                 return;
-              }
-
-              if (activeRows.length === 1) {
-                const row = activeRows[0];
-                pricePerUnit = row.precio;
-                listaPrecioId = row.listaPrecioId;
-                listaPrecioNombre = row.listaPrecio?.nombre ?? null;
               }
             }
           } catch {

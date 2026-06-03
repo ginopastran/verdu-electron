@@ -29,6 +29,8 @@ type FilaLista = {
   listaPrecioId: number;
   precio: number;
   nombreLista: string;
+  // tipoMedida específico de la lista (Unidad/Kg). null = hereda del producto
+  tipoMedida?: string | null;
 };
 
 export function AddProductDialog({
@@ -97,6 +99,7 @@ export function AddProductDialog({
             listaPrecioId: x.listaPrecioId,
             precio: x.precio,
             nombreLista: x.listaPrecio.nombre,
+            tipoMedida: x.tipoMedida ?? null,
           }));
         if (cancelled) return;
         setFilasLista(rows);
@@ -140,6 +143,15 @@ export function AddProductDialog({
     return row?.precio ?? product.pricePerUnit;
   })();
 
+  // Medida efectiva: la de la lista seleccionada, o la del producto (precio base)
+  const tipoMedidaEfectivo = (() => {
+    if (!product) return "Unidad";
+    if (selectedBase || selectedListaId == null) return product.unit || "Unidad";
+    const row = filasLista.find((r) => r.listaPrecioId === selectedListaId);
+    return row?.tipoMedida || product.unit || "Unidad";
+  })();
+  const esPeso = tipoMedidaEfectivo === "Kg";
+
   const precioVisualLinea = (unit: number) =>
     businessInfo && product
       ? calcularPrecioVisualConIVA(
@@ -158,7 +170,7 @@ export function AddProductDialog({
     try {
       let finalQuantity: number;
 
-      if (product.unit === "Kg") {
+      if (esPeso) {
         if (useManualWeight) {
           if (!quantity) {
             throw new Error(
@@ -196,7 +208,7 @@ export function AddProductDialog({
         cartId: uniqueId,
         name: product.name,
         quantity: finalQuantity,
-        unit: product.unit,
+        unit: tipoMedidaEfectivo,
         pricePerUnit: precioUnitarioEfectivo,
         subtotal: Number((precioUnitarioEfectivo * finalQuantity).toFixed(2)),
         costo: product.costo,
@@ -225,7 +237,7 @@ export function AddProductDialog({
     if (e.key === "Enter" && !isAddingToCart && !listaPreciosLoading) {
       e.preventDefault();
 
-      if (product?.unit === "Kg" && !useManualWeight) {
+      if (esPeso && !useManualWeight) {
         handleAddToCart();
       } else if (quantity) {
         handleAddToCart();
@@ -262,7 +274,7 @@ export function AddProductDialog({
                 : ""}{" "}
             — $
             {precioVisualLinea(precioUnitarioEfectivo).toLocaleString()} /{" "}
-            {product?.unit}
+            {tipoMedidaEfectivo}
           </DialogDescription>
         </DialogHeader>
 
@@ -307,7 +319,7 @@ export function AddProductDialog({
           </div>
         )}
 
-        {product?.unit === "Kg" && (
+        {esPeso && (
           <div className="flex items-center space-x-4 py-2">
             {user?.permisos?.pesoManualEnabled === true && (
               <>
@@ -331,15 +343,13 @@ export function AddProductDialog({
           </div>
         )}
 
-        {product?.unit !== "Kg" || useManualWeight ? (
+        {!esPeso || useManualWeight ? (
           <Input
             type="number"
-            placeholder={`Cantidad ${
-              product?.unit === "Kg" ? "en gramos" : ""
-            }`}
+            placeholder={esPeso ? "Ingrese el peso en gramos" : "Ingrese las unidades"}
             value={quantity}
             onChange={(e) => setQuantity(e.target.value)}
-            step={product?.unit === "Kg" ? "1" : "1"}
+            step="1"
             min="0"
             autoFocus
           />
@@ -365,7 +375,7 @@ export function AddProductDialog({
             className="bg-emerald-gradient text-white hover:text-white text-base"
             type="button"
             disabled={isAddingToCart || listaPreciosLoading}
-            autoFocus={!(product?.unit !== "Kg" || useManualWeight)}
+            autoFocus={esPeso && !useManualWeight}
             tabIndex={1}
           >
             {isAddingToCart ? (
