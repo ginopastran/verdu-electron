@@ -1104,7 +1104,10 @@ const ShoppingCartRefactored = forwardRef<
           businessInfo?.etiquetaPrecioBase || "Precio catálogo"
         ).trim();
 
-        if (API_URL) {
+        // El popup de selección de lista de precios solo se muestra si el
+        // negocio lo tiene habilitado desde el superadmin. Por defecto está
+        // desactivado: se carga el producto con su precio base/catálogo.
+        if (API_URL && businessInfo?.popupListaPreciosEnabled) {
           try {
             const headers: Record<string, string> = {
               "Content-Type": "application/json",
