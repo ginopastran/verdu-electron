@@ -578,12 +578,7 @@ export function usePaymentProcessing({
           tipoDescuento:
             discountData.type === "percentage" ? "porcentual" : "cantidad",
           valorDescuento: discountData.value,
-          subtotalSinDescuento: Number(
-            (discountData.type === "percentage"
-              ? calculateTotal() / (1 - discountData.value / 100)
-              : calculateTotal() + discountData.value
-            ).toFixed(2)
-          ),
+          subtotalSinDescuento: Number(calculateTotal().toFixed(2)),
         }),
         ...(!discountData && {
           tieneDescuento: false,
@@ -1353,12 +1348,7 @@ export function usePaymentProcessing({
             discountData.type === "percentage" ? "porcentual" : "cantidad",
           valorDescuento: discountData.value,
           montoDescuento: discountData.amount,
-          subtotalSinDescuento: Number(
-            (discountData.type === "percentage"
-              ? (cashAmountValue + qrAmount) / (1 - discountData.value / 100)
-              : cashAmountValue + qrAmount + discountData.value
-            ).toFixed(2)
-          ),
+          subtotalSinDescuento: Number(calculateTotal().toFixed(2)),
           discountData: {
             type: discountData.type,
             value: discountData.value,
@@ -1474,12 +1464,7 @@ export function usePaymentProcessing({
           tipoDescuento:
             discountData.type === "percentage" ? "porcentual" : "cantidad",
           valorDescuento: discountData.value,
-          subtotalSinDescuento: Number(
-            (discountData.type === "percentage"
-              ? totalWithDiscount / (1 - discountData.value / 100)
-              : totalWithDiscount + discountData.value
-            ).toFixed(2)
-          ),
+          subtotalSinDescuento: Number(calculateTotal().toFixed(2)),
         }),
         ...(!discountData && {
           tieneDescuento: false,
