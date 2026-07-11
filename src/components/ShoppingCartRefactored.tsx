@@ -998,17 +998,28 @@ const ShoppingCartRefactored = forwardRef<
     setIsProcessingPayment(true);
 
     try {
-      // Calcular el discountAmount si hay discountData
+      const subtotalOriginal = cartState.calculateTotal();
+      const discountAmount = Number(
+        (subtotalOriginal - paymentProcessor.roundedAmount).toFixed(2)
+      );
+
       let finalDiscountData = discountData;
       if (discountData) {
-        const subtotalOriginal = cartState.calculateTotal();
-        const discountAmount = subtotalOriginal - paymentProcessor.roundedAmount;
         finalDiscountData = {
           ...discountData,
-          amount: discountAmount
+          amount: discountAmount,
+        };
+      } else if (
+        paymentProcessor.applyingDiscount &&
+        businessInfo?.descuentoEfectivo
+      ) {
+        finalDiscountData = {
+          type: "percentage" as const,
+          value: Number(businessInfo.descuentoEfectivo),
+          amount: discountAmount,
         };
       }
-      
+
       await paymentProcessor.processPayment(
         "efectivo",
         paymentProcessor.roundedAmount,
@@ -1705,13 +1716,26 @@ const ShoppingCartRefactored = forwardRef<
         }}
         onConfirm={async () => {
           try {
-            // Preparar datos de descuento en el formato correcto para processAfipPayment
+            const subtotalOriginal = cartState.calculateTotal();
+            const discountAmount = Number(
+              (subtotalOriginal - afipPaymentProcessor.roundedAmount).toFixed(2)
+            );
+
             let afipDiscountData = null;
             if (afipPaymentProcessor.applyingDiscount && discountData) {
               afipDiscountData = {
                 type: discountData.type,
                 value: discountData.value,
-                amount: discountData.amount, // ✅ AGREGADO: incluir amount
+                amount: discountAmount,
+              };
+            } else if (
+              afipPaymentProcessor.applyingDiscount &&
+              businessInfo?.descuentoEfectivo
+            ) {
+              afipDiscountData = {
+                type: "percentage" as const,
+                value: Number(businessInfo.descuentoEfectivo),
+                amount: discountAmount,
               };
             }
 

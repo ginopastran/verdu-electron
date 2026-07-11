@@ -440,18 +440,23 @@ export function usePaymentProcessing({
     setIsProcessingPayment(true);
 
     try {
-      // ✅ CALCULAR MONTO DEL DESCUENTO SI APLICA
+      const originalTotal = originalAmount || calculateTotal();
+      const discountAmount = Number((originalTotal - roundedAmount).toFixed(2));
+
       let finalDiscountData = discountData;
       if (discountData && applyingDiscount) {
-        const originalTotal = originalAmount || calculateTotal();
-        const discountAmount = originalTotal - roundedAmount;
         finalDiscountData = {
           ...discountData,
-          amount: Number(discountAmount.toFixed(2))
+          amount: discountAmount,
+        };
+      } else if (applyingDiscount && businessInfo?.descuentoEfectivo) {
+        finalDiscountData = {
+          type: "percentage" as const,
+          value: Number(businessInfo.descuentoEfectivo),
+          amount: discountAmount,
         };
       }
 
-      // Procesar el pago con el monto total original (no el pagado)
       await processPayment("efectivo", roundedAmount, items, finalDiscountData);
 
       // Cerrar el diálogo de pago exacto
