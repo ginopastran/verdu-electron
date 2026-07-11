@@ -1,3 +1,7 @@
+import {
+  fetchBusinessInfoShared,
+} from "@/lib/businessInfoStore";
+
 // Helper para obtener el nombre del business dinámicamente
 export const getBusinessName = async (): Promise<string> => {
   try {
@@ -58,7 +62,6 @@ export const getBusinessInfo = async (
   appId: string | null
 ): Promise<any> => {
   try {
-    // Primero obtener businessId
     const adminData = await getAdminData();
 
     if (!adminData?.businessId) {
@@ -66,70 +69,13 @@ export const getBusinessInfo = async (
       return null;
     }
 
-    const businessId = adminData.businessId;
-
-    // Construir URL y headers
-    const url = `${API_URL}/api/business/${businessId}?include=configuracionAfip`;
-    const headers = {
-      "Content-Type": "application/json",
-      ...(appId && { "X-App-ID": appId }),
-    };
-
-    // Hacer llamada a la API
-    const response = await fetch(url, { headers });
-
-    if (!response.ok) {
-      console.error(
-        "❌ Error en la respuesta al obtener business info:",
-        response.status
-      );
-      return null;
-    }
-
-    const businessInfo = await response.json();
-
-    // ✅ NUEVO: Debug específico para doble impresión
-    // console.log("🖨️ DEBUG DOBLE IMPRESIÓN:");
-    // console.log(
-    //   "- dobleImpresionEnabled existe:",
-    //   "dobleImpresionEnabled" in businessInfo
-    // );
-    // console.log(
-    //   "- dobleImpresionEnabled valor:",
-    //   businessInfo.dobleImpresionEnabled
-    // );
-    // console.log(
-    //   "- dobleImpresionEnabled tipo:",
-    //   typeof businessInfo.dobleImpresionEnabled
-    // );
-    // console.log(
-    //   "- Comparación === true:",
-    //   businessInfo.dobleImpresionEnabled === true
-    // );
-    // console.log(
-    //   "- Comparación == true:",
-    //   businessInfo.dobleImpresionEnabled == true
-    // );
-    // console.log(
-    //   "- Comparación === 'true':",
-    //   businessInfo.dobleImpresionEnabled === "true"
-    // );
-    // console.log("- Valor truthy:", !!businessInfo.dobleImpresionEnabled);
-
-    // // ✅ NUEVO: Mostrar todos los campos del business para debug
-    // console.log("🔍 DEBUG: Todos los campos del business:", {
-    //   id: businessInfo.id,
-    //   nombre: businessInfo.nombre,
-    //   dobleImpresionEnabled: businessInfo.dobleImpresionEnabled,
-    //   descuentoEfectivo: businessInfo.descuentoEfectivo,
-    //   sistemaPago: businessInfo.sistemaPago,
-    //   todosLosCampos: Object.keys(businessInfo).sort(),
-    // });
-
-    return businessInfo;
+    return await fetchBusinessInfoShared(
+      adminData.businessId,
+      API_URL,
+      appId
+    );
   } catch (error) {
-    console.error("❌ Error al obtener información del business:", error);
-    console.error("❌ Stack trace:", error);
+    console.error("❌ Error obteniendo businessInfo:", error);
     return null;
   }
 };
