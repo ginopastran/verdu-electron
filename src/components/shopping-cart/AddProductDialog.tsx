@@ -99,7 +99,8 @@ export function AddProductDialog({
             listaPrecioId: x.listaPrecioId,
             precio: x.precio,
             nombreLista: x.listaPrecio.nombre,
-            tipoMedida: x.tipoMedida ?? null,
+            tipoMedida:
+              x.listaPrecio?.tipoMedida ?? x.tipoMedida ?? null,
           }));
         if (cancelled) return;
         setFilasLista(rows);

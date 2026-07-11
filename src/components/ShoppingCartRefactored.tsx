@@ -1143,7 +1143,8 @@ const ShoppingCartRefactored = forwardRef<
                   precio: x.precio,
                   nombreLista:
                     x.listaPrecio?.nombre ?? `Lista #${x.listaPrecioId}`,
-                  tipoMedida: x.tipoMedida ?? null,
+                  tipoMedida:
+                    x.listaPrecio?.tipoMedida ?? x.tipoMedida ?? null,
                 }));
                 setScanListaDialog({ open: true, product, rows: filas, quantity });
                 return;
