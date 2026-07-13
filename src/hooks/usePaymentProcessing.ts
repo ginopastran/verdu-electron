@@ -316,14 +316,13 @@ export function usePaymentProcessing({
         tipoDescuento:
           discountData.type === "percentage" ? "porcentual" : "cantidad",
         valorDescuento: discountData.value,
+        montoDescuento: discountData.amount,
         subtotalSinDescuento: Number(subtotalOriginal.toFixed(2)),
-        // ✅ CORREGIDO: Usar el amount que viene del DiscountDialog, no recalcularlo
         discountData: {
           type: discountData.type,
           value: discountData.value,
-          amount: discountData.amount, // ✅ Usar el valor correcto del DiscountDialog
+          amount: discountData.amount,
         },
-        // ✅ NUEVO: Agregar subtotal para ticket_printer.php
         subtotal: Number(subtotalOriginal.toFixed(2)),
       }),
       ...(!discountData && {
