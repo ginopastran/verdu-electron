@@ -117,7 +117,6 @@ export function createValidOrderPayload(payload: OrderPayloadInput) {
     throw new Error("No valid items to create order payload");
   }
 
-  // Recalcular total según los items
   const calculatedTotal = parseFloat(
     validItems.reduce((acc, cur) => acc + (cur.subtotal || 0), 0).toFixed(2)
   );
@@ -125,9 +124,18 @@ export function createValidOrderPayload(payload: OrderPayloadInput) {
   const total =
     typeof payload.total === "number" ? payload.total : calculatedTotal;
 
-  // Si total y calculatedTotal difieren por redondeo mayor a 1 centavo, forzar total = calculated
+  const tieneDescuento = Boolean(
+    payload.tieneDescuento ||
+      (payload.montoDescuento != null && Number(payload.montoDescuento) > 0) ||
+      payload.discountData
+  );
+
   const finalTotal =
-    Math.abs(total - calculatedTotal) < 0.01 ? calculatedTotal : total;
+    tieneDescuento && typeof payload.total === "number"
+      ? payload.total
+      : Math.abs(total - calculatedTotal) < 0.01
+        ? calculatedTotal
+        : total;
 
   // Construir arreglo de pagos si falta
   let pagos = payload.pagos;
