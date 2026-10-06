@@ -12,6 +12,7 @@
     "build:vite": "tsc && vite build",
     "build:electron": "tsc -p electron/tsconfig.json && tsc -p electron/tsconfig.preload.json && move dist-electron\\preload.js dist-electron\\preload.cjs",
     "preview": "vite preview",
+    "test:unit": "node --experimental-strip-types --no-warnings --test tests/*.check.ts",
     "dist": "npm run build",
     "release": "npm run build && electron-builder --publish always",
     "release:draft": "npm run build && electron-builder --publish onTagOrDraft"
@@ -64,6 +65,7 @@
     "react-resizable-panels": "^2.1.7",
     "react-router-dom": "^7.1.5",
     "recharts": "^2.15.1",
+    "serialport": "^12.0.0",
     "sonner": "^1.7.4",
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",
