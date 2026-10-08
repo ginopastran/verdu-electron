@@ -536,6 +536,7 @@ export function useAfipPaymentProcessing({
 
         // Datos AFIP
         cae: afipResult.afip?.cae || afipResult.cae,
+        afipQrUrl: afipResult.factura?.afipQrUrl || afipResult.afipQrUrl || null,
         fechaVtoCae: afipResult.afip?.fechaVtoCae || afipResult.fechaVtoCae,
         puntoVenta:
           afipResult.afip?.puntoVenta ||

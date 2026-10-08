@@ -336,6 +336,37 @@ function configBalanza(): ConfigBalanza {
   return { ...CONFIG_BALANZA_DEFAULT, ...(store?.get("balanza") ?? {}) };
 }
 
+const rutaLogoNegocio = () => path.join(app.getPath("userData"), "logo-negocio.png");
+
+function conImpresion<T extends object>(datos: T) {
+  const logo = rutaLogoNegocio();
+  return {
+    ...datos,
+    anchoPapel: store?.get("anchoPapel") === 58 ? 58 : 80,
+    ...(fs.existsSync(logo) ? { logoPath: logo } : {}),
+  };
+}
+
+ipcMain.handle("logo-negocio-guardar", async (_, base64: string | null) => {
+  const logo = rutaLogoNegocio();
+  if (!base64) {
+    if (fs.existsSync(logo)) await fsPromises.unlink(logo);
+    return { ok: true, logo: false };
+  }
+  await fsPromises.writeFile(logo, Buffer.from(base64, "base64"));
+  return { ok: true, logo: true };
+});
+
+ipcMain.handle("impresion-config-get", () => ({
+  anchoPapel: store?.get("anchoPapel") === 58 ? 58 : 80,
+  tieneLogo: fs.existsSync(rutaLogoNegocio()),
+}));
+
+ipcMain.handle("impresion-config-set", (_, config: { anchoPapel: number }) => {
+  store.set("anchoPapel", config.anchoPapel === 58 ? 58 : 80);
+  return { ok: true };
+});
+
 function setupPesoWatcher() {
   detenerBalanza?.();
   detenerBalanza = undefined;
@@ -512,7 +543,7 @@ ipcMain.handle("print-ticket", async (_, orderData) => {
   try {
     const tempDir = os.tmpdir();
     const tempDataPath = path.join(tempDir, `order-data-${Date.now()}.json`);
-    await fsPromises.writeFile(tempDataPath, JSON.stringify(orderData), "utf8");
+    await fsPromises.writeFile(tempDataPath, JSON.stringify(conImpresion(orderData)), "utf8");
 
     const isProduction = process.env.NODE_ENV !== "development";
     let phpScriptPath;
@@ -611,7 +642,7 @@ ipcMain.handle("print-factura-ticket", async (_, facturaData) => {
     const tempDataPath = path.join(tempDir, `factura-data-${Date.now()}.json`);
     await fsPromises.writeFile(
       tempDataPath,
-      JSON.stringify(facturaData),
+      JSON.stringify(conImpresion(facturaData)),
       "utf8"
     );
 
@@ -716,7 +747,7 @@ ipcMain.handle("print-afip-ticket", async (_, afipData) => {
     const tempDataPath = path.join(tempDir, `afip-data-${Date.now()}.json`);
 
     console.log("📁 AFIP: Escribiendo datos temporales en:", tempDataPath);
-    await fsPromises.writeFile(tempDataPath, JSON.stringify(afipData), "utf8");
+    await fsPromises.writeFile(tempDataPath, JSON.stringify(conImpresion(afipData)), "utf8");
     console.log("✅ AFIP: Archivo temporal creado exitosamente");
 
     const isProduction = process.env.NODE_ENV !== "development";
@@ -877,7 +908,7 @@ ipcMain.handle("print-closing", async (_, closingData) => {
     const tempDataPath = path.join(tempDir, `closing-data-${Date.now()}.json`);
     await fsPromises.writeFile(
       tempDataPath,
-      JSON.stringify(closingData),
+      JSON.stringify(conImpresion(closingData)),
       "utf8"
     );
 
