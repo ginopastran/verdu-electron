@@ -7,6 +7,7 @@ import os from "os";
 import * as fs from "fs";
 // ES Module dynamic imports para compatibilidad
 import { createRequire } from "module";
+import { CONFIG_BALANZA_DEFAULT, iniciarBalanzaSerie, listarPuertos, } from "./balanza.js";
 const require = createRequire(import.meta.url);
 // electron-store es ES Module, usamos import dinámico
 let Store;
@@ -37,6 +38,9 @@ ipcMain.handle("store-has", (_, key) => {
 });
 // IPC handler para leer el peso desde el archivo
 ipcMain.handle("read-peso", async () => {
+    if (configBalanza().modo === "serie") {
+        return { success: true, peso: pesoSerie };
+    }
     const pesoPath = "C:\\Peso\\peso.json";
     try {
         // console.log("📏 Leyendo peso desde:", pesoPath);
@@ -261,8 +265,58 @@ function createWindow() {
         });
     }
 }
-// ======= PESO WATCHER: Enviar peso actualizado a los renderers =======
+let pesoSerie = 0;
+let estadoBalanza = { conectada: false };
+let detenerBalanza;
+function configBalanza() {
+    return { ...CONFIG_BALANZA_DEFAULT, ...(store?.get("balanza") ?? {}) };
+}
 function setupPesoWatcher() {
+    detenerBalanza?.();
+    detenerBalanza = undefined;
+    const config = configBalanza();
+    fs.unwatchFile("C:\\Peso\\peso.json");
+    if (config.modo !== "serie") {
+        watchPesoArchivo();
+        return;
+    }
+    detenerBalanza = iniciarBalanzaSerie(config, (peso) => {
+        if (peso === pesoSerie)
+            return;
+        pesoSerie = peso;
+        BrowserWindow.getAllWindows().forEach((win) => {
+            win.webContents.send("peso-updated", peso);
+        });
+    }, (estado) => {
+        estadoBalanza = estado;
+        BrowserWindow.getAllWindows().forEach((win) => {
+            win.webContents.send("balanza-estado", estado);
+        });
+    });
+}
+ipcMain.handle("balanza-config-get", () => ({
+    config: configBalanza(),
+    estado: estadoBalanza,
+    peso: pesoSerie,
+}));
+ipcMain.handle("balanza-config-set", (_, config) => {
+    store.set("balanza", config);
+    pesoSerie = 0;
+    estadoBalanza = { conectada: false };
+    setupPesoWatcher();
+    return configBalanza();
+});
+ipcMain.handle("balanza-puertos", async () => {
+    try {
+        return await listarPuertos();
+    }
+    catch (error) {
+        console.error("Error listando puertos serie:", error);
+        return [];
+    }
+});
+// ======= PESO WATCHER: Enviar peso actualizado a los renderers =======
+function watchPesoArchivo() {
     const pesoPath = "C:\\Peso\\peso.json";
     let lastSentPeso = null;
     const readAndBroadcastPeso = () => {
