@@ -1,6 +1,8 @@
-import { LogOut, User } from "lucide-react";
+import { useState } from "react";
+import { LogOut, Printer, User } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { ImpresionDialog } from "@/components/ImpresionDialog";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -20,6 +22,7 @@ interface UserMenuProps {
 
 export function UserMenu({ user }: UserMenuProps) {
   const { logout } = useAuth();
+  const [impresionAbierta, setImpresionAbierta] = useState(false);
 
   const handleLogout = async () => {
     try {
@@ -53,6 +56,10 @@ export function UserMenu({ user }: UserMenuProps) {
             </div>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => setImpresionAbierta(true)} className="cursor-pointer">
+            <Printer className="mr-2 h-4 w-4" />
+            <span>Impresión</span>
+          </DropdownMenuItem>
           <DropdownMenuItem
             onClick={handleLogout}
             className="cursor-pointer bg-cancel-gradient text-white hover:text-white focus:text-white"
@@ -62,6 +69,7 @@ export function UserMenu({ user }: UserMenuProps) {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      <ImpresionDialog open={impresionAbierta} onOpenChange={setImpresionAbierta} businessName={user.nombre} />
     </div>
   );
 }

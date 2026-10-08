@@ -15,6 +15,7 @@ import { AvailableProduct } from "@/hooks/useProductSearch";
 import { useSearchInput } from "@/contexts/SearchInputContext";
 import { useCartSidebar } from "@/contexts/CartSidebarContext";
 import { useBusinessInfo } from "@/hooks/useBusinessInfo";
+import { useSincronizarLogo } from "@/hooks/useSincronizarLogo";
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -30,6 +31,7 @@ export function MainLayout({ children, onProductSelect }: MainLayoutProps) {
   const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
   const appId = import.meta.env.VITE_APP_ID || null;
   const { businessInfo } = useBusinessInfo(API_URL, appId);
+  useSincronizarLogo(API_URL, !!user);
 
   // Verificar si AFIP está habilitado
   const isAfipEnabled = businessInfo?.afipHabilitado || false;

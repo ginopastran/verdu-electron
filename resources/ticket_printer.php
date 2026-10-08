@@ -114,7 +114,7 @@ try {
         file_put_contents('php://stderr', "==== DEPURACIÓN AVANZADA LOGO ====\n");
         
         // Lista de posibles rutas para el logo
-        $possibleLogoPaths = [
+        $possibleLogoPaths = array_merge(!empty($orderData['logoPath']) ? [$orderData['logoPath']] : [], [
             __DIR__ . "/logo.png",
             __DIR__ . "/../resources/logo.png",
             __DIR__ . "/../logo.png",
@@ -122,7 +122,7 @@ try {
             __DIR__ . "/../../resources/logo.png",
             __DIR__ . "/../../public/logo.png",
             __DIR__ . "/../../logo.png"
-        ];
+        ]);
         
         file_put_contents('php://stderr', "Directorio actual: " . __DIR__ . "\n");
         file_put_contents('php://stderr', "NODE_ENV: " . getenv('NODE_ENV') . "\n");
@@ -198,7 +198,7 @@ try {
                         file_put_contents('php://stderr', "Dimensiones: " . $originalWidth . "x" . $originalHeight . "\n");
                         
                         // Calcular el nuevo tamaño manteniendo la proporción
-                        $maxWidth = 556; // Ancho ajustado para mejor visualización
+                        $maxWidth = (($orderData['anchoPapel'] ?? 80) == 58) ? 370 : 556; // Ancho ajustado para mejor visualización
                         $newWidth = $maxWidth;
                         $newHeight = floor($originalHeight * ($maxWidth / $originalWidth));
                         file_put_contents('php://stderr', "Nuevas dimensiones: " . $newWidth . "x" . $newHeight . "\n");
