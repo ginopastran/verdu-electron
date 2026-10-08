@@ -23,6 +23,7 @@ type ConfigBalanza = {
   modo: "archivo" | "serie";
   puerto?: string;
   baudRate: number;
+  formato: "8N1" | "7E1" | "7O1" | "8E1";
   consulta: "enq" | "continuo";
   unidadEntera: "gramos" | "kilos";
 };
@@ -109,7 +110,7 @@ export function BalanzaDialog({
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
                   <div className="space-y-1">
                     <Label>Velocidad</Label>
                     <Select
@@ -120,9 +121,24 @@ export function BalanzaDialog({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {[2400, 4800, 9600, 19200].map((b) => (
+                        {[1200, 2400, 4800, 9600, 19200, 115200].map((b) => (
                           <SelectItem key={b} value={String(b)}>
                             {b}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Formato</Label>
+                    <Select value={config.formato} onValueChange={(v) => cambiar({ formato: v as ConfigBalanza["formato"] })}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {["8N1", "7E1", "7O1", "8E1"].map((f) => (
+                          <SelectItem key={f} value={f}>
+                            {f}
                           </SelectItem>
                         ))}
                       </SelectContent>

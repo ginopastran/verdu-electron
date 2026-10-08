@@ -1,12 +1,17 @@
 import { createRequire } from "module";
-import { crearFiltroEstable, pesoDeTrama, type UnidadEntera } from "./balanzaTrama.js";
+import { crearFiltroEstable, crearLectorTramas, pesoDeTrama, type Trama, type UnidadEntera } from "./balanzaTrama.js";
 
 const require = createRequire(import.meta.url);
+
+export type FormatoSerie = "8N1" | "7E1" | "7O1" | "8E1";
+
+const PARIDAD = { N: "none", E: "even", O: "odd" } as const;
 
 export type ConfigBalanza = {
   modo: "archivo" | "serie";
   puerto?: string;
   baudRate: number;
+  formato: FormatoSerie;
   consulta: "enq" | "continuo";
   unidadEntera: UnidadEntera;
 };
@@ -14,11 +19,14 @@ export type ConfigBalanza = {
 export const CONFIG_BALANZA_DEFAULT: ConfigBalanza = {
   modo: "archivo",
   baudRate: 9600,
+  formato: "8N1",
   consulta: "enq",
   unidadEntera: "gramos",
 };
 
 const ENQ = Buffer.from([0x05]);
+const ACK = Buffer.from([0x06]);
+const NACK = Buffer.from([0x15]);
 const INTERVALO_CONSULTA_MS = 300;
 const SILENCIO_FIN_TRAMA_MS = 60;
 const REINTENTO_MS = 5000;
@@ -39,11 +47,13 @@ export function iniciarBalanzaSerie(
   let consulta: NodeJS.Timeout | undefined;
   let silencio: NodeJS.Timeout | undefined;
   let reintento: NodeJS.Timeout | undefined;
-  let buffer = "";
+  let leer = crearLectorTramas();
   const estable = crearFiltroEstable();
 
-  const procesar = (trama: string) => {
-    const gramos = pesoDeTrama(trama, config.unidadEntera);
+  const procesar = ({ texto, crc }: Trama) => {
+    if (crc !== "sin" && config.consulta === "enq") port.write(crc === "ok" ? ACK : NACK);
+    if (crc === "mal") return;
+    const gramos = pesoDeTrama(texto, config.unidadEntera);
     if (gramos === null) return;
     const valor = estable(gramos);
     if (valor !== null) onPeso(valor);
@@ -52,7 +62,7 @@ export function iniciarBalanzaSerie(
   const limpiar = () => {
     clearInterval(consulta);
     clearTimeout(silencio);
-    buffer = "";
+    leer = crearLectorTramas();
   };
 
   const reintentar = (error?: string) => {
@@ -66,23 +76,16 @@ export function iniciarBalanzaSerie(
     port = new SerialPort({
       path: config.puerto,
       baudRate: config.baudRate,
-      dataBits: 8,
-      parity: "none",
-      stopBits: 1,
+      dataBits: Number(config.formato[0]),
+      parity: PARIDAD[config.formato[1] as keyof typeof PARIDAD],
+      stopBits: Number(config.formato[2]),
       autoOpen: false,
     });
 
     port.on("data", (chunk: Buffer) => {
-      buffer += chunk.toString("latin1");
-      const partes = buffer.split(/\r\n|\r|\n/);
-      buffer = partes.pop() ?? "";
-      partes.forEach(procesar);
+      leer(chunk).forEach(procesar);
       clearTimeout(silencio);
-      silencio = setTimeout(() => {
-        const resto = buffer;
-        buffer = "";
-        procesar(resto);
-      }, SILENCIO_FIN_TRAMA_MS);
+      silencio = setTimeout(() => leer(Buffer.alloc(0), true).forEach(procesar), SILENCIO_FIN_TRAMA_MS);
     });
     port.on("close", () => reintentar("Puerto cerrado"));
     port.on("error", (err: Error) => onEstado({ conectada: port.isOpen, error: err.message }));
