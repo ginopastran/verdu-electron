@@ -414,6 +414,14 @@ try {
         if (isset($facturaData['afip']['vencimientoCae'])) {
             $printer->text("Venc. CAE: " . $facturaData['afip']['vencimientoCae'] . "\n");
         }
+
+        $qrArca = $facturaData['afipQrUrl'] ?? ($facturaData['afip']['afipQrUrl'] ?? null);
+        if (!empty($facturaData['afip']['cae']) && is_string($qrArca) && preg_match('#^https://www\.(arca|afip)\.gob\.ar/fe/qr/\?p=#', $qrArca)) {
+            $printer->feed(1);
+            $printer->setJustification(Printer::JUSTIFY_CENTER);
+            $printer->qrCode($qrArca, Printer::QR_ECLEVEL_M, 5);
+            $printer->feed(1);
+        }
     }
 
     // Pie de página

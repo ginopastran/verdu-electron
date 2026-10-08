@@ -742,6 +742,7 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
             total,
             observaciones: formData.observaciones,
             afip: result.afip || null,
+            afipQrUrl: result.factura?.afipQrUrl || null,
           };
 
           console.log(

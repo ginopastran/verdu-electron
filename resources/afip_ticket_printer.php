@@ -632,12 +632,12 @@ try {
     file_put_contents('php://stderr', "💾 CAE procesado: " . $cae . "\n");
     file_put_contents('php://stderr', "📅 Fecha Vto CAE: " . $fechaVtoCae . " -> " . $fechaFormateada . "\n");
 
-    // Código QR (si está disponible)
-    if (isset($afipData['qrData'])) {
-        $printer->text("\n");
-        $printer->text("Codigo QR:\n");
-        // Aquí podrías generar un QR code si tienes la librería
-        $printer->text($afipData['qrData'] . "\n");
+    $qrArca = $afipData['afipQrUrl'] ?? null;
+    if (!empty($afipData['cae']) && is_string($qrArca) && preg_match('#^https://www\.(arca|afip)\.gob\.ar/fe/qr/\?p=#', $qrArca)) {
+        $printer->feed(1);
+        $printer->setJustification(Printer::JUSTIFY_CENTER);
+        $printer->qrCode($qrArca, Printer::QR_ECLEVEL_M, 5);
+        $printer->feed(1);
     }
 
     // Pie de página
