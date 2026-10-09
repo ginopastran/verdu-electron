@@ -1,18 +1,21 @@
 {
-  "name": "verdu-electron",
-  "version": "1.0.4",
-  "description": "Sistema de punto de venta para verdulería",
+  "name": "andex-market",
+  "version": "3.8.0",
+  "description": "Sistema de punto de venta AndexMarket",
   "author": "AndexTech",
   "main": "dist-electron/main.js",
   "type": "module",
   "scripts": {
-    "dev": "tsc -p electron/tsconfig.json && cross-env NODE_ENV=development concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
-    "pre-build": "copy public\\logo.png resources\\logo.png",
+    "dev": "npm run build:electron && cross-env NODE_ENV=development concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
+    "pre-build": "copy public\\andextech-logo.png resources\\logo.png",
     "build": "npm run pre-build && npm run build:vite && npm run build:electron && electron-builder",
     "build:vite": "tsc && vite build",
-    "build:electron": "tsc -p electron/tsconfig.json",
+    "build:electron": "tsc -p electron/tsconfig.json && tsc -p electron/tsconfig.preload.json && move dist-electron\\preload.js dist-electron\\preload.cjs",
     "preview": "vite preview",
-    "dist": "npm run build"
+    "test:unit": "node --experimental-strip-types --no-warnings --test tests/*.check.ts",
+    "dist": "npm run build",
+    "release": "npm run build && electron-builder --publish always",
+    "release:draft": "npm run build && electron-builder --publish onTagOrDraft"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -43,14 +46,18 @@
     "@radix-ui/react-toggle": "^1.1.2",
     "@radix-ui/react-toggle-group": "^1.1.2",
     "@radix-ui/react-tooltip": "^1.1.8",
+    "@tanstack/react-query": "^5.85.5",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.0.0",
     "date-fns": "^3.6.0",
+    "electron-store": "^10.1.0",
+    "electron-updater": "^6.6.2",
     "embla-carousel-react": "^8.5.2",
     "input-otp": "^1.4.2",
     "lucide-react": "^0.474.0",
     "next-themes": "^0.4.4",
+    "qrcode": "^1.5.4",
     "react": "^19.0.0",
     "react-day-picker": "^8.10.1",
     "react-dom": "^19.0.0",
@@ -58,6 +65,7 @@
     "react-resizable-panels": "^2.1.7",
     "react-router-dom": "^7.1.5",
     "recharts": "^2.15.1",
+    "serialport": "^12.0.0",
     "sonner": "^1.7.4",
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",
@@ -67,6 +75,7 @@
   "devDependencies": {
     "@eslint/js": "^9.19.0",
     "@types/node": "^22.13.1",
+    "@types/qrcode": "^1.5.5",
     "@types/react": "^19.0.8",
     "@types/react-dom": "^19.0.3",
     "@vitejs/plugin-react": "^4.3.4",
@@ -88,8 +97,8 @@
     "wait-on": "^8.0.2"
   },
   "build": {
-    "appId": "com.verdu.app",
-    "productName": "VerduSoft",
+    "appId": "com.andextech.andexmarket",
+    "productName": "AndexMarket",
     "directories": {
       "output": "release",
       "buildResources": "resources"
@@ -108,25 +117,45 @@
         ]
       },
       {
-        "from": "public/logo.png",
+        "from": "public/andextech-logo.png",
         "to": "resources/logo.png"
       },
       {
-        "from": "public/logo.png",
+        "from": "public/andextech-logo.png",
         "to": "logo.png"
       }
     ],
     "win": {
-      "target": "nsis",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
       "icon": "build/icon.ico",
-      "requestedExecutionLevel": "requireAdministrator"
+      "requestedExecutionLevel": "requireAdministrator",
+      "publisherName": "AndexTech",
+      "verifyUpdateCodeSignature": false
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "runAfterFinish": true,
-      "perMachine": true
-    }
+      "perMachine": true,
+      "deleteAppDataOnUninstall": false,
+      "include": "build/installer.nsh"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "ginopastran",
+        "repo": "verdu-electron",
+        "private": false,
+        "releaseType": "release"
+      }
+    ]
   }
 }

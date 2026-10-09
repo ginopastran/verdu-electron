@@ -1,0 +1,133 @@
+# PROBLEMA: QR de MercadoPago no respeta el monto con descuento aplicado
+
+## Descripción del Problema:
+El frontend está enviando correctamente el monto con descuento aplicado al endpoint `/api/mercadopago/generate-qr`, pero el QR generado por MercadoPago parece mostrar el monto original sin descuento.
+
+## Payload que envía el Frontend:
+
+### QR Normal (F3 - Sin AFIP):
+```json
+{
+  "monto": 816,  // ← MONTO YA CON DESCUENTO APLICADO (1020 - 204)
+  "descripcion": "Compra de 2 productos",
+  "vendedorId": 1,
+  "sucursalId": 1,
+  "items": [...],
+  "requiresAfipInvoice": false,
+  "isSplitPayment": false,
+  "cashAmount": 0,
+  "afipData": null,
+  "descuento": {
+    "tipoDescuento": "porcentual",
+    "valorDescuento": 20,
+    "montoDescuento": 204
+  }
+}
+```
+
+### QR Mixto (F7 - Sin AFIP / F8 - Con AFIP):
+```json
+{
+  "monto": 6.4,  // ← MONTO TOTAL YA CON DESCUENTO APLICADO (10.4 - 4)
+  "descripcion": "Pago mixto: QR $2.40 + Efectivo $4.00",
+  "vendedorId": 1,
+  "sucursalId": 1,
+  "items": [...],
+  "requiresAfipInvoice": false, // true para F8
+  "isSplitPayment": true,
+  "cashAmount": 4,
+  "afipData": null,
+  "descuento": {
+    "tipoDescuento": "porcentual",
+    "valorDescuento": 20,
+    "montoDescuento": 4
+  }
+}
+```
+
+## Problema Identificado:
+El QR generado muestra el monto original ($1020) en lugar del monto con descuento ($816).
+
+## Posibles Causas en el Backend:
+
+### 1. **Cálculo Incorrecto del Monto para MercadoPago:**
+```javascript
+// ❌ INCORRECTO - Si el backend está recalculando el monto:
+const totalFromItems = items.reduce((sum, item) => sum + item.subtotal, 0);
+const mpAmount = totalFromItems; // Ignora el descuento
+
+// ✅ CORRECTO - Debe usar el monto que viene del frontend:
+const mpAmount = req.body.monto; // Ya incluye descuento aplicado
+```
+
+### 2. **Para Pagos Mixtos - Cálculo del Monto QR:**
+```javascript
+// ❌ INCORRECTO - Si está calculando QR sin considerar descuento:
+const qrAmount = totalFromItems - cashAmount;
+
+// ✅ CORRECTO - Debe usar el monto total con descuento:
+const totalWithDiscount = req.body.monto;
+const qrAmount = totalWithDiscount - req.body.cashAmount;
+```
+
+### 3. **Verificar la Creación del Preference de MercadoPago:**
+```javascript
+// El preference debe usar el monto correcto:
+const preference = {
+  items: [{
+    title: req.body.descripcion,
+    quantity: 1,
+    unit_price: req.body.monto, // ← DEBE SER EL MONTO CON DESCUENTO
+  }],
+  // ... resto de configuración
+};
+```
+
+## Verificaciones Necesarias:
+
+1. **Revisar el endpoint `/api/mercadopago/generate-qr`:**
+   - ¿Está usando `req.body.monto` directamente?
+   - ¿O está recalculando el total desde los items?
+
+2. **Para pagos mixtos:**
+   - ¿Está calculando correctamente el monto del QR como `monto_total - cashAmount`?
+   - ¿Está considerando que `monto_total` ya incluye el descuento?
+
+3. **Logs del backend:**
+   - Verificar qué monto se está enviando a MercadoPago
+   - Confirmar que el preference se crea con el monto correcto
+
+## Solución Esperada:
+
+El backend debe:
+1. **Usar directamente** el campo `monto` del payload (que ya incluye descuento)
+2. **Para pagos mixtos:** Calcular el QR como `monto - cashAmount`
+3. **Guardar la información del descuento** en la base de datos para el ticket/factura
+4. **NO recalcular** el total desde los items (ya que perdería el descuento)
+
+## Ejemplo de Implementación Correcta:
+
+```javascript
+// En el endpoint /api/mercadopago/generate-qr
+const { monto, cashAmount = 0, isSplitPayment, descuento } = req.body;
+
+// Para QR normal: usar el monto completo
+// Para QR mixto: usar monto - cashAmount
+const mpAmount = isSplitPayment ? (monto - cashAmount) : monto;
+
+const preference = {
+  items: [{
+    title: req.body.descripcion,
+    quantity: 1,
+    unit_price: mpAmount, // ← Monto correcto con descuento
+  }],
+  // ... configuración adicional
+};
+```
+
+## Datos de Prueba:
+- **Total original:** $1020
+- **Descuento 20%:** $204  
+- **Total con descuento:** $816
+- **QR actual muestra:** $1020 ❌
+- **QR debería mostrar:** $816 ✅

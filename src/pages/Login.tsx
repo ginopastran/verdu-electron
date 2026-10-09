@@ -108,7 +108,9 @@ export default function LoginPage() {
       const appId = import.meta.env.VITE_APP_ID;
 
       const response = await fetch(
-        `${API_URL}/api/usuarios/vendedores?businessId=1`,
+        `${API_URL}/api/usuarios/vendedores?businessId=${
+          import.meta.env.VITE_BUSINESS_ID
+        }`,
         {
           headers: {
             "Content-Type": "application/json",

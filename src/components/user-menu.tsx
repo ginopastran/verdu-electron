@@ -1,6 +1,9 @@
-import { LogOut, User } from "lucide-react";
+import { useState } from "react";
+import { LogOut, Printer, Scale, User } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { BalanzaDialog } from "@/components/BalanzaDialog";
+import { ImpresionDialog } from "@/components/ImpresionDialog";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -20,6 +23,8 @@ interface UserMenuProps {
 
 export function UserMenu({ user }: UserMenuProps) {
   const { logout } = useAuth();
+  const [balanzaAbierta, setBalanzaAbierta] = useState(false);
+  const [impresionAbierta, setImpresionAbierta] = useState(false);
 
   const handleLogout = async () => {
     try {
@@ -53,6 +58,17 @@ export function UserMenu({ user }: UserMenuProps) {
             </div>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => setImpresionAbierta(true)} className="cursor-pointer">
+            <Printer className="mr-2 h-4 w-4" />
+            <span>Impresión</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => setBalanzaAbierta(true)}
+            className="cursor-pointer"
+          >
+            <Scale className="mr-2 h-4 w-4" />
+            <span>Balanza</span>
+          </DropdownMenuItem>
           <DropdownMenuItem
             onClick={handleLogout}
             className="cursor-pointer bg-cancel-gradient text-white hover:text-white focus:text-white"
@@ -62,6 +78,8 @@ export function UserMenu({ user }: UserMenuProps) {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      <BalanzaDialog open={balanzaAbierta} onOpenChange={setBalanzaAbierta} />
+      <ImpresionDialog open={impresionAbierta} onOpenChange={setImpresionAbierta} businessName={user.nombre} />
     </div>
   );
 }

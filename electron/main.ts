@@ -1,10 +1,24 @@
 import { app, BrowserWindow, ipcMain, dialog } from "electron";
 import * as path from "path";
 import { fileURLToPath } from "url";
-import { exec } from "child_process";
+import { exec, spawn } from "child_process";
 import * as fsPromises from "fs/promises";
 import os from "os";
 import * as fs from "fs";
+// ES Module dynamic imports para compatibilidad
+import { createRequire } from "module";
+import {
+  CONFIG_BALANZA_DEFAULT,
+  iniciarBalanzaSerie,
+  listarPuertos,
+  type ConfigBalanza,
+} from "./balanza.js";
+import { IMPRESORA_DEFAULT, compartirImpresora } from "./impresora.js";
+const require = createRequire(import.meta.url);
+
+// electron-store es ES Module, usamos import dinámico
+let Store: any;
+const { autoUpdater } = require("electron-updater");
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -18,6 +32,228 @@ process.env.VITE_APP_ID = APP_ID;
 
 console.log("App ID:", APP_ID);
 
+// Inicializar electron-store (será inicializado dinámicamente)
+let store: any;
+
+// Configurar IPC handlers para electron-store
+ipcMain.handle("store-get", (_, key) => {
+  return store.get(key);
+});
+
+ipcMain.handle("store-set", (_, key, value) => {
+  store.set(key, value);
+  return true;
+});
+
+ipcMain.handle("store-delete", (_, key) => {
+  store.delete(key);
+  return true;
+});
+
+ipcMain.handle("store-has", (_, key) => {
+  return store.has(key);
+});
+
+// IPC handler para leer el peso desde el archivo
+ipcMain.handle("read-peso", async () => {
+  if (configBalanza().modo === "serie") {
+    return { success: true, peso: pesoSerie };
+  }
+  const pesoPath = "C:\\Peso\\peso.json";
+
+  try {
+    // console.log("📏 Leyendo peso desde:", pesoPath);
+
+    // Verificar si el archivo existe
+    if (!fs.existsSync(pesoPath)) {
+      console.log("⚠️ Archivo de peso no encontrado:", pesoPath);
+      return { error: "Archivo no encontrado", peso: 0 };
+    }
+
+    // Leer el archivo
+    const data = await fsPromises.readFile(pesoPath, "utf8");
+
+    // Limpiar BOM y espacios extra antes del parsing
+    const cleanData = data.replace(/^\uFEFF/, "").trim();
+    // console.log("📋 Datos leídos del archivo:", cleanData);
+
+    if (!cleanData) {
+      console.log("⚠️ Archivo de peso está vacío");
+      return { error: "Archivo vacío", peso: 0 };
+    }
+
+    // Parsear el JSON
+    const weightData = JSON.parse(cleanData);
+    // console.log("✅ Peso parseado exitosamente:", weightData);
+
+    return { success: true, peso: weightData.peso || 0 };
+  } catch (error) {
+    console.error("❌ Error al leer archivo de peso:", error);
+    return { error: (error as Error).message, peso: 0 };
+  }
+});
+
+// Configuración del auto-updater (log será configurado dinámicamente)
+// autoUpdater.logger.transports.file.level = "info"; // Comentado porque console no tiene transports
+autoUpdater.autoDownload = false; // No descargar automáticamente
+autoUpdater.autoInstallOnAppQuit = false; // No instalar automáticamente al cerrar
+
+// Eventos del auto-updater
+autoUpdater.on("checking-for-update", () => {
+  console.log("Verificando actualizaciones...");
+});
+
+autoUpdater.on("update-available", (info: any) => {
+  console.log("Actualización disponible.");
+  console.log("Versión:", info.version);
+
+  // Mostrar diálogo de actualización
+  dialog
+    .showMessageBox({
+      type: "info",
+      title: "Actualización disponible",
+      message: `Nueva versión ${info.version} disponible`,
+      detail: "¿Deseas descargar e instalar la actualización ahora?",
+      buttons: ["Descargar", "Más tarde"],
+      defaultId: 0,
+      cancelId: 1,
+    })
+    .then((response) => {
+      if (response.response === 0) {
+        // Descargar actualización
+        autoUpdater.downloadUpdate();
+      }
+    });
+});
+
+autoUpdater.on("update-not-available", (info: any) => {
+  console.log("Actualización no disponible.");
+});
+
+autoUpdater.on("error", (err: any) => {
+  console.log("Error en auto-updater. " + err);
+});
+
+autoUpdater.on("download-progress", (progressObj: any) => {
+  let log_message = "Velocidad de descarga: " + progressObj.bytesPerSecond;
+  log_message = log_message + " - Descargado " + progressObj.percent + "%";
+  log_message =
+    log_message +
+    " (" +
+    progressObj.transferred +
+    "/" +
+    progressObj.total +
+    ")";
+  console.log(log_message);
+});
+
+autoUpdater.on("update-downloaded", (info: any) => {
+  console.log("Actualización descargada");
+  autoUpdater.quitAndInstall();
+});
+
+// Estado global para el auto-updater
+let updateCheckResult: any = null;
+let currentlyChecking = false;
+
+// IPC handlers para el auto-updater
+ipcMain.handle("check-for-updates", async () => {
+  if (currentlyChecking) {
+    return { error: "Ya se está verificando actualizaciones" };
+  }
+
+  try {
+    currentlyChecking = true;
+    console.log("🔍 Iniciando verificación de actualizaciones...");
+    console.log("📦 Versión actual:", app.getVersion());
+
+    const result = await autoUpdater.checkForUpdates();
+    updateCheckResult = result;
+
+    if (result && result.updateInfo) {
+      const currentVersion = app.getVersion();
+      const availableVersion = result.updateInfo.version;
+
+      console.log("📋 Versión disponible:", availableVersion);
+      console.log("📋 Versión actual:", currentVersion);
+
+      // Función para comparar versiones semánticamente
+      const compareVersions = (available: string, current: string): number => {
+        const parseVersion = (v: string) =>
+          v.split(".").map((n) => parseInt(n) || 0);
+        const availableParts = parseVersion(available);
+        const currentParts = parseVersion(current);
+
+        for (
+          let i = 0;
+          i < Math.max(availableParts.length, currentParts.length);
+          i++
+        ) {
+          const a = availableParts[i] || 0;
+          const c = currentParts[i] || 0;
+          if (a > c) return 1; // available es mayor
+          if (a < c) return -1; // current es mayor
+        }
+        return 0; // son iguales
+      };
+
+      const versionComparison = compareVersions(
+        availableVersion,
+        currentVersion
+      );
+
+      if (versionComparison > 0) {
+        console.log("✅ Nueva versión encontrada (más reciente)");
+        return { available: true, info: result.updateInfo };
+      } else if (versionComparison < 0) {
+        console.log("ℹ️ Tienes una versión más nueva que la disponible");
+        return {
+          available: false,
+          info: { message: "Tienes una versión más nueva que la disponible" },
+        };
+      } else {
+        console.log("ℹ️ Ya tienes la última versión");
+        return {
+          available: false,
+          info: { message: "Ya tienes la última versión" },
+        };
+      }
+    } else {
+      console.log("ℹ️ No hay actualizaciones disponibles");
+      return {
+        available: false,
+        info: { message: "No hay actualizaciones disponibles" },
+      };
+    }
+  } catch (error) {
+    console.error("❌ Error al verificar actualizaciones:", error);
+    updateCheckResult = null;
+    return { error: (error as Error).message };
+  } finally {
+    currentlyChecking = false;
+  }
+});
+
+ipcMain.handle("download-update", async () => {
+  if (!updateCheckResult) {
+    return { error: "Please check update first" };
+  }
+
+  try {
+    console.log("📥 Iniciando descarga de actualización...");
+    await autoUpdater.downloadUpdate();
+    console.log("✅ Descarga completada");
+    return { success: true };
+  } catch (error) {
+    console.error("❌ Error al descargar actualización:", error);
+    return { error: (error as Error).message };
+  }
+});
+
+ipcMain.handle("install-update", () => {
+  autoUpdater.quitAndInstall();
+});
+
 // Agregar un manejador IPC para mostrar el APP_ID
 ipcMain.handle("show-app-id", () => {
   dialog.showMessageBox({
@@ -28,6 +264,17 @@ ipcMain.handle("show-app-id", () => {
   });
   return APP_ID;
 });
+
+// Función para inicializar electron-store dinámicamente
+async function initializeStore() {
+  const { default: ElectronStore } = await import("electron-store");
+
+  Store = ElectronStore;
+  store = new Store();
+
+  // Configurar el logger del auto-updater con console simple
+  autoUpdater.logger = console;
+}
 
 function createWindow() {
   const iconPath = path.join(
@@ -40,13 +287,14 @@ function createWindow() {
   const mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
-    title: "VerduSoft",
+    title: "AndexMarket",
     icon: iconPath,
     webPreferences: {
       nodeIntegration: true,
-      contextIsolation: false,
+      contextIsolation: true,
       devTools: true,
       webSecurity: false,
+      preload: path.join(__dirname, "preload.cjs"),
     },
   });
 
@@ -81,8 +329,218 @@ function createWindow() {
   }
 }
 
-app.whenReady().then(() => {
+let pesoSerie = 0;
+let estadoBalanza: { conectada: boolean; error?: string } = { conectada: false };
+let detenerBalanza: (() => void) | undefined;
+
+function configBalanza(): ConfigBalanza {
+  return { ...CONFIG_BALANZA_DEFAULT, ...(store?.get("balanza") ?? {}) };
+}
+
+const carpetaRecursos = () =>
+  process.env.NODE_ENV === "development"
+    ? path.join(app.getAppPath(), "resources")
+    : path.join(process.resourcesPath, "resources");
+
+const comandoPhp = () => {
+  const php = path.join(carpetaRecursos(), "php");
+  return `"${path.join(php, "php.exe")}" -c "${path.join(php, "php.ini")}"`;
+};
+
+function verificarPhp() {
+  exec(`${comandoPhp()} -r "echo extension_loaded('gd') && extension_loaded('mbstring') ? 'ok' : 'faltan extensiones';"`, (error, stdout, stderr) => {
+    if (!error && stdout.trim() === "ok") return;
+    const detalle = error ? stderr.trim() || error.message : stdout.trim();
+    console.error("❌ PHP del paquete no funciona:", detalle);
+    dialog.showMessageBox({
+      type: "warning",
+      title: "AndexMarket",
+      message: "La impresión de tickets no va a funcionar",
+      detail: `No se pudo iniciar el PHP incluido en el programa. Reinstalá AndexMarket.
+
+${detalle}`,
+    });
+  });
+}
+
+const rutaLogoNegocio = () => path.join(app.getPath("userData"), "logo-negocio.png");
+
+function conImpresion<T extends object>(datos: T) {
+  const logo = rutaLogoNegocio();
+  return {
+    ...datos,
+    anchoPapel: store?.get("anchoPapel") === 58 ? 58 : 80,
+    impresora: store?.get("impresora") ?? IMPRESORA_DEFAULT,
+    ...(fs.existsSync(logo) ? { logoPath: logo } : {}),
+  };
+}
+
+ipcMain.handle("logo-negocio-guardar", async (_, base64: string | null) => {
+  const logo = rutaLogoNegocio();
+  if (!base64) {
+    if (fs.existsSync(logo)) await fsPromises.unlink(logo);
+    return { ok: true, logo: false };
+  }
+  await fsPromises.writeFile(logo, Buffer.from(base64, "base64"));
+  return { ok: true, logo: true };
+});
+
+ipcMain.handle("impresion-config-get", () => ({
+  anchoPapel: store?.get("anchoPapel") === 58 ? 58 : 80,
+  tieneLogo: fs.existsSync(rutaLogoNegocio()),
+  impresora: store?.get("impresoraWindows") ?? null,
+  recurso: store?.get("impresora") ?? IMPRESORA_DEFAULT,
+}));
+
+ipcMain.handle("impresora-elegir", async (_, nombre: string | null) => {
+  if (!nombre) {
+    store.delete("impresora");
+    store.delete("impresoraWindows");
+    return { ok: true, recurso: IMPRESORA_DEFAULT };
+  }
+  try {
+    const recurso = await compartirImpresora(nombre);
+    store.set("impresora", recurso);
+    store.set("impresoraWindows", nombre);
+    return { ok: true, recurso };
+  } catch (error) {
+    return { ok: false, error: (error as Error).message };
+  }
+});
+
+ipcMain.handle("impresion-config-set", (_, config: { anchoPapel: number }) => {
+  store.set("anchoPapel", config.anchoPapel === 58 ? 58 : 80);
+  return { ok: true };
+});
+
+function setupPesoWatcher() {
+  detenerBalanza?.();
+  detenerBalanza = undefined;
+  const config = configBalanza();
+  fs.unwatchFile("C:\\Peso\\peso.json");
+  if (config.modo !== "serie") {
+    watchPesoArchivo();
+    return;
+  }
+  detenerBalanza = iniciarBalanzaSerie(
+    config,
+    (peso) => {
+      if (peso === pesoSerie) return;
+      pesoSerie = peso;
+      BrowserWindow.getAllWindows().forEach((win) => {
+        win.webContents.send("peso-updated", peso);
+      });
+    },
+    (estado) => {
+      estadoBalanza = estado;
+      BrowserWindow.getAllWindows().forEach((win) => {
+        win.webContents.send("balanza-estado", estado);
+      });
+    }
+  );
+}
+
+ipcMain.handle("balanza-config-get", () => ({
+  config: configBalanza(),
+  estado: estadoBalanza,
+  peso: pesoSerie,
+}));
+
+ipcMain.handle("balanza-config-set", (_, config: ConfigBalanza) => {
+  store.set("balanza", config);
+  pesoSerie = 0;
+  estadoBalanza = { conectada: false };
+  setupPesoWatcher();
+  return configBalanza();
+});
+
+ipcMain.handle("balanza-puertos", async () => {
+  try {
+    return await listarPuertos();
+  } catch (error) {
+    console.error("Error listando puertos serie:", error);
+    return [];
+  }
+});
+
+// ======= PESO WATCHER: Enviar peso actualizado a los renderers =======
+function watchPesoArchivo() {
+  const pesoPath = "C:\\Peso\\peso.json";
+  let lastSentPeso: number | null = null;
+
+  const readAndBroadcastPeso = () => {
+    try {
+      if (!fs.existsSync(pesoPath)) return;
+      const data = fs.readFileSync(pesoPath, "utf8");
+      const cleanData = data.replace(/^\uFEFF/, "").trim();
+      if (!cleanData) return;
+      const weightData = JSON.parse(cleanData);
+      const peso = weightData.peso || 0;
+      if (peso !== lastSentPeso) {
+        lastSentPeso = peso;
+        BrowserWindow.getAllWindows().forEach((win) => {
+          win.webContents.send("peso-updated", peso);
+        });
+      }
+    } catch (err) {
+      console.error("❌ Error en peso watcher:", err);
+    }
+  };
+
+  // Leer inicialmente
+  readAndBroadcastPeso();
+
+  // Observar cambios
+  fs.watchFile(pesoPath, { interval: 500 }, () => {
+    readAndBroadcastPeso();
+  });
+
+  console.log("📡 Peso watcher iniciado en", pesoPath);
+}
+
+app.whenReady().then(async () => {
+  // Inicializar electron-store antes de crear la ventana
+  await initializeStore();
+
   createWindow();
+  verificarPhp();
+
+  // 👉 Iniciar watcher de peso en tiempo real
+  setupPesoWatcher();
+
+  // Verificar actualizaciones después de 3 segundos en producción
+  if (process.env.NODE_ENV !== "development") {
+    // Habilitar logging detallado
+    autoUpdater.logger = console;
+    autoUpdater.logger.transports.file.level = "info";
+
+    console.log("=== AUTO-UPDATER DEBUG ===");
+    console.log("NODE_ENV:", process.env.NODE_ENV);
+    console.log("App Version:", app.getVersion());
+    console.log("Platform:", process.platform);
+    console.log(
+      "Repository URL will be:",
+      `https://api.github.com/repos/ginopastran/verdu-electron/releases`
+    );
+
+    setTimeout(() => {
+      console.log("🔄 Iniciando verificación automática de actualizaciones...");
+      autoUpdater
+        .checkForUpdates()
+        .then((result: any) => {
+          console.log("✅ Verificación automática completada:", result);
+        })
+        .catch((error: any) => {
+          console.error("❌ Error en verificación automática:", error);
+        });
+    }, 3000);
+
+    // También chequear cada 10 minutos
+    setInterval(() => {
+      console.log("🔄 Verificación periódica de actualizaciones...");
+      autoUpdater.checkForUpdates();
+    }, 10 * 60 * 1000); // 10 minutos
+  }
 
   // Copiar logo al iniciar la aplicación (en producción)
   if (process.env.NODE_ENV !== "development") {
@@ -132,150 +590,32 @@ ipcMain.handle("print-ticket", async (_, orderData) => {
   try {
     const tempDir = os.tmpdir();
     const tempDataPath = path.join(tempDir, `order-data-${Date.now()}.json`);
+    await fsPromises.writeFile(tempDataPath, JSON.stringify(conImpresion(orderData)), "utf8");
 
-    // Guardar datos de la orden en archivo temporal
-    await fsPromises.writeFile(tempDataPath, JSON.stringify(orderData), "utf8");
-
-    // Rutas del PHP y logo
     const isProduction = process.env.NODE_ENV !== "development";
     let phpScriptPath;
-
     if (isProduction) {
       phpScriptPath = path.join(
         process.resourcesPath,
         "resources",
         "ticket_printer.php"
       );
-
-      // En producción - Lógica simple: copiar el logo directamente junto al PHP
-      console.log("------ CONFIGURACIÓN LOGO PRODUCCIÓN ------");
-
-      // Posibles ubicaciones de origen del logo
-      const possibleSources = [
-        path.join(process.resourcesPath, "logo.png"),
-        path.join(process.resourcesPath, "resources", "logo.png"),
-        path.join(process.resourcesPath, "public", "logo.png"),
-        path.join(app.getAppPath(), "resources", "logo.png"),
-        path.join(app.getAppPath(), "public", "logo.png"),
-        path.join(__dirname, "../resources", "logo.png"),
-        path.join(app.getAppPath(), "public", "logos", "logo.png"),
-        path.join(__dirname, "../public", "logo.png"),
-      ];
-
-      // Destino - siempre al lado del PHP script
-      const logoDestPath = path.join(path.dirname(phpScriptPath), "logo.png");
-      console.log(`Destino del logo: ${logoDestPath}`);
-
-      // Verificar si el destino es escribible
-      try {
-        // Intentar acceder al directorio destino para verificar permisos
-        const destDir = path.dirname(logoDestPath);
-        const testFile = path.join(destDir, `test_write_${Date.now()}.tmp`);
-        fs.writeFileSync(testFile, "test");
-        fs.unlinkSync(testFile);
-        console.log(
-          `✅ Directorio destino ${destDir} tiene permisos de escritura`
-        );
-      } catch (err) {
-        console.error(
-          `❌ ALERTA: No se puede escribir en el directorio destino:`,
-          err
-        );
-        console.log(`Intentando continuar de todas formas...`);
-      }
-
-      // Buscar y copiar el logo
-      let found = false;
-      for (const src of possibleSources) {
-        console.log(`Buscando logo en: ${src}`);
-        if (fs.existsSync(src)) {
-          console.log(`Logo encontrado en: ${src}`);
-          try {
-            const logoStats = fs.statSync(src);
-            console.log(`Tamaño original: ${logoStats.size} bytes`);
-
-            // Verificar que sea un archivo válido
-            if (logoStats.size === 0) {
-              console.error(`Logo encontrado pero tiene tamaño cero: ${src}`);
-              continue;
-            }
-
-            console.log(`Copiando a: ${logoDestPath}`);
-            fs.copyFileSync(src, logoDestPath);
-
-            // Verificar que se copió correctamente
-            if (fs.existsSync(logoDestPath)) {
-              const destStats = fs.statSync(logoDestPath);
-              console.log(
-                `Logo copiado exitosamente (${destStats.size} bytes)`
-              );
-              found = true;
-              break;
-            } else {
-              console.error(
-                `No se pudo verificar la copia del logo en: ${logoDestPath}`
-              );
-            }
-          } catch (err) {
-            console.error(`Error copiando logo desde ${src}:`, err);
-          }
-        }
-      }
-
-      // Como último recurso, generar un logo mínimo
-      if (!found) {
-        try {
-          console.log("Intentando generar logo mínimo con PHP...");
-          const logoGenPath = path.join(tempDir, "gen_logo.php");
-          const logoContent = `<?php
-          $img = imagecreatetruecolor(400, 100);
-          $white = imagecolorallocate($img, 255, 255, 255);
-          $black = imagecolorallocate($img, 0, 0, 0);
-          imagefill($img, 0, 0, $white);
-          imagestring($img, 5, 150, 40, 'ISELIN II', $black);
-          imagepng($img, '${logoDestPath.replace(/\\/g, "\\\\")}');
-          echo "Logo creado";
-          ?>`;
-
-          fs.writeFileSync(logoGenPath, logoContent);
-
-          // Ejecutar PHP para generar la imagen
-          const { error, stdout, stderr } = await new Promise<{
-            error: any;
-            stdout: string;
-            stderr: string;
-          }>((resolve) => {
-            exec(`php "${logoGenPath}"`, (error, stdout, stderr) => {
-              resolve({ error, stdout, stderr });
-            });
-          });
-
-          if (error) {
-            console.error("Error generando logo:", stderr || error.message);
-          } else {
-            console.log("Logo generado:", stdout);
-            if (fs.existsSync(logoDestPath)) {
-              console.log(
-                `Logo generado verificado: ${
-                  fs.statSync(logoDestPath).size
-                } bytes`
-              );
-            }
-          }
-
-          // Limpiar archivo temporal
-          fs.unlinkSync(logoGenPath);
-        } catch (genErr) {
-          console.error("Error generando logo:", genErr);
-        }
-      }
     } else {
-      // En desarrollo - Ruta normal
       phpScriptPath = path.join(
         app.getAppPath(),
         "resources",
         "ticket_printer.php"
       );
+    }
+
+    // LOG: Verificar existencia del script PHP
+    if (!fs.existsSync(phpScriptPath)) {
+      console.error("❌ No se encontró el script PHP:", phpScriptPath);
+      return {
+        success: false,
+        printerError: `No se encontró el script PHP: ${phpScriptPath}`,
+        message: `No se encontró el script PHP: ${phpScriptPath}`,
+      };
     }
 
     console.log("------ INFO DE IMPRESIÓN ------");
@@ -285,24 +625,47 @@ ipcMain.handle("print-ticket", async (_, orderData) => {
 
     return new Promise((resolve, reject) => {
       exec(
-        `set NODE_ENV=${process.env.NODE_ENV}&& php "${phpScriptPath}" "${tempDataPath}"`,
+        `set NODE_ENV=${process.env.NODE_ENV}&& ${comandoPhp()} "${phpScriptPath}" "${tempDataPath}"`,
         async (error, stdout, stderr) => {
           try {
-            // Limpiar archivo temporal
             await fsPromises.unlink(tempDataPath);
-
+            console.log("[PRINT] error:", error);
+            console.log("[PRINT] stdout:", stdout);
+            console.log("[PRINT] stderr:", stderr);
             if (error) {
-              console.error("Error al ejecutar PHP:", error);
-              console.error("Salida de error:", stderr);
-              reject(
-                new Error(`Error al imprimir: ${stderr || error.message}`)
-              );
+              console.error("[PRINT] Código de salida:", error.code);
+            }
+            let printerError = null;
+            if (stderr && stderr.includes("Error: ")) {
+              const errorMatch = stderr.match(/Error: (.*?)(\n|$)/);
+              if (errorMatch && errorMatch[1]) {
+                printerError = errorMatch[1];
+              }
+            }
+            if (error) {
+              resolve({
+                success: false,
+                printerError: printerError || error.message,
+                message: printerError
+                  ? `Error de impresión: ${printerError}`
+                  : error.message
+                  ? `Error de impresión: ${error.message}`
+                  : "Error desconocido",
+              });
               return;
             }
-
+            if (printerError) {
+              resolve({
+                success: false,
+                printerError,
+                message: `Error de impresión: ${printerError}`,
+              });
+              return;
+            }
             console.log("Salida del script PHP:", stdout);
             resolve({
               success: true,
+              printerError: null,
               message: "Ticket impreso correctamente",
             });
           } catch (err) {
@@ -318,6 +681,229 @@ ipcMain.handle("print-ticket", async (_, orderData) => {
   }
 });
 
+// Handler para impresión de facturas
+console.log("🔧 Registrando handler para print-factura-ticket...");
+ipcMain.handle("print-factura-ticket", async (_, facturaData) => {
+  try {
+    const tempDir = os.tmpdir();
+    const tempDataPath = path.join(tempDir, `factura-data-${Date.now()}.json`);
+    await fsPromises.writeFile(
+      tempDataPath,
+      JSON.stringify(conImpresion(facturaData)),
+      "utf8"
+    );
+
+    const isProduction = process.env.NODE_ENV !== "development";
+    let phpScriptPath;
+    if (isProduction) {
+      phpScriptPath = path.join(
+        process.resourcesPath,
+        "resources",
+        "factura_ticket_printer.php"
+      );
+    } else {
+      phpScriptPath = path.join(
+        app.getAppPath(),
+        "resources",
+        "factura_ticket_printer.php"
+      );
+    }
+
+    // LOG: Verificar existencia del script PHP
+    if (!fs.existsSync(phpScriptPath)) {
+      console.error(
+        "❌ No se encontró el script PHP de factura:",
+        phpScriptPath
+      );
+      return {
+        success: false,
+        printerError: `No se encontró el script PHP de factura: ${phpScriptPath}`,
+        message: `No se encontró el script PHP de factura: ${phpScriptPath}`,
+      };
+    }
+
+    console.log("------ INFO DE IMPRESIÓN FACTURA ------");
+    console.log(`NODE_ENV: ${process.env.NODE_ENV}`);
+    console.log(`PHP Script: ${phpScriptPath}`);
+    console.log(`Datos: ${tempDataPath}`);
+
+    return new Promise((resolve, reject) => {
+      exec(
+        `set NODE_ENV=${process.env.NODE_ENV}&& ${comandoPhp()} "${phpScriptPath}" "${tempDataPath}"`,
+        async (error, stdout, stderr) => {
+          try {
+            await fsPromises.unlink(tempDataPath);
+            console.log("[PRINT-FACTURA] error:", error);
+            console.log("[PRINT-FACTURA] stdout:", stdout);
+            console.log("[PRINT-FACTURA] stderr:", stderr);
+            if (error) {
+              console.error("[PRINT-FACTURA] Código de salida:", error.code);
+            }
+            let printerError = null;
+            if (stderr && stderr.includes("Error: ")) {
+              const errorMatch = stderr.match(/Error: (.*?)(\n|$)/);
+              if (errorMatch && errorMatch[1]) {
+                printerError = errorMatch[1];
+              }
+            }
+            if (error) {
+              resolve({
+                success: false,
+                printerError: printerError || error.message,
+                message: printerError
+                  ? `Error de impresión de factura: ${printerError}`
+                  : error.message
+                  ? `Error de impresión de factura: ${error.message}`
+                  : "Error desconocido en impresión de factura",
+              });
+              return;
+            }
+            if (printerError) {
+              resolve({
+                success: false,
+                printerError,
+                message: `Error de impresión de factura: ${printerError}`,
+              });
+              return;
+            }
+            console.log("Salida del script PHP de factura:", stdout);
+            resolve({
+              success: true,
+              printerError: null,
+              message: "Ticket de factura impreso correctamente",
+            });
+          } catch (err) {
+            console.error("Error en el callback de factura:", err);
+            reject(err);
+          }
+        }
+      );
+    });
+  } catch (error) {
+    console.error("Error en impresión de factura:", error);
+    throw error;
+  }
+});
+
+// Handler para impresión AFIP
+console.log("🔧 Registrando handler para print-afip-ticket...");
+ipcMain.handle("print-afip-ticket", async (_, afipData) => {
+  console.log("🖨️ Handler print-afip-ticket ejecutándose con datos:", afipData);
+  try {
+    const tempDir = os.tmpdir();
+    const tempDataPath = path.join(tempDir, `afip-data-${Date.now()}.json`);
+
+    console.log("📁 AFIP: Escribiendo datos temporales en:", tempDataPath);
+    await fsPromises.writeFile(tempDataPath, JSON.stringify(conImpresion(afipData)), "utf8");
+    console.log("✅ AFIP: Archivo temporal creado exitosamente");
+
+    const isProduction = process.env.NODE_ENV !== "development";
+    let phpScriptPath;
+    if (isProduction) {
+      phpScriptPath = path.join(
+        process.resourcesPath,
+        "resources",
+        "afip_ticket_printer.php"
+      );
+    } else {
+      phpScriptPath = path.join(
+        app.getAppPath(),
+        "resources",
+        "afip_ticket_printer.php"
+      );
+    }
+
+    console.log("🔍 AFIP: Ruta del script PHP:", phpScriptPath);
+    console.log("🔍 AFIP: ¿Existe el script?", fs.existsSync(phpScriptPath));
+
+    // LOG: Verificar existencia del script PHP AFIP
+    if (!fs.existsSync(phpScriptPath)) {
+      console.error("❌ No se encontró el script PHP AFIP:", phpScriptPath);
+      return {
+        success: false,
+        printerError: `No se encontró el script PHP AFIP: ${phpScriptPath}`,
+        message: `No se encontró el script PHP AFIP: ${phpScriptPath}`,
+      };
+    }
+
+    console.log("------ INFO DE IMPRESIÓN AFIP ------");
+    console.log(`NODE_ENV: ${process.env.NODE_ENV}`);
+    console.log(`PHP Script AFIP: ${phpScriptPath}`);
+    console.log(`Datos AFIP: ${tempDataPath}`);
+
+    const command = `set NODE_ENV=${process.env.NODE_ENV}&& ${comandoPhp()} "${phpScriptPath}" "${tempDataPath}"`;
+    console.log("💻 AFIP: Comando a ejecutar:", command);
+
+    return new Promise((resolve, reject) => {
+      exec(command, async (error, stdout, stderr) => {
+        try {
+          console.log("🔄 AFIP: Eliminando archivo temporal...");
+          await fsPromises.unlink(tempDataPath);
+
+          console.log("📊 ===== RESULTADOS AFIP =====");
+          console.log("[PRINT-AFIP] error:", error);
+          console.log("[PRINT-AFIP] stdout:", stdout);
+          console.log("[PRINT-AFIP] stderr:", stderr);
+          console.log("📊 ========================");
+
+          if (error) {
+            console.error("[PRINT-AFIP] Código de salida:", error.code);
+          }
+
+          let printerError = null;
+          if (stderr && stderr.includes("Error: ")) {
+            const errorMatch = stderr.match(/Error: (.*?)(\n|$)/);
+            if (errorMatch && errorMatch[1]) {
+              printerError = errorMatch[1];
+            }
+          }
+
+          if (error) {
+            console.error("❌ AFIP: Error en exec:", error);
+            resolve({
+              success: false,
+              printerError: printerError || error.message,
+              message: printerError
+                ? `Error de impresión AFIP: ${printerError}`
+                : error.message
+                ? `Error de impresión AFIP: ${error.message}`
+                : "Error desconocido en impresión AFIP",
+            });
+            return;
+          }
+
+          if (printerError) {
+            console.error("❌ AFIP: Error en stderr:", printerError);
+            resolve({
+              success: false,
+              printerError,
+              message: `Error de impresión AFIP: ${printerError}`,
+            });
+            return;
+          }
+
+          console.log("✅ AFIP: Ticket impreso correctamente");
+          resolve({
+            success: true,
+            printerError: null,
+            message: "Ticket AFIP impreso correctamente",
+          });
+        } catch (err) {
+          console.error("❌ AFIP: Error en el callback:", err);
+          reject(err);
+        }
+      });
+    });
+  } catch (error: any) {
+    console.error("❌ AFIP: Error general en print-afip-ticket:", error);
+    return {
+      success: false,
+      printerError: error.message,
+      message: error.message,
+    };
+  }
+});
+
 // Agregar un nuevo manejador IPC para DevTools
 ipcMain.handle("toggle-devtools", () => {
   const win = BrowserWindow.getFocusedWindow();
@@ -326,277 +912,77 @@ ipcMain.handle("toggle-devtools", () => {
   }
 });
 
+// Agregar un nuevo manejador IPC para obtener lista de impresoras
+ipcMain.handle("get-available-printers", async () => {
+  try {
+    let mainWindow = BrowserWindow.getAllWindows()[0];
+    if (!mainWindow) {
+      throw new Error("No hay ventana principal disponible");
+    }
+
+    console.log("🔍 Obteniendo lista completa de impresoras...");
+    const availablePrinters = await mainWindow.webContents.getPrintersAsync();
+
+    const printerInfo = availablePrinters.map((printer) => ({
+      name: printer.name,
+      displayName: printer.displayName,
+      description: printer.description,
+      status: printer.status,
+      isDefault: printer.isDefault,
+      statusText:
+        printer.status === 0
+          ? "Disponible"
+          : printer.status === 1
+          ? "Imprimiendo"
+          : printer.status === 2
+          ? "Error"
+          : printer.status === 3
+          ? "No disponible"
+          : "Estado desconocido",
+    }));
+
+    console.log("📋 Información detallada de impresoras:", printerInfo);
+    return printerInfo;
+  } catch (error) {
+    console.error("❌ Error al obtener impresoras:", error);
+    throw error;
+  }
+});
+
 ipcMain.handle("print-closing", async (_, closingData) => {
   try {
     const tempDir = os.tmpdir();
     const tempDataPath = path.join(tempDir, `closing-data-${Date.now()}.json`);
-
-    // Guardar una copia de los datos recibidos para análisis
-    const debugDataPath = path.join(
-      app.getPath("desktop"),
-      `debug-closing-data-${Date.now()}.json`
-    );
-
-    try {
-      await fsPromises.writeFile(
-        debugDataPath,
-        JSON.stringify(closingData, null, 2),
-        "utf8"
-      );
-      console.log(`Copia de depuración guardada en: ${debugDataPath}`);
-    } catch (err) {
-      console.error("Error guardando archivo de depuración:", err);
-    }
-
-    // DIAGNÓSTICO COMPLETO DE LA ESTRUCTURA DE DATOS
-    console.log("==========================================");
-    console.log("DIAGNÓSTICO COMPLETO DEL OBJETO RECIBIDO:");
-    console.log("==========================================");
-
-    // Función para mostrar estructura de objeto
-    const mostrarEstructura = (obj: any, prefijo = "") => {
-      for (const key in obj) {
-        if (obj.hasOwnProperty(key)) {
-          const valor = obj[key];
-          const tipo = Array.isArray(valor) ? "array" : typeof valor;
-
-          if (tipo === "object" && valor !== null) {
-            console.log(
-              `${prefijo}${key} (${tipo}${
-                Array.isArray(valor) ? `[${valor.length}]` : ""
-              })`
-            );
-            if (Array.isArray(valor)) {
-              if (valor.length > 0) {
-                console.log(`${prefijo}  Primer elemento:`);
-                mostrarEstructura(valor[0], `${prefijo}    `);
-              }
-            } else {
-              mostrarEstructura(valor, `${prefijo}  `);
-            }
-          } else {
-            console.log(`${prefijo}${key}: ${valor} (${tipo})`);
-          }
-        }
-      }
-    };
-
-    mostrarEstructura(closingData);
-
-    // Crear una copia profunda para manipular
-    const datosAdaptados = JSON.parse(JSON.stringify(closingData));
-
-    // GENERAR LA SIMULACIÓN DEL TICKET
-    console.log("\n\n====== SIMULACIÓN DEL TICKET DE CIERRE ======");
-    console.log(`CIERRE DE CAJA - ${datosAdaptados.periodo.toUpperCase()}`);
-    console.log(
-      `Fecha inicio: ${new Date(datosAdaptados.fechaInicio).toLocaleString()}`
-    );
-    console.log(
-      `Fecha cierre: ${new Date(datosAdaptados.fechaCierre).toLocaleString()}`
-    );
-    console.log("-------------------------------------");
-
-    // MOSTRAR VENTAS POR MÉTODO DE PAGO
-    console.log("VENTAS POR MÉTODO DE PAGO:");
-    if (
-      datosAdaptados.ventasPorMetodo &&
-      typeof datosAdaptados.ventasPorMetodo === "object"
-    ) {
-      Object.entries(datosAdaptados.ventasPorMetodo).forEach(
-        ([metodo, total]) => {
-          console.log(`${metodo}: $${Number(total).toLocaleString()}`);
-        }
-      );
-    } else {
-      console.log("No hay datos de ventas por método de pago");
-    }
-
-    // MOSTRAR VENTAS POR VENDEDOR
-    console.log("-------------------------------------");
-    console.log("VENTAS POR VENDEDOR:");
-
-    if (
-      datosAdaptados.ventasPorVendedor &&
-      Array.isArray(datosAdaptados.ventasPorVendedor)
-    ) {
-      datosAdaptados.ventasPorVendedor.forEach((vendedor: any) => {
-        console.log(
-          `${vendedor.nombre}: $${Number(
-            vendedor.totalVentas
-          ).toLocaleString()} (${vendedor.cantidadVentas} ventas)`
-        );
-
-        // Mostrar métodos de pago por vendedor si existen
-        if (vendedor.metodosPago && typeof vendedor.metodosPago === "object") {
-          Object.entries(vendedor.metodosPago).forEach(([metodo, total]) => {
-            console.log(`  ${metodo}: $${Number(total).toLocaleString()}`);
-          });
-        }
-      });
-    } else {
-      console.log("No hay datos de ventas por vendedor");
-    }
-
-    // MOSTRAR TOTAL GENERAL
-    console.log("-------------------------------------");
-    console.log(
-      `TOTAL: $${Number(datosAdaptados.totalVentas).toLocaleString()} (${
-        datosAdaptados.cantidadVentas
-      } ventas)`
-    );
-    console.log("======================================");
-
-    // Escribir datos para la impresión
     await fsPromises.writeFile(
       tempDataPath,
-      JSON.stringify(datosAdaptados),
+      JSON.stringify(conImpresion(closingData)),
       "utf8"
     );
 
-    // Rutas del PHP y logo
     const isProduction = process.env.NODE_ENV !== "development";
     let phpScriptPath;
-
     if (isProduction) {
       phpScriptPath = path.join(
         process.resourcesPath,
         "resources",
         "closing_printer.php"
       );
-
-      // En producción - Lógica simple: copiar el logo directamente junto al PHP
-      console.log("------ CONFIGURACIÓN LOGO CIERRE PRODUCCIÓN ------");
-
-      // Posibles ubicaciones de origen del logo
-      const possibleSources = [
-        path.join(process.resourcesPath, "logo.png"),
-        path.join(process.resourcesPath, "resources", "logo.png"),
-        path.join(process.resourcesPath, "public", "logo.png"),
-        path.join(app.getAppPath(), "resources", "logo.png"),
-        path.join(app.getAppPath(), "public", "logo.png"),
-        path.join(__dirname, "../resources", "logo.png"),
-        path.join(app.getAppPath(), "public", "logos", "logo.png"),
-        path.join(__dirname, "../public", "logo.png"),
-      ];
-
-      // Destino - siempre al lado del PHP script
-      const logoDestPath = path.join(path.dirname(phpScriptPath), "logo.png");
-      console.log(`Destino del logo: ${logoDestPath}`);
-
-      // Verificar si el destino es escribible
-      try {
-        // Intentar acceder al directorio destino para verificar permisos
-        const destDir = path.dirname(logoDestPath);
-        const testFile = path.join(destDir, `test_write_${Date.now()}.tmp`);
-        fs.writeFileSync(testFile, "test");
-        fs.unlinkSync(testFile);
-        console.log(
-          `✅ Directorio destino ${destDir} tiene permisos de escritura`
-        );
-      } catch (err) {
-        console.error(
-          `❌ ALERTA: No se puede escribir en el directorio destino:`,
-          err
-        );
-        console.log(`Intentando continuar de todas formas...`);
-      }
-
-      // Buscar y copiar el logo
-      let found = false;
-      for (const src of possibleSources) {
-        console.log(`Buscando logo en: ${src}`);
-        if (fs.existsSync(src)) {
-          console.log(`Logo encontrado en: ${src}`);
-          try {
-            const logoStats = fs.statSync(src);
-            console.log(`Tamaño original: ${logoStats.size} bytes`);
-
-            // Verificar que sea un archivo válido
-            if (logoStats.size === 0) {
-              console.error(`Logo encontrado pero tiene tamaño cero: ${src}`);
-              continue;
-            }
-
-            console.log(`Copiando a: ${logoDestPath}`);
-            fs.copyFileSync(src, logoDestPath);
-
-            // Verificar que se copió correctamente
-            if (fs.existsSync(logoDestPath)) {
-              const destStats = fs.statSync(logoDestPath);
-              console.log(
-                `Logo copiado exitosamente (${destStats.size} bytes)`
-              );
-              found = true;
-              break;
-            } else {
-              console.error(
-                `No se pudo verificar la copia del logo en: ${logoDestPath}`
-              );
-            }
-          } catch (err) {
-            console.error(`Error copiando logo desde ${src}:`, err);
-          }
-        }
-      }
-
-      // Como último recurso, generar un logo mínimo
-      if (!found) {
-        try {
-          console.log("Intentando generar logo mínimo con PHP...");
-          const logoGenPath = path.join(tempDir, "gen_logo_closing.php");
-          const logoContent = `<?php
-          $img = imagecreatetruecolor(400, 100);
-          $white = imagecolorallocate($img, 255, 255, 255);
-          $black = imagecolorallocate($img, 0, 0, 0);
-          imagefill($img, 0, 0, $white);
-          imagestring($img, 5, 150, 40, 'ISELIN II', $black);
-          imagepng($img, '${logoDestPath.replace(/\\/g, "\\\\")}');
-          echo "Logo creado";
-          ?>`;
-
-          fs.writeFileSync(logoGenPath, logoContent);
-
-          // Ejecutar PHP para generar la imagen
-          const { error, stdout, stderr } = await new Promise<{
-            error: any;
-            stdout: string;
-            stderr: string;
-          }>((resolve) => {
-            exec(`php "${logoGenPath}"`, (error, stdout, stderr) => {
-              resolve({ error, stdout, stderr });
-            });
-          });
-
-          if (error) {
-            console.error(
-              "Error generando logo para cierre:",
-              stderr || error.message
-            );
-          } else {
-            console.log("Logo generado para cierre:", stdout);
-            if (fs.existsSync(logoDestPath)) {
-              console.log(
-                `Logo generado verificado: ${
-                  fs.statSync(logoDestPath).size
-                } bytes`
-              );
-            }
-          }
-
-          // Limpiar archivo temporal
-          fs.unlinkSync(logoGenPath);
-        } catch (genErr) {
-          console.error("Error generando logo para cierre:", genErr);
-        }
-      }
     } else {
-      // En desarrollo - Ruta normal
       phpScriptPath = path.join(
         app.getAppPath(),
         "resources",
         "closing_printer.php"
       );
+    }
+
+    // LOG: Verificar existencia del script PHP
+    if (!fs.existsSync(phpScriptPath)) {
+      console.error("❌ No se encontró el script PHP:", phpScriptPath);
+      return {
+        success: false,
+        printerError: `No se encontró el script PHP: ${phpScriptPath}`,
+        message: `No se encontró el script PHP: ${phpScriptPath}`,
+      };
     }
 
     console.log("------ INFO DE IMPRESIÓN CIERRE ------");
@@ -606,59 +992,70 @@ ipcMain.handle("print-closing", async (_, closingData) => {
 
     return new Promise((resolve, reject) => {
       exec(
-        `set NODE_ENV=${process.env.NODE_ENV}&& php "${phpScriptPath}" "${tempDataPath}"`,
+        `set NODE_ENV=${process.env.NODE_ENV}&& ${comandoPhp()} "${phpScriptPath}" "${tempDataPath}"`,
         async (error, stdout, stderr) => {
           try {
-            // Limpiar archivo temporal
             await fsPromises.unlink(tempDataPath);
-
+            console.log("[PRINT-CLOSING] error:", error);
+            console.log("[PRINT-CLOSING] stdout:", stdout);
+            console.log("[PRINT-CLOSING] stderr:", stderr);
+            if (error) {
+              console.error("[PRINT-CLOSING] Código de salida:", error.code);
+            }
             let printerError = null;
-
-            // Verificar si hay errores en la salida del script PHP relacionados con la impresora
-            if (stderr && stderr.includes("Error con la impresora:")) {
-              // Extraer el mensaje de error específico
-              const errorMatch = stderr.match(
-                /Error con la impresora: (.*?)(\n|$)/
-              );
+            if (stderr && stderr.includes("Error: ")) {
+              const errorMatch = stderr.match(/Error: (.*?)(\n|$)/);
               if (errorMatch && errorMatch[1]) {
                 printerError = errorMatch[1];
-              } else {
-                printerError = "Error desconocido con la impresora";
               }
             }
-
-            // Verificar también errores generales del comando
             if (error) {
-              if (!printerError) {
-                printerError =
-                  error.message || "Error al ejecutar el comando de impresión";
-              }
-
-              // En caso de error grave (no solo de impresora), rechazar la promesa
-              if (!stderr.includes("Error con la impresora:")) {
-                reject(
-                  new Error(`Error al imprimir: ${stderr || error.message}`)
-                );
-                return;
-              }
+              resolve({
+                success: false,
+                printerError: printerError || error.message,
+                message: printerError
+                  ? `Error de impresión: ${printerError}`
+                  : error.message
+                  ? `Error de impresión: ${error.message}`
+                  : "Error desconocido",
+              });
+              return;
             }
-
-            // Siempre resolver con información sobre si hubo un error de impresora
+            if (printerError) {
+              resolve({
+                success: false,
+                printerError,
+                message: `Error de impresión: ${printerError}`,
+              });
+              return;
+            }
+            console.log("Salida del script PHP cierre:", stdout);
             resolve({
-              success: !error || stderr.includes("Error con la impresora:"), // Consideramos éxito parcial si solo falló la impresora
-              printerError,
-              message: printerError
-                ? "Cierre registrado pero no se pudo imprimir"
-                : "Cierre impreso correctamente",
+              success: true,
+              printerError: null,
+              message: "Ticket de cierre impreso correctamente",
             });
           } catch (err) {
+            console.error("Error en el callback:", err);
             reject(err);
           }
         }
       );
     });
   } catch (error) {
-    console.error("Error en impresión del cierre:", error);
+    console.error("Error en impresión de cierre:", error);
     throw error;
   }
 });
+
+// Log de confirmación de handlers registrados
+console.log("✅ Todos los handlers IPC registrados:");
+console.log("   - print-ticket");
+console.log("   - print-factura-ticket");
+console.log("   - print-afip-ticket");
+console.log("   - print-closing");
+console.log("   - toggle-devtools");
+console.log("   - get-available-printers");
+console.log("   - store-get, store-set, store-delete, store-has");
+console.log("   - check-for-updates, download-update, install-update");
+console.log("   - read-peso");

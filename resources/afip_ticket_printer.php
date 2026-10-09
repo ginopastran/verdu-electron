@@ -1,0 +1,680 @@
+<?php
+$autoloaderPath = __DIR__ . '/vendor/autoload.php';
+if (!file_exists($autoloaderPath)) {
+    die("Error: No se encuentra el autoloader en: " . $autoloaderPath);
+}
+
+require $autoloaderPath;
+
+// Verificar que la clase existe
+if (!class_exists('Mike42\Escpos\PrintConnectors\WindowsPrintConnector')) {
+    die("Error: No se encuentra la clase WindowsPrintConnector");
+}
+
+use Mike42\Escpos\Printer;
+use Mike42\Escpos\EscposImage;
+use Mike42\Escpos\PrintConnectors\WindowsPrintConnector;
+
+try {
+    // Debug avanzado del proceso de impresión AFIP
+    file_put_contents('php://stderr', "====== INICIO DEBUG IMPRESIÓN TICKET AFIP ======\n");
+    file_put_contents('php://stderr', "🧾 Iniciando proceso de impresión AFIP...\n");
+    file_put_contents('php://stderr', "📅 Timestamp: " . date('Y-m-d H:i:s') . "\n");
+    file_put_contents('php://stderr', "🔧 PHP Version: " . phpversion() . "\n");
+    file_put_contents('php://stderr', "💾 Memory Limit: " . ini_get('memory_limit') . "\n");
+    
+    $afipDataPath = $argv[1];
+    file_put_contents('php://stderr', "📁 Ruta del archivo de datos AFIP: " . $afipDataPath . "\n");
+    
+    if (!file_exists($afipDataPath)) {
+        throw new Exception("Archivo de datos AFIP no encontrado: " . $afipDataPath);
+    }
+    
+    $fileSize = filesize($afipDataPath);
+    file_put_contents('php://stderr', "📊 Tamaño del archivo: " . $fileSize . " bytes\n");
+    
+    file_put_contents('php://stderr', "📖 Leyendo datos de factura AFIP...\n");
+    $rawData = file_get_contents($afipDataPath);
+    file_put_contents('php://stderr', "📋 Datos RAW recibidos: " . substr($rawData, 0, 200) . "...\n");
+    
+    $afipData = json_decode($rawData, true);
+    if (json_last_error() !== JSON_ERROR_NONE) {
+        throw new Exception("Error al decodificar JSON: " . json_last_error_msg());
+    }
+    
+    // Debug de la estructura de datos AFIP
+    file_put_contents('php://stderr', "🔍 ESTRUCTURA DE DATOS AFIP PROCESADA:\n");
+    file_put_contents('php://stderr', "- CAE: " . ($afipData['cae'] ?? 'NO DEFINIDO') . "\n");
+    file_put_contents('php://stderr', "- Fecha Vto CAE: " . ($afipData['fechaVtoCae'] ?? 'NO DEFINIDO') . "\n");
+    file_put_contents('php://stderr', "- Número Factura: " . ($afipData['numeroFactura'] ?? 'NO DEFINIDO') . "\n");
+    file_put_contents('php://stderr', "- Total: " . ($afipData['total'] ?? 'N/A') . "\n");
+    file_put_contents('php://stderr', "- Tipo Factura: " . ($afipData['tipoFactura'] ?? 'N/A') . "\n");
+    file_put_contents('php://stderr', "- Business Name: " . ($afipData['businessName'] ?? 'NO DEFINIDO') . "\n");
+    file_put_contents('php://stderr', "- Condición IVA: " . ($afipData['condicionIva'] ?? 'NO DEFINIDO') . "\n");
+    file_put_contents('php://stderr', "- Cantidad de items: " . (isset($afipData['items']) ? count($afipData['items']) : 'N/A') . "\n");
+    
+    // 🆕 DEBUG ESPECÍFICO DE CONFIGURACIÓN AFIP
+    file_put_contents('php://stderr', "\n🔍 DEBUG CONFIGURACIÓN AFIP:\n");
+    if (isset($afipData['configuracionAfip'])) {
+        file_put_contents('php://stderr', "- configuracionAfip existe: SÍ\n");
+        file_put_contents('php://stderr', "- configuracionAfip completa: " . json_encode($afipData['configuracionAfip']) . "\n");
+        if (isset($afipData['configuracionAfip']['condicionIva'])) {
+            file_put_contents('php://stderr', "- configuracionAfip.condicionIva: " . $afipData['configuracionAfip']['condicionIva'] . "\n");
+        } else {
+            file_put_contents('php://stderr', "- configuracionAfip.condicionIva: NO EXISTE\n");
+        }
+        if (isset($afipData['configuracionAfip']['tipoFactura'])) {
+            file_put_contents('php://stderr', "- configuracionAfip.tipoFactura: " . $afipData['configuracionAfip']['tipoFactura'] . "\n");
+        } else {
+            file_put_contents('php://stderr', "- configuracionAfip.tipoFactura: NO EXISTE\n");
+        }
+    } else {
+        file_put_contents('php://stderr', "- configuracionAfip: NO EXISTE\n");
+    }
+    file_put_contents('php://stderr', "\n");
+
+    // Debug de descuentos AFIP
+    file_put_contents('php://stderr', "🔍 DEBUG DESCUENTOS AFIP:\n");
+    if (isset($afipData['discountData'])) {
+        file_put_contents('php://stderr', "- discountData existe: SÍ\n");
+        file_put_contents('php://stderr', "- discountData completa: " . json_encode($afipData['discountData']) . "\n");
+    } else {
+        file_put_contents('php://stderr', "- discountData: NO EXISTE\n");
+    }
+    if (isset($afipData['subtotal']) && isset($afipData['total'])) {
+        $descuentoCalculado = $afipData['subtotal'] - $afipData['total'];
+        file_put_contents('php://stderr', "- Descuento calculado (subtotal - total): -$" . number_format($descuentoCalculado, 2) . "\n");
+    }
+    if (isset($afipData['descuentoAplicado'])) {
+        file_put_contents('php://stderr', "- descuentoAplicado: " . json_encode($afipData['descuentoAplicado']) . "\n");
+    }
+    file_put_contents('php://stderr', "\n");
+
+    $nombre_impresora = $afipData['impresora'] ?? "TP806L";
+    file_put_contents('php://stderr', "Conectando a impresora AFIP: " . $nombre_impresora . "\n");
+    
+    try {
+        // Intentar conectar a la impresora - esto fallará si no existe
+        $connector = new WindowsPrintConnector($nombre_impresora);
+        
+        // Si llegamos aquí, la conexión fue exitosa
+        file_put_contents('php://stderr', "Conexión exitosa a la impresora AFIP\n");
+    } catch (Exception $e) {
+        // Error específico de la impresora - reportarlo pero no interrumpir el proceso
+        file_put_contents('php://stderr', "Error: " . $e->getMessage() . "\n");
+        exit(1);
+    }
+
+    $printer = new Printer($connector);
+    file_put_contents('php://stderr', "Impresora AFIP inicializada\n");
+
+    // Configuración inicial
+    $printer->setJustification(Printer::JUSTIFY_CENTER);
+
+    // Logo (opcional) - usar el mismo sistema que el ticket normal
+    try {
+        file_put_contents('php://stderr', "==== LOGO PARA FACTURA AFIP ====\n");
+        
+        // Lista de posibles rutas para el logo
+        $possibleLogoPaths = array_merge(!empty($afipData['logoPath']) ? [$afipData['logoPath']] : [], [
+            __DIR__ . "/logo.png",
+            __DIR__ . "/../resources/logo.png",
+            __DIR__ . "/../logo.png",
+            __DIR__ . "/../public/logo.png",
+            __DIR__ . "/../../resources/logo.png",
+            __DIR__ . "/../../public/logo.png",
+            __DIR__ . "/../../logo.png"
+        ]);
+        
+        $logoPath = null;
+        foreach ($possibleLogoPaths as $path) {
+            if (file_exists($path) && is_readable($path) && filesize($path) > 0) {
+                $logoPath = $path;
+                file_put_contents('php://stderr', "✅ Logo AFIP encontrado en: " . $logoPath . "\n");
+                break;
+            }
+        }
+        
+        if ($logoPath) {
+            $imageInfo = @getimagesize($logoPath);
+            if ($imageInfo !== false) {
+                switch ($imageInfo[2]) {
+                    case IMAGETYPE_PNG:
+                        $originalImage = @imagecreatefrompng($logoPath);
+                        break;
+                    case IMAGETYPE_JPEG:
+                        $originalImage = @imagecreatefromjpeg($logoPath);
+                        break;
+                    default:
+                        $originalImage = false;
+                }
+                
+                if ($originalImage !== false) {
+                    $originalWidth = imagesx($originalImage);
+                    $originalHeight = imagesy($originalImage);
+                    
+                    // Calcular el nuevo tamaño manteniendo la proporción
+                    $maxWidth = (($afipData['anchoPapel'] ?? 80) == 58) ? 370 : 556;
+                    $newWidth = $maxWidth;
+                    $newHeight = floor($originalHeight * ($maxWidth / $originalWidth));
+                    
+                    // Crear nueva imagen redimensionada
+                    $newImage = imagecreatetruecolor($newWidth, $newHeight);
+                    if ($newImage) {
+                        imagealphablending($newImage, false);
+                        imagesavealpha($newImage, true);
+                        
+                        if (imagecopyresampled($newImage, $originalImage, 0, 0, 0, 0, $newWidth, $newHeight, $originalWidth, $originalHeight)) {
+                            // Guardar temporalmente
+                            $tempPath = sys_get_temp_dir() . "/temp_afip_logo_" . uniqid() . ".png";
+                            if (imagepng($newImage, $tempPath)) {
+                                try {
+                                    $logo = EscposImage::load($tempPath);
+                                    $printer->bitImage($logo);
+                                    unlink($tempPath);
+                                    file_put_contents('php://stderr', "✅ Logo AFIP enviado a la impresora\n");
+                                } catch (Exception $e) {
+                                    file_put_contents('php://stderr', "❌ Error al imprimir logo AFIP: " . $e->getMessage() . "\n");
+                                }
+                            }
+                        }
+                        imagedestroy($newImage);
+                    }
+                    imagedestroy($originalImage);
+                }
+            }
+        }
+    } catch (Exception $e) {
+        file_put_contents('php://stderr', "❌ Error procesando logo AFIP: " . $e->getMessage() . "\n");
+    }
+
+    // Encabezado con información del business
+    $printer->setEmphasis(true);
+    $printer->setTextSize(2, 2);
+    
+    // Determinar el nombre del business de manera dinámica
+    $businessName = "Comercio"; // Valor por defecto más genérico
+    $razonSocial = "Comercio";
+    
+    // Buscar el nombre del business en diferentes ubicaciones posibles
+    if (isset($afipData['businessName']) && !empty($afipData['businessName'])) {
+        $businessName = $afipData['businessName'];
+        file_put_contents('php://stderr', "✅ Usando nombre del business desde afipData.businessName: " . $businessName . "\n");
+    } elseif (isset($afipData['nombre']) && !empty($afipData['nombre'])) {
+        $businessName = $afipData['nombre'];
+        file_put_contents('php://stderr', "✅ Usando nombre del business desde afipData.nombre: " . $businessName . "\n");
+    } else {
+        file_put_contents('php://stderr', "⚠️ Usando nombre por defecto: " . $businessName . "\n");
+    }
+    
+    // ✅ CORRECCIÓN: Buscar razón social en la nueva estructura configuracionAfip (prioridad)
+    if (isset($afipData['configuracionAfip']) && is_array($afipData['configuracionAfip']) && 
+        isset($afipData['configuracionAfip']['razonSocial']) && !empty($afipData['configuracionAfip']['razonSocial'])) {
+        $razonSocial = $afipData['configuracionAfip']['razonSocial'];
+        file_put_contents('php://stderr', "✅ Usando razón social desde configuracionAfip.razonSocial: " . $razonSocial . "\n");
+    } elseif (isset($afipData['razonSocial']) && !empty($afipData['razonSocial'])) {
+        $razonSocial = $afipData['razonSocial'];
+        file_put_contents('php://stderr', "✅ Usando razón social desde afipData.razonSocial: " . $razonSocial . "\n");
+    } else {
+        $razonSocial = $businessName;
+        file_put_contents('php://stderr', "⚠️ Usando businessName como razón social: " . $razonSocial . "\n");
+    }
+    
+    // ✅ CORRECCIÓN: Buscar CUIT en configuracionAfip (prioridad)
+    $cuitValue = '00-00000000-0';
+    if (isset($afipData['configuracionAfip']) && is_array($afipData['configuracionAfip']) && 
+        isset($afipData['configuracionAfip']['cuit']) && !empty($afipData['configuracionAfip']['cuit'])) {
+        $cuitValue = $afipData['configuracionAfip']['cuit'];
+        file_put_contents('php://stderr', "✅ Usando CUIT desde configuracionAfip.cuit: " . $cuitValue . "\n");
+    } elseif (isset($afipData['cuit']) && !empty($afipData['cuit'])) {
+        $cuitValue = $afipData['cuit'];
+        file_put_contents('php://stderr', "✅ Usando CUIT desde afipData.cuit: " . $cuitValue . "\n");
+    }
+    
+    // Imprimir el nombre del business en grande arriba con salto de línea inteligente
+    $businessNameUpper = strtoupper($businessName);
+    $maxCharsPerLine = 20; // Máximo de caracteres por línea para texto grande (aumentado)
+    
+    if (strlen($businessNameUpper) <= $maxCharsPerLine) {
+        // Si cabe en una línea, imprimir normalmente
+        $printer->text($businessNameUpper . "\n");
+    } else {
+        // Si no cabe, dividir por palabras sin cortar
+        $words = explode(' ', $businessNameUpper);
+        $currentLine = '';
+        
+        foreach ($words as $word) {
+            // Si agregar esta palabra excede el límite
+            if (strlen($currentLine . ' ' . $word) > $maxCharsPerLine) {
+                // Imprimir la línea actual si no está vacía
+                if (!empty($currentLine)) {
+                    $printer->text(trim($currentLine) . "\n");
+                    $currentLine = $word;
+                } else {
+                    // Si una sola palabra es muy larga, la imprimimos completa
+                    $printer->text($word . "\n");
+                }
+            } else {
+                // Agregar la palabra a la línea actual
+                $currentLine .= (empty($currentLine) ? '' : ' ') . $word;
+            }
+        }
+        
+        // Imprimir la última línea si no está vacía
+        if (!empty($currentLine)) {
+            $printer->text(trim($currentLine) . "\n");
+        }
+    }
+    $printer->setEmphasis(false);
+    $printer->setTextSize(1, 1);
+
+    // Información AFIP requerida
+    $printer->text("Razón Social: " . $razonSocial . "\n");
+
+    // ✅ CORRECCIÓN: Formatear CUIT si viene sin guiones (11 dígitos)
+    if (preg_match('/^\d{11}$/', $cuitValue)) {
+        $cuitValue = substr($cuitValue, 0, 2) . '-' . substr($cuitValue, 2, 8) . '-' . substr($cuitValue, 10, 1);
+    }
+    $printer->text("CUIT: " . $cuitValue . "\n");
+    
+    // Obtener condición IVA desde configuracionAfip si está disponible
+    $condicionIva = 'Responsable Inscripto'; // Valor por defecto
+    if (isset($afipData['configuracionAfip']) && is_array($afipData['configuracionAfip']) && 
+        isset($afipData['configuracionAfip']['condicionIva']) && !empty($afipData['configuracionAfip']['condicionIva'])) {
+        $condicionIva = $afipData['configuracionAfip']['condicionIva'];
+        file_put_contents('php://stderr', "✅ Usando condición IVA desde configuracionAfip: " . $condicionIva . "\n");
+    } elseif (isset($afipData['condicionIva']) && !empty($afipData['condicionIva'])) {
+        $condicionIva = $afipData['condicionIva'];
+        file_put_contents('php://stderr', "✅ Usando condición IVA desde afipData: " . $condicionIva . "\n");
+    } else {
+        file_put_contents('php://stderr', "⚠️ Usando condición IVA por defecto: " . $condicionIva . "\n");
+    }
+    
+    // Capitalizar primera letra de condición IVA
+    $condicionIva = ucfirst(strtolower($condicionIva));
+    
+    $printer->text("Condición IVA: " . $condicionIva . "\n");
+    $printer->text("Dirección: " . ($afipData['direccion'] ?? 'Dirección no configurada') . "\n");
+    
+    $printer->text("-----------------------------\n");
+    
+    // Tipo de comprobante centrado y destacado
+    $printer->setJustification(Printer::JUSTIFY_CENTER);
+    $printer->setEmphasis(true);
+    $printer->setTextSize(1, 2);
+    
+    // Determinar tipo de factura basado en la condición IVA del negocio
+    $tipoFactura = 'B'; // Valor por defecto
+    
+    // Obtener condición IVA para determinar el tipo de factura
+    $condicionIvaParaTipo = '';
+    if (isset($afipData['configuracionAfip']) && is_array($afipData['configuracionAfip']) && 
+        isset($afipData['configuracionAfip']['condicionIva']) && !empty($afipData['configuracionAfip']['condicionIva'])) {
+        $condicionIvaParaTipo = strtolower($afipData['configuracionAfip']['condicionIva']);
+    } elseif (isset($afipData['condicionIva']) && !empty($afipData['condicionIva'])) {
+        $condicionIvaParaTipo = strtolower($afipData['condicionIva']);
+    }
+    
+    // Si la condición IVA es monotributo, usar factura C, sino B
+    if ($condicionIvaParaTipo === 'monotributo') {
+        $tipoFactura = 'C';
+        file_put_contents('php://stderr', "✅ Negocio es Monotributo - Usando FACTURA C\n");
+    } else {
+        $tipoFactura = 'B';
+        file_put_contents('php://stderr', "✅ Negocio no es Monotributo (" . $condicionIvaParaTipo . ") - Usando FACTURA B\n");
+    }
+    
+    // Verificar si el valor ya contiene 'FACTURA' para evitar duplicación
+    if (strpos($tipoFactura, 'FACTURA') !== false) {
+        $tipoFacturaCompleto = $tipoFactura;
+    } else {
+        $tipoFacturaCompleto = 'FACTURA ' . $tipoFactura;
+    }
+    
+    $printer->text("$tipoFacturaCompleto\n");
+    $printer->setEmphasis(false);
+    $printer->setTextSize(1, 1);
+    $printer->setJustification(Printer::JUSTIFY_LEFT);
+    
+    // Número de factura y fecha
+    // ✅ CORRECCIÓN: Usar número real de factura de ARCA o sistema interno
+    $numeroFactura = $afipData['numeroFactura'] ?? 
+                     $afipData['numero'] ?? 
+                     ($afipData['factura']['numero'] ?? null) ||
+                     ($afipData['factura']['numeroFactura'] ?? null) ||
+                     '1';
+    $printer->text("Nro: " . ($afipData['puntoVenta'] ?? '0001') . "-" . str_pad($numeroFactura, 8, '0', STR_PAD_LEFT) . "\n");
+    date_default_timezone_set('America/Argentina/Buenos_Aires');
+    $fechaFactura = $afipData['fechaHora'] ?? date("d/m/Y H:i:s");
+    $printer->text("Fecha: " . $fechaFactura . "\n");
+    $printer->text("Vendedor: " . ($afipData['vendedor'] ?? $afipData['usuario'] ?? 'N/A') . "\n");
+
+    // Añadir ID real de la orden/factura si está disponible
+    if (isset($afipData['idReal']) && !empty($afipData['idReal'])) {
+        $printer->text("Orden #" . $afipData['idReal'] . "\n");
+        file_put_contents('php://stderr', "✅ ID Real encontrado: " . $afipData['idReal'] . "\n");
+    } elseif (isset($afipData['factura']) && is_array($afipData['factura']) && isset($afipData['factura']['idReal']) && !empty($afipData['factura']['idReal'])) {
+        $printer->text("Orden #" . $afipData['factura']['idReal'] . "\n");
+        file_put_contents('php://stderr', "✅ ID Real encontrado en factura: " . $afipData['factura']['idReal'] . "\n");
+    } else {
+        file_put_contents('php://stderr', "⚠️ No se encontró ID Real en los datos AFIP\n");
+    }
+
+    $printer->text("-----------------------------\n");
+
+    // Obtener condición IVA desde configuracionAfip si está disponible
+    $condicionIva = 'Consumidor Final'; // Valor por defecto
+    if (isset($afipData['configuracionAfip']) && is_array($afipData['configuracionAfip']) && 
+        isset($afipData['configuracionAfip']['condicionIva']) && !empty($afipData['configuracionAfip']['condicionIva'])) {
+        $condicionIva = ucfirst(strtolower($afipData['configuracionAfip']['condicionIva']));
+        file_put_contents('php://stderr', "✅ Usando condición IVA desde configuracionAfip: " . $condicionIva . "\n");
+    } elseif (isset($afipData['condicionIva']) && !empty($afipData['condicionIva'])) {
+        $condicionIva = ucfirst(strtolower($afipData['condicionIva']));
+        file_put_contents('php://stderr', "✅ Usando condición IVA desde afipData: " . $condicionIva . "\n");
+    } else {
+        file_put_contents('php://stderr', "⚠️ Usando condición IVA por defecto: " . $condicionIva . "\n");
+    }
+    
+    $printer->text("Condición IVA: " . $condicionIva . "\n");
+    
+    $printer->text("-----------------------------\n");
+
+    // Detalles de productos
+    $printer->text("PRODUCTO      CANT    PRECIO    TOTAL\n");
+    $printer->text("-----------------------------\n");
+
+    $subtotalNeto = 0;
+    $totalIva = 0;
+
+    // Debug de items
+    file_put_contents('php://stderr', "🔍 DEBUG ITEMS AFIP:\n");
+    file_put_contents('php://stderr', json_encode($afipData['items'], JSON_PRETTY_PRINT) . "\n");
+
+    foreach ($afipData['items'] as $item) {
+        // Debug del item actual
+        file_put_contents('php://stderr', "📦 Procesando item: " . json_encode($item) . "\n");
+        
+        $nombre = str_pad(substr($item['nombre'], 0, 12), 12);
+        $cantidad = str_pad(number_format($item['cantidad'], 3), 8);
+        
+        // Calcular precio unitario desde el subtotal y cantidad si no está disponible
+        $precioUnitario = isset($item['precio']) ? $item['precio'] : 
+                         (isset($item['precioHistorico']) ? $item['precioHistorico'] : 
+                         ($item['cantidad'] > 0 ? $item['subtotal'] / $item['cantidad'] : 0));
+        
+        file_put_contents('php://stderr', "💰 Precio calculado para {$item['nombre']}: $precioUnitario\n");
+        
+        $precio = str_pad('$' . number_format($precioUnitario, 2), 8);
+        $subtotal = str_pad('$' . number_format($item['subtotal'], 2), 8);
+        
+        $printer->text("$nombre $cantidad $precio $subtotal\n");
+    }
+
+    // ✅ CORRECCIÓN CRÍTICA: Calcular IVA sobre el total final (con descuento aplicado)
+    // Si hay descuento, el IVA debe calcularse sobre el precio final, no sobre el original
+    $totalConDescuento = $afipData['total']; // Este es el total final con descuento aplicado
+    
+    // El total final ya incluye IVA, extraemos el IVA de ese monto
+    $subtotalNeto = $totalConDescuento / 1.21; // Subtotal sin IVA del precio con descuento
+    $totalIva = $totalConDescuento - $subtotalNeto; // IVA calculado sobre precio con descuento
+    
+    // Debug del cálculo corregido
+    file_put_contents('php://stderr', "🔍 CÁLCULO IVA CORREGIDO:\n");
+    file_put_contents('php://stderr', "- Total con descuento (incluye IVA): $" . number_format($totalConDescuento, 2) . "\n");
+    file_put_contents('php://stderr', "- Subtotal neto (sin IVA): $" . number_format($subtotalNeto, 2) . "\n");
+    file_put_contents('php://stderr', "- IVA (21% del precio con descuento): $" . number_format($totalIva, 2) . "\n");
+    file_put_contents('php://stderr', "- Verificación: $" . number_format($subtotalNeto, 2) . " + $" . number_format($totalIva, 2) . " = $" . number_format($subtotalNeto + $totalIva, 2) . "\n");
+
+    $printer->text("-----------------------------\n");
+    
+    // Mostrar subtotal y descuentos si existen
+    $hasDiscount = false;
+    $subtotalOriginal = 0;
+    $descuentoMonto = 0;
+    $tipoDescuento = '';
+    $valorDescuento = 0;
+    
+    // Verificar si hay información de descuentos
+    if (isset($afipData['discountData']) && is_array($afipData['discountData'])) {
+        $discountData = $afipData['discountData'];
+        if (isset($discountData['amount']) && $discountData['amount'] > 0) {
+            $hasDiscount = true;
+            $descuentoMonto = $discountData['amount'];
+            $tipoDescuento = $discountData['type'] ?? 'fixed';
+            $valorDescuento = $discountData['value'] ?? 0;
+            
+            // ✅ Preferir el subtotal SIN descuento si está disponible
+            if (isset($afipData['subtotalSinDescuento']) && $afipData['subtotalSinDescuento'] > 0) {
+                $subtotalOriginal = $afipData['subtotalSinDescuento'];
+            } elseif (isset($afipData['subtotal']) && $afipData['subtotal'] > 0) {
+                // Compatibilidad: usar 'subtotal' si es el valor sin descuento
+                $subtotalOriginal = $afipData['subtotal'];
+            } else {
+                // Fallback: calcular sumando total + descuento solo si no viene subtotal
+                $subtotalOriginal = $afipData['total'] + $descuentoMonto;
+            }
+            
+            // Debug para verificar cálculos AFIP
+            file_put_contents('php://stderr', "🔍 DESCUENTO AFIP DEBUG:\n");
+            file_put_contents('php://stderr', "- Subtotal original (del frontend): $" . number_format($subtotalOriginal, 2) . "\n");
+            file_put_contents('php://stderr', "- Descuento aplicado: -$" . number_format($descuentoMonto, 2) . "\n");
+            file_put_contents('php://stderr', "- Total final AFIP: $" . number_format($afipData['total'], 2) . "\n");
+            file_put_contents('php://stderr', "- Tipo descuento: " . $tipoDescuento . "\n");
+            file_put_contents('php://stderr', "- Valor descuento: " . $valorDescuento . "\n");
+            file_put_contents('php://stderr', "- Verificación AFIP: $" . number_format($subtotalOriginal, 2) . " - $" . number_format($descuentoMonto, 2) . " = $" . number_format($subtotalOriginal - $descuentoMonto, 2) . "\n");
+        }
+    } elseif (isset($afipData['subtotal']) && isset($afipData['total']) && $afipData['subtotal'] > $afipData['total']) {
+        // Calcular descuento basado en subtotal y total (fallback)
+        $hasDiscount = true;
+        $subtotalOriginal = $afipData['subtotal'];
+        $descuentoMonto = $subtotalOriginal - $afipData['total'];
+        
+        file_put_contents('php://stderr', "🔍 DESCUENTO AFIP FALLBACK:\n");
+        file_put_contents('php://stderr', "- Subtotal original: $" . number_format($subtotalOriginal, 2) . "\n");
+        file_put_contents('php://stderr', "- Descuento calculado: -$" . number_format($descuentoMonto, 2) . "\n");
+    }
+    
+    // Mostrar desglose si hay descuento
+    if ($hasDiscount) {
+        // ✅ CORRECCIÓN: Para descuentos de cantidad fija (amount/fixed), mostrar valores con IVA incluido
+        // Para descuentos porcentuales, mostrar valores sin IVA
+        if ($tipoDescuento === 'amount' || $tipoDescuento === 'fixed') {
+            // Descuento de cantidad fija: mostrar tal cual viene del backend (con IVA incluido)
+            $subtotalOriginalAMostrar = $subtotalOriginal; // $2040 (con IVA)
+            $descuentoAMostrar = $descuentoMonto; // $1000 (con IVA)
+            $totalConDescuentoAMostrar = $afipData['total']; // $1040 (con IVA)
+            
+            $printer->text("Subtotal sin descuento: $" . number_format($subtotalOriginalAMostrar, 2) . "\n");
+            
+            // Mostrar información detallada del descuento
+            if (!empty($valorDescuento) && $valorDescuento > 0) {
+                if ($tipoDescuento === 'fixed') {
+                    $printer->text("Descuento fijo aplicado: -$" . number_format($descuentoAMostrar, 2) . "\n");
+                } else {
+                    $printer->text("Descuento ($" . number_format($valorDescuento, 2) . "): -$" . number_format($descuentoAMostrar, 2) . "\n");
+                }
+            } else {
+                $printer->text("Descuento aplicado: -$" . number_format($descuentoAMostrar, 2) . "\n");
+            }
+            
+            $printer->text("Total c/descuento: $" . number_format($totalConDescuentoAMostrar, 2) . "\n");
+        } else {
+            // Descuento porcentual: mostrar valores sin IVA (cálculo proporcional)
+            $subtotalOriginalSinIva = $subtotalOriginal / 1.21; // Subtotal original sin IVA
+            $descuentoMontoSinIva = $descuentoMonto / 1.21; // Descuento sin IVA
+            
+            $printer->text("Subtotal sin descuento: $" . number_format($subtotalOriginalSinIva, 2) . "\n");
+            
+            // Mostrar información detallada del descuento
+            if (!empty($tipoDescuento) && $valorDescuento > 0) {
+                if ($tipoDescuento === 'percentage') {
+                    $printer->text("Descuento aplicado (" . number_format($valorDescuento, 1) . "%): -$" . number_format($descuentoMontoSinIva, 2) . "\n");
+                } else {
+                    $printer->text("Descuento aplicado: -$" . number_format($descuentoMontoSinIva, 2) . "\n");
+                }
+            } else {
+                $printer->text("Descuento aplicado: -$" . number_format($descuentoMontoSinIva, 2) . "\n");
+            }
+            
+            // Mostrar subtotal con descuento (sin IVA)
+            $printer->text("Subtotal con descuento: $" . number_format($subtotalNeto, 2) . "\n");
+        }
+        
+        $printer->text("-----------------------------\n");
+    }
+    
+    // Discriminación de IVA para Factura B
+    // ✅ CORRECCIÓN: Mostrar IVA desglosado solo cuando NO hay descuento o cuando el descuento es porcentual
+    // Para descuentos de cantidad fija, el IVA ya está incluido en el "Total c/descuento"
+    if (!$hasDiscount) {
+        $printer->text("Subtotal: $" . number_format($subtotalNeto, 2) . "\n");
+        $printer->text("IVA (21%): $" . number_format($totalIva, 2) . "\n");
+    } elseif ($hasDiscount && ($tipoDescuento === 'percentage')) {
+        // Para descuentos porcentuales, mostrar IVA desglosado
+        $printer->text("IVA (21%): $" . number_format($totalIva, 2) . "\n");
+    }
+    // Para descuentos de cantidad fija, no mostrar IVA desglosado (ya está incluido en el total)
+    
+    // El TOTAL a pagar siempre es el monto final con IVA proveniente del frontend
+    $totalFinal = $afipData['total'];
+    $printer->setEmphasis(true);
+    $printer->text(str_pad("TOTAL: $" . number_format($totalFinal, 2), 32, " ", STR_PAD_LEFT) . "\n");
+    $printer->setEmphasis(false);
+
+    // ✅ CORRECCIÓN: Mostrar método de pago correctamente
+    $printer->text("-----------------------------\n");
+    $metodoPago = $afipData['metodoPago'] ?? 'N/A';
+    
+    // ✅ CORRECCIÓN: Verificar si es un pago con múltiples métodos (split)
+    if (isset($afipData['pagos']) && is_array($afipData['pagos']) && count($afipData['pagos']) > 0) {
+        // Si hay múltiples pagos, mostrar como "MÉTODOS DE PAGO"
+        if (count($afipData['pagos']) > 1) {
+            $printer->text("MÉTODOS DE PAGO:\n");
+        } else {
+            $printer->text("MÉTODO DE PAGO:\n");
+        }
+        
+        foreach ($afipData['pagos'] as $pago) {
+            $metodoPagoItem = strtolower($pago['metodoPago'] ?? '');
+            $metodoPagoDisplay = '';
+            switch ($metodoPagoItem) {
+                case 'tarjeta':
+                    $metodoPagoDisplay = 'TARJETA';
+                    break;
+                case 'transferencia':
+                    $metodoPagoDisplay = 'TRANSFERENCIA';
+                    break;
+                case 'efectivo':
+                    $metodoPagoDisplay = 'EFECTIVO';
+                    break;
+                case 'qr':
+                    $metodoPagoDisplay = 'QR / MERCADOPAGO';
+                    break;
+                default:
+                    $metodoPagoDisplay = strtoupper($pago['metodoPago'] ?? 'N/A');
+                    break;
+            }
+            $monto = number_format($pago['monto'] ?? 0, 2);
+            $printer->text("$metodoPagoDisplay: $$monto\n");
+        }
+    } else {
+        // Para pagos con un solo método, normalizar el método de pago para mostrar correctamente
+    $metodoPagoDisplay = '';
+    switch (strtolower($metodoPago)) {
+        case 'tarjeta':
+            $metodoPagoDisplay = 'TARJETA';
+            break;
+        case 'transferencia':
+            $metodoPagoDisplay = 'TRANSFERENCIA';
+            break;
+        case 'efectivo':
+            $metodoPagoDisplay = 'EFECTIVO';
+            break;
+        case 'qr':
+            $metodoPagoDisplay = 'QR / MERCADOPAGO';
+            break;
+        case 'split':
+            $metodoPagoDisplay = 'PAGO MIXTO';
+            break;
+        default:
+            $metodoPagoDisplay = strtoupper($metodoPago);
+            break;
+    }
+    $printer->text("Método de pago: " . $metodoPagoDisplay . "\n");
+    }
+    
+    // Debug del método de pago
+    file_put_contents('php://stderr', "💳 Método de pago recibido: " . $metodoPago . "\n");
+    file_put_contents('php://stderr', "💳 Método de pago mostrado: " . $metodoPagoDisplay . "\n");
+
+    // Información AFIP obligatoria
+    $printer->text("-----------------------------\n");
+    $printer->setJustification(Printer::JUSTIFY_CENTER);
+    $printer->text("COMPROBANTE AUTORIZADO\n");
+    
+    // CAE - Código de Autorización Electrónico
+    $cae = $afipData['cae'] ?? 'NO DISPONIBLE';
+    $printer->setEmphasis(true);
+    $printer->text("CAE: " . $cae . "\n");
+    $printer->setEmphasis(false);
+    
+    // Fecha de vencimiento del CAE
+    $fechaVtoCae = $afipData['fechaVtoCae'] ?? date('Ymd');
+    if (strlen($fechaVtoCae) === 8) {
+        // Formato YYYYMMDD de AFIP
+        $fechaFormateada = date('d/m/Y', strtotime($fechaVtoCae));
+    } else {
+        $fechaFormateada = date('d/m/Y', strtotime($fechaVtoCae));
+    }
+    $printer->text("Fecha Vto CAE: $fechaFormateada\n");
+    
+    // Debug del CAE
+    file_put_contents('php://stderr', "💾 CAE procesado: " . $cae . "\n");
+    file_put_contents('php://stderr', "📅 Fecha Vto CAE: " . $fechaVtoCae . " -> " . $fechaFormateada . "\n");
+
+    $qrArca = $afipData['afipQrUrl'] ?? null;
+    if (!empty($afipData['cae']) && is_string($qrArca) && preg_match('#^https://www\.(arca|afip)\.gob\.ar/fe/qr/\?p=#', $qrArca)) {
+        $printer->feed(1);
+        $printer->setJustification(Printer::JUSTIFY_CENTER);
+        $printer->qrCode($qrArca, Printer::QR_ECLEVEL_M, 5);
+        $printer->feed(1);
+    }
+
+    // Pie de página
+    $printer->text("\n¡Gracias por su compra!\n");
+    $printer->text("Conserve este comprobante\n");
+    
+    $printer->feed(3);
+    $printer->cut();
+    $printer->pulse();
+    $printer->close();
+    
+
+
+    // Debug final
+    file_put_contents('php://stderr', "✅ Impresión AFIP completada exitosamente\n");
+    file_put_contents('php://stderr', "📊 ESTADÍSTICAS FINALES AFIP:\n");
+    file_put_contents('php://stderr', "- Items procesados: " . (isset($afipData['items']) ? count($afipData['items']) : 0) . "\n");
+    file_put_contents('php://stderr', "- Total impreso: $" . number_format($afipData['total'], 2) . "\n");
+    file_put_contents('php://stderr', "- CAE: " . ($afipData['cae'] ?? 'NO DISPONIBLE') . "\n");
+    file_put_contents('php://stderr', "- Business mostrado: " . $businessName . "\n");
+    file_put_contents('php://stderr', "- Razón Social: " . $razonSocial . "\n");
+    file_put_contents('php://stderr', "- CUIT: " . ($afipData['cuit'] ?? 'NO DISPONIBLE') . "\n");
+    file_put_contents('php://stderr', "- Vendedor: " . ($afipData['vendedor'] ?? $afipData['usuario'] ?? 'N/A') . "\n");
+    file_put_contents('php://stderr', "- Tipo Factura: " . ($afipData['tipoFactura'] ?? 'N/A') . "\n");
+    file_put_contents('php://stderr', "- Número: " . ($afipData['puntoVenta'] ?? '0001') . "-" . str_pad($afipData['numeroFactura'] ?? '1', 8, '0', STR_PAD_LEFT) . "\n");
+    
+    // Debug de la nueva estructura de configuración AFIP
+    if (isset($afipData['configuracionAfip'])) {
+        file_put_contents('php://stderr', "- Configuración AFIP encontrada: " . json_encode($afipData['configuracionAfip']) . "\n");
+    } else {
+        file_put_contents('php://stderr', "- Configuración AFIP: NO DISPONIBLE\n");
+    }
+    
+    file_put_contents('php://stderr', "====== FIN DEBUG IMPRESIÓN TICKET AFIP ======\n");
+
+} catch (Exception $e) {
+    file_put_contents('php://stderr', "Error AFIP: " . $e->getMessage() . "\n");
+    exit(1);
+}
+?>

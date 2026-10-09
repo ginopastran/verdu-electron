@@ -1,0 +1,144 @@
+PROMPT PARA IMPLEMENTAR DESCUENTOS EN ELECTRON
+==============================================
+
+He actualizado el backend para soportar descuentos en órdenes y facturas. Aquí tienes toda la información para implementar esta funcionalidad en tu aplicación de Electron:
+
+## CAMPOS AGREGADOS AL BACKEND:
+
+### Para Órdenes (POST /api/ordenes):
+- `tieneDescuento`: boolean (opcional, default: false)
+- `tipoDescuento`: string ("porcentual" | "cantidad")
+- `valorDescuento`: number (porcentaje o cantidad fija)
+- `subtotalSinDescuento`: number (subtotal antes del descuento)
+
+### Para Facturas (POST /api/facturas):
+- `tieneDescuento`: boolean (opcional, default: false)
+- `tipoDescuento`: string ("porcentual" | "cantidad")
+- `valorDescuento`: number (porcentaje o cantidad fija)
+- `subtotalSinDescuento`: number (subtotal antes del descuento)
+
+### Para MercadoPago QR (POST /api/mercadopago/generate-qr):
+- `tieneDescuento`: boolean (opcional, default: false)
+- `tipoDescuento`: string ("porcentual" | "cantidad")
+- `valorDescuento`: number (porcentaje o cantidad fija)
+- `subtotalSinDescuento`: number (subtotal antes del descuento)
+
+## LÓGICA DE CÁLCULO EN EL BACKEND:
+
+El backend calcula automáticamente:
+- `montoDescuento`: El monto real del descuento aplicado
+- Si `tipoDescuento` es "porcentual": `montoDescuento = subtotalSinDescuento * (valorDescuento / 100)`
+- Si `tipoDescuento` es "cantidad": `montoDescuento = valorDescuento`
+
+## RECOMENDACIONES PARA ELECTRON:
+
+### 1. INTERFAZ DE USUARIO:
+- Agregar un checkbox "Aplicar descuento"
+- Cuando esté marcado, mostrar:
+  - Radio buttons para seleccionar tipo: "Porcentual" o "Cantidad fija"
+  - Input numérico para el valor del descuento
+  - Mostrar preview del descuento calculado en tiempo real
+
+### 2. CÁLCULOS EN EL FRONTEND:
+```javascript
+// Ejemplo de cálculo temporal para mostrar al usuario
+function calcularDescuentoTemporal(subtotal, tipoDescuento, valorDescuento) {
+  if (!tipoDescuento || valorDescuento <= 0) return 0;
+  
+  if (tipoDescuento === 'porcentual') {
+    return subtotal * (valorDescuento / 100);
+  } else if (tipoDescuento === 'cantidad') {
+    return Math.min(valorDescuento, subtotal); // No puede ser mayor al subtotal
+  }
+  return 0;
+}
+
+// Mostrar totales actualizados
+function actualizarTotales(subtotal, descuento) {
+  const totalConDescuento = subtotal - descuento;
+  // Actualizar UI con los nuevos totales
+}
+```
+
+### 3. DATOS A ENVIAR AL BACKEND:
+
+#### Para Órdenes:
+```javascript
+const ordenData = {
+  // ... otros campos existentes (items, pagos, metodoPago, etc.)
+  total: totalFinalConDescuento, // Total ya con descuento aplicado
+  
+  // Campos de descuento (solo si hay descuento):
+  tieneDescuento: true, // o false si no hay descuento
+  tipoDescuento: "porcentual", // o "cantidad"
+  valorDescuento: 15, // 15% o $15 según el tipo
+  subtotalSinDescuento: 1000, // Subtotal original antes del descuento
+};
+```
+
+#### Para Facturas:
+```javascript
+const facturaData = {
+  // ... otros campos existentes (clienteId, detalles, etc.)
+  
+  // Campos de descuento (solo si hay descuento):
+  tieneDescuento: true,
+  tipoDescuento: "cantidad",
+  valorDescuento: 50, // $50 de descuento
+  subtotalSinDescuento: 500, // Subtotal original
+};
+```
+
+#### Para MercadoPago QR:
+```javascript
+const qrData = {
+  // ... otros campos existentes (monto, descripcion, etc.)
+  
+  // Campos de descuento (solo si hay descuento):
+  tieneDescuento: true,
+  tipoDescuento: "porcentual",
+  valorDescuento: 10, // 10% de descuento
+  subtotalSinDescuento: 1000, // Monto original antes del descuento
+};
+```
+
+### 4. VALIDACIONES RECOMENDADAS:
+- El valor del descuento debe ser mayor a 0
+- Para descuentos porcentuales: valor entre 1 y 100
+- Para descuentos de cantidad: no puede ser mayor al subtotal
+- Mostrar mensajes de error claros al usuario
+
+### 5. EXPERIENCIA DE USUARIO:
+- Mostrar claramente el subtotal original
+- Mostrar el descuento aplicado
+- Mostrar el total final
+- Permitir quitar el descuento fácilmente
+- Guardar preferencias de descuento para futuros usos
+
+### 6. EJEMPLO DE FLUJO:
+1. Usuario agrega productos (subtotal: $1000)
+2. Usuario marca "Aplicar descuento"
+3. Usuario selecciona "Porcentual" y pone "10"
+4. Frontend muestra: "Descuento: $100 (10%)"
+5. Frontend muestra: "Total: $900"
+6. Al enviar, se incluyen todos los campos de descuento
+7. Backend recalcula y valida los montos
+8. Se guarda la orden/factura con toda la información del descuento
+
+## CAMPOS QUE SE GUARDAN EN LA BASE DE DATOS:
+- `tieneDescuento`: boolean
+- `tipoDescuento`: string ("porcentual" | "cantidad" | null)
+- `valorDescuento`: number (valor ingresado por el usuario)
+- `montoDescuento`: number (monto calculado por el backend)
+- `subtotalSinDescuento`: number (subtotal original)
+
+Esto permite tener un historial completo de los descuentos aplicados y poder mostrar la información detallada en reportes y consultas posteriores.
+
+## ENDPOINTS ACTUALIZADOS:
+
+Todos los siguientes endpoints ya soportan campos de descuento:
+- ✅ **POST /api/ordenes** - Crear órdenes con descuentos
+- ✅ **POST /api/facturas** - Crear facturas con descuentos  
+- ✅ **POST /api/mercadopago/generate-qr** - Generar QR de MercadoPago con descuentos
+
+¡El backend ya está completamente listo para recibir estos datos!

@@ -11,6 +11,7 @@ interface User {
   nombre: string;
   email: string;
   sucursalId: number;
+  role?: string;
   permisos: {
     pesoManualEnabled?: boolean;
     cierreDeCajaEnabled?: boolean;
@@ -38,12 +39,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Intentar recuperar el usuario del localStorage al cargar
-    const storedUser = localStorage.getItem("user");
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
+    // ✅ CAMBIO: No restaurar automáticamente el usuario al iniciar la app
+    // Esto fuerza que siempre se vaya al selector de usuarios
+    // El usuario se autenticará manualmente cada vez que abra la app
+
+    try {
+      // Limpiar cualquier sesión anterior al iniciar
+      const storedUser = localStorage.getItem("user");
+      if (storedUser) {
+        localStorage.removeItem("user");
+      }
+
+      // Mantener el usuario como null para forzar re-autenticación
+      setUser(null);
+    } catch (error) {
+      console.error("❌ Error al limpiar sesión anterior:", error);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
+
+    // Safety timeout para AuthContext también
+    const safetyTimeout = setTimeout(() => {
+      setLoading(false);
+    }, 8000);
+
+    return () => clearTimeout(safetyTimeout);
   }, []);
 
   const updateUser = (newUser: User | null) => {
@@ -56,15 +76,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
+    // console.log("🚪 AuthContext: Iniciando logout...");
+
+    // Limpiar datos del usuario
     localStorage.removeItem("user");
     localStorage.removeItem("offlineCredentials");
     setUser(null);
+
+    // ✅ AGREGADO: Emitir evento personalizado para notificar logout a otros componentes
+    window.dispatchEvent(
+      new CustomEvent("userLogout", {
+        detail: {
+          timestamp: Date.now(),
+          reason: "manual_logout",
+        },
+      })
+    );
+
+    // console.log("✅ AuthContext: Logout completado y evento emitido");
   };
 
   const refreshUserData = async () => {
     // Ya no realizamos la petición HTTP a /api/usuarios/[id]
     // Simplemente usamos los datos que ya tenemos en memoria
-    console.log("La actualización de datos de usuario ha sido desactivada");
 
     // Si en el futuro necesitas volver a implementar esta función,
     // aquí estaría el código para hacer una petición a la API
