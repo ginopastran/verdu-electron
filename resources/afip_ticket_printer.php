@@ -90,7 +90,7 @@ try {
     }
     file_put_contents('php://stderr', "\n");
 
-    $nombre_impresora = "TP806L";
+    $nombre_impresora = $afipData['impresora'] ?? "TP806L";
     file_put_contents('php://stderr', "Conectando a impresora AFIP: " . $nombre_impresora . "\n");
     
     try {

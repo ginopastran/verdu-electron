@@ -13,6 +13,7 @@ import {
   listarPuertos,
   type ConfigBalanza,
 } from "./balanza.js";
+import { IMPRESORA_DEFAULT, compartirImpresora } from "./impresora.js";
 const require = createRequire(import.meta.url);
 
 // electron-store es ES Module, usamos import dinámico
@@ -336,6 +337,32 @@ function configBalanza(): ConfigBalanza {
   return { ...CONFIG_BALANZA_DEFAULT, ...(store?.get("balanza") ?? {}) };
 }
 
+const carpetaRecursos = () =>
+  process.env.NODE_ENV === "development"
+    ? path.join(app.getAppPath(), "resources")
+    : path.join(process.resourcesPath, "resources");
+
+const comandoPhp = () => {
+  const php = path.join(carpetaRecursos(), "php");
+  return `"${path.join(php, "php.exe")}" -c "${path.join(php, "php.ini")}"`;
+};
+
+function verificarPhp() {
+  exec(`${comandoPhp()} -r "echo extension_loaded('gd') && extension_loaded('mbstring') ? 'ok' : 'faltan extensiones';"`, (error, stdout, stderr) => {
+    if (!error && stdout.trim() === "ok") return;
+    const detalle = error ? stderr.trim() || error.message : stdout.trim();
+    console.error("❌ PHP del paquete no funciona:", detalle);
+    dialog.showMessageBox({
+      type: "warning",
+      title: "AndexMarket",
+      message: "La impresión de tickets no va a funcionar",
+      detail: `No se pudo iniciar el PHP incluido en el programa. Reinstalá AndexMarket.
+
+${detalle}`,
+    });
+  });
+}
+
 const rutaLogoNegocio = () => path.join(app.getPath("userData"), "logo-negocio.png");
 
 function conImpresion<T extends object>(datos: T) {
@@ -343,6 +370,7 @@ function conImpresion<T extends object>(datos: T) {
   return {
     ...datos,
     anchoPapel: store?.get("anchoPapel") === 58 ? 58 : 80,
+    impresora: store?.get("impresora") ?? IMPRESORA_DEFAULT,
     ...(fs.existsSync(logo) ? { logoPath: logo } : {}),
   };
 }
@@ -360,7 +388,25 @@ ipcMain.handle("logo-negocio-guardar", async (_, base64: string | null) => {
 ipcMain.handle("impresion-config-get", () => ({
   anchoPapel: store?.get("anchoPapel") === 58 ? 58 : 80,
   tieneLogo: fs.existsSync(rutaLogoNegocio()),
+  impresora: store?.get("impresoraWindows") ?? null,
+  recurso: store?.get("impresora") ?? IMPRESORA_DEFAULT,
 }));
+
+ipcMain.handle("impresora-elegir", async (_, nombre: string | null) => {
+  if (!nombre) {
+    store.delete("impresora");
+    store.delete("impresoraWindows");
+    return { ok: true, recurso: IMPRESORA_DEFAULT };
+  }
+  try {
+    const recurso = await compartirImpresora(nombre);
+    store.set("impresora", recurso);
+    store.set("impresoraWindows", nombre);
+    return { ok: true, recurso };
+  } catch (error) {
+    return { ok: false, error: (error as Error).message };
+  }
+});
 
 ipcMain.handle("impresion-config-set", (_, config: { anchoPapel: number }) => {
   store.set("anchoPapel", config.anchoPapel === 58 ? 58 : 80);
@@ -457,6 +503,7 @@ app.whenReady().then(async () => {
   await initializeStore();
 
   createWindow();
+  verificarPhp();
 
   // 👉 Iniciar watcher de peso en tiempo real
   setupPesoWatcher();
@@ -578,7 +625,7 @@ ipcMain.handle("print-ticket", async (_, orderData) => {
 
     return new Promise((resolve, reject) => {
       exec(
-        `set NODE_ENV=${process.env.NODE_ENV}&& php "${phpScriptPath}" "${tempDataPath}"`,
+        `set NODE_ENV=${process.env.NODE_ENV}&& ${comandoPhp()} "${phpScriptPath}" "${tempDataPath}"`,
         async (error, stdout, stderr) => {
           try {
             await fsPromises.unlink(tempDataPath);
@@ -682,7 +729,7 @@ ipcMain.handle("print-factura-ticket", async (_, facturaData) => {
 
     return new Promise((resolve, reject) => {
       exec(
-        `set NODE_ENV=${process.env.NODE_ENV}&& php "${phpScriptPath}" "${tempDataPath}"`,
+        `set NODE_ENV=${process.env.NODE_ENV}&& ${comandoPhp()} "${phpScriptPath}" "${tempDataPath}"`,
         async (error, stdout, stderr) => {
           try {
             await fsPromises.unlink(tempDataPath);
@@ -784,7 +831,7 @@ ipcMain.handle("print-afip-ticket", async (_, afipData) => {
     console.log(`PHP Script AFIP: ${phpScriptPath}`);
     console.log(`Datos AFIP: ${tempDataPath}`);
 
-    const command = `set NODE_ENV=${process.env.NODE_ENV}&& php "${phpScriptPath}" "${tempDataPath}"`;
+    const command = `set NODE_ENV=${process.env.NODE_ENV}&& ${comandoPhp()} "${phpScriptPath}" "${tempDataPath}"`;
     console.log("💻 AFIP: Comando a ejecutar:", command);
 
     return new Promise((resolve, reject) => {
@@ -945,7 +992,7 @@ ipcMain.handle("print-closing", async (_, closingData) => {
 
     return new Promise((resolve, reject) => {
       exec(
-        `set NODE_ENV=${process.env.NODE_ENV}&& php "${phpScriptPath}" "${tempDataPath}"`,
+        `set NODE_ENV=${process.env.NODE_ENV}&& ${comandoPhp()} "${phpScriptPath}" "${tempDataPath}"`,
         async (error, stdout, stderr) => {
           try {
             await fsPromises.unlink(tempDataPath);

@@ -4,40 +4,19 @@ Esta guía te ayudará a instalar y configurar todos los componentes necesarios 
 
 ## Requisitos Previos
 
-### 1. PHP y Composer
+El instalador trae todo lo necesario: PHP 8.3 con sus extensiones (`gd`, `mbstring`, `intl`) en `resources/php`, las librerías de impresión y el driver CH340 para balanzas con adaptador USB-serie. No hace falta instalar PHP, Composer ni tocar el PATH.
 
-1. Descarga PHP desde [windows.php.net/download](https://windows.php.net/download/)
-   - Selecciona la versión "VS16 x64 Thread Safe"
-   - Descomprime el archivo en `C:\php`
-2. Agrega PHP al PATH del sistema:
-   - Abre el Panel de Control → Sistema → Configuración avanzada del sistema
-   - Click en "Variables de entorno"
-   - En "Variables del sistema", selecciona "Path" y click en "Editar"
-   - Click en "Nuevo" y agrega `C:\php`
-3. Descarga Composer desde [getcomposer.org](https://getcomposer.org/download/)
-   - Ejecuta el instalador y sigue las instrucciones
+Para actualizar el PHP incluido: bajar el zip NTS x64 de windows.php.net y reemplazar en `resources/php` los archivos `php.exe`, `php8.dll`, `icu*.dll`, `ext/php_gd.dll`, `ext/php_mbstring.dll` y `ext/php_intl.dll`.
 
-### 2. Configuración de PHP
+Otros drivers USB-serie (FTDI, PL2303) los instala Windows Update. Para incluirlos en el instalador, copiar la carpeta con el `.inf` firmado dentro de `resources/drivers/`: el instalador carga con `pnputil` todos los `.inf` que encuentre ahí.
 
-1. En la carpeta `C:\php`, copia el archivo `php.ini-development` y renómbralo a `php.ini`
-2. Abre `php.ini` y habilita las siguientes extensiones (quita el ; del inicio de la línea):
-   ```ini
-   extension=fileinfo
-   extension=gd
-   extension=mbstring
-   extension=openssl
-   extension=pdo_mysql
-   extension=sockets
-   ```
+### 1. Impresora Térmica
 
-### 3. Impresora Térmica
+1. Instala los drivers de tu impresora térmica (dependen de la marca).
+2. En el POS, menú de usuario → Impresión, elegí la impresora. El programa la comparte sola en Windows.
+   - Si no se elige ninguna, imprime en la impresora compartida como `TP806L`, como en las versiones anteriores.
 
-1. Instala los drivers de tu impresora térmica
-   - Para impresoras Epson: Descarga "EPSON Advanced Printer Driver" desde la web oficial
-   - Para otras marcas: Sigue las instrucciones del fabricante
-2. Configura la impresora como predeterminada en Windows
-
-### 4. Balanza Electrónica (si aplica)
+### 2. Balanza Electrónica (si aplica)
 
 1. Conecta la balanza a un puerto COM de la computadora
 2. Anota el número de puerto COM asignado (lo necesitarás más adelante)
@@ -70,11 +49,9 @@ Esta guía te ayudará a instalar y configurar todos los componentes necesarios 
 - Comprueba que el puerto COM configurado sea el correcto
 - Reinicia la balanza y el programa
 
-### Error de "PHP no encontrado"
+### Aviso "La impresión de tickets no va a funcionar" al abrir
 
-- Verifica que PHP esté correctamente instalado y en el PATH
-- Reinicia la computadora después de instalar PHP
-- Abre una terminal y ejecuta `php -v` para verificar la instalación
+- El PHP incluido no pudo arrancar. Reinstalá AndexMarket.
 
 ## Soporte
 

@@ -45,7 +45,7 @@ try {
         }
     }
     
-    $nombre_impresora = "TP806L";
+    $nombre_impresora = $closingData['impresora'] ?? "TP806L";
     
     // Detectar modo simulación (pasar --simulate como segundo argumento)
     $simulate = in_array("--simulate", $argv, true);

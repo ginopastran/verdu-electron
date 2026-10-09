@@ -21,6 +21,10 @@ import {
 
 const ipc = () => (window as any).electron?.ipcRenderer;
 
+const POR_DEFECTO = "__default__";
+
+type ConfigImpresion = { anchoPapel: number; tieneLogo: boolean; impresora: string | null; recurso: string };
+
 export function ImpresionDialog({
   open,
   onOpenChange,
@@ -33,14 +37,39 @@ export function ImpresionDialog({
   const [anchoPapel, setAnchoPapel] = useState("80");
   const [tieneLogo, setTieneLogo] = useState(false);
   const [imprimiendo, setImprimiendo] = useState(false);
+  const [impresoras, setImpresoras] = useState<string[]>([]);
+  const [impresora, setImpresora] = useState(POR_DEFECTO);
+  const [recurso, setRecurso] = useState("TP806L");
+  const [guardandoImpresora, setGuardandoImpresora] = useState(false);
 
   useEffect(() => {
     if (!open || !ipc()) return;
-    ipc().invoke("impresion-config-get").then((c: { anchoPapel: number; tieneLogo: boolean }) => {
+    ipc().invoke("impresion-config-get").then((c: ConfigImpresion) => {
       setAnchoPapel(String(c.anchoPapel));
       setTieneLogo(c.tieneLogo);
+      setImpresora(c.impresora ?? POR_DEFECTO);
+      setRecurso(c.recurso);
     });
+    ipc()
+      .invoke("get-available-printers")
+      .then((lista: { name: string }[]) => setImpresoras(lista.map((p) => p.name)))
+      .catch(() => setImpresoras([]));
   }, [open]);
+
+  const cambiarImpresora = async (valor: string) => {
+    setGuardandoImpresora(true);
+    try {
+      const resultado = await ipc()?.invoke("impresora-elegir", valor === POR_DEFECTO ? null : valor);
+      if (!resultado?.ok) throw new Error(resultado?.error ?? "No se pudo compartir la impresora");
+      setImpresora(valor);
+      setRecurso(resultado.recurso);
+      toast.success("Impresora guardada");
+    } catch (error) {
+      toast.error((error as Error).message);
+    } finally {
+      setGuardandoImpresora(false);
+    }
+  };
 
   const cambiarAncho = async (valor: string) => {
     setAnchoPapel(valor);
@@ -76,9 +105,29 @@ export function ImpresionDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Impresión</DialogTitle>
-          <DialogDescription>Ancho del papel de la impresora térmica y prueba del encabezado.</DialogDescription>
+          <DialogDescription>Impresora térmica, ancho del papel y prueba del encabezado.</DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
+          <div className="space-y-1">
+            <Label>Impresora</Label>
+            <Select value={impresora} onValueChange={cambiarImpresora} disabled={guardandoImpresora}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={POR_DEFECTO}>Compartida como TP806L (por defecto)</SelectItem>
+                {impresoras.map((nombre) => (
+                  <SelectItem key={nombre} value={nombre}>
+                    {nombre}
+                  </SelectItem>
+                ))}
+                {impresora !== POR_DEFECTO && !impresoras.includes(impresora) && (
+                  <SelectItem value={impresora}>{impresora} (no conectada)</SelectItem>
+                )}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">Se imprime en el recurso compartido «{recurso}».</p>
+          </div>
           <div className="space-y-1">
             <Label>Ancho del papel</Label>
             <Select value={anchoPapel} onValueChange={cambiarAncho}>

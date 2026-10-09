@@ -63,7 +63,7 @@ try {
         file_put_contents('php://stderr', "- Cantidad de detalles: N/A (no es array o no existe)\n");
     }
 
-    $nombre_impresora = "TP806L";
+    $nombre_impresora = $facturaData['impresora'] ?? "TP806L";
     file_put_contents('php://stderr', "Conectando a impresora: " . $nombre_impresora . "\n");
     
     try {

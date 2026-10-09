@@ -1,6 +1,6 @@
 {
   "name": "andex-market",
-  "version": "3.7.1",
+  "version": "3.8.0",
   "description": "Sistema de punto de venta AndexMarket",
   "author": "AndexTech",
   "main": "dist-electron/main.js",
@@ -145,7 +145,8 @@
       "createDesktopShortcut": true,
       "runAfterFinish": true,
       "perMachine": true,
-      "deleteAppDataOnUninstall": false
+      "deleteAppDataOnUninstall": false,
+      "include": "build/installer.nsh"
     },
     "publish": [
       {
