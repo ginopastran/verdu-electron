@@ -211,69 +211,9 @@ fn pantalla(nombre: &str, ruta: Ruta, opciones: Opciones, pasos: impl FnOnce(&mu
 }
 
 #[test]
-fn facturas_cargando() {
-    pantalla("61-facturas-cargando", Ruta::Facturas, Opciones { demora_facturas: 5000, ..Default::default() }, |_| {});
-}
-
-#[test]
-fn facturas_lista() {
-    pantalla("62-facturas-lista", Ruta::Facturas, Opciones::default(), |_| {});
-}
-
-#[test]
-fn facturas_filtro_estado() {
-    pantalla("63-facturas-filtro-estado", Ruta::Facturas, Opciones::default(), |h| {
-        clic(h, 580.0, 129.0);
-        esperar(h, 200);
-    });
-}
-
-#[test]
-fn historial_pagos() {
-    pantalla("64-historial-pagos", Ruta::Facturas, Opciones::default(), |h| {
-        clic(h, 129.0, 544.0);
-        esperar(h, 200);
-        h.remove_cursor();
-    });
-}
-
-#[test]
-fn agregar_pago() {
-    pantalla("65-agregar-pago", Ruta::Facturas, Opciones::default(), |h| {
-        clic(h, 286.0, 544.0);
-        esperar(h, 200);
-        h.remove_cursor();
-    });
-}
-
-#[test]
-fn factura_editar() {
-    pantalla("66-factura-editar", Ruta::Facturas, Opciones::default(), |h| {
-        clic(h, 230.0, 500.0);
-        esperar(h, 200);
-        h.remove_cursor();
-    });
-}
-
-#[test]
-fn factura_detalle() {
-    pantalla("67-factura-detalle", Ruta::FacturaDetalle("f102".into()), Opciones::default(), |_| {});
-}
-
-#[test]
-fn factura_detalle_remito() {
-    pantalla("68-factura-detalle-remito", Ruta::FacturaDetalle("f101".into()), Opciones::default(), |_| {});
-}
-
-#[test]
-fn facturas_vacio() {
-    pantalla("69-facturas-vacio", Ruta::Facturas, Opciones { facturas_vacias: true, ..Default::default() }, |_| {});
-}
-
-#[test]
 fn factura_form_nueva() {
     pantalla("70-factura-form-nueva", Ruta::Facturas, Opciones { facturas_vacias: true, ..Default::default() }, |h| {
-        clic(h, 600.0, 317.0);
+        clic(h, 600.0, 485.0);
         esperar(h, 400);
         h.remove_cursor();
     });
@@ -542,94 +482,6 @@ fn lista_de_precios_actualiza_los_precios() {
 }
 
 #[test]
-fn agregar_pago_envia_el_pago_y_recarga() {
-    let (url, registro) = servidor_con_registro(Opciones::default());
-    let app = App::de_prueba(global(Ruta::Facturas), servicios(&url));
-    let mut harness = Harness::builder().with_size([1200.0, 800.0]).wgpu().build_ui_state(|ui, app: &mut App| pleno(ui, |ui| app.mostrar(ui)), app);
-    esperar(&mut harness, 600);
-    clic(&mut harness, 286.0, 544.0);
-    esperar(&mut harness, 200);
-    clic(&mut harness, 600.0, 287.0);
-    harness.event(Event::Text("1000".into()));
-    harness.step();
-    harness.key_press(egui::Key::Enter);
-    esperar(&mut harness, 800);
-    let pagos = enviados(&registro, "POST", "/api/facturas/agregar-pago");
-    assert_eq!(pagos.len(), 1, "{:?}", registro.lock().unwrap());
-    assert_eq!(pagos[0]["facturaId"], "f101");
-    assert_eq!(pagos[0]["monto"], 1000.0);
-    assert_eq!(pagos[0]["metodoPago"], "efectivo");
-    assert_eq!(pagos[0]["fecha"], nucleo::facturas::hoy_argentina().format("%Y-%m-%d").to_string());
-    assert!(pagos[0].get("referencia").is_none());
-    let listas = registro.lock().unwrap().iter().filter(|(m, r, _)| m == "GET" && r.starts_with("/api/facturas?")).count();
-    assert!(listas >= 2, "la lista no se recargó");
-}
-
-fn lista_registrada(registro_url: (String, Registro)) -> (Harness<'static, App>, Registro) {
-    let (url, registro) = registro_url;
-    let app = App::de_prueba(global(Ruta::Facturas), servicios(&url));
-    let mut harness = Harness::builder().with_size([1200.0, 800.0]).wgpu().build_ui_state(|ui, app: &mut App| pleno(ui, |ui| app.mostrar(ui)), app);
-    esperar(&mut harness, 600);
-    (harness, registro)
-}
-
-fn pedidos_de_lista(registro: &Registro) -> Vec<String> {
-    registro.lock().unwrap().iter().filter(|(m, r, _)| m == "GET" && r.starts_with("/api/facturas?")).map(|(_, r, _)| r.clone()).collect()
-}
-
-#[test]
-fn guardar_en_el_modal_hace_put() {
-    let (mut h, registro) = lista_registrada(servidor_con_registro(Opciones::default()));
-    clic(&mut h, 230.0, 500.0);
-    esperar(&mut h, 200);
-    clic(&mut h, 806.0, 239.0);
-    esperar(&mut h, 200);
-    guardar(&mut h, "66b-factura-editar-estado");
-    clic(&mut h, 806.0, 311.0);
-    esperar(&mut h, 200);
-    clic(&mut h, 954.0, 87.0);
-    esperar(&mut h, 800);
-    let cuerpos = enviados(&registro, "PUT", "/api/facturas/f101");
-    assert_eq!(cuerpos, vec![json!({ "estado": "pagada" })], "{:?}", registro.lock().unwrap());
-    assert!(pedidos_de_lista(&registro).len() >= 2, "la lista no se recargó");
-    guardar(&mut h, "66c-factura-guardada");
-}
-
-const BOTON_ANULAR: (f32, f32) = (736.0, 455.0);
-
-#[test]
-fn eliminar_anula_con_confirmacion() {
-    let (mut h, registro) = lista_registrada(servidor_con_registro(Opciones::default()));
-    clic(&mut h, 346.0, 500.0);
-    esperar(&mut h, 200);
-    assert!(enviados(&registro, "DELETE", "/api/facturas/f101").is_empty());
-    guardar(&mut h, "71-facturas-eliminar");
-    h.key_press(egui::Key::Escape);
-    esperar(&mut h, 200);
-    clic(&mut h, 346.0, 500.0);
-    esperar(&mut h, 200);
-    clic(&mut h, BOTON_ANULAR.0, BOTON_ANULAR.1);
-    esperar(&mut h, 800);
-    let cuerpos = enviados(&registro, "DELETE", "/api/facturas/f101");
-    assert_eq!(cuerpos, vec![json!({ "forceDelete": false })], "{:?}", registro.lock().unwrap());
-    assert!(pedidos_de_lista(&registro).len() >= 2, "la lista no se recargó");
-}
-
-#[test]
-fn limpiar_filtros_borra_la_busqueda() {
-    let (mut h, registro) = lista_registrada(servidor_con_registro(Opciones::default()));
-    clic(&mut h, 250.0, 129.0);
-    h.event(Event::Text("zzz".into()));
-    esperar(&mut h, 800);
-    assert!(pedidos_de_lista(&registro).last().unwrap().contains("search=zzz"));
-    clic(&mut h, 600.0, 317.0);
-    esperar(&mut h, 800);
-    let ultimo = pedidos_de_lista(&registro).last().unwrap().clone();
-    assert!(!ultimo.contains("search="), "{ultimo}");
-    guardar(&mut h, "69b-facturas-filtros-limpios");
-}
-
-#[test]
 fn pdf_se_guarda_en_la_carpeta_indicada() {
     let (url, registro) = servidor_con_registro(Opciones::default());
     let carpeta = std::env::temp_dir().join(format!("andexmarket-pdf-{}", std::process::id()));
@@ -691,28 +543,3 @@ fn reabrir_con_lista_mantiene_desplegable_y_envio() {
     assert!(!abierto);
 }
 
-#[test]
-fn detalle_ver_cliente_y_agregar_pago() {
-    let (url, registro) = servidor_con_registro(Opciones::default());
-    let app = App::de_prueba(global(Ruta::FacturaDetalle("f101".into())), servicios(&url));
-    let mut h = Harness::builder().with_size([1200.0, 800.0]).wgpu().build_ui_state(|ui, app: &mut App| pleno(ui, |ui| app.mostrar(ui)), app);
-    esperar(&mut h, 600);
-    clic(&mut h, 980.0, 320.0);
-    esperar(&mut h, 200);
-    guardar(&mut h, "68b-factura-detalle-cliente");
-    h.key_press(egui::Key::Escape);
-    esperar(&mut h, 200);
-    clic(&mut h, 1086.0, 52.0);
-    esperar(&mut h, 200);
-    guardar(&mut h, "68c-factura-detalle-agregar-pago");
-    clic(&mut h, 600.0, 287.0);
-    h.event(Event::Text("1500,50".into()));
-    h.step();
-    h.key_press(egui::Key::Enter);
-    esperar(&mut h, 800);
-    let pagos = enviados(&registro, "POST", "/api/facturas/agregar-pago");
-    assert_eq!(pagos.len(), 1, "{:?}", registro.lock().unwrap());
-    assert_eq!(pagos[0]["facturaId"], "f101");
-    assert_eq!(pagos[0]["monto"], 1500.5);
-    assert_eq!(enviados(&registro, "GET", "/api/facturas/f101").len(), 2, "el detalle no se recargó");
-}

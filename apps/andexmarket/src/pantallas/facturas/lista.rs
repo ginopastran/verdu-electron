@@ -364,6 +364,13 @@ impl Lista {
                     f.tipo_factura.clear();
                 });
             }
+        } else {
+            ui.add_space(16.0);
+            let boton = Boton::primario("Crear primera factura").icono("plus").tam_icono(15.0).alto(36.0).radio(radio::CONTROL).tam_texto(tam::CONTROL).sin_sombra();
+            if vista::boton_centrado(ui, boton) {
+                self.formulario = FormularioFactura::default();
+                self.formulario.abrir(Vec::new());
+            }
         }
         ui.add_space(48.0);
     }

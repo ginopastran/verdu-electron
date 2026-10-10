@@ -443,3 +443,111 @@ fn cc_editar_factura() {
         esperar(h, 400);
     });
 }
+
+fn lista_1366() -> (Harness<'static, App>, Registro) {
+    armar(Ruta::Facturas, Opciones::default(), [1366.0, 768.0])
+}
+
+#[test]
+fn agregar_pago_envia_el_pago_y_recarga() {
+    let (mut h, registro) = lista_1366();
+    clic(&mut h, 1155.0, FILA_1);
+    esperar(&mut h, 300);
+    clic(&mut h, 680.0, 352.0);
+    escribir(&mut h, "1000");
+    h.key_press(egui::Key::Enter);
+    esperar(&mut h, 800);
+    let pagos = enviados(&registro, "POST", "/api/facturas/agregar-pago");
+    assert_eq!(pagos.len(), 1, "{:?}", registro.lock().unwrap());
+    assert_eq!(pagos[0]["facturaId"], "f8");
+    assert_eq!(pagos[0]["monto"], 1000.0);
+    assert_eq!(pagos[0]["metodoPago"], "efectivo");
+    assert_eq!(pagos[0]["fecha"], nucleo::facturas::hoy_argentina().format("%Y-%m-%d").to_string());
+    assert!(pagos[0].get("referencia").is_none());
+    assert!(listas_pedidas(&registro).len() >= 2, "la lista no se recargó");
+}
+
+#[test]
+fn pago_mayor_al_saldo_no_se_envia() {
+    let (mut h, registro) = lista_1366();
+    clic(&mut h, 1155.0, FILA_1);
+    esperar(&mut h, 300);
+    clic(&mut h, 680.0, 352.0);
+    escribir(&mut h, "999999");
+    h.key_press(egui::Key::Enter);
+    esperar(&mut h, 500);
+    assert!(enviados(&registro, "POST", "/api/facturas/agregar-pago").is_empty());
+}
+
+#[test]
+fn guardar_en_el_modal_hace_put() {
+    let (mut h, registro) = lista_1366();
+    clic(&mut h, 1239.0, FILA_1);
+    esperar(&mut h, 300);
+    clic(&mut h, 887.0, 227.0);
+    esperar(&mut h, 300);
+    clic(&mut h, 887.0, 309.0);
+    esperar(&mut h, 200);
+    clic(&mut h, 960.0, 630.0);
+    esperar(&mut h, 800);
+    let cuerpos = enviados(&registro, "PUT", "/api/facturas/f8");
+    assert_eq!(cuerpos, vec![json!({ "estado": "pagada" })], "{:?}", registro.lock().unwrap());
+    assert!(listas_pedidas(&registro).len() >= 2, "la lista no se recargó");
+}
+
+#[test]
+fn eliminar_anula_con_confirmacion() {
+    let (mut h, registro) = lista_1366();
+    clic(&mut h, 1303.0, FILA_1);
+    esperar(&mut h, 300);
+    assert!(enviados(&registro, "DELETE", "/api/facturas/f8").is_empty());
+    h.key_press(egui::Key::Escape);
+    esperar(&mut h, 300);
+    clic(&mut h, 1303.0, FILA_1);
+    esperar(&mut h, 300);
+    clic(&mut h, 810.0, 448.0);
+    esperar(&mut h, 800);
+    let cuerpos = enviados(&registro, "DELETE", "/api/facturas/f8");
+    assert_eq!(cuerpos, vec![json!({ "forceDelete": false })], "{:?}", registro.lock().unwrap());
+    assert!(listas_pedidas(&registro).len() >= 2, "la lista no se recargó");
+}
+
+#[test]
+fn limpiar_filtros_borra_la_busqueda() {
+    let (mut h, registro) = lista_1366();
+    clic(&mut h, 150.0, 262.0);
+    escribir(&mut h, "zzz");
+    esperar(&mut h, 800);
+    assert!(listas_pedidas(&registro).last().unwrap().contains("search=zzz"));
+    clic(&mut h, 683.0, 485.0);
+    esperar(&mut h, 800);
+    let ultimo = listas_pedidas(&registro).last().unwrap().clone();
+    assert!(!ultimo.contains("search="), "{ultimo}");
+}
+
+#[test]
+fn detalle_ver_cliente_y_agregar_pago() {
+    let (mut h, registro) = armar(Ruta::FacturaDetalle("f1".into()), Opciones::default(), [1366.0, 768.0]);
+    clic(&mut h, 1238.0, 327.0);
+    esperar(&mut h, 300);
+    guardar(&mut h, "cc-detalle-cliente-1366");
+    h.key_press(egui::Key::Escape);
+    esperar(&mut h, 300);
+    clic(&mut h, 1158.0, 272.0);
+    esperar(&mut h, 300);
+    clic(&mut h, 680.0, 352.0);
+    escribir(&mut h, "1500,50");
+    h.key_press(egui::Key::Enter);
+    esperar(&mut h, 800);
+    let pagos = enviados(&registro, "POST", "/api/facturas/agregar-pago");
+    assert_eq!(pagos.len(), 1, "{:?}", registro.lock().unwrap());
+    assert_eq!(pagos[0]["facturaId"], "f1");
+    assert_eq!(pagos[0]["monto"], 1500.5);
+    assert_eq!(enviados(&registro, "GET", "/api/facturas/f1").len(), 2, "el detalle no se recargó");
+}
+
+#[test]
+fn cc_cargando() {
+    en_ambos("cc-cargando", Ruta::Facturas, Opciones { demora: 5000, ..Default::default() }, |_, _| {});
+    en_ambos("cc-detalle-cargando", Ruta::FacturaDetalle("f1".into()), Opciones { demora: 5000, ..Default::default() }, |_, _| {});
+}
