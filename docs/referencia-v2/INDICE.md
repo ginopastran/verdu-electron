@@ -1,0 +1,95 @@
+# Referencia v2: capturas del POS AndexMarket
+
+Prototipo: `design/redise-o-profesional-de-app/project/Andex POS.dc.html`. Cada captura existe en 1920x1080 (`-1920.png`) y 1366x768 (`-1366.png`). Se regeneran con `node docs/referencia-v2/capturar.mjs` (Edge headless + CDP; acepta una regex para capturar solo algunas).
+
+Props del prototipo por defecto: pantallaInicial=pos, afip=true, facturacion=true, mercadoPago=true, cancelacionControlada=false, pesoManual=true. Vendedor logueado: Lucía Fernández.
+
+- `01-config-inicial-{1920,1366}.png`: Configuración inicial vacía. pantallaInicial=admin (screen "admin").
+- `02-config-inicial-error-{1920,1366}.png`: Configuración inicial con error de validación: email cargado, contraseña vacía y submitAdmin() (botón Configurar negocio / Enter).
+- `03-config-inicial-cargando-{1920,1366}.png`: Configuración inicial enviando: ad.loading=true (estado que pone submitAdmin mientras espera).
+- `04-quien-vende-{1920,1366}.png`: ¿Quién está vendiendo? Grilla de vendedores (pantallaInicial=usuarios).
+- `05-quien-vende-cargando-{1920,1366}.png`: ¿Quién está vendiendo? cargando: skeleton de vendedores (vLoading=true, como queda tras configurar el negocio).
+- `06-modal-contrasena-vendedor-{1920,1366}.png`: Modal Ingresá tu contraseña: click en la tarjeta de Lucía Fernández (pickVendor) en Quién está vendiendo.
+- `07-modal-contrasena-vendedor-error-{1920,1366}.png`: Modal contraseña con error: 2 caracteres y submitPw() (Enter).
+- `08-modal-contrasena-vendedor-cargando-{1920,1366}.png`: Modal contraseña ingresando: m.loading=true (estado de submitPw mientras valida).
+- `09-modal-confirmar-reconfigurar-{1920,1366}.png`: Confirmación ¿Reconfigurar el punto de venta?: openReconfig() desde Quién está vendiendo.
+- `10-cuenta-administrador-{1920,1366}.png`: Pantalla Esta es una cuenta de administrador: vendedor con rol ADMIN (Martín Álvarez) que ingresa contraseña (screen "adminMsg").
+- `11-pos-orden-vacia-{1920,1366}.png`: Punto de venta con la orden vacía (pantallaInicial=pos, afip y facturación on).
+- `12-pos-con-items-{1920,1366}.png`: Punto de venta con 6 productos (kg, unidad y uno con lista Mayorista) cargados con addItem; el último queda resaltado.
+- `13-pos-buscador-resultados-{1920,1366}.png`: Buscador con resultados: se escribe "to" en el buscador (state.q).
+- `14-pos-buscador-segundo-resultado-{1920,1366}.png`: Buscador con el segundo resultado elegido con flecha abajo (sel=1).
+- `15-pos-buscador-sin-resultados-{1920,1366}.png`: Buscador sin resultados: se escribe "xyz".
+- `16-pos-menu-usuario-{1920,1366}.png`: Menú de usuario abierto (click en el avatar del header: toggleMenu).
+- `17-pos-varias-pestanas-{1920,1366}.png`: Tres órdenes en espera (botón Nueva orden dos veces), la Orden 2 activa con productos.
+- `18-pos-sin-afip-{1920,1366}.png`: Punto de venta con afip=false: F2 Cobrar sin factura y sin acciones F3/F8.
+- `19-pos-sin-facturacion-{1920,1366}.png`: Punto de venta con facturacion=false: sin Cuenta corriente en header ni en acciones (F6).
+- `20-pos-sin-afip-sin-facturacion-{1920,1366}.png`: Punto de venta con afip=false y facturacion=false.
+- `21-pos-cancelacion-controlada-{1920,1366}.png`: Punto de venta con cancelacionControlada=true: los ítems no tienen botón de quitar.
+- `22-pos-header-angosto-{1920,1366}.png`: Header angosto (ventana < 1240 px): botones del header solo con ícono y avatar sin nombre (state.wide=false).
+- `23-modal-cancelar-orden-{1920,1366}.png`: Confirmación ¿Cancelar la orden? con la lista de productos: F1 / Cancelar orden (cancelSale).
+- `24-modal-cancelar-controlada-{1920,1366}.png`: Cancelar y registrar con motivo (cancelacionControlada=true): F1 y se escribe el motivo.
+- `25-modal-cerrar-pestana-{1920,1366}.png`: Confirmación ¿Cerrar la Orden 2? al tocar la X de una pestaña con productos (delTab).
+- `26-modal-agregar-kg-{1920,1366}.png`: Agregar producto por kilo (Tomate redondo) con listas de precios y peso estable: Enter sobre el resultado del buscador (openAdd).
+- `27-modal-agregar-kg-leyendo-{1920,1366}.png`: Agregar producto por kilo mientras la balanza estabiliza (wStable=false).
+- `28-modal-agregar-kg-manual-{1920,1366}.png`: Agregar producto por kilo con Ingresar peso manualmente activado y 1250 g escritos.
+- `29-modal-agregar-kg-sin-peso-manual-{1920,1366}.png`: Agregar producto por kilo con pesoManual=false (sin el switch) y sin listas de precios (Zanahoria).
+- `30-modal-agregar-unidad-{1920,1366}.png`: Agregar producto por unidad sin listas (Lechuga criolla), 2 unidades.
+- `31-modal-agregar-unidad-lista-{1920,1366}.png`: Agregar producto por unidad con lista Mayorista elegida (Palta Hass).
+- `32-modal-agregar-error-{1920,1366}.png`: Agregar producto por unidad con cantidad vacía y confirmar: error.
+- `33-modal-descuento-{1920,1366}.png`: Aplicar descuento vacío (F7 Cobrar con descuento: openDiscount(true)).
+- `34-modal-descuento-porcentaje-{1920,1366}.png`: Aplicar descuento con preset 10% elegido.
+- `35-modal-descuento-monto-fijo-{1920,1366}.png`: Aplicar descuento en pestaña Monto fijo con $2.000 (F8 Descuento sin factura: openDiscount(false)).
+- `36-modal-metodo-pago-factura-{1920,1366}.png`: Método de pago Cobrar con factura AFIP (F2 con afip=true).
+- `37-modal-metodo-pago-sin-factura-{1920,1366}.png`: Método de pago Cobrar orden sin factura (F3).
+- `38-modal-metodo-pago-con-descuento-{1920,1366}.png`: Método de pago después de aplicar 10% de descuento (subtotal tachado).
+- `39-modal-metodo-pago-procesando-{1920,1366}.png`: Método de pago procesando Tarjeta (tecla 2: proc=tarjeta).
+- `40-modal-efectivo-{1920,1366}.png`: Cobro en efectivo con redondeo (tecla 3 en Método de pago).
+- `41-modal-efectivo-vuelto-{1920,1366}.png`: Cobro en efectivo con billete de $20.000 elegido: muestra el vuelto.
+- `42-modal-efectivo-descuento-{1920,1366}.png`: Cobro en efectivo con Descuento efectivo 10% aplicado (F5).
+- `43-modal-mixto-{1920,1366}.png`: Pago mixto con $5.000 en efectivo y el resto con tarjeta (tecla 4).
+- `44-modal-mixto-error-{1920,1366}.png`: Pago mixto confirmado sin monto: error de validación.
+- `45-modal-qr-esperando-{1920,1366}.png`: Cobro con QR esperando el pago (tecla 1 con mercadoPago=true).
+- `46-modal-qr-acreditado-{1920,1366}.png`: Cobro con QR con el pago acreditado.
+- `47-modal-venta-completada-factura-{1920,1366}.png`: Venta cobrada en efectivo con vuelto, Factura B y CAE, ticket impreso (complete).
+- `48-modal-venta-completada-imprimiendo-{1920,1366}.png`: Venta cobrada sin factura con tarjeta, mientras imprime el ticket.
+- `49-modal-venta-completada-mixto-{1920,1366}.png`: Venta cobrada con pago mixto (efectivo + transferencia).
+- `50-modal-ordenes-cargando-{1920,1366}.png`: Transacciones del día cargando (botón Órdenes del header: openOrders).
+- `51-modal-ordenes-{1920,1366}.png`: Transacciones del día del vendedor con KPIs y tabla.
+- `52-modal-ordenes-paginacion-{1920,1366}.png`: Transacciones del día con 12 órdenes: paginación de 6 por página.
+- `53-modal-ordenes-vacio-{1920,1366}.png`: Transacciones del día sin órdenes del vendedor.
+- `54-modal-cierre-caja-{1920,1366}.png`: Cierre de caja: elegir período (botón Cierre de caja del header).
+- `55-modal-cierre-caja-procesando-{1920,1366}.png`: Cierre de caja procesando Todo el día (tecla 3).
+- `56-modal-cierre-manual-{1920,1366}.png`: Cierre manual con fechas y horas (tecla 4 en Cierre de caja).
+- `57-modal-cierre-manual-varios-dias-{1920,1366}.png`: Cierre manual de varios días (desde ayer): aviso amarillo.
+- `58-modal-cierre-manual-error-{1920,1366}.png`: Cierre manual con hora de fin anterior a la de inicio: error.
+- `59-modal-resultado-cierre-{1920,1366}.png`: Resultado del cierre de Todo el día (KPIs, métodos de pago y vendedores).
+- `60-modal-impresion-{1920,1366}.png`: Impresión: impresora y ancho de papel (menú de usuario > Impresión).
+- `61-modal-impresion-dropdown-{1920,1366}.png`: Impresión con el desplegable de impresoras abierto.
+- `62-modal-balanza-{1920,1366}.png`: Balanza en modo Puerto serie con lectura en vivo (menú de usuario > Balanza).
+- `63-modal-balanza-dropdown-{1920,1366}.png`: Balanza con el desplegable Velocidad abierto.
+- `64-modal-balanza-archivo-{1920,1366}.png`: Balanza en modo Archivo.
+- `65-modal-cuenta-corriente-desde-orden-{1920,1366}.png`: Enviar a cuenta corriente desde la orden (F6) con cliente elegido y tipo Remito.
+- `66-modal-factura-nueva-clientes-{1920,1366}.png`: Nueva factura con el buscador de clientes abierto (Nueva factura en Cuenta corriente).
+- `67-modal-factura-nueva-productos-{1920,1366}.png`: Nueva factura con cliente y tipo Factura A, buscador de productos abierto.
+- `68-modal-factura-editar-{1920,1366}.png`: Editar factura existente (acción Editar de una fila de Cuenta corriente).
+- `69-modal-factura-error-{1920,1366}.png`: Nueva factura guardada sin cliente: error.
+- `70-cc-lista-{1920,1366}.png`: Cuenta corriente: KPIs, filtros y tabla (botón Cuenta corriente del header).
+- `71-cc-filtro-con-saldo-{1920,1366}.png`: Cuenta corriente filtrada por Con saldo.
+- `72-cc-busqueda-{1920,1366}.png`: Cuenta corriente buscando "hotel".
+- `73-cc-dropdown-tipo-{1920,1366}.png`: Cuenta corriente con el desplegable de tipo de comprobante abierto.
+- `74-cc-filtro-tipo-remito-{1920,1366}.png`: Cuenta corriente filtrada por tipo Remito.
+- `75-cc-vacio-{1920,1366}.png`: Cuenta corriente sin resultados (búsqueda "zzz").
+- `76-cc-paginacion-2-{1920,1366}.png`: Cuenta corriente en la página 2 (8 por página).
+- `77-cc-detalle-parcial-{1920,1366}.png`: Detalle de factura con pagos parciales (click en la fila de la Factura A de Hotel Aconcagua).
+- `78-cc-detalle-sin-pagos-{1920,1366}.png`: Detalle de factura sin pagos (Remito de Comedor San José).
+- `79-cc-detalle-pagada-{1920,1366}.png`: Detalle de factura pagada (Factura B de Bar El Patio).
+- `80-modal-agregar-pago-{1920,1366}.png`: Agregar pago a una factura con saldo (botón Pago de la fila).
+- `81-modal-agregar-pago-completo-{1920,1366}.png`: Agregar pago con el saldo completo, transferencia y referencia.
+- `82-modal-agregar-pago-error-{1920,1366}.png`: Agregar pago con monto mayor al saldo: error.
+- `83-modal-historial-pagos-{1920,1366}.png`: Historial de pagos de una factura con dos pagos (acción Historial de la fila).
+- `84-modal-historial-pagos-vacio-{1920,1366}.png`: Historial de pagos de una factura sin pagos.
+- `85-modal-confirmar-eliminar-factura-{1920,1366}.png`: Confirmación ¿Eliminar la factura? (acción Eliminar de la fila).
+- `86-toast-exito-{1920,1366}.png`: Toast de éxito al escanear un código (scan del código de Tomate redondo).
+- `87-toast-exito-balanza-{1920,1366}.png`: Toast de éxito al escanear una etiqueta de balanza (Banana 1,245 kg, código 201000012450).
+- `88-toast-error-{1920,1366}.png`: Toast de error al cobrar con la orden vacía (F2 sin productos).
+- `89-toast-info-{1920,1366}.png`: Toast informativo Sesión cerrada (F4 / Cerrar sesión: logout).
