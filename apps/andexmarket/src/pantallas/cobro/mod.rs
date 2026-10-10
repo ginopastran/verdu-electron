@@ -241,7 +241,7 @@ impl Cobro {
             } else {
                 "Agrega al menos un producto antes de continuar"
             };
-            ui::toast::con_detalle(&cx.egui, ui::toast::Tipo::Error, "No hay productos en el carrito", detalle, 2.0);
+            ui::v2::toast::con_detalle(&cx.egui, ui::v2::toast::Tipo::Error, "No hay productos en el carrito", detalle);
             return;
         }
         match accion {

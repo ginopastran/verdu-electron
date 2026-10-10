@@ -5,8 +5,8 @@ use super::sesion::{self, en, Parrafo};
 use crate::app::{Contexto, Ruta};
 use crate::tareas::{self, Tarea};
 use crate::ui::marca::{color, fuente, radio, sombra};
-use crate::ui::v2::{self, cuerpo_modal, pie_modal, tarjetas, Avatar, Boton, CampoTexto, EstiloTecla, Modal};
-use crate::ui::{toast, Peso};
+use crate::ui::v2::{self, cuerpo_modal, pie_modal, tarjetas, toast, Avatar, Boton, CampoTexto, EstiloTecla, Modal};
+use crate::ui::Peso;
 
 const ALTO_ENCABEZADO: f32 = 64.0;
 const LADO_AVATAR: f32 = 148.0;
@@ -80,7 +80,6 @@ impl UsuarioLogin {
                     toast::Tipo::Error,
                     "Error al cargar vendedores",
                     "Por favor, intenta nuevamente más tarde.",
-                    2.0,
                 ),
             }
             self.cargando_vendedores = false;
@@ -94,7 +93,7 @@ impl UsuarioLogin {
                     self.dialogo_contrasena = false;
                     cx.global.ir(destino);
                 }
-                Err(mensaje) => toast::con_detalle(&cx.egui, toast::Tipo::Error, "Error al iniciar sesión", mensaje, 2.0),
+                Err(mensaje) => toast::con_detalle(&cx.egui, toast::Tipo::Error, "Error al iniciar sesión", mensaje),
             }
         }
     }
@@ -135,7 +134,7 @@ impl UsuarioLogin {
 
     fn reconfigurar(&mut self, cx: &mut Contexto) {
         self.dialogo_reconfigurar = false;
-        toast::con_detalle(&cx.egui, toast::Tipo::Info, "Reconfigurar negocio", "Limpiando configuración actual...", 2.0);
+        toast::con_detalle(&cx.egui, toast::Tipo::Info, "Reconfigurar negocio", "Limpiando configuración actual...");
         sesion::borrar_admin(cx);
         cx.global.usuario = None;
         cx.servicios.config.delete("offlineCredentials");

@@ -173,7 +173,7 @@ impl SelectorCliente {
             }
             Err(error) => {
                 self.error = Some(mensaje_error(&error));
-                ui::toast::error(&cx.egui, "Error al cargar la lista de clientes");
+                ui::v2::toast::error(&cx.egui, "Error al cargar la lista de clientes");
             }
         }
     }
@@ -316,7 +316,7 @@ impl SelectorProducto {
                 Ok(datos) => self.productos = datos["productos"].as_array().cloned().unwrap_or_default(),
                 Err(error) => {
                     self.error = Some(mensaje_error(&error));
-                    ui::toast::error(&cx.egui, "Error al cargar la lista de productos");
+                    ui::v2::toast::error(&cx.egui, "Error al cargar la lista de productos");
                 }
             }
         }

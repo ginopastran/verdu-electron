@@ -5,8 +5,8 @@ use super::sesion::{self, Parrafo};
 use crate::app::{Contexto, Ruta};
 use crate::tareas::{self, Tarea};
 use crate::ui::marca::{color, fuente, radio};
-use crate::ui::v2::{self, Boton, CampoTexto, EstiloTecla};
-use crate::ui::{self, toast, Peso};
+use crate::ui::v2::{self, toast, Boton, CampoTexto, EstiloTecla};
+use crate::ui::{self, Peso};
 
 const ANCHO_FORMULARIO: f32 = 400.0;
 const PASOS: [&str; 3] = [
@@ -72,12 +72,12 @@ impl AdminLogin {
                 let nombre = admin["businessName"].as_str().unwrap_or_default().to_string();
                 sesion::guardar_admin(cx, admin);
                 self.guardar_credenciales(cx);
-                toast::con_detalle(&cx.egui, toast::Tipo::Exito, "Configuración guardada", format!("Negocio: {nombre}"), 2.0);
+                toast::con_detalle(&cx.egui, toast::Tipo::Exito, "Configuración guardada", format!("Negocio: {nombre}"));
                 cx.global.ir(Ruta::UsuarioLogin);
             }
             Err(mensaje) => {
                 self.error = mensaje.clone();
-                toast::con_detalle(&cx.egui, toast::Tipo::Error, "Error al configurar", mensaje, 2.0);
+                toast::con_detalle(&cx.egui, toast::Tipo::Error, "Error al configurar", mensaje);
             }
         }
     }

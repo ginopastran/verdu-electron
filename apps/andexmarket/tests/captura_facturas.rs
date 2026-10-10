@@ -268,7 +268,7 @@ fn formulario_con(nombre: &str, opciones: Opciones, pasos: impl FnOnce(&mut Harn
                     e.formulario.mostrar(ui, &mut cx);
                 }
             });
-            ui::toast::pintar(ui.ctx());
+            ui::v2::toast::pintar(ui.ctx());
         },
         estado,
     );

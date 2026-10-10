@@ -130,7 +130,6 @@ impl App {
         }
         let mut contexto = Contexto { global: &mut self.global, servicios: &self.servicios, egui: ui.ctx().clone() };
         self.pantallas.mostrar(ui, &mut contexto);
-        ui::toast::pintar(ui.ctx());
         ui::v2::toast::pintar(ui.ctx());
     }
 }

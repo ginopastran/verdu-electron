@@ -264,11 +264,11 @@ impl FormularioFactura {
 
     fn enviar(&mut self, cx: &Contexto) {
         let Some(cliente) = self.cliente.clone() else {
-            ui::toast::error(&cx.egui, "Debe seleccionar un cliente para crear la factura");
+            ui::v2::toast::error(&cx.egui, "Debe seleccionar un cliente para crear la factura");
             return;
         };
         if self.filas.is_empty() {
-            ui::toast::error(&cx.egui, "Debe agregar al menos un producto a la factura");
+            ui::v2::toast::error(&cx.egui, "Debe agregar al menos un producto a la factura");
             return;
         }
         let negocio = cx.global.negocio.clone().unwrap_or(Value::Null);
@@ -276,7 +276,7 @@ impl FormularioFactura {
         let totales = logica::calcular_totales(&detalles, &self.tipo_factura, negocio["ivaIncluidoEnPrecios"].as_bool().unwrap_or(false));
         let pago = self.pago();
         if pago.is_some_and(|p| p > totales.total) {
-            ui::toast::error(&cx.egui, "El pago inicial no puede ser mayor al total");
+            ui::v2::toast::error(&cx.egui, "El pago inicial no puede ser mayor al total");
             return;
         }
         let afip = logica::usar_afip(&negocio, &self.tipo_factura);
@@ -285,7 +285,7 @@ impl FormularioFactura {
             _ if !pago_parcial || self.fecha_vencimiento.trim().is_empty() => None,
             Some(fecha) => logica::fecha_iso_desde_input(&fecha.format("%Y-%m-%d").to_string()),
             None => {
-                ui::toast::error(&cx.egui, "Ingresá una fecha de vencimiento válida (dd/mm/aaaa)");
+                ui::v2::toast::error(&cx.egui, "Ingresá una fecha de vencimiento válida (dd/mm/aaaa)");
                 return;
             }
         };
@@ -309,16 +309,16 @@ impl FormularioFactura {
                 Ok(r) if r.ok() => r.cuerpo,
                 Ok(r) => {
                     let mensaje = r.cuerpo["error"].as_str().unwrap_or("Error al guardar factura").to_string();
-                    ui::toast::error(&ctx, mensaje);
+                    ui::v2::toast::error(&ctx, mensaje);
                     return None;
                 }
                 Err(e) => {
-                    ui::toast::error(&ctx, e.mensaje);
+                    ui::v2::toast::error(&ctx, e.mensaje);
                     return None;
                 }
             };
             if afip && resultado["afip"].is_object() {
-                ui::toast::exito(
+                ui::v2::toast::exito(
                     &ctx,
                     format!(
                         "Factura AFIP creada correctamente\nCAE: {}\nVencimiento: {}",
@@ -327,7 +327,7 @@ impl FormularioFactura {
                     ),
                 );
             } else {
-                ui::toast::exito(&ctx, "Factura creada correctamente");
+                ui::v2::toast::exito(&ctx, "Factura creada correctamente");
             }
             let o = |a: &Value, b: &Value| if a.is_null() { b.clone() } else { a.clone() };
             let factura = json!({
@@ -345,9 +345,9 @@ impl FormularioFactura {
                 "afipQrUrl": o(&resultado["factura"]["afipQrUrl"], &Value::Null),
             });
             if imprimir_factura(&servicios, &ctx, &factura, &negocio) {
-                ui::toast::exito(&ctx, "Ticket impreso correctamente");
+                ui::v2::toast::exito(&ctx, "Ticket impreso correctamente");
             } else {
-                ui::toast::error(&ctx, "Error al imprimir el ticket");
+                ui::v2::toast::error(&ctx, "Error al imprimir el ticket");
             }
             Some(resultado)
         }));
@@ -732,11 +732,11 @@ fn imprimir_factura(servicios: &Servicios, ctx: &egui::Context, factura: &Value,
         let segunda = imprimir(servicios, Comprobante::Factura, datos);
         let ok = |r: &Value| r["success"].as_bool() == Some(true);
         if ok(&primera) && ok(&segunda) {
-            ui::toast::con_detalle(ctx, ui::toast::Tipo::Exito, "Doble ticket de factura impreso correctamente", "Se mandaron 2 impresiones del ticket de factura", 2.0);
+            ui::v2::toast::con_detalle(ctx, ui::v2::toast::Tipo::Exito, "Doble ticket de factura impreso correctamente", "Se mandaron 2 impresiones del ticket de factura");
         } else {
             let estado = |r: &Value| if ok(r) { "OK" } else { "Error" };
             let detalle = format!("Primera: {}, Segunda: {}", estado(&primera), estado(&segunda));
-            ui::toast::con_detalle(ctx, ui::toast::Tipo::Aviso, "Problemas con la doble impresión de factura", detalle, 2.0);
+            ui::v2::toast::con_detalle(ctx, ui::v2::toast::Tipo::Aviso, "Problemas con la doble impresión de factura", detalle);
         }
         return true;
     }

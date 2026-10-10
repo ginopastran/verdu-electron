@@ -237,7 +237,7 @@ fn harness(afip: bool, tam: [f32; 2]) -> Escena {
                 ui.painter().rect_filled(ui.ctx().content_rect(), 0, ui::marca::color::FONDO_APP);
                 let mut cx = Contexto { global: &mut e.global, servicios: &e.servicios, egui: ui.ctx().clone() };
                 e.cobro.mostrar(ui, &mut cx);
-                ui::toast::pintar(ui.ctx());
+                ui::v2::toast::pintar(ui.ctx());
             },
             estado,
         );

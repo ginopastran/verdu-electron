@@ -143,7 +143,7 @@ fn escena(nombre: &str, iniciales: bool, pasos: impl Fn(&mut Harness<'_, Formula
                 if e.formulario.abierto() {
                     e.formulario.mostrar(ui, &mut cx);
                 }
-                ui::toast::pintar(ui.ctx());
+                ui::v2::toast::pintar(ui.ctx());
             },
             estado,
         );

@@ -12,7 +12,7 @@ use serde_json::{json, Value};
 use super::{aplicar, CancelacionPendiente, Cobro, Efectivo, Lado};
 use crate::app::{Contexto, Servicios};
 use crate::impresion::{self, Comprobante};
-use crate::ui::toast::{self, Tipo};
+use crate::ui::v2::toast::{self, Tipo};
 
 #[derive(Clone)]
 pub(super) struct Datos {
@@ -74,7 +74,7 @@ impl Datos {
     }
 
     fn detalle(&self, tipo: Tipo, titulo: &str, detalle: impl Into<String>, segundos: f64) {
-        toast::con_detalle(&self.ctx, tipo, titulo, detalle, segundos);
+        toast::mostrar_aviso(&self.ctx, tipo, titulo, Some(detalle.into()), segundos);
     }
 
     fn pedir(&self, metodo: &str, ruta: &str, cuerpo: Option<&Value>) -> Result<Respuesta, String> {

@@ -4,7 +4,6 @@ pub mod degradado;
 pub mod iconos;
 pub mod marca;
 pub mod paleta;
-pub mod toast;
 pub mod v2;
 
 use std::sync::Arc;

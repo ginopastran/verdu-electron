@@ -4,7 +4,13 @@ use super::animacion::{salida_suave, DURACION_TOAST};
 use crate::ui::marca::{color, fuente, radio, sombra, tam};
 use crate::ui::{icono_solar, Peso};
 
-pub use crate::ui::toast::Tipo;
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Tipo {
+    Exito,
+    Error,
+    Info,
+    Aviso,
+}
 
 const DURACION: f64 = 2.8;
 
