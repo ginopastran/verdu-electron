@@ -1,0 +1,21 @@
+[package]
+name = "andexmarket"
+version = "4.0.0"
+edition = "2021"
+
+[dependencies]
+eframe = { version = "0.36", default-features = false, features = ["glow", "accesskit"] }
+egui_extras = { version = "0.36", features = ["svg", "image"] }
+image = { version = "0.25", default-features = false, features = ["png", "webp"] }
+hardware = { path = "../../crates/hardware" }
+impresion = { path = "../../crates/impresion" }
+nucleo = { path = "../../crates/nucleo" }
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+
+[dev-dependencies]
+egui_kittest = { version = "0.36", features = ["wgpu", "snapshot"] }
+
+[build-dependencies]
+winresource = "0.1"
