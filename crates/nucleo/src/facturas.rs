@@ -1,14 +1,22 @@
-use chrono::{DateTime, Datelike, Local, NaiveDate, TimeZone, Utc};
+use std::path::{Path, PathBuf};
+
+use chrono::{DateTime, NaiveDate, NaiveTime, Utc};
 use serde_json::{json, Map, Value};
 
+use crate::api::{codificar, Cliente};
+use crate::cierre::argentina;
+use crate::formato;
+
 pub fn total_pagado(factura: &Value) -> f64 {
-    factura["pagos"]
-        .as_array()
-        .map_or(0.0, |pagos| pagos.iter().fold(0.0, |suma, pago| suma + pago["monto"].as_f64().unwrap_or(0.0)))
+    redondear2(
+        factura["pagos"]
+            .as_array()
+            .map_or(0.0, |pagos| pagos.iter().fold(0.0, |suma, pago| suma + pago["monto"].as_f64().unwrap_or(0.0))),
+    )
 }
 
 pub fn saldo_pendiente(factura: &Value) -> f64 {
-    factura["total"].as_f64().unwrap_or(0.0) - total_pagado(factura)
+    redondear2(factura["total"].as_f64().unwrap_or(0.0) - total_pagado(factura))
 }
 
 pub fn porcentaje_pagado(factura: &Value) -> f64 {
@@ -26,8 +34,8 @@ pub fn tiene_pagos(factura: &Value) -> bool {
 
 pub fn saldo_para_pago(factura: &Value) -> f64 {
     match factura["saldoPendiente"].as_f64() {
-        Some(saldo) if saldo != 0.0 && !saldo.is_nan() => saldo,
-        _ => factura["total"].as_f64().unwrap_or(0.0),
+        Some(saldo) if saldo.is_finite() => redondear2(saldo).max(0.0),
+        _ => saldo_pendiente(factura).max(0.0),
     }
 }
 
@@ -123,6 +131,51 @@ impl Detalle {
         mapa.insert("subtotal".into(), json!(self.subtotal));
         Value::Object(mapa)
     }
+}
+
+pub fn precio_con_lista(producto: &Value, precio_lista: Option<f64>) -> f64 {
+    precio_lista
+        .filter(|precio| *precio != 0.0 && precio.is_finite())
+        .unwrap_or_else(|| producto["precio"].as_f64().unwrap_or(0.0))
+}
+
+pub fn cuerpo_edicion(factura: &Value, estado: &str, observaciones: &str) -> Option<Value> {
+    let mut cuerpo = Map::new();
+    if estado != factura["estado"].as_str().unwrap_or_default() {
+        cuerpo.insert("estado".into(), json!(estado));
+    }
+    if observaciones != factura["observaciones"].as_str().unwrap_or_default() {
+        cuerpo.insert("observaciones".into(), json!(observaciones));
+    }
+    (!cuerpo.is_empty()).then_some(Value::Object(cuerpo))
+}
+
+pub fn nombre_pdf(factura: &Value) -> String {
+    let limpiar = |texto: &str| -> String {
+        texto.chars().map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '_' { c } else { '_' }).collect()
+    };
+    let numero = match &factura["numero"] {
+        Value::String(numero) => numero.clone(),
+        Value::Null => String::new(),
+        otro => otro.to_string(),
+    };
+    format!("factura-{}-{}.pdf", limpiar(factura["tipoFactura"].as_str().unwrap_or_default()), limpiar(&numero))
+}
+
+pub fn descargar_pdf(api: &Cliente, factura: &Value, carpeta: &Path) -> Result<PathBuf, String> {
+    let id = match &factura["id"] {
+        Value::String(id) => id.clone(),
+        otro => otro.to_string(),
+    };
+    let (estado, bytes) = api.bytes(&format!("/api/facturas/generar-pdf?id={}", codificar(&id))).map_err(|e| e.mensaje)?;
+    if !(200..300).contains(&estado) || !bytes.starts_with(b"%PDF") {
+        let error = serde_json::from_slice::<Value>(&bytes).ok().and_then(|v| v["error"].as_str().map(str::to_string));
+        return Err(error.unwrap_or_else(|| format!("el servidor respondió {estado}")));
+    }
+    std::fs::create_dir_all(carpeta).map_err(|e| e.to_string())?;
+    let ruta = carpeta.join(nombre_pdf(factura));
+    std::fs::write(&ruta, bytes).map_err(|e| e.to_string())?;
+    Ok(ruta)
 }
 
 pub fn redondear_js(valor: f64) -> f64 {
@@ -293,17 +346,15 @@ impl std::fmt::Display for ErrorPago {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ErrorPago::MontoInvalido => f.write_str("El monto debe ser un número válido mayor a 0"),
-            ErrorPago::MontoMayor(maximo) => write!(
-                f,
-                "El monto no puede ser mayor al saldo pendiente (${})",
-                es_ar_min2(*maximo)
-            ),
+            ErrorPago::MontoMayor(maximo) => {
+                write!(f, "El monto no puede ser mayor al saldo pendiente ({})", formato::pesos(*maximo))
+            }
         }
     }
 }
 
 pub fn validar_pago(monto: &str, maximo: f64) -> Result<f64, ErrorPago> {
-    let monto = parsear_float(monto).filter(|m| *m > 0.0).ok_or(ErrorPago::MontoInvalido)?;
+    let monto = parsear_numero(monto).filter(|m| *m > 0.0).ok_or(ErrorPago::MontoInvalido)?;
     if monto > maximo {
         return Err(ErrorPago::MontoMayor(maximo));
     }
@@ -400,98 +451,39 @@ pub fn filtrar_productos(productos: &[Value], busqueda: &str, excluidos: &[i64])
         .collect()
 }
 
-pub fn texto_numero(valor: f64) -> String {
-    if valor.is_nan() {
-        "NaN".into()
+pub fn parsear_numero(texto: &str) -> Option<f64> {
+    if texto.contains(',') {
+        parsear_float(&texto.replace('.', "").replace(',', "."))
     } else {
-        format!("{valor}")
+        parsear_float(texto)
     }
 }
 
-fn agrupar(entero: &str, separador: char) -> String {
-    let mut salida = String::new();
-    for (indice, digito) in entero.chars().enumerate() {
-        if indice > 0 && (entero.len() - indice) % 3 == 0 {
-            salida.push(separador);
-        }
-        salida.push(digito);
-    }
-    salida
-}
-
-fn fijo(valor: f64, decimales: usize) -> String {
-    let escala = 10f64.powi(decimales as i32);
-    let escalado = valor * escala;
-    if escalado.fract() == 0.5 {
-        return format!("{:.*}", decimales, (escalado + 0.5) / escala);
-    }
-    format!("{:.*}", decimales, valor)
-}
-
-fn formatear(valor: f64, min: usize, max: usize, miles: char, decimal: char) -> String {
-    let negativo = valor < 0.0;
-    let texto = fijo(valor.abs(), max);
-    let (entero, fraccion) = texto.split_once('.').unwrap_or((&texto, ""));
-    let mut fraccion = fraccion.to_string();
-    while fraccion.len() > min && fraccion.ends_with('0') {
-        fraccion.pop();
-    }
-    let mut salida = String::new();
-    if negativo {
-        salida.push('-');
-    }
-    salida.push_str(&agrupar(entero, miles));
-    if !fraccion.is_empty() {
-        salida.push(decimal);
-        salida.push_str(&fraccion);
-    }
-    salida
-}
-
-pub fn moneda(valor: f64) -> String {
-    let numero = formatear(valor.abs(), 2, 2, '.', ',');
-    if valor < 0.0 {
-        format!("-$\u{a0}{numero}")
+pub fn texto_entrada(valor: f64) -> String {
+    if valor.is_finite() {
+        format!("{valor}").replace('.', ",")
     } else {
-        format!("$\u{a0}{numero}")
+        String::new()
     }
 }
 
-pub fn es_ar_min2(valor: f64) -> String {
-    formatear(valor, 2, 3, '.', ',')
-}
-
-pub fn en_us(valor: f64) -> String {
-    formatear(valor, 0, 3, ',', '.')
-}
-
-pub fn decimal_fijo(valor: f64, decimales: usize) -> String {
-    let texto = fijo(valor.abs(), decimales);
-    if valor < 0.0 && texto.chars().any(|c| c.is_ascii_digit() && c != '0') {
-        format!("-{texto}")
-    } else {
-        texto
+pub fn dia_argentino(texto: &str) -> Option<NaiveDate> {
+    if let Ok(dia) = NaiveDate::parse_from_str(texto.trim(), "%Y-%m-%d") {
+        return Some(dia);
     }
-}
-
-pub fn fecha_local(texto: &str) -> Option<DateTime<Local>> {
-    if let Ok(fecha) = DateTime::parse_from_rfc3339(texto) {
-        return Some(fecha.with_timezone(&Local));
+    let instante = DateTime::parse_from_rfc3339(texto.trim()).ok()?.with_timezone(&Utc);
+    if Some(instante.time()) == NaiveTime::from_hms_opt(0, 0, 0) {
+        return Some(instante.date_naive());
     }
-    let fecha = NaiveDate::parse_from_str(texto, "%Y-%m-%d").ok()?;
-    Some(Utc.from_utc_datetime(&fecha.and_hms_opt(0, 0, 0)?).with_timezone(&Local))
+    Some(instante.with_timezone(&argentina()).date_naive())
 }
 
 pub fn fecha_es_ar(texto: &str) -> String {
-    fecha_local(texto).map_or("Invalid Date".into(), |f| format!("{}/{}/{}", f.day(), f.month(), f.year()))
+    dia_argentino(texto).map_or_else(|| "-".into(), |dia| dia.format("%d/%m/%Y").to_string())
 }
 
-pub fn fecha_en_us(texto: &str) -> String {
-    fecha_local(texto).map_or("Invalid Date".into(), |f| format!("{}/{}/{}", f.month(), f.day(), f.year()))
-}
-
-pub fn hoy_utc() -> NaiveDate {
-    Utc::now().date_naive()
+pub fn hoy_argentina() -> NaiveDate {
+    Utc::now().with_timezone(&argentina()).date_naive()
 }
 
 pub fn fecha_iso_desde_input(texto: &str) -> Option<String> {
@@ -513,12 +505,15 @@ mod tests {
     }
 
     #[test]
-    fn saldos_y_estado_con_errores_de_coma_flotante_como_en_js() {
+    fn saldos_y_estado_toleran_errores_de_coma_flotante() {
         let factura = factura_con_pagos(63925.62, &[40000.0, 23925.62]);
-        assert!(saldo_pendiente(&factura) > 0.0);
-        assert_eq!(estado_tarjeta(&factura), EstadoTarjeta::Parcial);
-        assert_eq!(es_ar_min2(saldo_pendiente(&factura)), "0,00");
-        assert_eq!(en_us(saldo_pendiente(&factura)), "0");
+        assert_eq!(saldo_pendiente(&factura), 0.0);
+        assert_eq!(estado_tarjeta(&factura), EstadoTarjeta::Pagada);
+        assert_eq!(estado_historial(&factura), EstadoHistorial::Pagada);
+        assert_eq!(formato::pesos(saldo_pendiente(&factura)), "$0,00");
+        let decimos = factura_con_pagos(0.3, &[0.1, 0.2]);
+        assert_eq!(saldo_pendiente(&decimos), 0.0);
+        assert_eq!(estado_tarjeta(&decimos), EstadoTarjeta::Pagada);
         let pagada = factura_con_pagos(18600.0, &[18600.0]);
         assert_eq!(estado_tarjeta(&pagada), EstadoTarjeta::Pagada);
         assert_eq!(estado_historial(&pagada), EstadoHistorial::Pagada);
@@ -527,14 +522,39 @@ mod tests {
         assert_eq!(estado_historial(&sin_pagos), EstadoHistorial::Pendiente);
         let parcial = factura_con_pagos(86500.0, &[30000.0]);
         assert_eq!(saldo_pendiente(&parcial), 56500.0);
-        assert_eq!(decimal_fijo(porcentaje_pagado(&parcial), 1), "34.7");
+        assert_eq!(formato::numero_con(porcentaje_pagado(&parcial), 1, 1), "34,7");
     }
 
     #[test]
-    fn saldo_para_pago_usa_total_si_saldo_es_cero_o_falta() {
+    fn saldo_para_pago_respeta_el_saldo_del_backend_aunque_sea_cero() {
         assert_eq!(saldo_para_pago(&json!({ "total": 100, "saldoPendiente": 40 })), 40.0);
-        assert_eq!(saldo_para_pago(&json!({ "total": 100, "saldoPendiente": 0 })), 100.0);
+        assert_eq!(saldo_para_pago(&json!({ "total": 100, "saldoPendiente": 0 })), 0.0);
+        assert_eq!(saldo_para_pago(&json!({ "total": 100, "saldoPendiente": 1e-12 })), 0.0);
         assert_eq!(saldo_para_pago(&json!({ "total": 100 })), 100.0);
+        assert_eq!(saldo_para_pago(&json!({ "total": 100, "pagos": [{ "monto": 30 }] })), 70.0);
+        assert_eq!(validar_pago("1", 0.0), Err(ErrorPago::MontoMayor(0.0)));
+    }
+
+    #[test]
+    fn precio_de_lista_o_base() {
+        let producto = json!({ "id": 5, "precio": 2600 });
+        assert_eq!(precio_con_lista(&producto, Some(2450.0)), 2450.0);
+        assert_eq!(precio_con_lista(&producto, Some(0.0)), 2600.0);
+        assert_eq!(precio_con_lista(&producto, None), 2600.0);
+    }
+
+    #[test]
+    fn edicion_manda_solo_lo_que_cambio() {
+        let factura = json!({ "estado": "vencida", "observaciones": null });
+        assert_eq!(cuerpo_edicion(&factura, "vencida", ""), None);
+        assert_eq!(cuerpo_edicion(&factura, "vencida", "Entregar lunes"), Some(json!({ "observaciones": "Entregar lunes" })));
+        assert_eq!(cuerpo_edicion(&factura, "pagada", ""), Some(json!({ "estado": "pagada" })));
+    }
+
+    #[test]
+    fn nombre_del_pdf_como_el_backend() {
+        assert_eq!(nombre_pdf(&json!({ "tipoFactura": "A", "numero": "0002-00000013" })), "factura-A-0002-00000013.pdf");
+        assert_eq!(nombre_pdf(&json!({ "tipoFactura": "remito", "numero": "R/1:2" })), "factura-remito-R_1_2.pdf");
     }
 
     #[test]
@@ -612,16 +632,13 @@ mod tests {
 
     #[test]
     fn formatos_numericos() {
-        assert_eq!(moneda(2988.0000000000005), "$\u{a0}2.988,00");
-        assert_eq!(moneda(1867.5), "$\u{a0}1.867,50");
-        assert_eq!(moneda(-5.0), "-$\u{a0}5,00");
-        assert_eq!(es_ar_min2(86500.0), "86.500,00");
-        assert_eq!(es_ar_min2(1.2345), "1,235");
-        assert_eq!(en_us(57851.24), "57,851.24");
-        assert_eq!(en_us(2800.0), "2,800");
-        assert_eq!(en_us(1234567.8912), "1,234,567.891");
-        assert_eq!(texto_numero(1.245), "1.245");
-        assert_eq!(texto_numero(2400.0), "2400");
+        assert_eq!(texto_entrada(1.245), "1,245");
+        assert_eq!(texto_entrada(2400.0), "2400");
+        assert_eq!(texto_entrada(f64::NAN), "");
+        assert_eq!(parsear_numero("1,245"), Some(1.245));
+        assert_eq!(parsear_numero("1.245"), Some(1.245));
+        assert_eq!(parsear_numero("56.500,50"), Some(56500.5));
+        assert_eq!(parsear_numero(&texto_entrada(0.415)), Some(0.415));
         assert_eq!(parsear_float("12.5abc"), Some(12.5));
         assert_eq!(parsear_float(""), None);
         assert_eq!(parsear_float("1e3"), Some(1000.0));
@@ -646,9 +663,12 @@ mod tests {
     fn nombres_y_fechas() {
         assert_eq!(nombre_cliente(&json!({ "nombre": "María", "apellido": "Quiroga", "razonSocial": null })), "María Quiroga");
         assert_eq!(nombre_cliente(&json!({ "nombre": "X", "razonSocial": "El Mesón S.A." })), "El Mesón S.A.");
-        assert_eq!(fecha_es_ar("no"), "Invalid Date");
-        let local = fecha_local("2026-10-09T15:35:37.370Z").unwrap();
-        assert_eq!(fecha_es_ar("2026-10-09T15:35:37.370Z"), format!("{}/{}/{}", local.day(), local.month(), local.year()));
+        assert_eq!(fecha_es_ar("no"), "-");
+        assert_eq!(fecha_es_ar("2026-10-09T15:35:37.370Z"), "09/10/2026");
+        assert_eq!(fecha_es_ar("2026-10-10T01:30:00.000Z"), "09/10/2026");
+        assert_eq!(fecha_es_ar("2026-10-10T02:59:59.999-03:00"), "10/10/2026");
+        assert_eq!(fecha_es_ar("2026-10-10"), "10/10/2026");
+        assert_eq!(fecha_es_ar("2026-10-10T00:00:00.000Z"), "10/10/2026");
         assert_eq!(fecha_iso_desde_input("2026-10-15").as_deref(), Some("2026-10-15T00:00:00.000Z"));
         assert_eq!(fecha_dia_mes_anio("10/10/2026"), NaiveDate::from_ymd_opt(2026, 10, 10));
     }

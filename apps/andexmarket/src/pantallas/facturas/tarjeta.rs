@@ -1,5 +1,6 @@
 use eframe::egui::{self, Align2, Color32, Rect, Ui, Vec2};
 use nucleo::facturas::{self as logica, EstadoTarjeta};
+use nucleo::formato;
 use serde_json::Value;
 
 use super::comun::{self, bloque, Boton, Insignia, Relleno};
@@ -131,7 +132,7 @@ fn tarjeta(ui: &Ui, factura: &Value, rect: Rect, dibujar: bool) -> (f32, Option<
     }
     y += 20.0 + 12.0;
     if dibujar {
-        let total = format!("${}", logica::es_ar_min2(numero(factura, "total")));
+        let total = formato::pesos(numero(factura, "total"));
         icono_texto(y, "dollar-sign", 20.0, &total, Tam::Lg, Peso::Semi, paleta::GRAY_900, 8.0);
     }
     y += 28.0 + 12.0;
@@ -145,7 +146,7 @@ fn tarjeta(ui: &Ui, factura: &Value, rect: Rect, dibujar: bool) -> (f32, Option<
                     ui,
                     egui::pos2(x0 + ancho, y + 10.0),
                     Align2::RIGHT_CENTER,
-                    &format!("${}", logica::es_ar_min2(valor)),
+                    &formato::pesos(valor),
                     Tam::Sm,
                     Peso::Medio,
                     color_valor,

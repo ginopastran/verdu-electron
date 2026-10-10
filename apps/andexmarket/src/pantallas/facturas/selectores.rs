@@ -1,5 +1,6 @@
 use eframe::egui::{self, Align2, Color32, Context, Id, Key, Rect, Sense, Stroke, StrokeKind, Ui, Vec2};
 use nucleo::facturas::{self as logica};
+use nucleo::formato;
 use serde_json::Value;
 
 use super::comun::{self, Boton, Relleno};
@@ -450,18 +451,18 @@ fn boton_producto(ui: &mut Ui, producto: &Value, lista: &ListaActiva, negocio: O
     let mut x = rect.left() + 17.0;
     x += chip(ui, x, fila2, texto(producto, "tipoMedida"), color::APAGADO, color::APAGADO_TEXTO, Peso::Normal) + 8.0;
     let base = numero(producto, "precio");
-    let precio = logica::moneda(precio_visual(producto, precio_lista.unwrap_or(base), negocio));
+    let precio = formato::pesos(precio_visual(producto, precio_lista.unwrap_or(base), negocio));
     let r = comun::texto_en(ui, egui::pos2(x, fila2), Align2::LEFT_CENTER, &precio, Tam::Sm, Peso::Medio, color::PRIMARIO);
     x = r.right() + 8.0;
     if precio_lista.is_some_and(|p| p != base) {
-        let tachado = logica::moneda(precio_visual(producto, base, negocio));
+        let tachado = formato::pesos(precio_visual(producto, base, negocio));
         let r = comun::texto_en(ui, egui::pos2(x, fila2), Align2::LEFT_CENTER, &tachado, Tam::Xs, Peso::Normal, color::APAGADO_TEXTO);
         ui.painter().hline(r.x_range(), r.center().y, Stroke::new(1.0, color::APAGADO_TEXTO));
         x = r.right() + 8.0;
     }
     if let Some(stock) = producto["stock"].as_f64() {
         let (fondo, tinta) = if stock > 0.0 { (paleta::GREEN_100, paleta::GREEN_700) } else { (paleta::RED_100, paleta::RED_700) };
-        chip(ui, x, fila2, &format!("Stock: {}", logica::texto_numero(stock)), fondo, tinta, Peso::Normal);
+        chip(ui, x, fila2, &format!("Stock: {}", formato::numero(stock)), fondo, tinta, Peso::Normal);
     }
     ui::pintar_icono_en(ui, Rect::from_center_size(egui::pos2(rect.right() - 27.0, rect.center().y), Vec2::splat(20.0)), "plus", color::APAGADO_TEXTO);
     respuesta
@@ -469,6 +470,7 @@ fn boton_producto(ui: &mut Ui, producto: &Value, lista: &ListaActiva, negocio: O
 
 pub struct CantidadProducto {
     producto: Option<Value>,
+    precio: f64,
     cantidad: f64,
     texto: String,
     error: Option<String>,
@@ -477,22 +479,22 @@ pub struct CantidadProducto {
 
 impl Default for CantidadProducto {
     fn default() -> Self {
-        CantidadProducto { producto: None, cantidad: 1.0, texto: "1".into(), error: None, enfocar: false }
+        CantidadProducto { producto: None, precio: 0.0, cantidad: 1.0, texto: "1".into(), error: None, enfocar: false }
     }
 }
 
 pub enum ResultadoCantidad {
-    Confirmada(Value, f64),
+    Confirmada(Value, f64, f64),
     Cerrada,
 }
 
 impl CantidadProducto {
-    pub fn abrir(&mut self, producto: Value) {
-        *self = CantidadProducto { producto: Some(producto), enfocar: true, ..CantidadProducto::default() };
+    pub fn abrir(&mut self, producto: Value, precio: f64) {
+        *self = CantidadProducto { producto: Some(producto), precio, enfocar: true, ..CantidadProducto::default() };
     }
 
     fn cambiar_texto(&mut self) {
-        match logica::parsear_float(&self.texto).filter(|v| *v > 0.0 && !self.texto.trim().is_empty()) {
+        match logica::parsear_numero(&self.texto).filter(|v| *v > 0.0) {
             Some(valor) => {
                 self.error = None;
                 self.cantidad = valor;
@@ -504,10 +506,9 @@ impl CantidadProducto {
         }
     }
 
-    pub fn mostrar(&mut self, ctx: &Context, cx: &Contexto) -> Option<ResultadoCantidad> {
+    pub fn mostrar(&mut self, ctx: &Context) -> Option<ResultadoCantidad> {
         let producto = self.producto.clone()?;
-        let negocio = cx.global.negocio.clone();
-        let precio = precio_visual(&producto, numero(&producto, "precio"), negocio.as_ref());
+        let precio = self.precio;
         let subtotal = self.cantidad * precio;
         let mut resultado = None;
         let mut confirmar = false;
@@ -534,10 +535,10 @@ impl CantidadProducto {
                 comun::texto_en(ui, egui::pos2(x1, y + 10.0), Align2::RIGHT_CENTER, valor, Tam::Sm, Peso::Medio, tinta);
                 y += 28.0;
             };
-            fila("Precio unitario:", &logica::moneda(precio), color::TEXTO);
+            fila("Precio unitario:", &formato::pesos(precio), color::TEXTO);
             fila("Unidad:", texto(&producto, "tipoMedida"), color::TEXTO);
             if let Some(stock) = stock {
-                fila("Stock disponible:", &logica::texto_numero(stock), if stock > 0.0 { paleta::GREEN_600 } else { paleta::RED_600 });
+                fila("Stock disponible:", &formato::numero(stock), if stock > 0.0 { paleta::GREEN_600 } else { paleta::RED_600 });
             }
             ui.add_space(24.0);
             comun::etiqueta(ui, "Cantidad");
@@ -547,13 +548,13 @@ impl CantidadProducto {
             let menos = Boton::contorno("").chico().icono("minus").habilitado(self.cantidad > 1.0);
             if menos.en(ui, Rect::from_min_size(fila_rect.min, Vec2::new(partes[0], 40.0)), "menos").clicked() && self.cantidad > 1.0 {
                 self.cantidad -= 1.0;
-                self.texto = logica::texto_numero(self.cantidad);
+                self.texto = logica::texto_entrada(self.cantidad);
                 self.error = None;
             }
             let mas = Boton::contorno("").chico().icono("plus");
             if mas.en(ui, Rect::from_min_size(egui::pos2(fila_rect.right() - partes[2], fila_rect.top()), Vec2::new(partes[2], 40.0)), "mas").clicked() {
                 self.cantidad += 1.0;
-                self.texto = logica::texto_numero(self.cantidad);
+                self.texto = logica::texto_entrada(self.cantidad);
                 self.error = None;
             }
             let campo = Rect::from_min_size(egui::pos2(fila_rect.left() + partes[0] + 12.0, fila_rect.top()), Vec2::new(partes[1], 40.0));
@@ -577,7 +578,7 @@ impl CantidadProducto {
             let (total, _) = ui.allocate_exact_size(Vec2::new(ancho, 52.0), Sense::hover());
             ui.painter().rect_filled(total, 8, color::PRIMARIO.gamma_multiply(0.05));
             comun::texto_en(ui, egui::pos2(total.left() + 12.0, total.center().y), Align2::LEFT_CENTER, "Subtotal:", Tam::Base, Peso::Medio, color::TEXTO);
-            comun::texto_en(ui, egui::pos2(total.right() - 12.0, total.center().y), Align2::RIGHT_CENTER, &logica::moneda(subtotal), Tam::Lg, Peso::Negrita, color::PRIMARIO);
+            comun::texto_en(ui, egui::pos2(total.right() - 12.0, total.center().y), Align2::RIGHT_CENTER, &formato::pesos(subtotal), Tam::Lg, Peso::Negrita, color::PRIMARIO);
             ui.add_space(16.0);
             comun::borde_superior(ui);
             ui.add_space(16.0);
@@ -597,7 +598,7 @@ impl CantidadProducto {
             if self.cantidad <= 0.0 {
                 self.error = Some("La cantidad debe ser mayor a 0".into());
             } else {
-                resultado = Some(ResultadoCantidad::Confirmada(producto, self.cantidad));
+                resultado = Some(ResultadoCantidad::Confirmada(producto, self.cantidad, precio));
             }
         }
         if r.cerrar && resultado.is_none() {

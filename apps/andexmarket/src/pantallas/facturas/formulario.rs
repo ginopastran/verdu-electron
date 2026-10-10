@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use eframe::egui::{self, Align2, Color32, CursorIcon, Id, Rect, Sense, Stroke, StrokeKind, Ui, Vec2};
 use nucleo::facturas::{self as logica, DatosFactura, Detalle};
+use nucleo::formato;
 use serde_json::{json, Value};
 
 use super::comun::{self, Boton, Opcion};
@@ -38,8 +39,8 @@ struct Fila {
 
 impl Fila {
     fn new(detalle: Detalle) -> Self {
-        let cantidad = logica::texto_numero(detalle.cantidad);
-        let precio = logica::texto_numero(detalle.precio_unitario);
+        let cantidad = logica::texto_entrada(detalle.cantidad);
+        let precio = logica::texto_entrada(detalle.precio_unitario);
         Fila { detalle, cantidad, precio }
     }
 }
@@ -47,13 +48,14 @@ impl Fila {
 enum Respuesta {
     Listas(Vec<Value>),
     Precios(Option<i64>, HashMap<i64, f64>),
-    Iniciales(Vec<Detalle>),
-    Actualizados(Vec<Detalle>, Option<i64>),
+    Iniciales(u32, Vec<Detalle>),
+    Actualizados(u32, Option<i64>, Vec<Detalle>),
 }
 
 #[derive(Default)]
 pub struct FormularioFactura {
     abierto: bool,
+    apertura: u32,
     iniciales: Vec<ProductoInicial>,
     cargando_iniciales: bool,
     cliente: Option<Value>,
@@ -62,7 +64,6 @@ pub struct FormularioFactura {
     observaciones: String,
     pago_inicial: String,
     fecha_vencimiento: String,
-    lista_precio_id: Option<i64>,
     lista_persistida: Option<i64>,
     listas_pedidas: bool,
     listas: Vec<Value>,
@@ -88,16 +89,21 @@ fn id_lista(lista: &Option<Value>) -> Option<i64> {
 impl FormularioFactura {
     pub fn abrir(&mut self, productos_iniciales: Vec<ProductoInicial>) {
         self.abierto = true;
+        self.apertura += 1;
         self.tipo_factura = "remito".into();
         self.observaciones.clear();
         self.filas.clear();
         self.pago_inicial.clear();
         self.fecha_vencimiento.clear();
-        self.lista_precio_id = self.lista_persistida;
         self.cliente = None;
-        self.lista_seleccionada = None;
+        self.lista_seleccionada = self.buscar_lista(self.lista_persistida);
         self.iniciales = productos_iniciales;
+        self.cargando_iniciales = false;
         self.guardando = false;
+    }
+
+    fn buscar_lista(&self, id: Option<i64>) -> Option<Value> {
+        id.and_then(|id| self.listas.iter().find(|l| l["id"].as_i64() == Some(id)).cloned())
     }
 
     pub fn abierto(&self) -> bool {
@@ -112,7 +118,7 @@ impl FormularioFactura {
         if self.pago_inicial.is_empty() {
             None
         } else {
-            logica::parsear_float(&self.pago_inicial)
+            logica::parsear_numero(&self.pago_inicial)
         }
     }
 
@@ -149,6 +155,7 @@ impl FormularioFactura {
         if detalles.is_empty() {
             return;
         }
+        let apertura = self.apertura;
         self.lanzar(cx, move |s| {
             let actualizados = detalles
                 .into_iter()
@@ -170,13 +177,14 @@ impl FormularioFactura {
                     d
                 })
                 .collect();
-            Respuesta::Actualizados(actualizados, lista)
+            Respuesta::Actualizados(apertura, lista, actualizados)
         });
     }
 
     fn cargar_iniciales(&mut self, cx: &Contexto) {
         self.cargando_iniciales = true;
-        let iniciales = self.iniciales.clone();
+        let iniciales = std::mem::take(&mut self.iniciales);
+        let apertura = self.apertura;
         self.lanzar(cx, move |s| {
             let detalles = iniciales
                 .into_iter()
@@ -188,7 +196,7 @@ impl FormularioFactura {
                     None => Detalle::nuevo(inicial.id, None, inicial.nombre, inicial.cantidad, inicial.precio),
                 })
                 .collect();
-            Respuesta::Iniciales(detalles)
+            Respuesta::Iniciales(apertura, detalles)
         });
     }
 
@@ -205,8 +213,8 @@ impl FormularioFactura {
             match respuesta {
                 Respuesta::Listas(listas) => {
                     self.listas = listas;
-                    if let Some(id) = self.lista_precio_id {
-                        self.lista_seleccionada = self.listas.iter().find(|l| l["id"].as_i64() == Some(id)).cloned();
+                    if self.lista_seleccionada.is_none() {
+                        self.lista_seleccionada = self.buscar_lista(self.lista_persistida);
                     }
                 }
                 Respuesta::Precios(id, precios) => {
@@ -217,17 +225,18 @@ impl FormularioFactura {
                         }
                     }
                 }
-                Respuesta::Iniciales(detalles) => {
-                    self.cargando_iniciales = false;
-                    if self.abierto {
+                Respuesta::Iniciales(apertura, detalles) => {
+                    if apertura == self.apertura {
+                        self.cargando_iniciales = false;
                         self.filas = detalles.into_iter().map(Fila::new).collect();
+                        if let Some(id) = id_lista(&self.lista_seleccionada) {
+                            self.actualizar_precios(cx, Some(id));
+                        }
                     }
                 }
-                Respuesta::Actualizados(detalles, lista) => {
-                    self.filas = detalles.into_iter().map(Fila::new).collect();
-                    self.lista_precio_id = lista;
-                    if let Some(id) = lista {
-                        self.lista_seleccionada = self.listas.iter().find(|l| l["id"].as_i64() == Some(id)).cloned();
+                Respuesta::Actualizados(apertura, lista, detalles) => {
+                    if apertura == self.apertura && lista == id_lista(&self.lista_seleccionada) {
+                        self.filas = detalles.into_iter().map(Fila::new).collect();
                     }
                 }
             }
@@ -246,15 +255,27 @@ impl FormularioFactura {
         let negocio = cx.global.negocio.clone().unwrap_or(Value::Null);
         let detalles = self.detalles();
         let totales = logica::calcular_totales(&detalles, &self.tipo_factura, negocio["ivaIncluidoEnPrecios"].as_bool().unwrap_or(false));
+        let pago = self.pago();
+        if pago.is_some_and(|p| p > totales.total) {
+            ui::toast::error(&cx.egui, "El pago inicial no puede ser mayor al total");
+            return;
+        }
         let afip = logica::usar_afip(&negocio, &self.tipo_factura);
-        let vencimiento = logica::fecha_dia_mes_anio(&self.fecha_vencimiento)
-            .and_then(|f| logica::fecha_iso_desde_input(&f.format("%Y-%m-%d").to_string()));
+        let pago_parcial = pago.is_some_and(|p| p > 0.0 && p < totales.total);
+        let vencimiento = match logica::fecha_dia_mes_anio(&self.fecha_vencimiento) {
+            _ if !pago_parcial || self.fecha_vencimiento.trim().is_empty() => None,
+            Some(fecha) => logica::fecha_iso_desde_input(&fecha.format("%Y-%m-%d").to_string()),
+            None => {
+                ui::toast::error(&cx.egui, "Ingresá una fecha de vencimiento válida (dd/mm/aaaa)");
+                return;
+            }
+        };
         let datos = DatosFactura {
             cliente_id: cliente["id"].clone(),
             tipo_factura: &self.tipo_factura,
             observaciones: &self.observaciones,
-            lista_precio_id: self.lista_precio_id,
-            pago_inicial: self.pago(),
+            lista_precio_id: id_lista(&self.lista_seleccionada),
+            pago_inicial: pago,
             fecha_vencimiento: vencimiento.as_deref(),
             detalles: &detalles,
         };
@@ -334,7 +355,7 @@ impl FormularioFactura {
             });
         }
         self.recibir(cx);
-        if self.filas.is_empty() && !self.iniciales.is_empty() && !self.cargando_iniciales {
+        if !self.iniciales.is_empty() && !self.cargando_iniciales {
             self.cargar_iniciales(cx);
         }
         self.pedir_precios(cx);
@@ -356,7 +377,7 @@ impl FormularioFactura {
             Accion::Cliente => self.selector_cliente.abrir(),
             Accion::Producto => self.selector_producto.abrir(cx),
             Accion::Lista(id) => {
-                self.lista_seleccionada = id.and_then(|id| self.listas.iter().find(|l| l["id"].as_i64() == Some(id)).cloned());
+                self.lista_seleccionada = self.buscar_lista(id);
                 self.lista_persistida = id;
                 self.pedir_precios(cx);
                 self.actualizar_precios(cx, id);
@@ -375,14 +396,13 @@ impl FormularioFactura {
         let nombre_lista = self.lista_seleccionada.as_ref().map(|l| texto(l, "nombre").to_string());
         let lista = ListaActiva { nombre: nombre_lista, precios: &self.precios_lista };
         if let Some(producto) = self.selector_producto.mostrar(&ctx, cx, &excluidos, lista) {
-            self.cantidad.abrir(producto);
-        }
-        if let Some(ResultadoCantidad::Confirmada(producto, cantidad)) = self.cantidad.mostrar(&ctx, cx) {
             let id = producto["id"].as_i64().unwrap_or_default();
-            let precio = match (&self.lista_seleccionada, self.precios_lista.get(&id)) {
-                (Some(_), Some(precio)) => *precio,
-                _ => producto["precio"].as_f64().unwrap_or(0.0),
-            };
+            let precio_lista = self.lista_seleccionada.as_ref().and(self.precios_lista.get(&id).copied());
+            let precio = logica::precio_con_lista(&producto, precio_lista);
+            self.cantidad.abrir(producto, precio);
+        }
+        if let Some(ResultadoCantidad::Confirmada(producto, cantidad, precio)) = self.cantidad.mostrar(&ctx) {
+            let id = producto["id"].as_i64().unwrap_or_default();
             let nombre = texto(&producto, "nombre").to_string();
             self.filas.push(Fila::new(Detalle::nuevo(id, Some(producto), nombre, cantidad, precio)));
         }
@@ -442,9 +462,9 @@ impl FormularioFactura {
                 ui.set_width(mitad);
                 comun::etiqueta(ui, "Pago inicial (opcional)");
                 let r = ui
-                    .scope(|ui| Entrada::new(&mut self.pago_inicial).tam(Tam::Sm).sugerencia("0.00").id(Id::new("factura-pago-inicial")).ui(ui))
+                    .scope(|ui| Entrada::new(&mut self.pago_inicial).tam(Tam::Sm).sugerencia("0,00").id(Id::new("factura-pago-inicial")).ui(ui))
                     .inner;
-                if r.changed() && self.pago().is_none_or(|p| p == 0.0) {
+                if r.changed() && self.pago().is_none() {
                     self.pago_inicial.clear();
                 }
                 let pago = self.pago().filter(|p| *p != 0.0);
@@ -622,15 +642,15 @@ impl FormularioFactura {
             Entrada::new(&mut d.descripcion).tam(Tam::Sm).id(Id::new(("factura-desc", i))).ui(&mut hijo);
             let mut hijo = ui.new_child(egui::UiBuilder::new().max_rect(celda(2)));
             if Entrada::new(&mut fila.cantidad).tam(Tam::Sm).id(Id::new(("factura-cant", i))).ui(&mut hijo).changed() {
-                d.cantidad = logica::parsear_float(&fila.cantidad).unwrap_or(0.0);
+                d.cantidad = logica::parsear_numero(&fila.cantidad).unwrap_or(0.0);
                 d.recalcular();
             }
             let mut hijo = ui.new_child(egui::UiBuilder::new().max_rect(celda(3)));
             if Entrada::new(&mut fila.precio).tam(Tam::Sm).id(Id::new(("factura-precio", i))).ui(&mut hijo).changed() {
-                d.precio_unitario = logica::parsear_float(&fila.precio).unwrap_or(0.0);
+                d.precio_unitario = logica::parsear_numero(&fila.precio).unwrap_or(0.0);
                 d.recalcular();
             }
-            comun::texto_en(ui, egui::pos2(celda(4).right(), centro), Align2::RIGHT_CENTER, &logica::moneda(d.subtotal), Tam::Sm, Peso::Medio, color::TEXTO);
+            comun::texto_en(ui, egui::pos2(celda(4).right(), centro), Align2::RIGHT_CENTER, &formato::pesos(d.subtotal), Tam::Sm, Peso::Medio, color::TEXTO);
             let papelera = Rect::from_min_size(egui::pos2(columnas[5] + 16.0, centro - 16.0), Vec2::splat(32.0));
             let r = ui.interact(papelera, Id::new(("factura-borrar", i)), Sense::click()).on_hover_cursor(CursorIcon::PointingHand);
             if r.hovered() {
@@ -683,7 +703,7 @@ fn imprimir_factura(servicios: &Servicios, ctx: &egui::Context, factura: &Value,
 fn saldo_pendiente(ui: &mut Ui, saldo: f64) {
     let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 20.0), Sense::hover());
     let r = comun::texto_en(ui, egui::pos2(rect.left(), rect.center().y), Align2::LEFT_CENTER, "Saldo pendiente:", Tam::Sm, Peso::Negrita, paleta::BLUE_600);
-    comun::texto_en(ui, egui::pos2(r.right() + 4.0, rect.center().y), Align2::LEFT_CENTER, &logica::moneda(saldo), Tam::Sm, Peso::Normal, paleta::BLUE_600);
+    comun::texto_en(ui, egui::pos2(r.right() + 4.0, rect.center().y), Align2::LEFT_CENTER, &formato::pesos(saldo), Tam::Sm, Peso::Normal, paleta::BLUE_600);
 }
 
 fn caja_iva(ui: &mut Ui) {
@@ -716,7 +736,7 @@ fn resumen(ui: &mut Ui, tipo: &str, totales: logica::Totales) {
     y += 36.0;
     let mut fila_total = |etiqueta: &str, valor: f64| {
         comun::texto_en(ui, egui::pos2(x0, y + 12.0), Align2::LEFT_CENTER, etiqueta, Tam::Base, Peso::Normal, color::TEXTO);
-        comun::texto_en(ui, egui::pos2(x1, y + 12.0), Align2::RIGHT_CENTER, &logica::moneda(valor), Tam::Base, Peso::Normal, color::TEXTO);
+        comun::texto_en(ui, egui::pos2(x1, y + 12.0), Align2::RIGHT_CENTER, &formato::pesos(valor), Tam::Base, Peso::Normal, color::TEXTO);
         y += 32.0;
     };
     fila_total("Subtotal:", totales.subtotal);
@@ -726,5 +746,5 @@ fn resumen(ui: &mut Ui, tipo: &str, totales: logica::Totales) {
     ui.painter().hline(x0..=x1, y + 0.5, Stroke::new(1.0, color::BORDE));
     y += 9.0;
     comun::texto_en(ui, egui::pos2(x0, y + 14.0), Align2::LEFT_CENTER, "Total:", Tam::Lg, Peso::Negrita, color::TEXTO);
-    comun::texto_en(ui, egui::pos2(x1, y + 14.0), Align2::RIGHT_CENTER, &logica::moneda(totales.total), Tam::Lg, Peso::Negrita, color::TEXTO);
+    comun::texto_en(ui, egui::pos2(x1, y + 14.0), Align2::RIGHT_CENTER, &formato::pesos(totales.total), Tam::Lg, Peso::Negrita, color::TEXTO);
 }

@@ -1,9 +1,11 @@
 use eframe::egui::{self, Align2, Color32, Rect, ScrollArea, Sense, Stroke, StrokeKind, Ui, Vec2};
 use nucleo::facturas as logica;
+use nucleo::formato;
 use serde_json::Value;
 
 use super::comun::{self, Boton, Insignia, Relleno};
-use super::pagos::descargar_pdf;
+use super::modal::condicion_fiscal;
+use super::pagos::{descargar_pdf, AgregarPago, ResultadoPago};
 use super::{mostrar_valor, numero, recien_montada, texto};
 use crate::app::{Contexto, Ruta};
 use crate::tareas::{esperar, Tarea};
@@ -17,6 +19,8 @@ pub struct Detalle {
     cargando: bool,
     error: Option<String>,
     tarea: Option<Tarea<Result<Value, String>>>,
+    pago: Option<AgregarPago>,
+    ver_cliente: bool,
 }
 
 pub fn capitalizar(texto: &str) -> String {
@@ -42,10 +46,6 @@ pub fn anchos_tabla(maximos: &[f32], fijos: &[Option<f32>], disponible: f32) -> 
         .zip(fijos)
         .map(|(maximo, f)| f.unwrap_or(maximo + extra * maximo / libres.max(1.0)))
         .collect()
-}
-
-fn pesos(valor: f64) -> String {
-    format!("$ {}", logica::en_us(valor))
 }
 
 impl Detalle {
@@ -111,6 +111,7 @@ impl Detalle {
         let pagada = saldo <= 0.0;
         let mut volver = false;
         let mut pdf = false;
+        let mut agregar_pago = false;
         ui.painter().rect_filled(ui.max_rect(), 0, paleta::GRAY_50);
         ui.spacing_mut().scroll = egui::style::ScrollStyle {
             floating: false,
@@ -143,7 +144,9 @@ impl Detalle {
                             .color_encima(color::ACENTO_TEXTO)
                     };
                     if saldo > 0.0 {
-                        negro("Agregar Pago", "dollar-sign").ui(ui);
+                        if negro("Agregar Pago", "dollar-sign").ui(ui).clicked() {
+                            agregar_pago = true;
+                        }
                         ui.add_space(8.0);
                     }
                     if negro("Descargar PDF", "download").ui(ui).clicked() {
@@ -163,7 +166,9 @@ impl Detalle {
                 ui.set_width(ui.available_width());
                 ui.vertical_centered(|ui| {
                     ui.set_width(ancho);
-                    self.tarjetas(ui, factura, pagado, saldo);
+                    if self.tarjetas(ui, factura, pagado, saldo) {
+                        self.ver_cliente = true;
+                    }
                     ui.add_space(24.0);
                     productos(ui, factura);
                     if logica::tiene_pagos(factura) {
@@ -181,17 +186,33 @@ impl Detalle {
             cx.global.ir(Ruta::Facturas);
         }
         if pdf {
-            descargar_pdf(cx, &factura["id"], false);
+            descargar_pdf(cx, factura);
+        }
+        if agregar_pago {
+            self.pago = Some(AgregarPago::new(factura.clone()));
+        }
+        if let Some(pago) = &mut self.pago {
+            match pago.mostrar(ui.ctx(), cx) {
+                ResultadoPago::Nada => {}
+                ResultadoPago::Cerrar => self.pago = None,
+                ResultadoPago::Exito => {
+                    self.pago = None;
+                    self.pedir(cx);
+                }
+            }
+        }
+        if self.ver_cliente && dialogo_cliente(ui.ctx(), &factura["cliente"]) {
+            self.ver_cliente = false;
         }
     }
 
-    fn tarjetas(&self, ui: &mut Ui, factura: &Value, pagado: f64, saldo: f64) {
+    fn tarjetas(&self, ui: &mut Ui, factura: &Value, pagado: f64, saldo: f64) -> bool {
         let ancho_ventana = ui.ctx().content_rect().width();
         let columnas = if ancho_ventana >= 1024.0 { 3 } else { 1 };
         let ancho = ui.available_width();
         let ancho_tarjeta = (ancho - 24.0 * (columnas as f32 - 1.0)) / columnas as f32;
         let mut info = vec![
-            ("FECHA DE EMISIÓN:".to_string(), logica::fecha_en_us(texto(factura, "fecha"))),
+            ("FECHA DE EMISIÓN:".to_string(), logica::fecha_es_ar(texto(factura, "fecha"))),
             ("TIPO DE FACTURA:".to_string(), capitalizar(texto(factura, "tipoFactura"))),
         ];
         if !texto(factura, "cae").is_empty() {
@@ -235,28 +256,58 @@ impl Detalle {
         }
         let r = caja(1);
         let (x0, x1, mut y) = tarjeta_detalle(ui, r, paleta::GREEN_500, "dollar-sign", "Totales");
-        fila(ui, x0, x1, y, "Subtotal:", &pesos(numero(factura, "subtotal")), Tam::Base, paleta::GRAY_600, color::TEXTO, Peso::Medio);
+        fila(ui, x0, x1, y, "Subtotal:", &formato::pesos(numero(factura, "subtotal")), Tam::Base, paleta::GRAY_600, color::TEXTO, Peso::Medio);
         y += 36.0;
-        fila(ui, x0, x1, y, "Impuestos:", &pesos(numero(factura, "impuestos")), Tam::Base, paleta::GRAY_600, color::TEXTO, Peso::Medio);
+        fila(ui, x0, x1, y, "Impuestos:", &formato::pesos(numero(factura, "impuestos")), Tam::Base, paleta::GRAY_600, color::TEXTO, Peso::Medio);
         y += 36.0;
         ui.painter().hline(x0..=x1, y + 0.5, Stroke::new(1.0, color::BORDE));
         y += 9.0;
         comun::texto_en(ui, egui::pos2(x0, y + 14.0), Align2::LEFT_CENTER, "Total:", Tam::Lg, Peso::Semi, paleta::GREEN_600);
-        comun::texto_en(ui, egui::pos2(x1, y + 14.0), Align2::RIGHT_CENTER, &pesos(numero(factura, "total")), Tam::Lg, Peso::Semi, paleta::GREEN_600);
+        comun::texto_en(ui, egui::pos2(x1, y + 14.0), Align2::RIGHT_CENTER, &formato::pesos(numero(factura, "total")), Tam::Lg, Peso::Semi, paleta::GREEN_600);
         y += 40.0;
-        fila(ui, x0, x1, y, "Total pagado:", &pesos(pagado), Tam::Sm, paleta::GRAY_600, paleta::YELLOW_600, Peso::Medio);
+        fila(ui, x0, x1, y, "Total pagado:", &formato::pesos(pagado), Tam::Sm, paleta::GRAY_600, paleta::YELLOW_600, Peso::Medio);
         y += 32.0;
         let color_saldo = if saldo > 0.0 { paleta::RED_600 } else { paleta::GREEN_600 };
-        fila(ui, x0, x1, y, "Saldo pendiente:", &pesos(saldo), Tam::Sm, paleta::GRAY_600, color_saldo, Peso::Medio);
+        fila(ui, x0, x1, y, "Saldo pendiente:", &formato::pesos(saldo), Tam::Sm, paleta::GRAY_600, color_saldo, Peso::Medio);
         let r = caja(2);
         let (x0, x1, mut y) = tarjeta_detalle(ui, r, paleta::PURPLE_500, "user", "Información del Cliente");
         for (etiqueta, valor) in &datos_cliente {
             fila(ui, x0, x1, y, etiqueta, valor, Tam::Base, paleta::GRAY_600, color::TEXTO, Peso::Medio);
             y += 36.0;
         }
-        let ver = Boton::contorno("Ver Cliente").chico().icono("user").separacion(16.0);
-        ver.en(ui, Rect::from_min_max(egui::pos2(x0, y), egui::pos2(x1, y + 36.0)), "ver-cliente");
+        let ver = Boton::contorno("Ver Cliente").chico().icono("user").separacion(16.0).habilitado(cliente.is_object());
+        ver.en(ui, Rect::from_min_max(egui::pos2(x0, y), egui::pos2(x1, y + 36.0)), "ver-cliente").clicked()
     }
+}
+
+fn dialogo_cliente(ctx: &egui::Context, cliente: &Value) -> bool {
+    let mut datos = vec![("Nombre/Razón Social", logica::nombre_cliente(cliente))];
+    for (clave, etiqueta) in [("cuit", "CUIT"), ("email", "Email"), ("telefono", "Teléfono"), ("direccion", "Dirección")] {
+        if !texto(cliente, clave).is_empty() {
+            datos.push((etiqueta, texto(cliente, clave).to_string()));
+        }
+    }
+    let condicion = texto(cliente, "condicionFiscal");
+    datos.push(("Condición Fiscal", if condicion.is_empty() { "N/A".into() } else { condicion_fiscal(condicion) }));
+    let mut cerrar = false;
+    let r = ui::Dialogo::new("factura-detalle-cliente").ancho(448.0).mostrar(ctx, |ui| {
+        comun::encabezado_dialogo(ui, "user", "Información del Cliente", "Datos del cliente de esta factura", 8.0);
+        ui.add_space(16.0);
+        for (indice, (etiqueta, valor)) in datos.iter().enumerate() {
+            if indice > 0 {
+                ui.add_space(12.0);
+            }
+            comun::etiqueta(ui, etiqueta);
+            comun::linea(ui, valor.clone(), Tam::Base, Peso::Normal, color::TEXTO);
+        }
+        ui.add_space(24.0);
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
+            if Boton::primario("Cerrar").ui(ui).clicked() {
+                cerrar = true;
+            }
+        });
+    });
+    cerrar || r.cerrar
 }
 
 fn marco_tarjeta(ui: &Ui, rect: Rect, borde_izquierdo: Color32) {
@@ -304,9 +355,9 @@ fn productos(ui: &mut Ui, factura: &Value) {
                 texto(&d["producto"], "nombre").to_string(),
                 texto(&d["producto"], "tipoMedida").to_string(),
                 texto(d, "descripcion").to_string(),
-                mostrar_valor(&d["cantidad"]),
-                pesos(numero(d, "precioUnitario")),
-                pesos(numero(d, "subtotal")),
+                formato::numero(numero(d, "cantidad")),
+                formato::pesos(numero(d, "precioUnitario")),
+                formato::pesos(numero(d, "subtotal")),
             ]
         })
         .collect();
@@ -370,7 +421,7 @@ fn historial(ui: &mut Ui, factura: &Value) {
         ui::pintar_icono_en(ui, Rect::from_center_size(circulo, Vec2::splat(20.0)), "dollar-sign", paleta::GREEN_600);
         let tx = caja.left() + 68.0;
         let arriba = caja.top() + 16.0;
-        comun::texto_en(ui, egui::pos2(tx, arriba + 12.0), Align2::LEFT_CENTER, &pesos(numero(pago, "monto")), Tam::Base, Peso::Semi, color::TEXTO);
+        comun::texto_en(ui, egui::pos2(tx, arriba + 12.0), Align2::LEFT_CENTER, &formato::pesos(numero(pago, "monto")), Tam::Base, Peso::Semi, color::TEXTO);
         let metodo = capitalizar(&texto(pago, "metodoPago").replacen('_', " ", 1));
         comun::texto_en(ui, egui::pos2(tx, arriba + 34.0), Align2::LEFT_CENTER, &metodo, Tam::Sm, Peso::Normal, paleta::GRAY_600);
         let referencia = texto(pago, "referencia");
@@ -379,7 +430,7 @@ fn historial(ui: &mut Ui, factura: &Value) {
         }
         let derecha = caja.right() - 16.0;
         let medio = caja.center().y;
-        comun::texto_en(ui, egui::pos2(derecha, medio - 11.0), Align2::RIGHT_CENTER, &logica::fecha_en_us(texto(pago, "fecha")), Tam::Sm, Peso::Normal, paleta::GRAY_600);
+        comun::texto_en(ui, egui::pos2(derecha, medio - 11.0), Align2::RIGHT_CENTER, &logica::fecha_es_ar(texto(pago, "fecha")), Tam::Sm, Peso::Normal, paleta::GRAY_600);
         let insignia = Insignia::new(texto(pago, "estado"), paleta::GREEN_600, color::PRIMARIO_TEXTO, Color32::TRANSPARENT);
         let w = insignia.ancho_natural(ui);
         insignia.pintar(ui, Rect::from_min_size(egui::pos2(derecha - w, medio - 1.0), Vec2::new(w, 22.0)));
