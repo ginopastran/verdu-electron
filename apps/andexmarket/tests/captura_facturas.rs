@@ -195,7 +195,7 @@ fn pleno(ui: &mut egui::Ui, contenido: impl FnOnce(&mut egui::Ui)) {
     let rect = ui.ctx().content_rect();
     let mut hijo = ui.new_child(egui::UiBuilder::new().max_rect(rect));
     hijo.set_clip_rect(rect);
-    egui::Frame::new().fill(ui::color::FONDO).show(&mut hijo, |ui| {
+    egui::Frame::new().fill(ui::marca::color::BLANCO).show(&mut hijo, |ui| {
         ui.set_min_size(ui.available_size());
         contenido(ui);
     });

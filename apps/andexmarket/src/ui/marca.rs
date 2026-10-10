@@ -237,3 +237,13 @@ pub fn texto_mono(contenido: impl Into<String>, px: f32, peso: Peso, color: Colo
 pub fn em(px: f32, proporcion: f32) -> f32 {
     px * proporcion
 }
+
+pub fn mezclar(desde: Color32, hasta: Color32, t: f32) -> Color32 {
+    let canal = |a: u8, b: u8| (a as f32 + (b as f32 - a as f32) * t).round() as u8;
+    Color32::from_rgba_premultiplied(
+        canal(desde.r(), hasta.r()),
+        canal(desde.g(), hasta.g()),
+        canal(desde.b(), hasta.b()),
+        canal(desde.a(), hasta.a()),
+    )
+}

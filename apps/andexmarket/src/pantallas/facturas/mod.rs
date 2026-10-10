@@ -1,4 +1,3 @@
-mod comun;
 mod detalle;
 pub mod formulario;
 mod lista;

@@ -11,8 +11,7 @@ use serde_json::Value;
 
 use super::diseno::{borde_punteado, celdas, galeria_centrada, galeria_cortada, Pista};
 use super::productos::{monto, ProductoDisponible};
-use crate::ui::degradado::mezclar;
-use crate::ui::marca::{self, color, fuente, fuente_mono, radio, sombra, tam};
+use crate::ui::marca::{self, color, fuente, fuente_mono, mezclar, radio, sombra, tam};
 use crate::ui::v2::{self, tarjetas::celda_texto, Avatar, Boton, BotonIcono, Estilo, EstiloTecla, ItemMenu, Popover, Usuario};
 use crate::ui::{pintar_icono_solar_en, Peso};
 

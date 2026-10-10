@@ -1,8 +1,7 @@
 use eframe::egui::{self, epaint::Mesh, Align2, Color32, CornerRadius, Frame, Painter, Rect, Response, Sense, Stroke, Ui, UiBuilder, Vec2};
 
 use super::galeria_espaciada;
-use crate::ui::degradado::mezclar;
-use crate::ui::marca::{color, fuente, radio, tam};
+use crate::ui::marca::{color, fuente, mezclar, radio, tam};
 use crate::ui::{pintar_icono_solar_en, Peso};
 
 #[derive(Clone, Copy, Debug)]

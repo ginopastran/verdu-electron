@@ -136,7 +136,7 @@ impl App {
 
 impl eframe::App for App {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
-        egui::Frame::new().fill(ui::color::FONDO).show(ui, |ui| {
+        egui::Frame::new().fill(ui::marca::color::BLANCO).show(ui, |ui| {
             ui.set_min_size(ui.available_size());
             self.mostrar(ui);
         });

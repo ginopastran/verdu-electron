@@ -12,10 +12,10 @@ Vitrinas de referencia (regenerar con `cargo test -p andexmarket --test captura_
 1. **La lógica no se toca.** Estados, llamadas a la API, validaciones, atajos, foco y mensajes quedan igual. Solo cambia la presentación: qué widget se llama y con qué medidas y colores.
 2. **Medidas exactas del HTML.** 1px CSS = 1 punto de egui. Buscá la pantalla en `Andex POS.dc.html` (los bloques están comentados: `CONFIGURACIÓN INICIAL`, `QUIÉN ESTÁ VENDIENDO`, `POS`, `CUENTA CORRIENTE`, `MODALES`) y copiá alto, relleno, radio, gap, tamaño y peso de letra. Los textos de la UI salen del HTML y del método `renderVals()` del script del final.
 3. **Colores solo desde `ui::marca::color`.** Nada de `ui::paleta` ni `ui::color` en pantallas portadas. Si falta un color, agregalo a `marca.rs` con nombre semántico.
-4. **Íconos solo Solar** (`icono_solar`, `pintar_icono_solar*`, o el nombre en los componentes v2). Los Lucide de `assets/iconos` quedan para lo que todavía no se portó.
-5. **Toasts:** `ui::v2::toast::{exito, error, info, aviso, con_detalle}`. Hay un solo toast visible a la vez (reemplaza al anterior), 2,8 s, arriba al centro, como en el diseño. Cuando se porte `app.rs`, cambiar `ui::toast::pintar` por `ui::v2::toast::pintar`; mientras convivan, cada sistema pinta solo los suyos.
+4. **Íconos solo Solar** (`icono_solar`, `pintar_icono_solar*`, o el nombre en los componentes v2).
+5. **Toasts:** `ui::v2::toast::{exito, error, info, aviso, con_detalle}`. Hay un solo toast visible a la vez (reemplaza al anterior), 2,8 s, arriba al centro, como en el diseño. `app.rs` los pinta una vez por cuadro con `ui::v2::toast::pintar`.
 6. **Sin comentarios en el código**, nombres en español (ver `docs/GUIA-PORTE.md`).
-7. **El kit v1 no se borra** hasta que no quede ninguna pantalla que lo use. No mezclar v1 y v2 dentro de una misma pantalla.
+7. **El kit v1 ya no existe**: se borraron `controles`, `contenedores`, `degradado`, `paleta`, el toast viejo y los íconos Lucide. De `crate::ui` quedan `instalar`, `Peso`, `marca`, los íconos Solar, `imagen` y `v2`.
 8. **Captura obligatoria:** cada pantalla portada tiene su test de captura y se compara contra el HTML abierto en el navegador (servir la carpeta del diseño por HTTP, por ejemplo `python -m http.server`, y abrir `Andex POS.dc.html`; la prop `pantallaInicial` del script elige `admin`, `usuarios`, `pos` o `cuenta`).
 9. El `item_spacing` global es 0: los gaps del HTML se ponen con `ui.add_space` o `spacing_mut().item_spacing`.
 10. **Filas horizontales:** dentro de un layout vertical usá `ui.horizontal(..)`. `ui.with_layout(Layout::left_to_right(Align::Center), ..)` ocupa todo el alto disponible.
@@ -112,6 +112,8 @@ egui no admite spread negativo en `Shadow`; `Sombra::forma(rect, radio)` sí (ac
 
 Anillos: `marca::pintar_anillo(pintor, rect, radio, color)` pinta el `box-shadow: 0 0 0 3px` por fuera.
 
+Mezcla de colores (transiciones de hover): `marca::mezclar(desde, hasta, t)`.
+
 ## Componentes (`crate::ui::v2`)
 
 Todos devuelven `egui::Response` salvo que se diga otra cosa. Importar con `use crate::ui::v2::{self, ..};`.
@@ -197,7 +199,7 @@ Archivos en `assets/iconos-solar/*.svg` (extraídos de `icons-solar.js`, `width/
 
 Nombres (los 47 que usa el POS): `alert`, `arrow-left`, `barcode`, `bill-check`, `calendar`, `card`, `cart`, `cart-plus`, `cash`, `check`, `chevron-down`, `chevron-left`, `chevron-right`, `circle-check`, `clock-time`, `doc`, `dollar-sign`, `download`, `eye`, `file-text`, `hand-coins`, `history`, `info`, `loader`, `lock`, `log-out`, `mail`, `moon`, `percent`, `plus`, `printer`, `qr`, `receipt`, `scale`, `search`, `settings`, `shield`, `split`, `square-pen`, `store`, `sun`, `tag`, `transfer`, `trash-2`, `user`, `wallet`, `x`.
 
-Equivalencias con los Lucide del kit v1: `shopping-cart`→`cart`, `loader-2`→`loader`, `alert-circle`/`alert-triangle`→`alert`, `check-circle`→`circle-check`, `credit-card`→`card`, `qr-code`→`qr`, `edit`→`square-pen`, `clock`→`clock-time`, `xcircle`/`x`→`x`. Ojo: en Solar `check` es un cuadrado con tilde y `x` es un círculo con cruz (así está en el diseño).
+Equivalencias con los Lucide del kit v1 (ya borrados), por si aparece un nombre viejo: `shopping-cart`→`cart`, `loader-2`→`loader`, `alert-circle`/`alert-triangle`→`alert`, `check-circle`→`circle-check`, `credit-card`→`card`, `qr-code`→`qr`, `edit`→`square-pen`, `clock`→`clock-time`, `xcircle`/`x`→`x`. Ojo: en Solar `check` es un cuadrado con tilde y `x` es un círculo con cruz (así está en el diseño).
 
 Si una pantalla del diseño de Admin/Reportes necesita otro ícono del set, agregalo con el script de extracción (mismo reemplazo de `width="100%" height="100%"`) y sumalo a `ICONOS_SOLAR` en `ui/iconos.rs`.
 

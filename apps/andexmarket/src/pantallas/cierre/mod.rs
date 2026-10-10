@@ -11,8 +11,7 @@ use serde_json::Value;
 use crate::app::{Contexto, Servicios};
 use crate::impresion::{imprimir, Comprobante};
 use crate::tareas::{esperar, Tarea};
-use crate::ui::degradado::mezclar;
-use crate::ui::marca::{color, fuente, radio, tam};
+use crate::ui::marca::{color, fuente, mezclar, radio, tam};
 use crate::ui::v2::{self, pintar_tecla, toast, EstiloTecla};
 use crate::ui::{pintar_icono_solar_en, Peso};
 

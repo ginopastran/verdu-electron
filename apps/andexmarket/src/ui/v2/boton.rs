@@ -3,8 +3,8 @@ use eframe::egui::{self, Color32, CursorIcon, Rect, Response, Sense, Stroke, Str
 use super::animacion::girando;
 use super::insignias::{medir_tecla, pintar_tecla, EstiloTecla};
 use super::{galeria, opacidad};
-use crate::ui::marca::{alto, color, fuente, radio, sombra, Sombra};
-use crate::ui::{degradado::mezclar, pintar_icono_solar_en, Peso};
+use crate::ui::marca::{alto, color, fuente, mezclar, radio, sombra, Sombra};
+use crate::ui::{pintar_icono_solar_en, Peso};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Estilo {

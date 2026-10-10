@@ -7,8 +7,7 @@ use super::productos::{self, monto, numero_js, parse_float, FilaLista, ProductoD
 use super::vista::{kilos, pesos, precio_visual};
 use crate::app::Contexto;
 use crate::tareas::{self, Tarea};
-use crate::ui::degradado::mezclar;
-use crate::ui::marca::{color, fuente, radio, sombra, tam};
+use crate::ui::marca::{color, fuente, mezclar, radio, sombra, tam};
 use crate::ui::v2::{self, toast, Boton, Contenedor, Modal};
 use crate::ui::{pintar_icono_solar_en, Peso};
 

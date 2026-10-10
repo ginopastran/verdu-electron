@@ -42,9 +42,3 @@ impl Pantallas {
         self.actualizacion.mostrar(ui, cx);
     }
 }
-
-pub fn pendiente(ui: &mut Ui, nombre: &str) {
-    ui.centered_and_justified(|ui| {
-        ui.label(crate::ui::texto(format!("{nombre} (en construcción)"), crate::ui::Tam::Lg, crate::ui::Peso::Medio, crate::ui::color::APAGADO_TEXTO));
-    });
-}
