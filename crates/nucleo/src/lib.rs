@@ -4,6 +4,7 @@ pub mod cierre;
 pub mod cobros;
 pub mod entorno;
 pub mod facturas;
+pub mod formato;
 pub mod iva;
 pub mod pedidos;
 pub mod sesion;
