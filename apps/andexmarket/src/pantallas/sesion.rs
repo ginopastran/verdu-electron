@@ -233,7 +233,7 @@ impl Parrafo {
         trabajo.sections[0].format.line_height = Some(alto_linea);
         trabajo.sections[0].format.extra_letter_spacing = px * espaciado_em;
         let galeria = ui.ctx().fonts_mut(|f| f.layout_job(trabajo));
-        Parrafo { galeria, ajuste: ((alto_linea - fila) / 2.0).max(0.0) }
+        Parrafo { galeria, ajuste: (alto_linea - fila) / 2.0 }
     }
 
     pub fn alto(&self) -> f32 {
