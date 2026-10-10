@@ -82,7 +82,7 @@ impl Datos {
         self.servicios.api.pedir(metodo, ruta, cuerpo, &encabezados).map_err(|e| e.mensaje)
     }
 
-    fn imprimir_venta(&self, mut orden: Value) {
+    fn imprimir_venta(&self, mut orden: Value) -> bool {
         cobros::ajustar_total_ticket(&mut orden);
         let imprimir = || impresion::imprimir(&self.servicios, Comprobante::Venta, orden.clone());
         let bien = |r: &Value| r["success"] == true;
@@ -97,6 +97,7 @@ impl Datos {
                 let texto = format!("Primera: {}, Segunda: {}", estado(&primera), estado(&segunda));
                 self.detalle(Tipo::Aviso, "Problemas con la doble impresión", texto, 2.0);
             }
+            bien(&primera) && bien(&segunda)
         } else {
             let resultado = imprimir();
             if bien(&resultado) {
@@ -106,6 +107,7 @@ impl Datos {
             } else {
                 self.error("Error al imprimir el ticket");
             }
+            bien(&resultado)
         }
     }
 
@@ -351,6 +353,8 @@ impl Cobro {
         }
         self.normal.metodo = Some(metodo);
         self.normal.procesando = true;
+        let vuelto = self.vuelto(Lado::Normal);
+        self.anotar(total, super::nombre_metodo(metodo).to_string(), vuelto);
         let base = if descuento.is_some() { d.total_iva } else { total };
         let creado = ahora_iso();
         let campos = cobros::campos_descuento(
@@ -377,13 +381,14 @@ impl Cobro {
                     })
                 }
                 Ok(Some(resultado)) => {
-                    d.imprimir_venta(cobros::con_id(orden, &resultado));
+                    let impreso = d.imprimir_venta(cobros::con_id(orden, &resultado));
                     if d.doble() {
                         toast::info(&d.ctx, "Ticket ya fue impreso anteriormente");
                     }
                     d.exito("Orden completada exitosamente");
                     sleep(Duration::from_millis(1500));
                     aplicar(move |c, cx| {
+                        c.anotar_impresion(Some(impreso));
                         c.normal.reiniciar();
                         c.vaciar(cx);
                         cerrar(c);
@@ -407,6 +412,7 @@ impl Cobro {
         let creado = ahora_iso();
         let campos = cobros::campos_descuento(descuento.as_ref(), descuento.map_or(0.0, |x| x.monto), subtotal, Some(subtotal));
         let orden = cobros::orden(&d.venta(&creado), Some("qr"), total, cobros::items_orden(&d.items, true), Some("COMPLETADA"), None, campos);
+        self.anotar(total, super::nombre_metodo("qr").to_string(), None);
         self.lanzar(cx, true, move || {
             let respuesta = d.pedir("POST", "/api/ordenes", Some(&orden)).and_then(|r| {
                 if r.ok() {
@@ -417,10 +423,11 @@ impl Cobro {
             });
             match respuesta {
                 Ok(resultado) => {
-                    d.imprimir_venta(cobros::con_id(orden, &resultado));
+                    let impreso = d.imprimir_venta(cobros::con_id(orden, &resultado));
                     d.exito("Orden completada exitosamente");
                     sleep(Duration::from_millis(100));
-                    aplicar(|c, cx| {
+                    aplicar(move |c, cx| {
+                        c.anotar_impresion(Some(impreso));
                         c.vaciar(cx);
                         c.normal.liberar();
                         c.pago = None;
@@ -453,6 +460,7 @@ impl Cobro {
             efectivo: 0.0,
         }
         .payload(cobros::descuento_qr(descuento.as_ref(), redondear(d.total_iva, 2)));
+        self.anotar(monto, super::nombre_metodo("qr").to_string(), None);
         self.lanzar(cx, true, move || {
             let resultado = d.generar_qr(&payload, "Error al generar el QR para pago").and_then(|r| {
                 if verdad(&r["qrData"]) {
@@ -497,6 +505,7 @@ impl Cobro {
         }
         .payload(cobros::descuento_qr_afip(descuento.as_ref(), redondear(subtotal, 2), redondear(subtotal - con_descuento, 2), true));
         let subtotal_carrito = redondear(d.subtotal, 2);
+        self.anotar(monto, super::nombre_metodo("qr").to_string(), None);
         self.lanzar(cx, true, move || {
             let resultado = d.generar_qr(&payload, "Error al generar el QR para pago AFIP").and_then(|r| {
                 if verdad(&r["qrData"]) && verdad(&r["id"]) {
@@ -548,6 +557,12 @@ impl Cobro {
             return InicioAfip::SinMonto;
         }
         let fecha = cobros::fecha_es_ar(chrono::Local::now());
+        let texto_metodo = match mixto {
+            Some((efectivo, segundo, resto)) => super::texto_mixto(efectivo, segundo, resto),
+            None => super::nombre_metodo(metodo).to_string(),
+        };
+        let vuelto = self.vuelto(Lado::Afip);
+        self.anotar(total, texto_metodo, vuelto);
         self.lanzar(cx, true, move || {
             let factura = cobros::Afip {
                 negocio: &d.negocio,
@@ -589,6 +604,8 @@ impl Cobro {
                     d.detalle(Tipo::Exito, "Factura AFIP creada exitosamente", detalle, 5.0);
                     sleep(Duration::from_millis(1500));
                     aplicar(move |c, cx| {
+                        c.anotar_factura(&datos);
+                        c.anotar_impresion(Some(!fallo));
                         c.vaciar(cx);
                         cerrar(c);
                     })
@@ -703,13 +720,13 @@ impl Cobro {
             Some(cobros::pagos_mixtos(efectivo, segundo, segundo_monto)),
             campos,
         );
+        self.anotar(redondear(total, 2), super::texto_mixto(efectivo, segundo, segundo_monto), None);
         self.lanzar(cx, true, move || match d.crear_orden(&mut orden) {
             Ok(resultado) => {
-                if let Some(resultado) = resultado {
-                    d.imprimir_venta(cobros::con_id(orden, &resultado));
-                }
+                let impreso = resultado.map(|resultado| d.imprimir_venta(cobros::con_id(orden, &resultado)));
                 d.exito("Orden completada exitosamente");
-                aplicar(|c, cx| {
+                aplicar(move |c, cx| {
+                    c.anotar_impresion(impreso);
                     c.normal.mixto_abierto = false;
                     c.vaciar(cx);
                     c.normal.reiniciar();
@@ -736,17 +753,13 @@ impl Cobro {
                 Some(cobros::pagos_mixtos(efectivo, "qr", qr)),
                 campos,
             );
+            self.anotar(redondear(efectivo + qr, 2), super::texto_mixto(efectivo, "qr", qr), None);
             self.lanzar(cx, true, move || match d.crear_orden(&mut orden) {
                 Ok(resultado) => {
-                    let texto = match resultado {
-                        Some(resultado) => {
-                            d.imprimir_venta(cobros::con_id(orden, &resultado));
-                            "Orden mixta completada exitosamente"
-                        }
-                        None => "Orden completada exitosamente",
-                    };
-                    d.exito(texto);
-                    aplicar(|c, cx| {
+                    let impreso = resultado.map(|resultado| d.imprimir_venta(cobros::con_id(orden, &resultado)));
+                    d.exito(if impreso.is_some() { "Orden mixta completada exitosamente" } else { "Orden completada exitosamente" });
+                    aplicar(move |c, cx| {
+                        c.anotar_impresion(impreso);
                         c.vaciar(cx);
                         c.normal.reiniciar();
                         c.normal.mixto_abierto = false;
@@ -772,6 +785,7 @@ impl Cobro {
             efectivo,
         }
         .payload(cobros::descuento_qr(descuento.as_ref(), redondear(d.total_iva, 2)));
+        self.anotar(monto, super::texto_mixto(efectivo, "qr", qr), None);
         self.lanzar(cx, true, move || {
             let resultado = d.generar_qr(&payload, "Error al generar el QR para pago mixto").and_then(|r| {
                 if verdad(&r["qrData"]) {
@@ -816,6 +830,7 @@ impl Cobro {
             efectivo,
         }
         .payload(cobros::descuento_qr_afip(descuento.as_ref(), redondear(subtotal, 2), descuento.map_or(0.0, |x| x.monto), false));
+        self.anotar(redondear(efectivo + qr, 2), super::texto_mixto(efectivo, "qr", qr), None);
         self.lanzar(cx, true, move || {
             let resultado = d.generar_qr(&payload, "Error al generar el QR para pago mixto AFIP").and_then(|r| {
                 if verdad(&r["qrData"]) && verdad(&r["id"]) {
@@ -952,13 +967,14 @@ impl Cobro {
             if mixto {
                 datos["pagos"] = cobros::pagos_mixtos(efectivo, "qr", monto);
             }
-            d.imprimir_venta(datos);
+            let impreso = d.imprimir_venta(datos);
             d.exito(if mixto {
                 "¡Pago mixto completado e impreso exitosamente!"
             } else {
                 "¡Pago completado e impreso exitosamente!"
             });
-            aplicar(|c, cx| {
+            aplicar(move |c, cx| {
+                c.anotar_impresion(Some(impreso));
                 c.qr_abierto = false;
                 c.vaciar(cx);
                 c.normal.reiniciar();
@@ -975,7 +991,8 @@ impl Cobro {
             } else {
                 d.exito("¡Pago completado y factura AFIP generada!");
             }
-            aplicar(|c, cx| {
+            aplicar(move |c, cx| {
+                c.anotar_factura(&resultado);
                 c.qr_abierto = false;
                 c.vaciar(cx);
                 c.afip.reiniciar();
@@ -1047,10 +1064,9 @@ impl Cobro {
                 let imprimir = !self.normal.enviando_manual();
                 let creado = ahora_iso();
                 self.lanzar(cx, true, move || {
-                    if imprimir {
-                        d.finalizar_qr(&datos, &qr, &creado);
-                    }
-                    aplicar(|c, cx| {
+                    let impreso = if imprimir { d.finalizar_qr(&datos, &qr, &creado) } else { None };
+                    aplicar(move |c, cx| {
+                        c.anotar_impresion(impreso);
                         c.qr_abierto = false;
                         c.normal.reiniciar();
                         c.vaciar(cx);
@@ -1077,9 +1093,11 @@ impl Cobro {
                         d.exito("Factura AFIP generada automáticamente");
                     }
                     self.lanzar(cx, false, move || {
-                        d.imprimir_afip(&factura);
+                        let fallo = d.imprimir_afip(&factura);
                         d.exito("Factura AFIP impresa correctamente");
-                        aplicar(|c, cx| {
+                        aplicar(move |c, cx| {
+                            c.anotar_factura(&factura);
+                            c.anotar_impresion(Some(!fallo));
                             c.qr_abierto = false;
                             c.afip.mixto_abierto = false;
                             c.diferir(
@@ -1209,11 +1227,12 @@ impl Cobro {
 }
 
 impl Datos {
-    fn finalizar_qr(&self, estado: &Value, qr: &Value, creado: &str) {
+    fn finalizar_qr(&self, estado: &Value, qr: &Value, creado: &str) -> Option<bool> {
         if self.usuario.is_null() {
             self.error("Se perdió la sesión. Por favor inicia sesión nuevamente.");
-            return;
+            return None;
         }
+        let mut impreso = None;
         self.exito("¡Pago completado! Procesando ticket...");
         if verdad(&estado["orderData"]) || verdad(&estado["orderId"]) {
             let datos = if verdad(&estado["orderData"]) {
@@ -1248,9 +1267,10 @@ impl Datos {
                 }
                 datos
             };
-            self.imprimir_venta(datos);
+            impreso = Some(self.imprimir_venta(datos));
             self.exito("Ticket impreso correctamente");
         }
         self.exito("¡Pago completado exitosamente!");
+        impreso
     }
 }

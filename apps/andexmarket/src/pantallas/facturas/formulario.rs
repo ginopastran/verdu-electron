@@ -1,18 +1,18 @@
 use std::collections::HashMap;
 
-use eframe::egui::{self, Align2, Color32, CursorIcon, Id, Rect, Sense, Stroke, StrokeKind, Ui, Vec2};
+use eframe::egui::{self, Align2, CornerRadius, CursorIcon, Id, Rect, ScrollArea, Sense, Stroke, StrokeKind, Ui, UiBuilder, Vec2};
 use nucleo::facturas::{self as logica, DatosFactura, Detalle};
 use nucleo::formato;
 use serde_json::{json, Value};
 
-use super::comun::{self, Boton, Opcion};
-use super::modal::estilo_desplazamiento;
 use super::selectores::{CantidadProducto, ListaActiva, ResultadoCantidad, SelectorCliente, SelectorProducto};
 use super::{id_texto, texto};
 use crate::app::{Contexto, Servicios};
 use crate::impresion::{imprimir, Comprobante};
 use crate::tareas::{esperar, Tarea};
-use crate::ui::{self, color, paleta, Entrada, Peso, Tam};
+use crate::ui::marca::{self, color, fuente, radio, tam};
+use crate::ui::v2::{self, Boton, BotonIcono, CampoTexto, Contenedor, Estilo, EstiloSegmentado, Segmento};
+use crate::ui::{self, pintar_icono_solar_en, Peso};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ProductoInicial {
@@ -28,8 +28,9 @@ pub enum ResultadoFactura {
     Creada(Value),
 }
 
-const TIPOS: [(&str, &str); 3] =
-    [("A", "Factura A - Responsable Inscripto"), ("C", "Factura C - Monotributista"), ("remito", "Remito - Solo entrega (sin AFIP)")];
+const TIPOS: [(&str, &str); 3] = [("remito", "Remito"), ("A", "Factura A"), ("C", "Factura C")];
+const ALTO_FILA: f32 = 54.0;
+const ANCHO_MODAL: f32 = 760.0;
 
 struct Fila {
     detalle: Detalle,
@@ -76,6 +77,8 @@ pub struct FormularioFactura {
     selector_cliente: SelectorCliente,
     selector_producto: SelectorProducto,
     cantidad: CantidadProducto,
+    desde_orden: bool,
+    intento: bool,
 }
 
 fn obtener(servicios: &Servicios, ruta: &str) -> Option<Value> {
@@ -100,6 +103,8 @@ impl FormularioFactura {
         self.iniciales = productos_iniciales;
         self.cargando_iniciales = false;
         self.guardando = false;
+        self.desde_orden = !self.iniciales.is_empty();
+        self.intento = false;
     }
 
     fn buscar_lista(&self, id: Option<i64>) -> Option<Value> {
@@ -375,15 +380,28 @@ impl FormularioFactura {
         self.pedir_precios(cx);
 
         let ctx = ui.ctx().clone();
-        let alto_max = ctx.content_rect().height() * 0.9;
+        let (titulo, subtitulo) = if self.desde_orden {
+            ("Enviar a cuenta corriente", "La orden actual queda a cuenta del cliente")
+        } else {
+            ("Nueva factura", "Comprobante a cuenta corriente")
+        };
+        let alto_cuerpo = (ctx.content_rect().height() - 218.0).max(220.0);
         let mut accion = Accion::Nada;
-        let r = ui::Dialogo::new("factura-formulario").ancho(1152.0).relleno(0.0).mostrar(&ctx, |ui| {
-            estilo_desplazamiento(ui);
-            comun::desplazable(ui, Id::new("factura-formulario-desplazable"), alto_max - 2.0, |ui| {
-                egui::Frame::new().inner_margin(24).show(ui, |ui| {
+        let r = v2::Modal::new("factura-formulario", titulo).subtitulo(subtitulo).icono("file-text").ancho(ANCHO_MODAL).mostrar(&ctx, |ui| {
+            v2::cuerpo_modal(ui, 20, |ui| {
+                ScrollArea::vertical().id_salt("factura-formulario-desplazable").max_height(alto_cuerpo).auto_shrink([false, true]).show(ui, |ui| {
                     ui.set_width(ui.available_width());
                     accion = self.contenido(ui, cx);
                 });
+            });
+            v2::pie_modal(ui, |ui| {
+                let texto_crear = if self.guardando { "Guardando…" } else { "Crear comprobante" };
+                if Boton::primario(texto_crear).radio(radio::BOTON_MODAL).sin_sombra().cargando(self.guardando).ui(ui).clicked() {
+                    accion = Accion::Enviar;
+                }
+                if Boton::secundario("Cancelar").radio(radio::BOTON_MODAL).ui(ui).clicked() {
+                    accion = Accion::Cancelar;
+                }
             });
         });
         match accion {
@@ -396,7 +414,10 @@ impl FormularioFactura {
                 self.pedir_precios(cx);
                 self.actualizar_precios(cx, id);
             }
-            Accion::Enviar => self.enviar(cx),
+            Accion::Enviar => {
+                self.intento = true;
+                self.enviar(cx);
+            }
             Accion::Cancelar => {
                 self.abierto = false;
                 return Some(ResultadoFactura::Cerrada);
@@ -432,258 +453,265 @@ impl FormularioFactura {
         let mut accion = Accion::Nada;
         let negocio = cx.global.negocio.clone().unwrap_or(Value::Null);
         let totales = logica::calcular_totales(&self.detalles(), &self.tipo_factura, negocio["ivaIncluidoEnPrecios"].as_bool().unwrap_or(false));
-        comun::titulo_dialogo(ui, "file-text", "Nueva Factura", Color32::from_rgb(0x15, 0x47, 0x37), paleta::EMERALD_900, 12.0);
-        ui.add_space(6.0);
-        comun::linea(ui, "Complete los datos para crear una nueva factura", Tam::Sm, Peso::Normal, color::APAGADO_TEXTO);
-        ui.add_space(16.0);
         let ancho = ui.available_width();
-        let mitad = (ancho - 24.0) / 2.0;
+        let izquierda = ((ancho - 14.0) * 1.3 / 2.3).floor();
+        let derecha = ancho - 14.0 - izquierda;
+        let error_cliente = self.intento && self.cliente.is_none();
         ui.horizontal_top(|ui| {
+            ui.spacing_mut().item_spacing.x = 14.0;
             ui.vertical(|ui| {
-                ui.set_width(mitad);
-                comun::etiqueta(ui, "Cliente *");
-                if self.boton_cliente(ui, mitad).clicked() {
+                ui.set_width(izquierda);
+                etiqueta(ui, "Cliente");
+                ui.add_space(6.0);
+                if self.campo_cliente(ui, izquierda, error_cliente).clicked() {
                     accion = Accion::Cliente;
                 }
-                if self.cliente.is_none() {
-                    ui.add_space(4.0);
-                    comun::linea(ui, "* Es obligatorio seleccionar un cliente", Tam::Sm, Peso::Normal, paleta::RED_500);
-                }
             });
-            ui.add_space(24.0);
             ui.vertical(|ui| {
-                ui.set_width(mitad);
+                ui.set_width(derecha);
+                etiqueta(ui, "Comprobante");
+                ui.add_space(6.0);
                 if cx.global.negocio_cargando {
-                    comun::linea(ui, "Cargando...", Tam::Base, Peso::Normal, color::TEXTO);
+                    v2::shimmer(ui, Vec2::new(derecha, 44.0), radio::BOTON_MODAL, true);
                 } else if !negocio["afipHabilitado"].as_bool().unwrap_or(false) {
-                    comun::etiqueta(ui, "Tipo de Factura");
                     let mut cero = 0;
-                    comun::selector(ui, "factura-tipo", mitad, &mut cero, &[Opcion { icono: None, texto: TIPOS[2].1.into() }], false);
-                    ui.add_space(4.0);
-                    comun::linea(ui, "AFIP no está habilitado para este negocio", Tam::Sm, Peso::Normal, color::APAGADO_TEXTO);
+                    v2::segmentado(ui, &[Segmento::texto(TIPOS[0].1)], &mut cero, Some(derecha), EstiloSegmentado::Claro);
+                    ui.add_space(6.0);
+                    nota(ui, "AFIP no está habilitado para este negocio", color::TEXTO_TENUE, derecha);
                 } else {
-                    comun::etiqueta(ui, "Tipo de Factura");
-                    let mut indice = TIPOS.iter().position(|(v, _)| *v == self.tipo_factura).unwrap_or(usize::MAX);
-                    let opciones: Vec<Opcion> = TIPOS.iter().map(|(_, t)| Opcion { icono: None, texto: t.to_string() }).collect();
-                    if comun::selector(ui, "factura-tipo", mitad, &mut indice, &opciones, true) {
+                    let anterior = TIPOS.iter().position(|(v, _)| *v == self.tipo_factura).unwrap_or(usize::MAX);
+                    let mut indice = anterior;
+                    let segmentos: Vec<Segmento> = TIPOS.iter().map(|(_, t)| Segmento::texto(t)).collect();
+                    v2::segmentado(ui, &segmentos, &mut indice, Some(derecha), EstiloSegmentado::Claro);
+                    if indice != anterior && indice < TIPOS.len() {
                         self.cambiar_tipo(TIPOS[indice].0, super::iva_en_precios(cx));
                     }
                 }
             });
         });
-        ui.add_space(24.0);
+        ui.add_space(16.0);
         ui.horizontal_top(|ui| {
+            ui.spacing_mut().item_spacing.x = 14.0;
             ui.vertical(|ui| {
-                ui.set_width(mitad);
-                comun::etiqueta(ui, "Pago inicial (opcional)");
-                let r = ui
-                    .scope(|ui| Entrada::new(&mut self.pago_inicial).tam(Tam::Sm).sugerencia("0,00").id(Id::new("factura-pago-inicial")).ui(ui))
-                    .inner;
+                ui.set_width(izquierda);
+                etiqueta(ui, "Lista de precios");
+                ui.add_space(6.0);
+                let mut opciones = vec!["Sin lista específica (precios base)".to_string()];
+                let mut ids = vec![None];
+                for lista in &self.listas {
+                    let cantidad = super::mostrar_valor(&lista["_count"]["productos"]);
+                    opciones.push(format!("{} ({cantidad} productos)", texto(lista, "nombre")));
+                    ids.push(lista["id"].as_i64());
+                }
+                let actual = id_lista(&self.lista_seleccionada);
+                let mut indice = ids.iter().position(|i| *i == actual).unwrap_or(0);
+                if v2::desplegable(ui, "factura-lista", &mut indice, &opciones, "", izquierda, 44.0).changed() {
+                    accion = Accion::Lista(ids[indice]);
+                }
+                ui.add_space(6.0);
+                let ayuda = match &self.lista_seleccionada {
+                    Some(l) => format!("Usando precios de \"{}\". Si un producto no está en esta lista, se usará el precio base.", texto(l, "nombre")),
+                    None => "Se usarán los precios base de los productos.".into(),
+                };
+                nota(ui, &ayuda, color::TEXTO_TENUE, izquierda);
+            });
+            ui.vertical(|ui| {
+                ui.set_width(derecha);
+                etiqueta(ui, "Pago inicial (opcional)");
+                ui.add_space(6.0);
+                let contenedor = Contenedor { alto: 44.0, radio: radio::BOTON_MODAL, relleno_izquierdo: 12.0, relleno_derecho: 12.0, separacion: 6.0, ..Default::default() };
+                let r = contenedor.mostrar(ui, derecha, |ui| {
+                    v2::texto(ui, "$", tam::ENTRADA, Peso::Normal, color::TEXTO_TENUE);
+                    v2::entrada_desnuda(&mut self.pago_inicial).tam(tam::CUERPO).sugerencia("0,00").id(Id::new("factura-pago-inicial")).ui(ui)
+                });
                 if r.changed() && self.pago().is_none() {
                     self.pago_inicial.clear();
                 }
                 let pago = self.pago().filter(|p| *p != 0.0);
                 if pago.is_some_and(|p| p > totales.total) {
-                    comun::linea(ui, "El pago inicial no puede ser mayor al total", Tam::Sm, Peso::Normal, paleta::RED_500);
+                    ui.add_space(6.0);
+                    nota(ui, "El pago inicial no puede ser mayor al total", color::ROJO, derecha);
                 }
                 if let Some(p) = pago.filter(|p| *p > 0.0) {
-                    saldo_pendiente(ui, totales.total - p);
+                    ui.add_space(6.0);
+                    nota(ui, &format!("Saldo pendiente: {}", formato::pesos(totales.total - p)), color::DORADO_TEXTO, derecha);
                 }
                 if pago.is_some_and(|p| p > 0.0 && p < totales.total) {
-                    ui.add_space(16.0);
-                    comun::etiqueta(ui, "Fecha de vencimiento (opcional)");
-                    ui.scope(|ui| {
-                        Entrada::new(&mut self.fecha_vencimiento)
-                            .tam(Tam::Sm)
-                            .sugerencia("dd/mm/aaaa")
-                            .icono("calendar")
-                            .id(Id::new("factura-vencimiento"))
-                            .ui(ui)
-                    });
+                    ui.add_space(12.0);
+                    etiqueta(ui, "Fecha de vencimiento (opcional)");
+                    ui.add_space(6.0);
+                    CampoTexto::new(&mut self.fecha_vencimiento)
+                        .icono("calendar")
+                        .sugerencia("dd/mm/aaaa")
+                        .alto(44.0)
+                        .radio(radio::BOTON_MODAL)
+                        .tam_texto(tam::CUERPO)
+                        .ancho(derecha)
+                        .id(Id::new("factura-vencimiento"))
+                        .ui(ui);
                 }
-            });
-            ui.add_space(24.0);
-            ui.vertical(|ui| {
-                ui.set_width(mitad);
-                comun::etiqueta(ui, "Lista de Precios (opcional)");
-                let mut opciones = vec![Opcion { icono: None, texto: "Sin lista específica (precios base)".into() }];
-                let mut ids = vec![None];
-                for lista in &self.listas {
-                    let cantidad = super::mostrar_valor(&lista["_count"]["productos"]);
-                    opciones.push(Opcion { icono: None, texto: format!("{} ({cantidad} productos)", texto(lista, "nombre")) });
-                    ids.push(lista["id"].as_i64());
-                }
-                let actual = id_lista(&self.lista_seleccionada);
-                let mut indice = ids.iter().position(|i| *i == actual).unwrap_or(0);
-                if comun::selector(ui, "factura-lista", mitad, &mut indice, &opciones, true) {
-                    accion = Accion::Lista(ids[indice]);
-                }
-                ui.add_space(4.0);
-                let ayuda = match &self.lista_seleccionada {
-                    Some(l) => format!(
-                        "Usando precios de \"{}\". Si un producto no está en esta lista, se usará el precio base.",
-                        texto(l, "nombre")
-                    ),
-                    None => "Se usarán los precios base de los productos.".into(),
-                };
-                comun::linea(ui, ayuda, Tam::Sm, Peso::Normal, color::APAGADO_TEXTO);
             });
         });
-        ui.add_space(24.0);
-        caja_iva(ui);
-        ui.add_space(24.0);
-        let (fila, _) = ui.allocate_exact_size(Vec2::new(ancho, 36.0), Sense::hover());
-        comun::texto_en(ui, egui::pos2(fila.left(), fila.center().y), Align2::LEFT_CENTER, "Productos", Tam::Lg, Peso::Semi, color::TEXTO);
-        let agregar = Boton::esmeralda("Agregar Producto").chico().icono("plus").separacion(16.0).borde(Some(color::BORDE));
-        let w = agregar.ancho_natural(ui);
-        if agregar.en(ui, Rect::from_min_size(egui::pos2(fila.right() - w, fila.top()), Vec2::new(w, 36.0)), "agregar-producto").clicked() {
+        ui.add_space(16.0);
+        if self.tabla(ui, self.iva_visible(cx)) {
             accion = Accion::Producto;
         }
-        if !self.filas.is_empty() {
-            ui.add_space(16.0);
-            self.tabla(ui, self.iva_visible(cx));
-            ui.add_space(16.0);
-            resumen(ui, &self.tipo_factura, totales);
-        }
-        ui.add_space(24.0);
-        comun::etiqueta(ui, "Observaciones");
-        ui.add_space(8.0);
-        ui.scope(|ui| {
-            Entrada::new(&mut self.observaciones)
-                .multilinea(80.0)
-                .tam(Tam::Sm)
-                .sugerencia("Observaciones adicionales...")
-                .id(Id::new("factura-observaciones"))
-                .ui(ui)
-        });
-        ui.add_space(24.0);
-        comun::borde_superior(ui);
         ui.add_space(16.0);
-        ui::pie_dialogo(ui, |ui| {
-            let texto_crear = if self.guardando { "Guardando..." } else { "Crear Factura" };
-            if Boton::esmeralda(texto_crear).icono("save").separacion(16.0).habilitado(!self.guardando).ui(ui).clicked() {
-                accion = Accion::Enviar;
-            }
-            ui.add_space(4.0);
-            if Boton::contorno("Cancelar").icono("x").separacion(16.0).ui(ui).clicked() {
-                accion = Accion::Cancelar;
-            }
-        });
+        etiqueta(ui, "Observaciones");
+        ui.add_space(6.0);
+        CampoTexto::new(&mut self.observaciones)
+            .multilinea(64.0)
+            .tam_texto(tam::CUERPO)
+            .sugerencia("Observaciones adicionales…")
+            .id(Id::new("factura-observaciones"))
+            .ui(ui);
+        ui.add_space(16.0);
+        pie_totales(ui, &self.tipo_factura, totales);
+        if error_cliente {
+            ui.add_space(10.0);
+            nota(ui, "Elegí un cliente.", color::ROJO, ancho);
+        }
         accion
     }
 
-    fn boton_cliente(&self, ui: &mut Ui, ancho: f32) -> egui::Response {
-        let (rect, _) = ui.allocate_exact_size(Vec2::new(ancho, 66.0), Sense::hover());
-        let respuesta = Boton::contorno("").borde(Some(color::BORDE_ENTRADA)).en(ui, rect, "boton-cliente");
-        let x = rect.left() + 13.0;
-        let (principal, secundario, color_principal) = match &self.cliente {
+    fn campo_cliente(&self, ui: &mut Ui, ancho: f32, error: bool) -> egui::Response {
+        let (rect, respuesta) = ui.allocate_exact_size(Vec2::new(ancho, 44.0), Sense::click());
+        let respuesta = respuesta.on_hover_cursor(CursorIcon::PointingHand);
+        let borde = if error {
+            color::ROJO_ERROR_BORDE
+        } else if respuesta.hovered() {
+            color::BORDE_HOVER
+        } else {
+            color::BORDE
+        };
+        ui.painter().rect(rect, radio::BOTON_MODAL, color::BLANCO, Stroke::new(1.0, borde), StrokeKind::Inside);
+        pintar_icono_solar_en(ui, Rect::from_center_size(egui::pos2(rect.left() + 12.0 + 8.5, rect.center().y), Vec2::splat(17.0)), "user", color::TEXTO_TENUE);
+        pintar_icono_solar_en(ui, Rect::from_center_size(egui::pos2(rect.right() - 20.0, rect.center().y), Vec2::splat(16.0)), "chevron-down", color::TEXTO_TENUE);
+        let x = rect.left() + 12.0 + 17.0 + 8.0;
+        let mut limite = rect.right() - 36.0;
+        match &self.cliente {
             Some(c) => {
                 let cuit = texto(c, "cuit");
-                (logica::nombre_cliente(c), (!cuit.is_empty()).then(|| format!("CUIT: {cuit}")), color::TEXTO)
+                if !cuit.is_empty() {
+                    let g = v2::galeria(ui, cuit, marca::fuente_mono(tam::XS, Peso::Normal), color::TEXTO_TENUE);
+                    limite -= g.size().x;
+                    ui.painter().galley(egui::pos2(limite, rect.center().y - g.size().y / 2.0), g, color::TEXTO_TENUE);
+                    limite -= 12.0;
+                }
+                let g = v2::galeria(ui, logica::nombre_cliente(c), fuente(tam::CUERPO, Peso::Medio), color::TEXTO);
+                let recorte = Rect::from_min_max(rect.min, egui::pos2(limite, rect.bottom()));
+                ui.painter().with_clip_rect(recorte).galley(egui::pos2(x, rect.center().y - g.size().y / 2.0), g, color::TEXTO);
             }
-            None => ("Seleccionar cliente".into(), Some("Debe elegir un cliente específico".into()), color::APAGADO_TEXTO),
-        };
-        let alto = if secundario.is_some() { 40.0 } else { 20.0 };
-        let arriba = rect.center().y - alto / 2.0;
-        comun::texto_en(ui, egui::pos2(x, arriba + 10.0), Align2::LEFT_CENTER, &principal, Tam::Sm, Peso::Medio, color_principal);
-        if let Some(s) = secundario {
-            comun::texto_en(ui, egui::pos2(x, arriba + 30.0), Align2::LEFT_CENTER, &s, Tam::Sm, Peso::Normal, color::APAGADO_TEXTO);
+            None => {
+                v2::pintar_texto(ui, egui::pos2(x, rect.center().y), Align2::LEFT_CENTER, "Buscar cliente por nombre o CUIT", tam::CUERPO, Peso::Normal, color::TEXTO_SUGERENCIA);
+            }
         }
-        let derecha = rect.right() - 13.0;
-        ui::pintar_icono_en(ui, Rect::from_center_size(egui::pos2(derecha - 8.0, rect.center().y), Vec2::splat(16.0)), "chevron-down", color::TEXTO);
-        ui::pintar_icono_en(ui, Rect::from_center_size(egui::pos2(derecha - 32.0, rect.center().y), Vec2::splat(16.0)), "user", color::TEXTO);
         respuesta
     }
 
-    fn tabla(&mut self, ui: &mut Ui, iva_en_precios: Option<bool>) {
+    fn tabla(&mut self, ui: &mut Ui, iva_en_precios: Option<bool>) -> bool {
         let ancho = ui.available_width();
-        let interior = ancho - 2.0;
-        let fijos = [interior * 305.0 / 1085.0, interior * 356.0 / 1085.0, 120.0, 120.0, 120.0];
-        let ultima = interior - fijos.iter().sum::<f32>();
-        let anchos = [fijos[0], fijos[1], fijos[2], fijos[3], fijos[4], ultima];
+        let interior = ancho - 28.0;
+        let fijos = [110.0, 110.0, 120.0, 36.0];
+        let producto = interior - fijos.iter().sum::<f32>() - 40.0;
+        let anchos = [producto, fijos[0], fijos[1], fijos[2], fijos[3]];
         let lista = self.lista_seleccionada.as_ref().map(|l| texto(l, "nombre").to_string());
-        let alto_fila = |f: &Fila, precios: &HashMap<i64, f64>| {
-            if lista.is_some() && precios.contains_key(&f.detalle.producto_id) {
-                104.0
-            } else {
-                72.0
-            }
-        };
-        let alto_filas: f32 = self.filas.iter().map(|f| alto_fila(f, &self.precios_lista)).sum::<f32>() + self.filas.len().saturating_sub(1) as f32;
-        let (rect, _) = ui.allocate_exact_size(Vec2::new(ancho, 2.0 + 48.0 + 1.0 + alto_filas), Sense::hover());
-        ui.painter().rect_stroke(rect, 12, Stroke::new(1.0, color::BORDE_ENTRADA), StrokeKind::Inside);
-        let mut x = rect.left() + 1.0;
-        let columnas: Vec<f32> = anchos
-            .iter()
-            .map(|w| {
-                let inicio = x;
-                x += w;
-                inicio
-            })
-            .collect();
-        let mut y = rect.top() + 1.0;
-        for (i, e) in ["Producto", "Descripción", "Cantidad", "P. Unitario", "Subtotal"].iter().enumerate() {
-            comun::texto_en(ui, egui::pos2(columnas[i] + 16.0, y + 24.0), Align2::LEFT_CENTER, e, Tam::Sm, Peso::Medio, color::APAGADO_TEXTO);
-        }
-        y += 48.0;
-        ui.painter().hline(rect.left()..=rect.right(), y + 0.5, Stroke::new(1.0, color::BORDE));
-        y += 1.0;
-        let mut borrar = None;
         let precios = self.precios_lista.clone();
-        let cantidad_filas = self.filas.len();
-        for (i, fila) in self.filas.iter_mut().enumerate() {
-            let alto = alto_fila(fila, &precios);
-            let caja = Rect::from_min_size(egui::pos2(rect.left() + 1.0, y), Vec2::new(interior, alto));
-            if ui.rect_contains_pointer(caja) {
-                ui.painter().rect_filled(caja, 0, color::APAGADO.gamma_multiply(0.5));
+        let mut borrar = None;
+        let mut agregar = false;
+        let marco = egui::Frame::NONE.stroke(Stroke::new(1.0, color::BORDE_SUAVE)).corner_radius(radio::POPOVER);
+        marco.show(ui, |ui| {
+            ui.set_width(ancho - 2.0);
+            let (encabezado, _) = ui.allocate_exact_size(Vec2::new(ancho - 2.0, 38.0), Sense::hover());
+            ui.painter().rect_filled(encabezado, CornerRadius { nw: 13, ne: 13, sw: 0, se: 0 }, color::FONDO_ENCABEZADO_TABLA);
+            ui.painter().hline(encabezado.x_range(), encabezado.bottom() - 0.5, Stroke::new(1.0, color::BORDE_SUAVE));
+            let cabeceras = columnas(encabezado, &anchos);
+            for (i, titulo) in ["Producto", "Cantidad", "Precio", "Subtotal"].iter().enumerate() {
+                let (pos, ancla) = if i == 0 { (cabeceras[i].left_center(), Align2::LEFT_CENTER) } else { (cabeceras[i].right_center(), Align2::RIGHT_CENTER) };
+                v2::pintar_texto(ui, pos, ancla, *titulo, tam::CHICO, Peso::Medio, color::TEXTO_APAGADO);
             }
-            let d = &mut fila.detalle;
-            let nombre = d.producto.as_ref().map(|p| texto(p, "nombre").to_string()).unwrap_or_else(|| format!("Producto {}", d.producto_id));
-            let medida = d.producto.as_ref().map(|p| texto(p, "tipoMedida").to_string()).unwrap_or_default();
-            let tx = columnas[0] + 16.0;
-            comun::texto_en(ui, egui::pos2(tx, y + 26.0), Align2::LEFT_CENTER, &nombre, Tam::Sm, Peso::Medio, color::TEXTO);
-            comun::texto_en(ui, egui::pos2(tx, y + 46.0), Align2::LEFT_CENTER, &medida, Tam::Sm, Peso::Normal, color::APAGADO_TEXTO);
-            if let (Some(lista), true) = (&lista, precios.contains_key(&d.producto_id)) {
-                let w = 8.0 + 16.0 + 4.0 + comun::ancho_texto(ui, &format!(" {lista}"), Tam::Xs, Peso::Medio) + 8.0;
-                let chip = Rect::from_min_size(egui::pos2(tx, y + 64.0), Vec2::new(w, 24.0));
-                ui.painter().add(ui::sombra_sm().as_shape(chip, 12));
-                comun::pintar_relleno(ui, chip, 12.0, comun::esmeralda(), 1.0);
-                ui::pintar_icono_en(ui, Rect::from_min_size(chip.min + Vec2::new(8.0, 4.0), Vec2::splat(16.0)), "file-text", Color32::WHITE);
-                comun::texto_en(ui, egui::pos2(chip.left() + 28.0, chip.center().y), Align2::LEFT_CENTER, &format!(" {lista}"), Tam::Xs, Peso::Medio, Color32::WHITE);
+            if self.filas.is_empty() {
+                let (vacio, _) = ui.allocate_exact_size(Vec2::new(ancho - 2.0, 54.0), Sense::hover());
+                let mensaje = if self.cargando_iniciales { "Cargando productos…" } else { "Agregá al menos un producto." };
+                v2::pintar_texto(ui, vacio.center(), Align2::CENTER_CENTER, mensaje, tam::CONTROL, Peso::Normal, color::TEXTO_APAGADO);
+            } else {
+                ScrollArea::vertical().id_salt("factura-filas").max_height(ALTO_FILA * 5.0).auto_shrink([false, true]).show(ui, |ui| {
+                    ui.set_width(ancho - 2.0);
+                    for (i, fila) in self.filas.iter_mut().enumerate() {
+                        let (caja, respuesta) = ui.allocate_exact_size(Vec2::new(ancho - 2.0, ALTO_FILA), Sense::hover());
+                        if respuesta.hovered() || ui.rect_contains_pointer(caja) {
+                            ui.painter().rect_filled(caja, 0, color::FILA_HOVER);
+                        }
+                        ui.painter().hline(caja.x_range(), caja.bottom() - 0.5, Stroke::new(1.0, color::BORDE_SUAVE));
+                        let celdas = columnas(caja, &anchos);
+                        let d = &mut fila.detalle;
+                        let nombre = d.producto.as_ref().map(|p| texto(p, "nombre").to_string()).unwrap_or_else(|| format!("Producto {}", d.producto_id));
+                        let arriba = caja.top() + 9.0;
+                        let mut limite = celdas[0].right();
+                        if let (Some(lista), true) = (&lista, precios.contains_key(&d.producto_id)) {
+                            let g = v2::galeria(ui, lista.clone(), fuente(tam::MINI, Peso::Semi), color::DORADO_TEXTO);
+                            let chip = Rect::from_min_size(egui::pos2(limite - g.size().x - 12.0, arriba), Vec2::new(g.size().x + 12.0, 18.0));
+                            ui.painter().rect_filled(chip, radio::CHIP, color::DORADO_FONDO);
+                            ui.painter().galley(egui::pos2(chip.left() + 6.0, chip.center().y - g.size().y / 2.0), g, color::DORADO_TEXTO);
+                            limite = chip.left() - 8.0;
+                        }
+                        let g = v2::galeria(ui, nombre, fuente(tam::CONTROL, Peso::Medio), color::TEXTO);
+                        let recorte = Rect::from_min_max(egui::pos2(celdas[0].left(), caja.top()), egui::pos2(limite, caja.bottom()));
+                        ui.painter().with_clip_rect(recorte).galley(egui::pos2(celdas[0].left(), arriba + 9.0 - g.size().y / 2.0), g, color::TEXTO);
+                        let descripcion = Rect::from_min_size(egui::pos2(celdas[0].left(), arriba + 20.0), Vec2::new(celdas[0].width(), 18.0));
+                        let mut hijo = ui.new_child(UiBuilder::new().max_rect(descripcion));
+                        v2::entrada_desnuda(&mut d.descripcion).tam(tam::CHICO).color(color::TEXTO_APAGADO).sugerencia("Agregar descripción").id(Id::new(("factura-desc", i))).ui(&mut hijo);
+                        let celda = |c: usize| Rect::from_center_size(celdas[c].center(), Vec2::new(celdas[c].width(), 32.0));
+                        let campo = Contenedor { alto: 32.0, radio: radio::ICONO, relleno_izquierdo: 8.0, relleno_derecho: 8.0, separacion: 4.0, ..Default::default() };
+                        let mut hijo = ui.new_child(UiBuilder::new().max_rect(celda(1)));
+                        let r = campo.mostrar(&mut hijo, celda(1).width(), |ui| v2::entrada_desnuda(&mut fila.cantidad).tam(tam::CONTROL).id(Id::new(("factura-cant", i))).ui(ui));
+                        if r.changed() {
+                            d.cantidad = logica::parsear_numero(&fila.cantidad).unwrap_or(0.0);
+                            d.recalcular();
+                        }
+                        let mut hijo = ui.new_child(UiBuilder::new().max_rect(celda(2)));
+                        let r = campo.mostrar(&mut hijo, celda(2).width(), |ui| {
+                            v2::texto(ui, "$", tam::CONTROL, Peso::Normal, color::TEXTO_TENUE);
+                            v2::entrada_desnuda(&mut fila.precio).tam(tam::CONTROL).id(Id::new(("factura-precio", i))).ui(ui)
+                        });
+                        if r.changed() {
+                            d.precio_unitario = logica::precio_sin_iva(d.producto.as_ref(), logica::parsear_numero(&fila.precio).unwrap_or(0.0), iva_en_precios);
+                            d.recalcular();
+                        }
+                        let subtotal = formato::pesos(logica::precio_con_iva(d.producto.as_ref(), d.subtotal, iva_en_precios));
+                        v2::pintar_texto(ui, celdas[3].right_center(), Align2::RIGHT_CENTER, subtotal, tam::CONTROL, Peso::Semi, color::TEXTO);
+                        let mut hijo = ui.new_child(UiBuilder::new().max_rect(Rect::from_center_size(celdas[4].center(), Vec2::splat(28.0))));
+                        let quitar = BotonIcono::new("x").tam(28.0).tam_icono(15.0).radio(7).colores(color::TEXTO_DESHABILITADO, color::ROJO_FONDO, color::ROJO);
+                        if quitar.ui(&mut hijo).clicked() {
+                            borrar = Some(i);
+                        }
+                    }
+                });
             }
-            let centro = y + alto / 2.0;
-            let celda = |c: usize| Rect::from_min_max(egui::pos2(columnas[c] + 16.0, centro - 20.0), egui::pos2(columnas[c] + anchos[c] - 16.0, centro + 20.0));
-            let mut hijo = ui.new_child(egui::UiBuilder::new().max_rect(celda(1)));
-            Entrada::new(&mut d.descripcion).tam(Tam::Sm).id(Id::new(("factura-desc", i))).ui(&mut hijo);
-            let mut hijo = ui.new_child(egui::UiBuilder::new().max_rect(celda(2)));
-            if Entrada::new(&mut fila.cantidad).tam(Tam::Sm).id(Id::new(("factura-cant", i))).ui(&mut hijo).changed() {
-                d.cantidad = logica::parsear_numero(&fila.cantidad).unwrap_or(0.0);
-                d.recalcular();
-            }
-            let mut hijo = ui.new_child(egui::UiBuilder::new().max_rect(celda(3)));
-            if Entrada::new(&mut fila.precio).tam(Tam::Sm).id(Id::new(("factura-precio", i))).ui(&mut hijo).changed() {
-                d.precio_unitario = logica::precio_sin_iva(d.producto.as_ref(), logica::parsear_numero(&fila.precio).unwrap_or(0.0), iva_en_precios);
-                d.recalcular();
-            }
-            comun::texto_en(ui, egui::pos2(celda(4).right(), centro), Align2::RIGHT_CENTER, &formato::pesos(logica::precio_con_iva(d.producto.as_ref(), d.subtotal, iva_en_precios)), Tam::Sm, Peso::Medio, color::TEXTO);
-            let papelera = Rect::from_min_size(egui::pos2(columnas[5] + 16.0, centro - 16.0), Vec2::splat(32.0));
-            let r = ui.interact(papelera, Id::new(("factura-borrar", i)), Sense::click()).on_hover_cursor(CursorIcon::PointingHand);
-            if r.hovered() {
-                ui.painter().rect_filled(papelera, 8, color::ACENTO);
-            }
-            ui::pintar_icono_en(ui, Rect::from_center_size(papelera.center(), Vec2::splat(16.0)), "trash-2", color::DESTRUCTIVO);
-            if r.clicked() {
-                borrar = Some(i);
-            }
-            y += alto;
-            if i + 1 < cantidad_filas {
-                ui.painter().hline(rect.left()..=rect.right(), y + 0.5, Stroke::new(1.0, color::BORDE));
-                y += 1.0;
-            }
-        }
+            let (barra, _) = ui.allocate_exact_size(Vec2::new(ancho - 2.0, 58.0), Sense::hover());
+            ui.painter().rect_filled(barra, CornerRadius { nw: 0, ne: 0, sw: 13, se: 13 }, color::FONDO_ENCABEZADO_TABLA);
+            ui.painter().hline(barra.x_range(), barra.top() + 0.5, Stroke::new(1.0, color::BORDE_SUAVE));
+            let interior_barra = barra.shrink2(Vec2::new(14.0, 10.0));
+            let mut hijo = ui.new_child(UiBuilder::new().max_rect(interior_barra).layout(egui::Layout::right_to_left(egui::Align::Center)));
+            hijo.spacing_mut().item_spacing.x = 8.0;
+            agregar |= Boton::new("Agregar", Estilo::ContornoMarca)
+                .icono("plus")
+                .tam_icono(14.0)
+                .alto(38.0)
+                .radio(9)
+                .relleno(12.0)
+                .separacion(6.0)
+                .tam_texto(tam::CONTROL)
+                .peso(Peso::Semi)
+                .ui(&mut hijo)
+                .clicked();
+            let ancho_busqueda = hijo.available_width();
+            agregar |= buscador_producto(&mut hijo, ancho_busqueda).clicked();
+        });
         if let Some(i) = borrar {
             self.filas.remove(i);
         }
+        agregar
     }
 }
 
@@ -715,53 +743,57 @@ fn imprimir_factura(servicios: &Servicios, ctx: &egui::Context, factura: &Value,
     imprimir(servicios, Comprobante::Factura, datos)["success"].as_bool() == Some(true)
 }
 
-fn saldo_pendiente(ui: &mut Ui, saldo: f64) {
-    let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 20.0), Sense::hover());
-    let r = comun::texto_en(ui, egui::pos2(rect.left(), rect.center().y), Align2::LEFT_CENTER, "Saldo pendiente:", Tam::Sm, Peso::Negrita, paleta::BLUE_600);
-    comun::texto_en(ui, egui::pos2(r.right() + 4.0, rect.center().y), Align2::LEFT_CENTER, &formato::pesos(saldo), Tam::Sm, Peso::Normal, paleta::BLUE_600);
+fn etiqueta(ui: &mut Ui, contenido: &str) {
+    v2::texto(ui, contenido, tam::ETIQUETA, Peso::Semi, color::TEXTO_SECUNDARIO);
 }
 
-fn caja_iva(ui: &mut Ui) {
-    let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 110.0), Sense::hover());
-    ui.painter().rect(rect, 16, paleta::BLUE_50, Stroke::new(1.0, paleta::BLUE_200), StrokeKind::Inside);
-    let x = rect.left() + 17.0;
-    let mut y = rect.top() + 17.0;
-    ui::pintar_icono_en(ui, Rect::from_center_size(egui::pos2(x + 9.0, y + 12.0), Vec2::splat(16.0)), "bar-chart-3", paleta::BLUE_800);
-    comun::texto_en(ui, egui::pos2(x + 24.0, y + 12.0), Align2::LEFT_CENTER, "Cálculo Automático de IVA", Tam::Base, Peso::Medio, paleta::BLUE_800);
-    y += 32.0;
-    for (negrita, resto) in [("IVA automático:", " Se calcula según la configuración de cada producto"), ("Alícuotas soportadas:", " 0%, 10.5%, 21% y 27%")] {
-        let r = comun::texto_en(ui, egui::pos2(x, y + 10.0), Align2::LEFT_CENTER, "• ", Tam::Sm, Peso::Normal, paleta::BLUE_700);
-        let r = comun::texto_en(ui, egui::pos2(r.right(), y + 10.0), Align2::LEFT_CENTER, negrita, Tam::Sm, Peso::Negrita, paleta::BLUE_700);
-        comun::texto_en(ui, egui::pos2(r.right(), y + 10.0), Align2::LEFT_CENTER, resto, Tam::Sm, Peso::Normal, paleta::BLUE_700);
-        y += 24.0;
-    }
+fn nota(ui: &mut Ui, contenido: &str, tinta: egui::Color32, ancho: f32) {
+    v2::parrafo(ui, contenido, tam::CHICO, tinta, 1.4, ancho);
 }
 
-fn resumen(ui: &mut Ui, tipo: &str, totales: logica::Totales) {
+fn columnas(fila: Rect, anchos: &[f32; 5]) -> [Rect; 5] {
+    let mut x = fila.left() + 14.0;
+    anchos.map(|ancho| {
+        let celda = Rect::from_min_max(egui::pos2(x, fila.top()), egui::pos2(x + ancho, fila.bottom()));
+        x += ancho + 10.0;
+        celda
+    })
+}
+
+fn buscador_producto(ui: &mut Ui, ancho: f32) -> egui::Response {
+    let (rect, respuesta) = ui.allocate_exact_size(Vec2::new(ancho, 38.0), Sense::click());
+    let respuesta = respuesta.on_hover_cursor(CursorIcon::PointingHand);
+    let borde = if respuesta.hovered() { color::BORDE_HOVER } else { color::BORDE };
+    ui.painter().rect(rect, 9, color::BLANCO, Stroke::new(1.0, borde), StrokeKind::Inside);
+    pintar_icono_solar_en(ui, Rect::from_center_size(egui::pos2(rect.left() + 18.0, rect.center().y), Vec2::splat(16.0)), "search", color::TEXTO_TENUE);
+    v2::pintar_texto(ui, egui::pos2(rect.left() + 34.0, rect.center().y), Align2::LEFT_CENTER, "Buscar producto por nombre, PLU o código", tam::CONTROL, Peso::Normal, color::TEXTO_SUGERENCIA);
+    respuesta
+}
+
+fn pie_totales(ui: &mut Ui, tipo: &str, totales: logica::Totales) {
     let con_iva = tipo != "remito" && totales.impuestos > 0.0;
-    let alto = 1.0 + 16.0 + 24.0 + 12.0 + 24.0 + if con_iva { 32.0 } else { 0.0 } + 8.0 + 1.0 + 8.0 + 28.0 + 16.0 + 1.0;
-    let (fila, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), alto), Sense::hover());
-    let rect = Rect::from_min_max(egui::pos2(fila.right() - 320.0, fila.top()), fila.max);
-    ui.painter().rect(rect, 8, color::APAGADO.gamma_multiply(0.3), Stroke::new(1.0, color::BORDE), StrokeKind::Inside);
-    let x0 = rect.left() + 17.0;
-    let x1 = rect.right() - 17.0;
-    let mut y = rect.top() + 17.0;
-    ui::pintar_icono_en(ui, Rect::from_center_size(egui::pos2(x0 + 8.0, y + 12.0), Vec2::splat(16.0)), "calculator", color::TEXTO);
-    comun::texto_en(ui, egui::pos2(x0 + 24.0, y + 12.0), Align2::LEFT_CENTER, "Resumen", Tam::Base, Peso::Semi, color::TEXTO);
-    y += 36.0;
-    let mut fila_total = |etiqueta: &str, valor: f64| {
-        comun::texto_en(ui, egui::pos2(x0, y + 12.0), Align2::LEFT_CENTER, etiqueta, Tam::Base, Peso::Normal, color::TEXTO);
-        comun::texto_en(ui, egui::pos2(x1, y + 12.0), Align2::RIGHT_CENTER, &formato::pesos(valor), Tam::Base, Peso::Normal, color::TEXTO);
-        y += 32.0;
-    };
-    fila_total("Subtotal:", totales.subtotal);
+    let (fila, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 30.0), Sense::hover());
+    pintar_icono_solar_en(ui, Rect::from_center_size(egui::pos2(fila.left() + 8.0, fila.center().y), Vec2::splat(16.0)), "info", color::VERDE);
+    v2::pintar_texto(
+        ui,
+        egui::pos2(fila.left() + 24.0, fila.center().y),
+        Align2::LEFT_CENTER,
+        "Queda en la cuenta corriente del cliente hasta que registres los pagos.",
+        tam::ETIQUETA,
+        Peso::Normal,
+        color::TEXTO_APAGADO,
+    );
+    let monto = v2::galeria(ui, formato::pesos(totales.total), fuente(tam::MONTO_CHICO, Peso::Semi), color::TEXTO);
+    let x = fila.right() - monto.size().x;
+    let base = fila.center().y + monto.size().y / 2.0;
+    ui.painter().galley(egui::pos2(x, fila.center().y - monto.size().y / 2.0), monto, color::TEXTO);
+    v2::pintar_texto(ui, egui::pos2(x - 10.0, base - 4.0), Align2::RIGHT_BOTTOM, "Total", tam::CONTROL, Peso::Normal, color::TEXTO_APAGADO);
     if con_iva {
-        fila_total("IVA:", totales.impuestos);
+        ui.add_space(2.0);
+        let (fila, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 18.0), Sense::hover());
+        let detalle = format!("Subtotal {} · IVA {}", formato::pesos(totales.subtotal), formato::pesos(totales.impuestos));
+        v2::pintar_texto(ui, fila.right_center(), Align2::RIGHT_CENTER, detalle, tam::CHICO, Peso::Normal, color::TEXTO_TENUE);
     }
-    ui.painter().hline(x0..=x1, y + 0.5, Stroke::new(1.0, color::BORDE));
-    y += 9.0;
-    comun::texto_en(ui, egui::pos2(x0, y + 14.0), Align2::LEFT_CENTER, "Total:", Tam::Lg, Peso::Negrita, color::TEXTO);
-    comun::texto_en(ui, egui::pos2(x1, y + 14.0), Align2::RIGHT_CENTER, &formato::pesos(totales.total), Tam::Lg, Peso::Negrita, color::TEXTO);
 }
 
 #[cfg(test)]

@@ -176,6 +176,21 @@ struct Cancelacion {
     enfocar: bool,
 }
 
+#[derive(Clone, Default, Debug, PartialEq)]
+struct Resumen {
+    total: f64,
+    metodo: String,
+    vuelto: Option<f64>,
+    comprobante: Option<String>,
+    cae: Option<String>,
+    impreso: Option<bool>,
+}
+
+struct Completada {
+    resumen: Resumen,
+    desde: f64,
+}
+
 pub struct Cobro {
     cancelar_abierto: bool,
     cancelacion: Cancelacion,
@@ -191,6 +206,8 @@ pub struct Cobro {
     imagen_qr: Option<(String, Option<String>)>,
     teclado: bool,
     resultado: Option<ResultadoCobro>,
+    venta: Option<Resumen>,
+    completada: Option<Completada>,
 }
 
 impl Default for Cobro {
@@ -210,6 +227,8 @@ impl Default for Cobro {
             imagen_qr: None,
             teclado: true,
             resultado: None,
+            venta: None,
+            completada: None,
         }
     }
 }
@@ -297,6 +316,33 @@ impl Cobro {
     fn vaciar(&mut self, cx: &mut Contexto) {
         cx.global.carritos.vaciar();
         self.resultado = Some(ResultadoCobro::VentaRegistrada);
+        if let Some(resumen) = self.venta.take() {
+            self.completada = Some(Completada { resumen, desde: cx.egui.input(|i| i.time) });
+        }
+    }
+
+    fn anotar(&mut self, total: f64, metodo: String, vuelto: Option<f64>) {
+        self.venta = Some(Resumen { total, metodo, vuelto, ..Default::default() });
+    }
+
+    fn anotar_impresion(&mut self, impreso: Option<bool>) {
+        if let Some(venta) = self.venta.as_mut() {
+            venta.impreso = impreso;
+        }
+    }
+
+    fn anotar_factura(&mut self, datos: &Value) {
+        if let Some(venta) = self.venta.as_mut() {
+            (venta.comprobante, venta.cae) = comprobante(datos);
+        }
+    }
+
+    fn vuelto(&self, lado: Lado) -> Option<f64> {
+        let p = match lado {
+            Lado::Normal => &self.normal,
+            Lado::Afip => &self.afip,
+        };
+        p.efectivo.as_ref().and_then(|e| nucleo::cobros::parse_float(&e.pagado).map(|pagado| pagado - e.cobrar)).filter(|v| *v > 0.0)
     }
 
     fn limpiar_normal(&mut self) {
@@ -340,10 +386,64 @@ impl Cobro {
     }
 }
 
+fn dinero(valor: f64) -> String {
+    let signo = if valor < -0.004 { "−" } else { "" };
+    format!("{signo}${}", nucleo::formato::numero_con(nucleo::cobros::redondear(valor.abs(), 2), 0, 2))
+}
+
+fn nombre_metodo(metodo: &str) -> &'static str {
+    match metodo {
+        "efectivo" => "Efectivo",
+        "tarjeta" => "Tarjeta",
+        "qr" => "Transferencia",
+        "split" => "Mixto",
+        _ => "Otro medio",
+    }
+}
+
+fn texto_mixto(efectivo: f64, segundo: &str, resto: f64) -> String {
+    let medio = if segundo == "tarjeta" { "con tarjeta" } else { "por transferencia" };
+    format!("Mixto · {} en efectivo + {} {medio}", dinero(efectivo), dinero(resto))
+}
+
+fn comprobante(datos: &Value) -> (Option<String>, Option<String>) {
+    use nucleo::cobros::{primero, verdad};
+    let texto = |v: &Value| flujos::texto_js(v);
+    let numero = primero([&datos["factura"]["numero"], &datos["numero"], &datos["numeroFactura"]]).filter(|v| verdad(v)).map(texto);
+    let tipo = primero([&datos["afip"]["tipoFactura"], &datos["tipoFactura"], &datos["factura"]["tipoFactura"]])
+        .filter(|v| verdad(v))
+        .map(texto)
+        .map(|t| {
+            let letra = t.trim().trim_start_matches("FACTURA").trim_start_matches("Factura").trim();
+            format!("Factura {letra}")
+        })
+        .unwrap_or_else(|| "Factura".to_string());
+    let cae = primero([&datos["afip"]["cae"], &datos["cae"]]).filter(|v| verdad(v)).map(texto);
+    (numero.map(|n| format!("{tipo} {n}")), cae)
+}
+
 #[cfg(test)]
 mod pruebas {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn dinero_como_el_diseno() {
+        assert_eq!(dinero(17806.55), "$17.806,55");
+        assert_eq!(dinero(17800.0), "$17.800");
+        assert_eq!(dinero(1793.5), "$1.793,5");
+        assert_eq!(dinero(-6.55), "−$6,55");
+        assert_eq!(dinero(0.0), "$0");
+    }
+
+    #[test]
+    fn comprobante_de_la_factura_afip() {
+        let datos = json!({ "factura": { "numero": "0002-00000213" }, "tipoFactura": "FACTURA B", "cae": "75412369899123" });
+        assert_eq!(comprobante(&datos), (Some("Factura B 0002-00000213".into()), Some("75412369899123".into())));
+        let manual = json!({ "numero": 45, "cae": "123" });
+        assert_eq!(comprobante(&manual), (Some("Factura 45".into()), Some("123".into())));
+        assert_eq!(comprobante(&json!({})), (None, None));
+    }
 
     fn con_sondeo(lado: Lado) -> Procesador {
         let mut p = Procesador::new(lado);
