@@ -5,12 +5,12 @@
   "author": "AndexTech",
   "type": "module",
   "scripts": {
-    "dev": "tauri dev",
+    "dev": "cargo run -p andexmarket",
     "dev:vite": "vite",
-    "build": "tauri build",
+    "build": "cargo build --release -p andexmarket",
     "build:vite": "tsc && vite build",
     "preview": "vite preview",
-    "test": "cargo test --manifest-path src-tauri/Cargo.toml --workspace",
+    "test": "cargo test --workspace",
     "release": "node scripts/publicar.mjs"
   },
   "dependencies": {
