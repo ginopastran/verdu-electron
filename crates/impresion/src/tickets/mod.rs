@@ -220,7 +220,7 @@ pub mod pruebas {
     }
 
     pub fn logo_defecto() -> PathBuf {
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../public/andextech-logo.png")
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets/imagenes/andextech-logo.png")
     }
 
     pub fn comparar(nombre: &str, render: impl Fn(&Value) -> Vec<u8>) {
