@@ -1,21 +1,41 @@
-use eframe::egui::{self, Align2, Color32, Id, Rect, ScrollArea, Sense, Ui, Vec2};
+use eframe::egui::{self, Align, Align2, Id, Layout, Rect, ScrollArea, Sense, Ui, UiBuilder, Vec2};
 use nucleo::facturas as logica;
-use nucleo::formato;
 use serde_json::{json, Value};
 
-use super::comun::{self, Boton, Opcion, Relleno};
+use super::vista::{self, RELLENO_CHIP_ESTADO, RELLENO_CHIP_TIPO};
 use super::formulario::{FormularioFactura, ResultadoFactura};
 use super::modal::{ModalFactura, ResultadoModal};
-use super::pagos::{AgregarPago, ResultadoPago};
-use super::tarjeta::{self, Accion};
-use super::{id_texto, pagos, recien_montada, texto};
+use super::pagos::{self, AgregarPago, ResultadoHistorial, ResultadoPago};
+use super::{id_texto, numero, pesos, recien_montada, texto};
 use crate::app::{Contexto, Ruta};
 use crate::tareas::{esperar, Tarea};
-use crate::ui::{self, color, paleta, Entrada, Peso, Tam};
+use crate::ui::marca::{alto, color, fuente_mono, radio, tam};
+use crate::ui::v2::{self, tarjetas::celda_texto, toast, Boton, BotonIcono, CampoTexto, Columna, EstiloSegmentado, Kpi, Modal, Segmento, Tabla};
+use crate::ui::Peso;
 
-const ESTADOS: [(&str, &str); 5] =
-    [("", "Todos los estados"), ("pendiente", "Pendiente"), ("pagada", "Pagada"), ("anulada", "Anulada"), ("vencida", "Vencida")];
-const TIPOS: [(&str, &str); 4] = [("", "Todos los tipos"), ("A", "Factura A"), ("C", "Factura C"), ("remito", "Remito")];
+const ESTADOS: [(&str, &str); 5] = [("", "Todas"), ("pendiente", "Pendientes"), ("pagada", "Pagadas"), ("vencida", "Vencidas"), ("anulada", "Anuladas")];
+const TIPOS: [(&str, &str); 4] = [("", "Todos los tipos"), ("remito", "Remito"), ("A", "Factura A"), ("C", "Factura C")];
+const COLUMNAS: [Columna; 8] = [
+    Columna::fraccion(1.2, 170.0),
+    Columna::fraccion(1.4, 170.0),
+    Columna::fija(100.0),
+    Columna::fija(120.0).derecha(),
+    Columna::fija(120.0).derecha(),
+    Columna::fija(120.0).derecha(),
+    Columna::fija(110.0),
+    Columna::fija(200.0).derecha(),
+];
+const TITULOS: [&str; 8] = ["Comprobante", "Cliente", "Fecha", "Total", "Pagado", "Saldo", "Estado", ""];
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Accion {
+    Ver,
+    Editar,
+    Descargar,
+    Eliminar,
+    VerPagos,
+    AgregarPago,
+}
 
 #[derive(Clone, PartialEq)]
 struct Filtros {
@@ -29,6 +49,12 @@ struct Filtros {
 impl Default for Filtros {
     fn default() -> Self {
         Filtros { search: String::new(), estado: String::new(), tipo_factura: String::new(), sort: "fecha".into(), order: "desc".into() }
+    }
+}
+
+impl Filtros {
+    fn activos(&self) -> bool {
+        !self.search.is_empty() || !self.estado.is_empty() || !self.tipo_factura.is_empty()
     }
 }
 
@@ -142,7 +168,7 @@ impl Lista {
                     .unwrap_or_default();
                 self.paginacion = Paginacion::desde(&respuesta["pagination"]);
             }
-            Err(_) => ui::toast::error(&cx.egui, "Error al cargar las facturas"),
+            Err(_) => toast::error(&cx.egui, "Error al cargar las facturas"),
         }
     }
 
@@ -165,31 +191,21 @@ impl Lista {
         self.rebotar_busqueda(ui);
         self.pedir(cx);
 
-        let mut ir_carrito = false;
+        vista::fondo(ui);
+        ui.spacing_mut().item_spacing = Vec2::ZERO;
+        let volver = vista::encabezado(ui, "Volver a la venta", "Cuenta corriente");
         let mut accion = None;
-        ui.spacing_mut().scroll = egui::style::ScrollStyle {
-            floating: false,
-            bar_width: 11.0,
-            bar_inner_margin: 2.0,
-            bar_outer_margin: 2.0,
-            ..egui::style::ScrollStyle::solid()
-        };
         ScrollArea::vertical().id_salt("facturas-lista").auto_shrink(false).show(ui, |ui| {
-            ui.set_width(ui.available_width());
-            comun::encabezado_verde(ui, 84.0, |ui| {
-                if comun::boton_volver(ui).clicked() {
-                    ir_carrito = true;
-                }
-                ui.add_space(16.0);
-                ui.label(ui::texto("Cuenta Corriente", Tam::X3, Peso::Semi, Color32::WHITE));
-                comun::logo(ui);
-            });
-            egui::Frame::new().inner_margin(24).show(ui, |ui| {
+            egui::Frame::NONE.inner_margin(egui::Margin { left: 28, right: 28, top: 24, bottom: 40 }).show(ui, |ui| {
                 ui.set_width(ui.available_width());
-                accion = self.contenido(ui);
+                self.kpis(ui);
+                ui.add_space(18.0);
+                self.filtros_ui(ui);
+                ui.add_space(18.0);
+                accion = self.tabla(ui);
             });
         });
-        if ir_carrito {
+        if volver {
             cx.global.ir(Ruta::Carrito);
         }
         if let Some((accion, factura)) = accion {
@@ -198,107 +214,160 @@ impl Lista {
         self.dialogos(ui, cx);
     }
 
-    fn contenido(&mut self, ui: &mut Ui) -> Option<(Accion, Value)> {
-        if self.cargando {
-            comun::cargando_centro(ui, 256.0, "Cargando facturas...", paleta::EMERALD_600, paleta::GRAY_600, Tam::Base);
-            return None;
-        }
-        self.filtros_ui(ui);
-        ui.add_space(24.0);
-        if self.facturas.is_empty() {
-            self.vacio(ui);
-            return None;
-        }
-        let accion = self.grilla(ui);
-        let p = self.paginacion.clone();
-        if p.total_pages > 1 {
-            ui.add_space(24.0);
-            let desde = (p.page.saturating_sub(1)) * p.limit + 1;
-            let hasta = (p.page * p.limit).min(p.total);
-            let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 36.0), Sense::hover());
-            comun::texto_en(
-                ui,
-                egui::pos2(rect.left(), rect.center().y),
-                Align2::LEFT_CENTER,
-                &format!("Mostrando {desde} a {hasta} de {} facturas", formato::numero(p.total as f64)),
-                Tam::Sm,
-                Peso::Normal,
-                paleta::GRAY_500,
-            );
-            let paginas = logica::paginas_visibles(p.page, p.total_pages);
-            if let Some(destino) = comun::paginacion_compacta(ui, rect, "facturas", p.page, &paginas, p.page > 1, p.page < p.total_pages) {
-                self.paginacion.page = destino;
-            }
-        }
-        accion
-    }
-
-    fn filtros_ui(&mut self, ui: &mut Ui) {
-        ui.horizontal(|ui| {
-            let ancho_busqueda = (ui.available_width() - 12.0 - 192.0 * 2.0 - 8.0).clamp(0.0, 448.0);
-            let r = ui
-                .scope(|ui| {
-                    Entrada::new(&mut self.busqueda)
-                        .ancho(ancho_busqueda)
-                        .tam(Tam::Sm)
-                        .icono("search")
-                        .sugerencia("Buscar facturas...")
-                        .id(Id::new("facturas-busqueda"))
-                        .ui(ui)
-                })
-                .inner;
-            if r.changed() {
-                self.busqueda_desde = ui.input(|i| i.time);
-            }
-            ui.add_space(12.0);
-            let mut estado = ESTADOS.iter().position(|(v, _)| *v == self.filtros.estado).unwrap_or(0);
-            let opciones: Vec<Opcion> = ESTADOS.iter().map(|(_, t)| Opcion { icono: None, texto: t.to_string() }).collect();
-            if comun::selector(ui, "estado", 192.0, &mut estado, &opciones, true) {
-                self.actualizar_filtros(|f| f.estado = ESTADOS[estado].0.to_string());
-            }
-            ui.add_space(8.0);
-            let mut tipo = TIPOS.iter().position(|(v, _)| *v == self.filtros.tipo_factura).unwrap_or(0);
-            let opciones: Vec<Opcion> = TIPOS.iter().map(|(_, t)| Opcion { icono: None, texto: t.to_string() }).collect();
-            if comun::selector(ui, "tipo", 192.0, &mut tipo, &opciones, true) {
-                self.actualizar_filtros(|f| f.tipo_factura = TIPOS[tipo].0.to_string());
+    fn kpis(&self, ui: &mut Ui) {
+        let resumen = logica::resumen_cuenta(&self.facturas, logica::hoy_argentina());
+        let completo = self.paginacion.total_pages <= 1 && !self.filtros.activos();
+        let en_pantalla = self.facturas.len();
+        let saldo = pesos(resumen.saldo);
+        let con_saldo = resumen.con_saldo.to_string();
+        let cobrado = pesos(resumen.cobrado_mes);
+        let (detalle_saldo, detalle_cantidad, detalle_cobrado) = if completo {
+            ("Total a cobrar entre todos los clientes".to_string(), format!("de {} en cuenta corriente", self.paginacion.total.max(en_pantalla as u32)), "Pagos registrados".to_string())
+        } else {
+            (
+                format!("Suma de las {en_pantalla} facturas en pantalla"),
+                format!("de {en_pantalla} en pantalla"),
+                "Pagos de las facturas en pantalla".to_string(),
+            )
+        };
+        let kpis = [
+            Kpi {
+                etiqueta: "Saldo pendiente",
+                valor: &saldo,
+                detalle: &detalle_saldo,
+                icono: "wallet",
+                fondo_icono: color::ROJO_FONDO,
+                color_icono: color::ROJO,
+                color_valor: color::ROJO,
+            },
+            Kpi {
+                etiqueta: "Facturas con saldo",
+                valor: &con_saldo,
+                detalle: &detalle_cantidad,
+                icono: "file-text",
+                fondo_icono: color::VERDE_CHIP,
+                color_icono: color::VERDE,
+                color_valor: color::TEXTO,
+            },
+            Kpi {
+                etiqueta: "Cobrado este mes",
+                valor: &cobrado,
+                detalle: &detalle_cobrado,
+                icono: "hand-coins",
+                fondo_icono: color::VERDE_CHIP,
+                color_icono: color::VERDE,
+                color_valor: color::VERDE_EXITO,
+            },
+        ];
+        let ancho = (ui.available_width() - 14.0 * 2.0) / 3.0;
+        ui.horizontal_top(|ui| {
+            ui.spacing_mut().item_spacing.x = 14.0;
+            for kpi in &kpis {
+                v2::tarjeta_kpi(ui, kpi, ancho);
             }
         });
     }
 
+    fn filtros_ui(&mut self, ui: &mut Ui) {
+        let segmentos: Vec<Segmento> = ESTADOS.iter().map(|(_, t)| Segmento::texto(t)).collect();
+        let boton_nueva = Boton::primario("Nueva factura")
+            .icono("plus")
+            .tam_icono(15.0)
+            .alto(alto::CONTROL)
+            .relleno(16.0)
+            .radio(radio::CONTROL)
+            .tam_texto(tam::CUERPO)
+            .sin_sombra();
+        let ancho_nueva = 32.0 + 15.0 + 8.0 + v2::ancho_texto(ui, "Nueva factura", tam::CUERPO, Peso::Semi);
+        let ancho_segmentos = ESTADOS.iter().map(|(_, t)| v2::ancho_texto(ui, t, tam::CONTROL, Peso::Semi) + 24.0).sum::<f32>() + 2.0 * 4.0 + 8.0;
+        let libre = ui.available_width() - ancho_segmentos - 170.0 - ancho_nueva - 8.0 * 4.0;
+        let ancho_busqueda = (libre / 2.0).clamp(240.0, 380.0);
+        let mut nueva = false;
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = 8.0;
+            let r = CampoTexto::new(&mut self.busqueda)
+                .ancho(ancho_busqueda)
+                .alto(alto::CONTROL)
+                .radio(radio::CONTROL)
+                .relleno(12.0, 12.0)
+                .icono("search")
+                .tam_texto(tam::CUERPO)
+                .sugerencia("Buscar por cliente o número")
+                .id(Id::new("facturas-busqueda"))
+                .ui(ui);
+            if r.respuesta.changed() {
+                self.busqueda_desde = ui.input(|i| i.time);
+            }
+            let mut estado = ESTADOS.iter().position(|(v, _)| *v == self.filtros.estado).unwrap_or(0);
+            if v2::segmentado(ui, &segmentos, &mut estado, None, EstiloSegmentado::Filtro).changed() {
+                self.actualizar_filtros(|f| f.estado = ESTADOS[estado].0.to_string());
+            }
+            let mut tipo = TIPOS.iter().position(|(v, _)| *v == self.filtros.tipo_factura).unwrap_or(0);
+            let opciones: Vec<String> = TIPOS.iter().map(|(_, t)| t.to_string()).collect();
+            if v2::desplegable(ui, "facturas-tipo", &mut tipo, &opciones, "", 170.0, alto::CONTROL).changed() {
+                self.actualizar_filtros(|f| f.tipo_factura = TIPOS[tipo].0.to_string());
+            }
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                nueva = boton_nueva.ui(ui).clicked();
+            });
+        });
+        if nueva {
+            self.formulario = FormularioFactura::default();
+            self.formulario.abrir(Vec::new());
+        }
+    }
+
+    fn tabla(&mut self, ui: &mut Ui) -> Option<(Accion, Value)> {
+        let mut accion = None;
+        v2::marco_tabla().show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            let tabla = Tabla::new(&COLUMNAS);
+            tabla.encabezado(ui, &TITULOS, alto::ENCABEZADO_TABLA);
+            if self.cargando && self.facturas.is_empty() {
+                for _ in 0..6 {
+                    tabla.fila(ui, alto::FILA_TABLA, None, |ui, celdas| {
+                        for (i, celda) in celdas.iter().enumerate().take(7) {
+                            let ancho = if i < 2 { celda.width() * 0.6 } else { celda.width() * 0.7 };
+                            let x = if COLUMNAS[i].derecha { celda.right() - ancho } else { celda.left() };
+                            v2::tarjetas::pintar_shimmer(ui, Rect::from_min_size(egui::pos2(x, celda.center().y - 7.0), Vec2::new(ancho, 14.0)), 6, true);
+                        }
+                    });
+                }
+            } else if self.facturas.is_empty() {
+                self.vacio(ui);
+            } else {
+                let facturas = std::mem::take(&mut self.facturas);
+                for factura in &facturas {
+                    if let Some(a) = fila(ui, &tabla, factura) {
+                        accion = Some((a, factura.clone()));
+                    }
+                }
+                self.facturas = facturas;
+            }
+            self.pie(ui);
+        });
+        accion
+    }
+
     fn vacio(&mut self, ui: &mut Ui) {
-        let con_filtros = !self.filtros.search.is_empty() || !self.filtros.estado.is_empty() || !self.filtros.tipo_factura.is_empty();
-        ui.add_space(48.0);
-        let centro = ui.max_rect().center().x;
-        let renglon = |ui: &mut Ui, texto: &str, tam: Tam, color: Color32| {
-            let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), tam.alto_linea()), Sense::hover());
-            comun::texto_en(ui, egui::pos2(centro, rect.center().y), Align2::CENTER_CENTER, texto, tam, Peso::Normal, color);
-        };
-        let titulo = if con_filtros { "No se encontraron facturas con los filtros aplicados" } else { "No hay facturas registradas" };
-        renglon(ui, titulo, Tam::Base, paleta::GRAY_600);
-        ui.add_space(16.0);
-        renglon(ui, "Esta página muestra todas las facturas registradas en el sistema.", Tam::Sm, paleta::GRAY_500);
-        ui.add_space(16.0);
-        let boton = if con_filtros {
-            Boton::contorno("Limpiar filtros")
-        } else {
-            Boton::primario("Crear primera factura")
-                .icono("plus")
-                .separacion(16.0)
-                .relleno(Relleno::Liso(paleta::EMERALD_600))
-                .encima(Relleno::Liso(paleta::EMERALD_700))
-        };
-        let ancho = boton.ancho_natural(ui);
-        let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 40.0), Sense::hover());
-        let caja = Rect::from_center_size(egui::pos2(centro, rect.center().y), Vec2::new(ancho, 40.0));
-        if boton.en(ui, caja, "vacio").clicked() {
-            if con_filtros {
+        let con_filtros = self.filtros.activos();
+        let mensaje = if con_filtros { "No hay facturas que coincidan" } else { "Todavía no hay facturas registradas" };
+        vista::vacio(ui, "doc", mensaje);
+        if con_filtros {
+            ui.add_space(16.0);
+            let boton = Boton::secundario("Limpiar filtros").alto(36.0).radio(radio::CONTROL).tam_texto(tam::CONTROL);
+            if vista::boton_centrado(ui, boton) {
                 self.busqueda.clear();
                 self.actualizar_filtros(|f| {
                     f.search.clear();
                     f.estado.clear();
                     f.tipo_factura.clear();
                 });
-            } else {
+            }
+        } else {
+            ui.add_space(16.0);
+            let boton = Boton::primario("Crear primera factura").icono("plus").tam_icono(15.0).alto(36.0).radio(radio::CONTROL).tam_texto(tam::CONTROL).sin_sombra();
+            if vista::boton_centrado(ui, boton) {
                 self.formulario = FormularioFactura::default();
                 self.formulario.abrir(Vec::new());
             }
@@ -306,36 +375,25 @@ impl Lista {
         ui.add_space(48.0);
     }
 
-    fn grilla(&mut self, ui: &mut Ui) -> Option<(Accion, Value)> {
-        let ancho_ventana = ui.ctx().content_rect().width();
-        let columnas = if ancho_ventana >= 1280.0 {
-            4
-        } else if ancho_ventana >= 1024.0 {
-            3
-        } else if ancho_ventana >= 768.0 {
-            2
-        } else {
-            1
-        };
-        let separacion = 24.0;
-        let ancho = ui.available_width();
-        let ancho_tarjeta = (ancho - separacion * (columnas as f32 - 1.0)) / columnas as f32;
-        let mut accion = None;
-        for (fila, grupo) in self.facturas.chunks(columnas).enumerate() {
-            if fila > 0 {
-                ui.add_space(separacion);
-            }
-            let alto = grupo.iter().map(|f| tarjeta::alto(ui, f, ancho_tarjeta)).fold(0.0, f32::max);
-            let (rect, _) = ui.allocate_exact_size(Vec2::new(ancho, alto), Sense::hover());
-            for (columna, factura) in grupo.iter().enumerate() {
-                let x = rect.left() + columna as f32 * (ancho_tarjeta + separacion);
-                let caja = Rect::from_min_size(egui::pos2(x, rect.top()), Vec2::new(ancho_tarjeta, alto));
-                if let Some(a) = tarjeta::pintar(ui, factura, caja) {
-                    accion = Some((a, factura.clone()));
-                }
-            }
+    fn pie(&mut self, ui: &mut Ui) {
+        let p = self.paginacion.clone();
+        if p.total_pages <= 1 {
+            return;
         }
-        accion
+        let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 54.0), Sense::hover());
+        let desde = p.page.saturating_sub(1) * p.limit + 1;
+        let hasta = (p.page * p.limit).min(p.total);
+        let interior = rect.shrink2(Vec2::new(18.0, 0.0));
+        let info = format!("{desde}–{hasta} de {} comprobantes", nucleo::formato::numero(p.total as f64));
+        v2::pintar_texto(ui, interior.left_center(), Align2::LEFT_CENTER, info, tam::CONTROL, Peso::Normal, color::TEXTO_APAGADO);
+        let mut hijo = ui.new_child(UiBuilder::new().max_rect(interior).layout(Layout::right_to_left(Align::Center)));
+        hijo.spacing_mut().item_spacing.x = 6.0;
+        if vista::boton_pagina(&mut hijo, "Siguiente", "chevron-right", true, p.page < p.total_pages).clicked() {
+            self.paginacion.page = p.page + 1;
+        }
+        if vista::boton_pagina(&mut hijo, "Anterior", "chevron-left", false, p.page > 1).clicked() {
+            self.paginacion.page = p.page.saturating_sub(1).max(1);
+        }
     }
 
     fn ejecutar(&mut self, accion: Accion, factura: Value, cx: &mut Contexto) {
@@ -350,6 +408,15 @@ impl Lista {
     }
 
     fn dialogos(&mut self, ui: &mut Ui, cx: &mut Contexto) {
+        if let Some(factura) = &self.historial {
+            match pagos::historial(ui.ctx(), factura) {
+                ResultadoHistorial::Nada => {}
+                ResultadoHistorial::Cerrar => self.historial = None,
+                ResultadoHistorial::AgregarPago => {
+                    self.pago = self.historial.take().map(AgregarPago::new);
+                }
+            }
+        }
         if let Some(pago) = &mut self.pago {
             match pago.mostrar(ui.ctx(), cx) {
                 ResultadoPago::Nada => {}
@@ -358,11 +425,6 @@ impl Lista {
                     self.pago = None;
                     self.forzar = true;
                 }
-            }
-        }
-        if let Some(factura) = &self.historial {
-            if pagos::historial(ui.ctx(), factura) {
-                self.historial = None;
             }
         }
         if self.formulario.abierto() {
@@ -399,33 +461,34 @@ impl Lista {
         if let Some(resultado) = esperar(&mut self.anulacion) {
             match resultado {
                 Ok(mensaje) => {
-                    ui::toast::exito(&cx.egui, mensaje);
+                    toast::exito(&cx.egui, mensaje);
                     self.eliminar = None;
                     self.forzar = true;
                 }
-                Err(error) => ui::toast::error(&cx.egui, format!("No se pudo eliminar la factura: {error}")),
+                Err(error) => toast::error(&cx.egui, format!("No se pudo eliminar la factura: {error}")),
             }
         }
         let Some(factura) = self.eliminar.clone() else { return };
         let anulando = self.anulacion.is_some();
         let mut confirmar = false;
         let mut cancelar = false;
-        let descripcion = format!(
-            "La factura {} no se borra: queda anulada y se repone el stock de sus productos. Esta acción no se puede deshacer.",
-            texto(&factura, "numero")
-        );
-        let r = ui::Dialogo::new("facturas-eliminar").ancho(448.0).mostrar(ui.ctx(), |ui| {
-            comun::encabezado_dialogo(ui, "trash-2", "¿Eliminar esta factura?", &descripcion, 8.0);
-            ui.add_space(24.0);
-            ui::pie_dialogo(ui, |ui| {
-                let texto_boton = if anulando { "Anulando..." } else { "Anular factura" };
-                confirmar = Boton::primario(texto_boton)
-                    .relleno(Relleno::Liso(color::DESTRUCTIVO))
-                    .encima(Relleno::Liso(paleta::RED_600))
-                    .habilitado(!anulando)
-                    .ui(ui)
-                    .clicked();
-                cancelar = Boton::contorno("Cancelar").habilitado(!anulando).ui(ui).clicked();
+        let numero_factura = texto(&factura, "numero").to_string();
+        let r = Modal::new("facturas-eliminar", "¿Eliminar la factura?").subtitulo(&numero_factura).icono("trash-2").peligro().ancho(440.0).mostrar(ui.ctx(), |ui| {
+            v2::cuerpo_modal(ui, 16, |ui| {
+                let ancho = ui.available_width();
+                v2::parrafo(
+                    ui,
+                    "No se borra: queda anulada y se repone el stock de sus productos. Esta acción no se puede deshacer.",
+                    tam::CUERPO,
+                    color::TEXTO_SECUNDARIO,
+                    1.55,
+                    ancho,
+                );
+            });
+            v2::pie_modal(ui, |ui| {
+                let texto_boton = if anulando { "Anulando…" } else { "Anular factura" };
+                confirmar = Boton::peligro(texto_boton).modal().cargando(anulando).ui(ui).clicked();
+                cancelar = Boton::secundario("Cancelar").modal().habilitado(!anulando).ui(ui).clicked();
             });
         });
         if confirmar {
@@ -434,4 +497,67 @@ impl Lista {
             self.eliminar = None;
         }
     }
+}
+
+fn fila(ui: &mut Ui, tabla: &Tabla, factura: &Value) -> Option<Accion> {
+    let mut accion = None;
+    let total = numero(factura, "total");
+    let pagado = logica::total_pagado(factura);
+    let saldo = logica::saldo_pendiente(factura);
+    let id = id_texto(&factura["id"]);
+    let respuesta = tabla.fila(ui, alto::FILA_TABLA, None, |ui, celdas| {
+        let pintor = ui.painter().clone();
+        let numero_factura = v2::galeria(ui, texto(factura, "numero"), fuente_mono(tam::ETIQUETA, Peso::Medio), color::TEXTO);
+        let (tipo, colores_tipo) = vista::tipo(texto(factura, "tipoFactura"));
+        let tam_chip = vista::medir_chip(ui, &tipo, tam::MINI, RELLENO_CHIP_TIPO);
+        let arriba = celdas[0].center().y - (numero_factura.size().y + 3.0 + tam_chip.y) / 2.0;
+        pintor.galley(egui::pos2(celdas[0].left(), arriba), numero_factura.clone(), color::TEXTO);
+        vista::pintar_chip(ui, egui::pos2(celdas[0].left(), arriba + numero_factura.size().y + 3.0), &tipo, tam::MINI, RELLENO_CHIP_TIPO, colores_tipo.0, colores_tipo.1);
+
+        let cantidad = factura["detalles"].as_array().map_or(0, Vec::len);
+        let arriba = celdas[1].center().y - 16.5;
+        celda_texto(&pintor, Rect::from_x_y_ranges(celdas[1].x_range(), arriba..=arriba + 17.0), &vista::nombre_cliente(factura), tam::CUERPO, Peso::Medio, color::TEXTO, false);
+        celda_texto(&pintor, Rect::from_x_y_ranges(celdas[1].x_range(), arriba + 18.0..=arriba + 33.0), &vista::productos(cantidad), tam::XS, Peso::Normal, color::TEXTO_TENUE, false);
+
+        celda_texto(&pintor, celdas[2], &logica::fecha_es_ar(texto(factura, "fecha")), tam::CUERPO, Peso::Normal, color::TEXTO_SECUNDARIO, false);
+        celda_texto(&pintor, celdas[3], &pesos(total), tam::CUERPO, Peso::Semi, color::TEXTO, true);
+        celda_texto(&pintor, celdas[4], &pesos(pagado), tam::CUERPO, Peso::Normal, color::VERDE_EXITO, true);
+        celda_texto(&pintor, celdas[5], &pesos(saldo), tam::CUERPO, Peso::Semi, if saldo > 0.0 { color::ROJO } else { color::VERDE_EXITO }, true);
+        let (estado, colores_estado) = vista::estado(factura);
+        let tam_estado = vista::medir_chip(ui, &estado, tam::XS, RELLENO_CHIP_ESTADO);
+        vista::pintar_chip(ui, egui::pos2(celdas[6].left(), celdas[6].center().y - tam_estado.y / 2.0), &estado, tam::XS, RELLENO_CHIP_ESTADO, colores_estado.0, colores_estado.1);
+
+        let mut acciones = ui.new_child(UiBuilder::new().id_salt(("acciones", &id)).max_rect(celdas[7]).layout(Layout::right_to_left(Align::Center)));
+        acciones.spacing_mut().item_spacing.x = 0.0;
+        if BotonIcono::quitar().ui(&mut acciones).on_hover_text("Eliminar").clicked() {
+            accion = Some(Accion::Eliminar);
+        }
+        if BotonIcono::new("download").ui(&mut acciones).on_hover_text("Descargar PDF").clicked() {
+            accion = Some(Accion::Descargar);
+        }
+        if BotonIcono::new("square-pen").ui(&mut acciones).on_hover_text("Editar").clicked() {
+            accion = Some(Accion::Editar);
+        }
+        if BotonIcono::new("history").colores(color::VERDE, color::VERDE_CHIP, color::VERDE).ui(&mut acciones).on_hover_text("Ver pagos").clicked() {
+            accion = Some(Accion::VerPagos);
+        }
+        if saldo > 0.0 {
+            let pago = Boton::primario("Pago")
+                .icono("hand-coins")
+                .tam_icono(15.0)
+                .separacion(6.0)
+                .alto(alto::BOTON_CHICO)
+                .relleno(10.0)
+                .radio(radio::ICONO)
+                .tam_texto(tam::CHICO)
+                .sin_sombra();
+            if pago.ui(&mut acciones).clicked() {
+                accion = Some(Accion::AgregarPago);
+            }
+        }
+    });
+    if accion.is_none() && respuesta.on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
+        accion = Some(Accion::Ver);
+    }
+    accion
 }

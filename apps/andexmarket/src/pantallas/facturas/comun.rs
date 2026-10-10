@@ -7,7 +7,7 @@ use eframe::egui::{
     Sense, Stroke, StrokeKind, TextFormat, Ui, Vec2,
 };
 
-use crate::ui::{self, color, fuente, paleta, Direccion, Peso, Tam, RADIO, RADIO_SM, RADIO_XL};
+use crate::ui::{self, color, fuente, Direccion, Peso, Tam, RADIO, RADIO_SM, RADIO_XL};
 
 pub struct Bloque {
     pub galeria: Arc<Galley>,
@@ -84,10 +84,6 @@ pub fn ancho_texto(ui: &Ui, texto: &str, tam: Tam, peso: Peso) -> f32 {
     ui.painter().layout_no_wrap(texto.to_string(), fuente(tam, peso), Color32::WHITE).size().x
 }
 
-pub fn ancho_minimo(ui: &Ui, texto: &str, tam: Tam, peso: Peso) -> f32 {
-    trozos(texto).into_iter().map(|trozo| ancho_texto(ui, trozo.trim_end(), tam, peso)).fold(0.0, f32::max)
-}
-
 pub fn texto_en(ui: &Ui, pos: egui::Pos2, ancla: Align2, texto: &str, tam: Tam, peso: Peso, color: Color32) -> Rect {
     ui.painter().text(pos, ancla, texto, fuente(tam, peso), color)
 }
@@ -132,7 +128,6 @@ pub fn encoger(base: &[f32], minimos: &[f32], disponible: f32) -> Vec<f32> {
 
 #[derive(Clone, Copy)]
 pub enum Relleno {
-    Nada,
     Liso(Color32),
     Degradado(Color32, Color32, Direccion),
 }
@@ -143,7 +138,6 @@ pub fn esmeralda() -> Relleno {
 
 pub fn pintar_relleno(ui: &Ui, rect: Rect, radio: f32, relleno: Relleno, opacidad: f32) {
     match relleno {
-        Relleno::Nada => {}
         Relleno::Liso(c) => {
             ui.painter().rect_filled(rect, radio, c.gamma_multiply(opacidad));
         }
@@ -211,12 +205,6 @@ impl<'a> Boton<'a> {
         b
     }
 
-    pub fn fantasma(texto: &'a str) -> Self {
-        let mut b = Self::base(texto, Relleno::Nada, color::TEXTO);
-        b.encima = Some(Relleno::Liso(color::ACENTO));
-        b
-    }
-
     pub fn esmeralda(texto: &'a str) -> Self {
         Self::base(texto, esmeralda(), color::PRIMARIO_TEXTO)
     }
@@ -242,44 +230,13 @@ impl<'a> Boton<'a> {
         self
     }
 
-    pub fn relleno(mut self, relleno: Relleno) -> Self {
-        self.relleno = relleno;
-        self.encima = None;
-        self
-    }
-
     pub fn encima(mut self, relleno: Relleno) -> Self {
         self.encima = Some(relleno);
         self
     }
 
-    pub fn color(mut self, color: Color32) -> Self {
-        self.color = color;
-        self
-    }
-
-    pub fn color_encima(mut self, color: Color32) -> Self {
-        self.color_encima = Some(color);
-        self
-    }
-
     pub fn borde(mut self, borde: Option<Color32>) -> Self {
         self.borde = borde;
-        self
-    }
-
-    pub fn radio(mut self, radio: f32) -> Self {
-        self.radio = radio;
-        self
-    }
-
-    pub fn texto_tam(mut self, tam: Tam) -> Self {
-        self.tam = tam;
-        self
-    }
-
-    pub fn relleno_x(mut self, relleno_x: f32) -> Self {
-        self.relleno_x = relleno_x;
         self
     }
 
@@ -342,64 +299,6 @@ impl<'a> Boton<'a> {
         } else {
             respuesta
         }
-    }
-}
-
-#[derive(Clone)]
-pub struct Insignia<'a> {
-    pub texto: &'a str,
-    pub icono: Option<&'a str>,
-    pub fondo: Color32,
-    pub color: Color32,
-    pub borde: Color32,
-    pub tam: Tam,
-    pub peso: Peso,
-}
-
-impl<'a> Insignia<'a> {
-    pub fn new(texto: &'a str, fondo: Color32, color: Color32, borde: Color32) -> Self {
-        Insignia { texto, icono: None, fondo, color, borde, tam: Tam::Xs, peso: Peso::Semi }
-    }
-
-    pub fn icono(mut self, icono: &'a str) -> Self {
-        self.icono = Some(icono);
-        self
-    }
-
-    fn extra(&self) -> f32 {
-        20.0 + if self.icono.is_some() { 16.0 } else { 0.0 }
-    }
-
-    pub fn ancho_natural(&self, ui: &Ui) -> f32 {
-        ancho_texto(ui, self.texto, self.tam, self.peso) + self.extra()
-    }
-
-    pub fn ancho_minimo(&self, ui: &Ui) -> f32 {
-        ancho_minimo(ui, self.texto, self.tam, self.peso) + self.extra()
-    }
-
-    pub fn alto(&self, ui: &Ui, ancho: f32) -> f32 {
-        bloque(ui, self.texto, self.tam, self.peso, self.color, ancho - self.extra() + 0.5).alto() + 6.0
-    }
-
-    pub fn pintar(&self, ui: &Ui, rect: Rect) {
-        ui.painter().rect(rect, rect.height() / 2.0, self.fondo, Stroke::new(1.0, self.borde), StrokeKind::Inside);
-        let b = bloque(ui, self.texto, self.tam, self.peso, self.color, rect.width() - self.extra() + 0.5);
-        let mut x = rect.left() + 10.0;
-        if let Some(icono) = self.icono {
-            let caja = Rect::from_center_size(egui::pos2(x + 6.0, rect.center().y), Vec2::splat(12.0));
-            ui::pintar_icono_en(ui, caja, icono, self.color);
-            x += 16.0;
-        }
-        b.pintar(ui, egui::pos2(x, rect.center().y - b.alto() / 2.0), self.color);
-    }
-
-    pub fn ui(&self, ui: &mut Ui) -> Response {
-        let ancho = self.ancho_natural(ui);
-        let alto = self.alto(ui, ancho);
-        let (rect, respuesta) = ui.allocate_exact_size(Vec2::new(ancho, alto), Sense::hover());
-        self.pintar(ui, rect);
-        respuesta
     }
 }
 
@@ -480,33 +379,6 @@ pub fn selector(
         }
         _ => false,
     }
-}
-
-pub fn encabezado_verde(ui: &mut Ui, alto: f32, contenido: impl FnOnce(&mut Ui)) {
-    let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), alto + 1.0), Sense::hover());
-    let fondo = Rect::from_min_size(rect.min, Vec2::new(rect.width(), alto));
-    ui::pintar_degradado(ui.painter(), fondo, 0, color::ESMERALDA_DESDE, color::ESMERALDA_HASTA, Direccion::AbajoDerecha);
-    ui.painter().hline(rect.x_range(), rect.bottom() - 0.5, Stroke::new(1.0, paleta::GRAY_200));
-    let interior = fondo.shrink(24.0);
-    let mut hijo = ui.new_child(egui::UiBuilder::new().max_rect(interior).layout(egui::Layout::left_to_right(egui::Align::Center)));
-    contenido(&mut hijo);
-}
-
-pub fn boton_volver(ui: &mut Ui) -> Response {
-    Boton::fantasma("Volver")
-        .chico()
-        .icono("arrow-left")
-        .separacion(16.0)
-        .color(Color32::WHITE)
-        .encima(Relleno::Liso(paleta::GRAY_100))
-        .color_encima(paleta::GRAY_900)
-        .ui(ui)
-}
-
-pub fn logo(ui: &mut Ui) {
-    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-        ui.add(ui::imagen("andexmarket-logo.png").fit_to_exact_size(Vec2::new(160.0, 160.0 * 26.0 / 228.0)));
-    });
 }
 
 pub fn titulo_dialogo(ui: &mut Ui, icono: &str, titulo: &str, color_titulo: Color32, color_icono: Color32, separacion: f32) {
@@ -591,33 +463,6 @@ pub fn fila_paginacion(
             destino = Some(numero);
         }
         x += 32.0 + separacion_numeros;
-    }
-    destino
-}
-
-pub fn paginacion_compacta(ui: &Ui, rect: Rect, id: &str, pagina: u32, paginas: &[u32], anterior: bool, siguiente: bool) -> Option<u32> {
-    let mut destino = None;
-    let b_anterior = Boton::contorno("Anterior").chico().icono("chevron-left").habilitado(anterior);
-    let b_siguiente = Boton::contorno("Siguiente").chico().icono_derecha("chevron-right").habilitado(siguiente);
-    let numeros = paginas.len() as f32 * 32.0 + paginas.len().saturating_sub(1) as f32 * 4.0;
-    let (ancho_ant, ancho_sig) = (b_anterior.ancho_natural(ui), b_siguiente.ancho_natural(ui));
-    let mut x = rect.right() - ancho_ant - 8.0 - numeros - 8.0 - ancho_sig;
-    if b_anterior.en(ui, Rect::from_min_size(egui::pos2(x, rect.top()), Vec2::new(ancho_ant, 36.0)), (id, "ant")).clicked() {
-        destino = Some(pagina.saturating_sub(1));
-    }
-    x += ancho_ant + 8.0;
-    for &numero in paginas {
-        let caja = Rect::from_min_size(egui::pos2(x, rect.center().y - 16.0), Vec2::splat(32.0));
-        let texto = numero.to_string();
-        let boton = if numero == pagina { Boton::primario(&texto) } else { Boton::contorno(&texto) };
-        if boton.chico().en(ui, caja, (id, numero)).clicked() {
-            destino = Some(numero);
-        }
-        x += 36.0;
-    }
-    x += 4.0;
-    if b_siguiente.en(ui, Rect::from_min_size(egui::pos2(x, rect.top()), Vec2::new(ancho_sig, 36.0)), (id, "sig")).clicked() {
-        destino = Some(pagina + 1);
     }
     destino
 }

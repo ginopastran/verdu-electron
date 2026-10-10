@@ -1,15 +1,17 @@
-use eframe::egui::{self, Align2, Color32, Context, Id, Rect, Sense, Stroke, StrokeKind, Ui, Vec2};
+use eframe::egui::{self, Align2, Context, Frame, Margin, Rect, ScrollArea, Sense, Stroke, StrokeKind, Ui, Vec2};
 use nucleo::facturas as logica;
-use nucleo::formato;
 use serde_json::Value;
 
-use super::comun::{self, bloque, bloque_alto, Boton, Insignia, Opcion};
-use super::detalle::anchos_tabla;
-use super::pagos::descargar_pdf;
-use super::{id_texto, mostrar_valor, numero, texto};
+use super::vista::{self, RELLENO_CHIP_ESTADO};
+use super::pagos::{self, descargar_pdf};
+use super::{id_texto, mostrar_valor, numero, pesos, texto};
 use crate::app::Contexto;
 use crate::tareas::{esperar, Tarea};
-use crate::ui::{self, color, paleta, Entrada, Peso, Tam};
+use crate::ui::marca::{color, radio, tam};
+use crate::ui::v2::{self, tarjetas::celda_texto, toast, Boton, CampoTexto, Columna, Modal, Tabla};
+use crate::ui::Peso;
+
+const COLUMNAS: [Columna; 4] = [Columna::fraccion(2.0, 0.0), Columna::fija(110.0).derecha(), Columna::fija(110.0).derecha(), Columna::fija(120.0).derecha()];
 
 pub enum ResultadoModal {
     Nada,
@@ -23,42 +25,6 @@ pub struct ModalFactura {
     estado: String,
     observaciones: String,
     guardado: Option<Tarea<Result<Value, String>>>,
-}
-
-fn insignia_tipo(tipo: &str) -> (Color32, Color32) {
-    match tipo {
-        "A" => (paleta::BLUE_100, paleta::BLUE_800),
-        "C" => (paleta::ORANGE_100, paleta::ORANGE_800),
-        _ => (paleta::PURPLE_100, paleta::PURPLE_800),
-    }
-}
-
-fn insignia_estado(estado: &str) -> (Color32, Color32) {
-    match estado {
-        "pagada" => (paleta::GREEN_100, paleta::GREEN_800),
-        "anulada" => (paleta::RED_100, paleta::RED_800),
-        _ => (paleta::YELLOW_100, paleta::YELLOW_800),
-    }
-}
-
-pub fn condicion_fiscal(condicion: &str) -> String {
-    match condicion {
-        "consumidor_final" => "Consumidor Final".into(),
-        "responsable_inscripto" => "Responsable Inscripto".into(),
-        "exento" => "Exento".into(),
-        "monotributo" => "Monotributo".into(),
-        otra => otra.to_string(),
-    }
-}
-
-pub fn estilo_desplazamiento(ui: &mut Ui) {
-    ui.spacing_mut().scroll = egui::style::ScrollStyle {
-        floating: false,
-        bar_width: 11.0,
-        bar_inner_margin: 2.0,
-        bar_outer_margin: 2.0,
-        ..egui::style::ScrollStyle::solid()
-    };
 }
 
 impl ModalFactura {
@@ -91,11 +57,11 @@ impl ModalFactura {
                 self.estado = texto(&self.factura, "estado").to_string();
                 self.observaciones = texto(&self.factura, "observaciones").to_string();
                 self.edicion = false;
-                ui::toast::exito(&cx.egui, "Factura actualizada correctamente");
+                toast::exito(&cx.egui, "Factura actualizada correctamente");
                 true
             }
             Err(error) => {
-                ui::toast::error(&cx.egui, format!("Error al actualizar factura: {error}"));
+                toast::error(&cx.egui, format!("Error al actualizar factura: {error}"));
                 false
             }
         }
@@ -111,22 +77,14 @@ impl ModalFactura {
 
     pub fn mostrar(&mut self, ctx: &Context, cx: &Contexto) -> ResultadoModal {
         let actualizada = self.recibir(cx);
-        let alto_max = ctx.content_rect().height() * 0.9;
         let mut accion = None;
-        let r = ui::Dialogo::new("facturas-modal").ancho(896.0).relleno(0.0).mostrar(ctx, |ui| {
-            estilo_desplazamiento(ui);
-            comun::desplazable(ui, Id::new("facturas-modal-desplazable"), alto_max - 2.0, |ui| {
-                egui::Frame::new().inner_margin(24).show(ui, |ui| {
-                    ui.set_width(ui.available_width());
-                    accion = self.titulo(ui);
-                    ui.add_space(6.0);
-                    let f = &self.factura;
-                    let descripcion = format!("Detalles completos de la factura {}-{}", texto(f, "tipoFactura"), texto(f, "numero"));
-                    comun::linea(ui, descripcion, Tam::Sm, Peso::Normal, color::APAGADO_TEXTO);
-                    ui.add_space(16.0);
-                    self.cuerpo(ui);
-                });
+        let titulo = if self.edicion { "Editar factura" } else { "Factura" };
+        let subtitulo = pagos::subtitulo(&self.factura);
+        let r = Modal::new("facturas-modal", titulo).subtitulo(&subtitulo).icono("file-text").ancho(760.0).mostrar(ctx, |ui| {
+            vista::cuerpo_desplazable(ui, "facturas-modal-cuerpo", 160.0, |ui| {
+                v2::cuerpo_modal(ui, 20, |ui| self.cuerpo(ui));
             });
+            v2::pie_modal(ui, |ui| accion = self.botones(ui));
         });
         match accion {
             Some("pdf") => descargar_pdf(cx, &self.factura),
@@ -148,58 +106,22 @@ impl ModalFactura {
         }
     }
 
-    fn titulo(&mut self, ui: &mut Ui) -> Option<&'static str> {
-        let f = self.factura.clone();
-        let tipo = texto(&f, "tipoFactura");
-        let estado = texto(&f, "estado");
-        let titulo = format!("Factura {tipo}-{}", texto(&f, "numero"));
-        let texto_tipo = format!("Factura {tipo}");
-        let estado_mayus = estado.to_uppercase();
-        let (fondo_tipo, color_tipo) = insignia_tipo(tipo);
-        let (fondo_estado, color_estado) = insignia_estado(estado);
-        let i_tipo = Insignia::new(&texto_tipo, fondo_tipo, color_tipo, Color32::TRANSPARENT);
-        let i_estado = Insignia::new(&estado_mayus, fondo_estado, color_estado, Color32::TRANSPARENT);
-        let mut botones: Vec<(Boton, &'static str)> = vec![(Boton::contorno("PDF").chico().icono("download").separacion(16.0), "pdf")];
-        if !self.edicion && estado != "anulada" {
-            botones.push((Boton::contorno("Editar").chico().icono("edit").separacion(16.0), "editar"));
-        }
+    fn botones(&self, ui: &mut Ui) -> Option<&'static str> {
+        let mut accion = None;
+        let estado = texto(&self.factura, "estado");
         if self.edicion {
             let guardando = self.guardado.is_some();
-            let texto_guardar = if guardando { "Guardando..." } else { "Guardar" };
-            botones.push((Boton::contorno("Cancelar").chico().icono("x").separacion(16.0).habilitado(!guardando), "cancelar"));
-            botones.push((Boton::primario(texto_guardar).chico().icono("save").separacion(16.0).habilitado(!guardando), "guardar"));
-        }
-        let ancho = ui.available_width();
-        let anchos_botones: Vec<f32> = botones.iter().map(|(b, _)| b.ancho_natural(ui)).collect();
-        let derecha: f32 = anchos_botones.iter().sum::<f32>() + 8.0 * (botones.len() as f32 - 1.0);
-        let titulo_nat = comun::ancho_texto(ui, &titulo, Tam::Lg, Peso::Semi);
-        let titulo_min = comun::ancho_minimo(ui, &titulo, Tam::Lg, Peso::Semi);
-        let base = [20.0, titulo_nat, i_tipo.ancho_natural(ui), i_estado.ancho_natural(ui)];
-        let minimos = [20.0, titulo_min, i_tipo.ancho_minimo(ui), i_estado.ancho_minimo(ui)];
-        let izquierda_nat = base.iter().sum::<f32>() + 36.0;
-        let izquierda_min = minimos.iter().sum::<f32>() + 36.0;
-        let [izq, _der] = comun::encoger(&[izquierda_nat, derecha], &[izquierda_min, derecha], ancho)[..] else { unreachable!() };
-        let partes = comun::encoger(&base, &minimos, izq - 36.0);
-        let titulo_b = bloque_alto(ui, &titulo, Tam::Lg, Peso::Semi, color::TEXTO, partes[1] + 0.5, 18.0);
-        let alto = titulo_b.alto().max(i_tipo.alto(ui, partes[2])).max(i_estado.alto(ui, partes[3])).max(36.0);
-        let (rect, _) = ui.allocate_exact_size(Vec2::new(ancho, alto), Sense::hover());
-        let mut x = rect.left();
-        ui::pintar_icono_en(ui, Rect::from_center_size(egui::pos2(x + 10.0, rect.center().y), Vec2::splat(20.0)), "file-text", color::TEXTO);
-        x += partes[0] + 12.0;
-        titulo_b.pintar(ui, egui::pos2(x, rect.center().y - titulo_b.alto() / 2.0), color::TEXTO);
-        x += partes[1] + 12.0;
-        let alto_tipo = i_tipo.alto(ui, partes[2]);
-        i_tipo.pintar(ui, Rect::from_min_size(egui::pos2(x, rect.center().y - alto_tipo / 2.0), Vec2::new(partes[2], alto_tipo)));
-        x += partes[2] + 12.0;
-        let alto_estado = i_estado.alto(ui, partes[3]);
-        i_estado.pintar(ui, Rect::from_min_size(egui::pos2(x, rect.center().y - alto_estado / 2.0), Vec2::new(partes[3], alto_estado)));
-        let mut x = rect.right() - derecha;
-        let mut accion = None;
-        for ((boton, clave), w) in botones.into_iter().zip(anchos_botones) {
-            if boton.en(ui, Rect::from_min_size(egui::pos2(x, rect.center().y - 18.0), Vec2::new(w, 36.0)), clave).clicked() {
-                accion = Some(clave);
+            if Boton::primario("Guardar cambios").modal().cargando(guardando).ui(ui).clicked() {
+                accion = Some("guardar");
             }
-            x += w + 8.0;
+            if Boton::secundario("Cancelar").modal().habilitado(!guardando).ui(ui).clicked() {
+                accion = Some("cancelar");
+            }
+        } else if estado != "anulada" && Boton::secundario("Editar").icono("square-pen").modal().ui(ui).clicked() {
+            accion = Some("editar");
+        }
+        if Boton::secundario("PDF").icono("download").modal().ui(ui).clicked() {
+            accion = Some("pdf");
         }
         accion
     }
@@ -207,194 +129,121 @@ impl ModalFactura {
     fn cuerpo(&mut self, ui: &mut Ui) {
         let f = self.factura.clone();
         let ancho = ui.available_width();
-        let mitad = (ancho - 24.0) / 2.0;
-        let campo = |ui: &mut Ui, etiqueta: &str, valor: &str| {
-            comun::etiqueta(ui, etiqueta);
-            let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 24.0), Sense::hover());
-            comun::texto_en(ui, egui::pos2(rect.left(), rect.center().y), Align2::LEFT_CENTER, valor, Tam::Base, Peso::Normal, color::TEXTO);
-        };
-        let seccion = |ui: &mut Ui, titulo: &str| {
-            comun::linea(ui, titulo, Tam::Lg, Peso::Semi, color::TEXTO);
-            ui.add_space(16.0);
-        };
+        let izquierda = (ancho - 14.0) * 1.3 / 2.3;
+        let derecha = ancho - 14.0 - izquierda;
         ui.horizontal_top(|ui| {
             ui.vertical(|ui| {
-                ui.set_width(mitad);
-                seccion(ui, "Información General");
-                let mut campos = vec![
-                    ("Número", format!("{}-{}", texto(&f, "tipoFactura"), texto(&f, "numero"))),
-                    ("Fecha", logica::fecha_es_ar(texto(&f, "fecha"))),
-                    ("Punto de Venta", mostrar_valor(&f["puntoVenta"])),
-                ];
-                if !texto(&f, "cae").is_empty() {
-                    campos.push(("CAE", texto(&f, "cae").to_string()));
-                    if !texto(&f, "vencimientoCae").is_empty() {
-                        campos.push(("Vencimiento CAE", logica::fecha_es_ar(texto(&f, "vencimientoCae"))));
-                    }
-                }
-                for (i, (etiqueta, valor)) in campos.iter().enumerate() {
-                    if i > 0 {
-                        ui.add_space(8.0);
-                    }
-                    campo(ui, etiqueta, valor);
-                }
+                ui.set_width(izquierda);
+                vista::etiqueta(ui, "Cliente");
+                ui.add_space(6.0);
+                let (caja, _) = ui.allocate_exact_size(Vec2::new(izquierda, 44.0), Sense::hover());
+                ui.painter().rect(caja, radio::BOTON_MODAL, color::FONDO_APP, Stroke::new(1.0, color::BORDE), StrokeKind::Inside);
+                v2::pintar_icono(ui, egui::pos2(caja.left() + 20.5, caja.center().y), "user", 17.0, color::TEXTO_TENUE);
+                let celda = Rect::from_x_y_ranges(caja.left() + 37.0..=caja.right() - 12.0, caja.y_range());
+                celda_texto(ui.painter(), celda, &vista::nombre_cliente(&f), tam::CUERPO, Peso::Normal, color::TEXTO, false);
             });
-            ui.add_space(24.0);
+            ui.add_space(14.0);
             ui.vertical(|ui| {
-                ui.set_width(mitad);
-                seccion(ui, "Estado y Control");
-                comun::etiqueta(ui, "Estado");
+                ui.set_width(derecha);
+                vista::etiqueta(ui, "Estado");
+                ui.add_space(6.0);
                 if self.edicion {
                     let opciones = self.opciones_estado();
                     let mut indice = opciones.iter().position(|(v, _)| *v == self.estado).unwrap_or(usize::MAX);
-                    let lista: Vec<Opcion> = opciones.iter().map(|(_, t)| Opcion { icono: None, texto: t.to_string() }).collect();
-                    if comun::selector(ui, "modal-estado", mitad, &mut indice, &lista, true) {
+                    let etiquetas: Vec<String> = opciones.iter().map(|(_, t)| t.to_string()).collect();
+                    if v2::desplegable(ui, "modal-estado", &mut indice, &etiquetas, "Elegí un estado", derecha, 44.0).changed() {
                         self.estado = opciones[indice].0.to_string();
                     }
                 } else {
-                    let estado = texto(&f, "estado");
-                    let (fondo, tinta) = insignia_estado(estado);
-                    Insignia::new(&estado.to_uppercase(), fondo, tinta, Color32::TRANSPARENT).ui(ui);
+                    let (rect, _) = ui.allocate_exact_size(Vec2::new(derecha, 44.0), Sense::hover());
+                    let estado = vista::capitalizar(texto(&f, "estado"));
+                    let tam_chip = vista::medir_chip(ui, &estado, tam::XS, RELLENO_CHIP_ESTADO);
+                    let colores = match texto(&f, "estado") {
+                        "pagada" => (color::VERDE_EXITO_FONDO, color::VERDE_EXITO),
+                        "anulada" => (color::FONDO_APP, color::TEXTO_APAGADO),
+                        _ => (color::DORADO_FONDO, color::DORADO_TEXTO),
+                    };
+                    vista::pintar_chip(ui, egui::pos2(rect.left(), rect.center().y - tam_chip.y / 2.0), &estado, tam::XS, RELLENO_CHIP_ESTADO, colores.0, colores.1);
                 }
             });
         });
-        let cliente = &f["cliente"];
-        if cliente.is_object() {
-            ui.add_space(24.0);
-            seccion(ui, "Datos del Cliente");
-            let mut campos = vec![("Nombre/Razón Social", logica::nombre_cliente(cliente))];
-            if !texto(cliente, "cuit").is_empty() {
-                campos.push(("CUIT", texto(cliente, "cuit").to_string()));
-            }
-            campos.push(("Condición Fiscal", condicion_fiscal(texto(cliente, "condicionFiscal"))));
-            for (clave, etiqueta) in [("email", "Email"), ("telefono", "Teléfono")] {
-                if !texto(cliente, clave).is_empty() {
-                    campos.push((etiqueta, texto(cliente, clave).to_string()));
+        ui.add_space(16.0);
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = 8.0;
+            let (tipo, colores) = vista::tipo(texto(&f, "tipoFactura"));
+            vista::chip(ui, &tipo, tam::XS, RELLENO_CHIP_ESTADO, colores);
+            let mut datos = format!("Emitida el {} · Punto de venta {}", logica::fecha_es_ar(texto(&f, "fecha")), mostrar_valor(&f["puntoVenta"]));
+            if !texto(&f, "cae").is_empty() {
+                datos.push_str(&format!(" · CAE {}", texto(&f, "cae")));
+                if !texto(&f, "vencimientoCae").is_empty() {
+                    datos.push_str(&format!(" (vence {})", logica::fecha_es_ar(texto(&f, "vencimientoCae"))));
                 }
             }
-            for (fila, par) in campos.chunks(2).enumerate() {
-                if fila > 0 {
-                    ui.add_space(16.0);
-                }
-                ui.horizontal_top(|ui| {
-                    for (columna, (etiqueta, valor)) in par.iter().enumerate() {
-                        if columna > 0 {
-                            ui.add_space(16.0);
-                        }
-                        ui.vertical(|ui| {
-                            ui.set_width((ancho - 16.0) / 2.0);
-                            campo(ui, etiqueta, valor);
-                        });
-                    }
-                });
-            }
-            if !texto(cliente, "direccion").is_empty() {
-                ui.add_space(16.0);
-                campo(ui, "Dirección", texto(cliente, "direccion"));
-            }
-        }
-        ui.add_space(24.0);
-        seccion(ui, "Detalles de la Factura");
+            v2::texto(ui, datos, tam::ETIQUETA, Peso::Normal, color::TEXTO_APAGADO);
+        });
+        ui.add_space(16.0);
         tabla(ui, &f);
         ui.add_space(16.0);
-        totales(ui, &f);
-        ui.add_space(24.0);
-        seccion(ui, "Observaciones");
+        let (fila, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 30.0), Sense::hover());
+        let total = v2::pintar_texto(ui, fila.right_center(), Align2::RIGHT_CENTER, pesos(numero(&f, "total")), tam::MONTO_CHICO, Peso::Semi, color::TEXTO);
+        v2::pintar_texto(ui, egui::pos2(total.left() - 10.0, total.bottom() - 4.0), Align2::RIGHT_BOTTOM, "Total", tam::CONTROL, Peso::Normal, color::TEXTO_APAGADO);
+        if numero(&f, "impuestos") > 0.0 {
+            let desglose = format!("Subtotal {} · IVA {}", pesos(numero(&f, "subtotal")), pesos(numero(&f, "impuestos")));
+            v2::pintar_texto(ui, fila.left_center(), Align2::LEFT_CENTER, desglose, tam::ETIQUETA, Peso::Normal, color::TEXTO_APAGADO);
+        }
+        ui.add_space(16.0);
+        vista::etiqueta(ui, "Observaciones");
+        ui.add_space(6.0);
         if self.edicion {
-            Entrada::new(&mut self.observaciones)
-                .multilinea(80.0)
-                .tam(Tam::Sm)
-                .sugerencia("Ingresa observaciones para la factura...")
+            CampoTexto::new(&mut self.observaciones)
+                .multilinea(72.0)
+                .radio(radio::BOTON_MODAL)
+                .tam_texto(tam::CUERPO)
+                .sugerencia("Ingresá observaciones para la factura…")
                 .ui(ui);
         } else {
             let obs = texto(&f, "observaciones");
-            let contenido = if obs.is_empty() { "Sin observaciones" } else { obs };
-            let b = bloque(ui, contenido, Tam::Base, Peso::Normal, color::TEXTO, ancho - 26.0);
-            let (rect, _) = ui.allocate_exact_size(Vec2::new(ancho, (b.alto() + 26.0).max(60.0)), Sense::hover());
-            ui.painter().rect(rect, 6, color::APAGADO.gamma_multiply(0.3), Stroke::new(1.0, color::BORDE), StrokeKind::Inside);
-            b.pintar(ui, rect.min + Vec2::splat(13.0), color::TEXTO);
+            Frame::NONE.fill(color::FONDO_APP).corner_radius(radio::BOTON_MODAL).inner_margin(Margin::symmetric(12, 10)).show(ui, |ui| {
+                let ancho = ui.available_width();
+                let (contenido, tinta) = if obs.is_empty() { ("Sin observaciones", color::TEXTO_APAGADO) } else { (obs, color::TEXTO) };
+                v2::parrafo(ui, contenido, tam::CUERPO, tinta, 1.45, ancho);
+            });
         }
     }
 }
 
 fn tabla(ui: &mut Ui, f: &Value) {
     let detalles = f["detalles"].as_array().cloned().unwrap_or_default();
-    let ancho = ui.available_width();
-    let encabezados = ["Producto", "Descripción", "Cantidad", "P. Unitario", "Subtotal"];
-    let filas: Vec<[String; 6]> = detalles
-        .iter()
-        .map(|d| {
-            [
-                texto(&d["producto"], "nombre").to_string(),
-                texto(&d["producto"], "tipoMedida").to_string(),
-                texto(d, "descripcion").to_string(),
-                formato::numero(numero(d, "cantidad")),
-                formato::pesos(numero(d, "precioUnitario")),
-                formato::pesos(numero(d, "subtotal")),
-            ]
-        })
-        .collect();
-    let mut maximos: Vec<f32> = encabezados.iter().map(|e| comun::ancho_texto(ui, e, Tam::Sm, Peso::Medio)).collect();
-    for fila in &filas {
-        maximos[0] = maximos[0].max(comun::ancho_texto(ui, &fila[0], Tam::Sm, Peso::Medio));
-        for (i, celda) in [(1, &fila[2]), (2, &fila[3]), (3, &fila[4])] {
-            maximos[i] = maximos[i].max(comun::ancho_texto(ui, celda, Tam::Sm, Peso::Normal));
-        }
-        maximos[4] = maximos[4].max(comun::ancho_texto(ui, &fila[5], Tam::Sm, Peso::Medio));
-    }
-    let maximos: Vec<f32> = maximos.iter().map(|m| m + 32.0).collect();
-    let anchos = anchos_tabla(&maximos, &[None; 5], ancho - 2.0);
-    let alto = 2.0 + 48.0 + filas.len() as f32 * 77.0;
-    let (rect, _) = ui.allocate_exact_size(Vec2::new(ancho, alto), Sense::hover());
-    ui.painter().rect_stroke(rect, 6, Stroke::new(1.0, color::BORDE), StrokeKind::Inside);
-    let mut x = rect.left() + 1.0;
-    let columnas: Vec<(f32, f32)> = anchos
-        .iter()
-        .map(|w| {
-            let c = (x + 16.0, x + w - 16.0);
-            x += w;
-            c
-        })
-        .collect();
-    let mut y = rect.top() + 1.0;
-    for (i, e) in encabezados.iter().enumerate() {
-        let (pos, ancla) = if i >= 2 { (columnas[i].1, Align2::RIGHT_CENTER) } else { (columnas[i].0, Align2::LEFT_CENTER) };
-        comun::texto_en(ui, egui::pos2(pos, y + 24.0), ancla, e, Tam::Sm, Peso::Medio, color::APAGADO_TEXTO);
-    }
-    y += 48.0;
-    for fila in &filas {
-        ui.painter().hline(rect.left()..=rect.right(), y - 0.5, Stroke::new(1.0, color::BORDE));
-        let centro = y + 38.0;
-        comun::texto_en(ui, egui::pos2(columnas[0].0, y + 16.0 + 10.0), Align2::LEFT_CENTER, &fila[0], Tam::Sm, Peso::Medio, color::TEXTO);
-        comun::texto_en(ui, egui::pos2(columnas[0].0, y + 36.0 + 10.0), Align2::LEFT_CENTER, &fila[1], Tam::Sm, Peso::Normal, color::APAGADO_TEXTO);
-        comun::texto_en(ui, egui::pos2(columnas[1].0, centro), Align2::LEFT_CENTER, &fila[2], Tam::Sm, Peso::Normal, color::TEXTO);
-        comun::texto_en(ui, egui::pos2(columnas[2].1, centro), Align2::RIGHT_CENTER, &fila[3], Tam::Sm, Peso::Normal, color::TEXTO);
-        comun::texto_en(ui, egui::pos2(columnas[3].1, centro), Align2::RIGHT_CENTER, &fila[4], Tam::Sm, Peso::Normal, color::TEXTO);
-        comun::texto_en(ui, egui::pos2(columnas[4].1, centro), Align2::RIGHT_CENTER, &fila[5], Tam::Sm, Peso::Medio, color::TEXTO);
-        y += 77.0;
-    }
+    Frame::NONE.stroke(Stroke::new(1.0, color::BORDE_SUAVE)).corner_radius(radio::POPOVER).show(ui, |ui| {
+        ui.set_width(ui.available_width());
+        let tabla = Tabla::new(&COLUMNAS).relleno(14.0).separacion(10.0).radio_superior(radio::POPOVER - 1);
+        tabla.encabezado(ui, &["Producto", "Cantidad", "Precio", "Subtotal"], 38.0);
+        ScrollArea::vertical().id_salt("facturas-modal-productos").max_height(240.0).auto_shrink([false, true]).show(ui, |ui| {
+            for (indice, detalle) in detalles.iter().enumerate() {
+                let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 46.0), Sense::hover());
+                if indice + 1 < detalles.len() {
+                    ui.painter().hline(rect.x_range(), rect.bottom() - 0.5, Stroke::new(1.0, color::BORDE_SUAVE));
+                }
+                let celdas = tabla.celdas(rect);
+                let producto = &detalle["producto"];
+                let nombre = Some(texto(producto, "nombre")).filter(|n| !n.is_empty()).unwrap_or(texto(detalle, "descripcion"));
+                let pintor = ui.painter();
+                celda_texto(pintor, celdas[0], nombre, tam::CONTROL, Peso::Medio, color::TEXTO, false);
+                let cantidad = vista::cantidad_con_medida(numero(detalle, "cantidad"), texto(producto, "tipoMedida"));
+                celda_texto(pintor, celdas[1], &cantidad, tam::CONTROL, Peso::Normal, color::TEXTO, true);
+                celda_texto(pintor, celdas[2], &pesos(numero(detalle, "precioUnitario")), tam::CONTROL, Peso::Normal, color::TEXTO_APAGADO, true);
+                celda_texto(pintor, celdas[3], &pesos(numero(detalle, "subtotal")), tam::CONTROL, Peso::Semi, color::TEXTO, true);
+            }
+        });
+    });
 }
 
-fn totales(ui: &mut Ui, f: &Value) {
-    let ancho = ui.available_width();
-    let impuestos = numero(f, "impuestos");
-    let filas = if impuestos > 0.0 { 2 } else { 1 };
-    let alto = filas as f32 * 24.0 + filas as f32 * 8.0 + 1.0 + 8.0 + 28.0;
-    let (rect, _) = ui.allocate_exact_size(Vec2::new(ancho, alto), Sense::hover());
-    let x0 = rect.right() - 320.0;
-    let x1 = rect.right();
-    let mut y = rect.top();
-    let mut fila = |etiqueta: &str, valor: f64| {
-        comun::texto_en(ui, egui::pos2(x0, y + 12.0), Align2::LEFT_CENTER, etiqueta, Tam::Base, Peso::Normal, color::TEXTO);
-        comun::texto_en(ui, egui::pos2(x1, y + 12.0), Align2::RIGHT_CENTER, &formato::pesos(valor), Tam::Base, Peso::Normal, color::TEXTO);
-        y += 32.0;
+pub fn estilo_desplazamiento(ui: &mut Ui) {
+    ui.spacing_mut().scroll = egui::style::ScrollStyle {
+        floating: false,
+        bar_width: 11.0,
+        bar_inner_margin: 2.0,
+        bar_outer_margin: 2.0,
+        ..egui::style::ScrollStyle::solid()
     };
-    fila("Subtotal:", numero(f, "subtotal"));
-    if impuestos > 0.0 {
-        fila("IVA:", impuestos);
-    }
-    ui.painter().hline(x0..=x1, y + 0.5, Stroke::new(1.0, color::BORDE));
-    y += 9.0;
-    comun::texto_en(ui, egui::pos2(x0, y + 14.0), Align2::LEFT_CENTER, "Total:", Tam::Lg, Peso::Negrita, color::TEXTO);
-    comun::texto_en(ui, egui::pos2(x1, y + 14.0), Align2::RIGHT_CENTER, &formato::pesos(numero(f, "total")), Tam::Lg, Peso::Negrita, color::TEXTO);
 }
