@@ -4,9 +4,9 @@ Esta guía te ayudará a instalar y configurar todos los componentes necesarios 
 
 ## Requisitos Previos
 
-Desde la versión 4 el POS es una app Tauri: la interfaz React corre en el WebView2 de Windows y todo el lado de hardware (impresión ESC/POS, balanza, configuración y actualizaciones) está en Rust. El instalador pesa unos pocos MB y no trae Electron, Node ni PHP.
+El POS es una app 100% Rust: la interfaz está hecha con egui y el hardware (impresión ESC/POS, balanza, configuración y actualizaciones) también es Rust. Es un solo `AndexMarket.exe`; el instalador pesa pocos MB y no trae Electron, Node, WebView2 ni PHP.
 
-El instalador trae el driver CH340 para balanzas con adaptador USB-serie (en `src-tauri/drivers/`). Si no está cargado, al terminar la instalación Windows pide permiso de administrador una sola vez para instalarlo con `pnputil`. Otros drivers USB-serie (FTDI, PL2303) los instala Windows Update; para incluirlos, copiar la carpeta con el `.inf` firmado dentro de `src-tauri/drivers/`.
+El instalador trae el driver CH340 para balanzas con adaptador USB-serie (en `drivers/ch340/`). Si no está cargado, al terminar la instalación Windows pide permiso de administrador una sola vez para instalarlo con `pnputil`. Otros drivers USB-serie (FTDI, PL2303) los instala Windows Update; para incluirlos hay que copiar la carpeta con el `.inf` firmado dentro de `drivers/` y agregarla en `empaquetado/instalador.nsi`.
 
 ### 1. Impresora Térmica
 
@@ -23,22 +23,22 @@ El instalador trae el driver CH340 para balanzas con adaptador USB-serie (en `sr
 ## Instalación del Programa
 
 1. Ejecuta el instalador `AndexMarket_<versión>_x64-setup.exe`
-2. Sigue el asistente de instalación (se instala para el usuario actual, sin pedir administrador)
-3. Al finalizar, se creará un acceso directo en el escritorio
+2. Sigue el asistente de instalación (se instala para el usuario actual en `%LOCALAPPDATA%\AndexMarket`, sin pedir administrador)
+3. Al finalizar, se crean accesos directos en el escritorio y en el menú inicio
 
 Si la PC tenía la versión Electron (3.x), el instalador la desinstala y la app nueva toma su configuración (impresora, balanza, ancho de papel, logo del negocio) de `%APPDATA%\andex-market`. Lo que la versión vieja guardaba en el `localStorage` (credenciales recordadas y offline) no se migra: hay que iniciar sesión una vez.
 
 ## Desarrollo
 
-Requisitos: Node 22, Rust (toolchain MSVC) y los Build Tools de C++ con el SDK de Windows.
+Requisitos: Rust (toolchain MSVC), los Build Tools de C++ con el SDK de Windows, NSIS 3 (sirve el que bajó Tauri en `%LOCALAPPDATA%\tauri\NSIS`) y Node 22 para los scripts de npm.
 
 ```bash
-npm install
 npm run dev
 ```
 
-- `npm test` corre los tests de Rust. Los tickets se comparan byte a byte contra lo que imprimía la versión PHP (`src-tauri/impresion/golden/`).
-- `npm run release` arma el instalador firmado, genera `latest.json` (actualizador de Tauri) y `latest.yml` (para que las PCs con la versión Electron se actualicen a esta) y crea el release como borrador en GitHub. Ver `README-AUTOUPDATE.md`.
+- `npm run dev` es `cargo run -p andexmarket`; `npm run build` compila `andexmarket.exe` en release.
+- `npm test` corre todos los tests de Rust (`cargo test --workspace`). Los tickets se comparan byte a byte contra lo que imprimía la versión PHP.
+- `npm run release` compila, arma el instalador NSIS (`empaquetado/instalador.nsi`), lo firma, genera `latest.json` (actualizador de la app) y `latest.yml` (para que las PCs con la versión Electron se actualicen a esta) y crea el release como borrador en GitHub. `npm run release -- --local` hace lo mismo sin subir nada. Ver `README-AUTOUPDATE.md`.
 
 ## Solución de Problemas Comunes
 
