@@ -1,25 +1,27 @@
 use chrono::{Datelike, Duration, NaiveDate, NaiveDateTime, Timelike};
-use eframe::egui::{
-    self, Align2, Color32, CursorIcon, Id, Popup, PopupCloseBehavior, Rect, RectAlign, Sense, StrokeKind, Ui, Vec2,
-};
+use eframe::egui::{self, Align, Color32, CursorIcon, Id, Rect, Response, ScrollArea, Sense, Ui, Vec2};
 use nucleo::cierre::{self as logica, Hora};
 use serde_json::Value;
 
-use super::dibujo::{self, color_degradado_texto};
+use super::dibujo::{caja_entrada, etiqueta, nota};
 use super::{avisar_impresion, encabezados_app};
 use crate::app::{Contexto, Servicios};
 use crate::impresion::{imprimir, Comprobante};
 use crate::tareas::{esperar, Tarea};
-use crate::ui::{self, color, fuente, paleta, toast, Boton, Dialogo, Peso, Tam, Variante, RADIO, RADIO_MD};
+use crate::ui::marca::{color, radio, tam};
+use crate::ui::v2::{self, toast, Boton, BotonIcono, Popover};
+use crate::ui::Peso;
 
 type Listas = Result<(Option<Vec<Value>>, Option<Vec<Value>>), ()>;
+
+const DIAS_SEMANA: [&str; 7] = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"];
 
 pub enum RespuestaManual {
     Hecho { cierre: Value, impresion: Value },
     Error(String),
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 enum Extremo {
     Inicio,
     Fin,
@@ -55,10 +57,6 @@ impl Default for CierreManual {
     }
 }
 
-fn opciones(cantidad: usize) -> Vec<String> {
-    (0..cantidad).map(|i| format!("{i:02}")).collect()
-}
-
 fn lista_valida(valor: &Value) -> Option<Vec<Value>> {
     valor.as_array().cloned()
 }
@@ -91,9 +89,29 @@ pub fn crear_cierre(servicios: &Servicios, cuerpo: &Value) -> RespuestaManual {
     RespuestaManual::Hecho { cierre: respuesta.cuerpo, impresion }
 }
 
+pub fn fecha_con_dia(fecha: NaiveDate) -> String {
+    format!(
+        "{}, {} de {}",
+        DIAS_SEMANA[fecha.weekday().num_days_from_monday() as usize],
+        fecha.day(),
+        logica::MESES[fecha.month0() as usize]
+    )
+}
+
+pub fn resumen_periodo(inicio: NaiveDate, fin: NaiveDate, hora_inicio: &str, hora_fin: &str) -> String {
+    let varios = if inicio != fin { " Es un cierre de varios días." } else { "" };
+    format!("Desde el {} a las {hora_inicio} hasta el {} a las {hora_fin}.{varios}", fecha_con_dia(inicio), fecha_con_dia(fin))
+}
+
 impl CierreManual {
     pub fn abierto(&self) -> bool {
         self.abierto
+    }
+
+    pub fn fijar(&mut self, inicio: NaiveDate, fin: NaiveDate, horas: [usize; 4]) {
+        self.inicio = inicio;
+        self.fin = fin;
+        self.horas = horas;
     }
 
     fn valores_por_defecto(&mut self, ahora: NaiveDateTime) {
@@ -176,52 +194,62 @@ impl CierreManual {
             .or(nombre_usuario.map(str::to_string))
             .unwrap_or_else(|| "Cargando...".into());
         let sucursal = logica::nombre_por_id(&self.sucursales, &sucursal_id).unwrap_or_else(|| "Cargando...".into());
+        let (hora_inicio, hora_fin) = (self.hora(Extremo::Inicio), self.hora(Extremo::Fin));
+        let error = logica::validar_manual(self.inicio, self.fin, &vendedor_id, &sucursal_id, hora_inicio, hora_fin).err();
         let mut crear = false;
-        let mut cancelar = false;
-        let respuesta = Dialogo::new("cierre-manual").ancho(448.0).mostrar(&cx.egui, |ui| {
-            let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 28.0), Sense::hover());
-            ui::texto_en(ui, rect.left_center(), Align2::LEFT_CENTER, "Crear Cierre Manual", Tam::Xl, Peso::Semi, color_degradado_texto());
-            ui.add_space(6.0);
-            dibujo::parrafo(
-                ui,
-                "Selecciona las fechas y horarios para generar el cierre de caja manual. Puedes seleccionar fechas diferentes para cierres que abarquen múltiples días.",
-                Tam::Sm,
-                Peso::Normal,
-                color::APAGADO_TEXTO,
-                20.0,
-            );
-            ui.add_space(32.0);
-            let ancho = (ui.available_width() - 16.0) / 2.0;
-            fila(ui, ancho, |ui, columna| {
-                let (titulo, icono, valor) = if columna == 0 { ("Vendedor", "user", &vendedor) } else { ("Sucursal", "store", &sucursal) };
-                etiqueta(ui, titulo);
-                caja_lectura(ui, ancho, icono, valor);
+        let mut volver = false;
+        let respuesta = v2::Modal::new("cierre-manual", "Cierre manual")
+            .subtitulo("Elegí desde y hasta cuándo. Puede abarcar varios días.")
+            .icono("clock-time")
+            .ancho(560.0)
+            .mostrar(&cx.egui, |ui| {
+                v2::cuerpo_modal(ui, 20, |ui| {
+                    let ancho = (ui.available_width() - 12.0) / 2.0;
+                    fila(ui, ancho, |ui, columna| {
+                        let (titulo, icono, valor) = if columna == 0 { ("Vendedor", "user", &vendedor) } else { ("Sucursal", "store", &sucursal) };
+                        etiqueta(ui, titulo, tam::ETIQUETA, Peso::Medio);
+                        ui.add_space(6.0);
+                        caja_lectura(ui, ancho, icono, valor);
+                    });
+                    ui.add_space(14.0);
+                    fila(ui, ancho, |ui, columna| {
+                        let extremo = if columna == 0 { Extremo::Inicio } else { Extremo::Fin };
+                        etiqueta(ui, if columna == 0 { "Desde" } else { "Hasta" }, tam::ETIQUETA, Peso::Medio);
+                        ui.add_space(6.0);
+                        ui.horizontal(|ui| {
+                            ui.spacing_mut().item_spacing.x = 6.0;
+                            self.selector_fecha(ui, ancho - 6.0 - 104.0, extremo);
+                            self.selector_hora(ui, 104.0, extremo);
+                        });
+                    });
+                    ui.add_space(14.0);
+                    match error {
+                        Some(mensaje) => nota(ui, "alert", 18.0, mensaje, tam::CONTROL, color::ROJO_FONDO, color::ROJO, color::ROJO),
+                        None => {
+                            let resumen = resumen_periodo(self.inicio, self.fin, &hora_inicio.texto(), &hora_fin.texto());
+                            let (fondo, tinta) = if self.inicio != self.fin {
+                                (color::DORADO_FONDO, color::DORADO_TEXTO)
+                            } else {
+                                (color::VERDE_ELEGIDO, color::VERDE_PROFUNDO)
+                            };
+                            nota(ui, "clock-time", 18.0, &resumen, tam::CONTROL, fondo, tinta, tinta);
+                        }
+                    }
+                });
+                v2::pie_modal(ui, |ui| {
+                    ui.scope(|ui| {
+                        if error.is_some() {
+                            ui.set_opacity(0.45);
+                        }
+                        crear = Boton::primario("Crear cierre").modal().cargando(enviando).ui(ui).clicked();
+                    });
+                    volver = Boton::secundario("Volver").modal().ui(ui).clicked();
+                });
             });
-            ui.add_space(16.0);
-            fila(ui, ancho, |ui, columna| {
-                let extremo = if columna == 0 { Extremo::Inicio } else { Extremo::Fin };
-                etiqueta(ui, if columna == 0 { "Fecha de inicio" } else { "Fecha de fin" });
-                self.selector_fecha(ui, ancho, extremo);
-            });
-            ui.add_space(16.0);
-            fila(ui, ancho, |ui, columna| {
-                etiqueta(ui, if columna == 0 { "Hora de inicio" } else { "Hora de fin" });
-                self.selector_hora(ui, ancho, columna * 2);
-            });
-            ui.add_space(16.0);
-            let horas = (self.hora(Extremo::Inicio).texto(), self.hora(Extremo::Fin).texto());
-            resumen(ui, self.inicio, self.fin, &horas.0, &horas.1);
-            ui.add_space(32.0);
-            ui::pie_dialogo(ui, |ui| {
-                let texto = if enviando { "Creando..." } else { "Crear Cierre" };
-                crear = Boton::new(texto).variante(Variante::Esmeralda).habilitado(!enviando).ui(ui).clicked();
-                cancelar = Boton::new("Cancelar").variante(Variante::Contorno).ui(ui).clicked();
-            });
-        });
         if crear {
             self.crear(cx);
         }
-        if cancelar || respuesta.cerrar {
+        if volver || respuesta.cerrar {
             self.abierto = false;
         }
         None
@@ -229,69 +257,77 @@ impl CierreManual {
 
     fn selector_fecha(&mut self, ui: &mut Ui, ancho: f32, extremo: Extremo) {
         let valor = if extremo == Extremo::Inicio { self.inicio } else { self.fin };
-        let (rect, respuesta) = ui.allocate_exact_size(Vec2::new(ancho, 40.0), Sense::click());
-        let fondo = if respuesta.hovered() { color::ACENTO } else { color::FONDO };
-        ui.painter().rect(rect, RADIO, fondo, ui::borde(color::BORDE), StrokeKind::Inside);
-        let icono = Rect::from_min_size(egui::pos2(rect.left() + 17.0, rect.center().y - 8.0), Vec2::splat(16.0));
-        ui::pintar_icono_en(ui, icono, "calendar", color::TEXTO);
-        let texto = logica::fecha_larga(valor);
-        ui.painter().with_clip_rect(ui.ctx().content_rect()).text(
-            egui::pos2(icono.right() + 16.0, rect.center().y),
-            Align2::LEFT_CENTER,
-            texto,
-            fuente(Tam::Sm, Peso::Normal),
-            color::TEXTO,
-        );
-        let id = Id::new("cierre-manual-calendario").with(extremo == Extremo::Inicio);
-        if respuesta.on_hover_cursor(CursorIcon::PointingHand).clicked() {
-            if !Popup::is_id_open(ui.ctx(), id) {
+        let id = Id::new("cierre-manual-fecha").with(extremo);
+        let (rect, respuesta) = caja_entrada(ui, ancho, 42.0, Popover::abierto(ui.ctx(), id));
+        v2::pintar_texto(ui, egui::pos2(rect.left() + 11.0, rect.center().y), egui::Align2::LEFT_CENTER, valor.format("%d/%m/%Y").to_string(), tam::CUERPO, Peso::Normal, color::TEXTO);
+        v2::pintar_icono(ui, egui::pos2(rect.right() - 20.0, rect.center().y), "calendar", 16.0, color::TEXTO_SECUNDARIO);
+        if respuesta.clicked() {
+            if !Popover::abierto(ui.ctx(), id) {
                 self.mes_visible = valor.with_day(1).expect("día 1");
             }
-            Popup::toggle_id(ui.ctx(), id);
+            Popover::alternar(ui.ctx(), id);
         }
-        let mut elegido = None;
-        Popup::new(id, ui.ctx().clone(), rect, ui.layer_id())
-            .open_memory(None)
-            .close_behavior(PopupCloseBehavior::CloseOnClickOutside)
-            .align(RectAlign::BOTTOM)
-            .gap(5.0)
-            .frame(
-                ui::marco()
-                    .fill(color::FONDO)
-                    .stroke(ui::borde(color::BORDE))
-                    .corner_radius(RADIO_MD)
-                    .shadow(ui::sombra_md())
-                    .inner_margin(egui::Margin::same(12)),
-            )
-            .show(|ui| {
-                elegido = calendario(ui, &mut self.mes_visible, valor);
-            });
+        let elegido = Popover::new(id, &respuesta).ancho(7.0 * 36.0 + 24.0).radio(radio::CAMPO).mostrar(ui.ctx(), |ui| calendario(ui, &mut self.mes_visible, valor)).flatten();
         if let Some(dia) = elegido {
             if extremo == Extremo::Inicio {
                 self.inicio = dia;
             } else {
                 self.fin = dia;
             }
-            Popup::close_id(ui.ctx(), id);
+            Popover::cerrar(ui.ctx(), id);
         }
     }
 
-    fn selector_hora(&mut self, ui: &mut Ui, ancho: f32, base: usize) {
-        let ancho_dos_puntos = ui.ctx().fonts_mut(|f| f.layout_no_wrap(":".into(), fuente(Tam::Base, Peso::Normal), color::TEXTO).size().x);
-        let ancho_selector = (ancho - 16.0 - ancho_dos_puntos) / 2.0;
-        ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing.x = 8.0;
-            ui::selector(ui, ("cierre-hora", base), &mut self.horas[base], &opciones(24), "", Some(ancho_selector));
-            let (rect, _) = ui.allocate_exact_size(Vec2::new(ancho_dos_puntos, 40.0), Sense::hover());
-            ui::texto_en(ui, rect.center(), Align2::CENTER_CENTER, ":", Tam::Base, Peso::Normal, color::APAGADO_TEXTO);
-            ui::selector(ui, ("cierre-hora", base + 1), &mut self.horas[base + 1], &opciones(60), "", Some(ancho_selector));
+    fn selector_hora(&mut self, ui: &mut Ui, ancho: f32, extremo: Extremo) {
+        let base = if extremo == Extremo::Inicio { 0 } else { 2 };
+        let id = Id::new("cierre-manual-hora").with(extremo);
+        let (rect, respuesta) = caja_entrada(ui, ancho, 42.0, Popover::abierto(ui.ctx(), id));
+        v2::pintar_texto(ui, egui::pos2(rect.left() + 9.0, rect.center().y), egui::Align2::LEFT_CENTER, self.hora(extremo).texto(), tam::CUERPO, Peso::Normal, color::TEXTO);
+        v2::pintar_icono(ui, egui::pos2(rect.right() - 20.0, rect.center().y), "clock-time", 18.0, color::TEXTO_SECUNDARIO);
+        let centrar = respuesta.clicked() && !Popover::abierto(ui.ctx(), id);
+        if respuesta.clicked() {
+            Popover::alternar(ui.ctx(), id);
+        }
+        let horas = &mut self.horas;
+        Popover::new(id, &respuesta).ancho(2.0 * 52.0 + 4.0 + 12.0).mostrar(ui.ctx(), |ui| {
+            ui.horizontal_top(|ui| {
+                ui.spacing_mut().item_spacing.x = 4.0;
+                columna_hora(ui, id.with("horas"), &mut horas[base], 24, centrar);
+                columna_hora(ui, id.with("minutos"), &mut horas[base + 1], 60, centrar);
+            });
         });
     }
 }
 
+fn columna_hora(ui: &mut Ui, id: Id, valor: &mut usize, cantidad: usize, centrar: bool) {
+    ScrollArea::vertical().id_salt(id).max_height(216.0).show(ui, |ui| {
+        ui.set_width(52.0);
+        for numero in 0..cantidad {
+            let elegido = *valor == numero;
+            let (caja, respuesta) = ui.allocate_exact_size(Vec2::new(52.0, 30.0), Sense::click());
+            let fondo = if elegido {
+                color::VERDE
+            } else if respuesta.hovered() {
+                color::FONDO_APP
+            } else {
+                Color32::TRANSPARENT
+            };
+            ui.painter().rect_filled(caja, radio::ICONO, fondo);
+            let (tinta, peso) = if elegido { (color::BLANCO, Peso::Semi) } else { (color::TEXTO, Peso::Normal) };
+            v2::pintar_texto(ui, caja.center(), egui::Align2::CENTER_CENTER, format!("{numero:02}"), tam::CUERPO, peso, tinta);
+            if centrar && elegido {
+                respuesta.scroll_to_me(Some(Align::Center));
+            }
+            if respuesta.on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                *valor = numero;
+            }
+        }
+    });
+}
+
 fn fila(ui: &mut Ui, ancho: f32, mut contenido: impl FnMut(&mut Ui, usize)) {
     ui.horizontal_top(|ui| {
-        ui.spacing_mut().item_spacing.x = 16.0;
+        ui.spacing_mut().item_spacing.x = 12.0;
         for columna in 0..2 {
             ui.vertical(|ui| {
                 ui.set_width(ancho);
@@ -301,123 +337,94 @@ fn fila(ui: &mut Ui, ancho: f32, mut contenido: impl FnMut(&mut Ui, usize)) {
     });
 }
 
-fn etiqueta(ui: &mut Ui, texto: &str) {
-    let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 24.0), Sense::hover());
-    ui::texto_en(ui, rect.left_center(), Align2::LEFT_CENTER, texto, Tam::Sm, Peso::Medio, color::TEXTO);
-    ui.add_space(8.0);
-}
-
 fn caja_lectura(ui: &mut Ui, ancho: f32, icono: &str, valor: &str) {
-    let (rect, _) = ui.allocate_exact_size(Vec2::new(ancho, 46.0), Sense::hover());
-    ui.painter().rect(rect, RADIO_MD, paleta::GRAY_50, ui::borde(paleta::GRAY_200), StrokeKind::Inside);
-    let caja = Rect::from_min_size(egui::pos2(rect.left() + 13.0, rect.center().y - 8.0), Vec2::splat(16.0));
-    ui::pintar_icono_en(ui, caja, icono, paleta::GRAY_500);
-    ui::texto_en(ui, egui::pos2(caja.right() + 8.0, rect.center().y), Align2::LEFT_CENTER, valor, Tam::Sm, Peso::Normal, paleta::GRAY_700);
-}
-
-fn linea_mixta(ui: &mut Ui, partes: &[(&str, Peso)], tam: Tam, color: Color32, alto: f32) {
-    let mut trabajo = egui::text::LayoutJob::default();
-    for (texto, peso) in partes {
-        trabajo.append(texto, 0.0, egui::TextFormat { font_id: fuente(tam, *peso), color, ..Default::default() });
-    }
-    let galeria = ui.ctx().fonts_mut(|f| f.layout_job(trabajo));
-    let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), alto), Sense::hover());
-    ui.painter().galley(egui::pos2(rect.left(), rect.center().y - galeria.size().y / 2.0), galeria, color);
-}
-
-fn resumen(ui: &mut Ui, inicio: NaiveDate, fin: NaiveDate, hora_inicio: &str, hora_fin: &str) {
-    ui::marco()
-        .fill(paleta::BLUE_50)
-        .stroke(ui::borde(paleta::BLUE_200))
-        .corner_radius(RADIO)
-        .inner_margin(egui::Margin::same(12))
-        .show(ui, |ui| {
-            ui.set_width(ui.available_width());
-            ui.horizontal(|ui| {
-                ui.spacing_mut().item_spacing.x = 8.0;
-                let (rect, _) = ui.allocate_exact_size(Vec2::new(16.0, 20.0), Sense::hover());
-                ui::pintar_icono_en(ui, Rect::from_center_size(rect.center(), Vec2::splat(16.0)), "clock", paleta::BLUE_600);
-                let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 20.0), Sense::hover());
-                ui::texto_en(ui, rect.left_center(), Align2::LEFT_CENTER, "Período seleccionado:", Tam::Sm, Peso::Medio, paleta::BLUE_800);
-            });
-            ui.add_space(8.0);
-            let texto_inicio = format!(" {} a las {hora_inicio}", logica::fecha_larga(inicio));
-            linea_mixta(ui, &[("Inicio:", Peso::Negrita), (&texto_inicio, Peso::Normal)], Tam::Sm, paleta::BLUE_700, 20.0);
-            ui.add_space(4.0);
-            let texto_fin = format!(" {} a las {hora_fin}", logica::fecha_larga(fin));
-            linea_mixta(ui, &[("Fin:", Peso::Negrita), (&texto_fin, Peso::Normal)], Tam::Sm, paleta::BLUE_700, 20.0);
-            if inicio != fin {
-                ui.add_space(4.0);
-                linea_mixta(ui, &[("⚠️ Cierre de múltiples días", Peso::Normal)], Tam::Xs, paleta::BLUE_600, 16.0);
-            }
-        });
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(ancho, 42.0), Sense::hover());
+    ui.painter().rect(rect, radio::CONTROL, color::FONDO_APP, egui::Stroke::new(1.0, color::BORDE_SUAVE), egui::StrokeKind::Inside);
+    v2::pintar_icono(ui, egui::pos2(rect.left() + 12.0 + 8.5, rect.center().y), icono, 17.0, color::TEXTO_TENUE);
+    v2::pintar_texto(ui, egui::pos2(rect.left() + 12.0 + 17.0 + 8.0, rect.center().y), egui::Align2::LEFT_CENTER, valor, tam::CUERPO, Peso::Normal, color::TEXTO_SECUNDARIO);
 }
 
 fn nombre_mes(fecha: NaiveDate) -> String {
-    format!("{} {}", logica::MESES[fecha.month0() as usize], fecha.year())
-}
-
-fn boton_navegacion(ui: &Ui, rect: Rect, icono: &str, id: Id) -> bool {
-    let respuesta = ui.interact(rect, id, Sense::click()).on_hover_cursor(CursorIcon::PointingHand);
-    let opacidad = if respuesta.hovered() { 1.0 } else { 0.5 };
-    ui.painter().rect_stroke(rect, RADIO, ui::borde(color::BORDE.gamma_multiply(opacidad)), StrokeKind::Inside);
-    ui::pintar_icono_en(ui, Rect::from_center_size(rect.center(), Vec2::splat(16.0)), icono, color::TEXTO.gamma_multiply(opacidad));
-    respuesta.clicked()
+    let mes = logica::MESES[fecha.month0() as usize];
+    let mut letras = mes.chars();
+    let capital: String = letras.next().map(|c| c.to_uppercase().chain(letras).collect()).unwrap_or_default();
+    format!("{capital} {}", fecha.year())
 }
 
 fn calendario(ui: &mut Ui, mes: &mut NaiveDate, elegida: NaiveDate) -> Option<NaiveDate> {
     let ancho = 36.0 * 7.0;
-    ui.set_width(ancho);
-    let hoy = logica::ahora_argentina().date();
-    let (cabecera, _) = ui.allocate_exact_size(Vec2::new(ancho, 28.0), Sense::hover());
-    ui::texto_en(ui, cabecera.center() + Vec2::new(0.0, 2.0), Align2::CENTER_CENTER, &nombre_mes(*mes), Tam::Sm, Peso::Medio, color::TEXTO);
-    let anterior = Rect::from_min_size(egui::pos2(cabecera.left() + 4.0, cabecera.top()), Vec2::splat(28.0));
-    let siguiente = Rect::from_min_size(egui::pos2(cabecera.right() - 32.0, cabecera.top()), Vec2::splat(28.0));
-    if boton_navegacion(ui, anterior, "chevron-left", ui.id().with("mes-anterior")) {
-        *mes = (*mes - Duration::days(1)).with_day(1).expect("día 1");
-    }
-    if boton_navegacion(ui, siguiente, "chevron-right", ui.id().with("mes-siguiente")) {
-        *mes = (*mes + Duration::days(32)).with_day(1).expect("día 1");
-    }
-    ui.add_space(16.0);
-    let (dias, _) = ui.allocate_exact_size(Vec2::new(ancho, 19.0), Sense::hover());
-    for (indice, nombre) in ["lu", "ma", "mi", "ju", "vi", "sá", "do"].iter().enumerate() {
-        let centro = egui::pos2(dias.left() + 18.0 + 36.0 * indice as f32, dias.center().y);
-        ui::texto_en(ui, centro, Align2::CENTER_CENTER, nombre, Tam::Px(12.8), Peso::Normal, color::APAGADO_TEXTO);
-    }
-    let primero = mes.with_day(1).expect("día 1");
-    let mut dia = primero - Duration::days(primero.weekday().num_days_from_monday() as i64);
     let mut elegido = None;
-    while dia.month() == primero.month() || dia < primero {
-        ui.add_space(8.0);
-        let (fila, _) = ui.allocate_exact_size(Vec2::new(ancho, 36.0), Sense::hover());
-        for columna in 0..7 {
-            let caja = Rect::from_min_size(egui::pos2(fila.left() + 36.0 * columna as f32, fila.top()), Vec2::splat(36.0));
-            let afuera = dia.month() != primero.month();
-            let deshabilitado = dia > hoy;
-            let seleccionado = elegida == dia;
-            let sentido = if deshabilitado { Sense::hover() } else { Sense::click() };
-            let respuesta = ui.interact(caja, ui.id().with(("dia", dia)), sentido);
-            let (fondo, texto) = if seleccionado && !afuera {
-                (color::PRIMARIO, color::PRIMARIO_TEXTO)
-            } else if seleccionado {
-                (color::ACENTO.gamma_multiply(0.5), color::APAGADO_TEXTO)
-            } else if dia == hoy {
-                (color::ACENTO, color::ACENTO_TEXTO)
-            } else if respuesta.hovered() && !deshabilitado {
-                (color::ACENTO, if afuera { color::APAGADO_TEXTO } else { color::ACENTO_TEXTO })
-            } else {
-                (Color32::TRANSPARENT, if afuera { color::APAGADO_TEXTO } else { color::TEXTO })
-            };
-            let opacidad = if deshabilitado { 0.5 } else { 1.0 };
-            ui.painter().rect_filled(caja, RADIO, fondo.gamma_multiply(opacidad));
-            let texto = if deshabilitado { color::APAGADO_TEXTO } else { texto };
-            ui::texto_en(ui, caja.center(), Align2::CENTER_CENTER, &dia.day().to_string(), Tam::Sm, Peso::Normal, texto.gamma_multiply(opacidad));
-            if !deshabilitado && respuesta.on_hover_cursor(CursorIcon::PointingHand).clicked() {
-                elegido = Some(dia);
+    egui::Frame::NONE.inner_margin(egui::Margin::same(6)).show(ui, |ui| {
+        ui.set_width(ancho);
+        let hoy = logica::ahora_argentina().date();
+        ui.horizontal(|ui| {
+            if BotonIcono::new("chevron-left").tam(32.0).tam_icono(16.0).ui(ui).clicked() {
+                *mes = (*mes - Duration::days(1)).with_day(1).expect("día 1");
             }
-            dia += Duration::days(1);
+            let (centro, _) = ui.allocate_exact_size(Vec2::new(ancho - 64.0, 32.0), Sense::hover());
+            v2::pintar_texto(ui, centro.center(), egui::Align2::CENTER_CENTER, nombre_mes(*mes), tam::CUERPO, Peso::Semi, color::TEXTO);
+            if BotonIcono::new("chevron-right").tam(32.0).tam_icono(16.0).ui(ui).clicked() {
+                *mes = (*mes + Duration::days(32)).with_day(1).expect("día 1");
+            }
+        });
+        ui.add_space(8.0);
+        let (dias, _) = ui.allocate_exact_size(Vec2::new(ancho, 20.0), Sense::hover());
+        for (indice, nombre) in ["lu", "ma", "mi", "ju", "vi", "sá", "do"].iter().enumerate() {
+            let centro = egui::pos2(dias.left() + 18.0 + 36.0 * indice as f32, dias.center().y);
+            v2::pintar_texto(ui, centro, egui::Align2::CENTER_CENTER, *nombre, tam::XS, Peso::Medio, color::TEXTO_APAGADO);
         }
-    }
+        let primero = mes.with_day(1).expect("día 1");
+        let mut dia = primero - Duration::days(primero.weekday().num_days_from_monday() as i64);
+        while dia.month() == primero.month() || dia < primero {
+            ui.add_space(2.0);
+            let (fila, _) = ui.allocate_exact_size(Vec2::new(ancho, 36.0), Sense::hover());
+            for columna in 0..7 {
+                let caja = Rect::from_min_size(egui::pos2(fila.left() + 36.0 * columna as f32, fila.top()), Vec2::splat(36.0)).shrink(1.0);
+                if let Some(nuevo) = celda_dia(ui, caja, dia, primero, elegida, hoy) {
+                    elegido = Some(nuevo);
+                }
+                dia += Duration::days(1);
+            }
+        }
+    });
     elegido
+}
+
+fn celda_dia(ui: &Ui, caja: Rect, dia: NaiveDate, primero: NaiveDate, elegida: NaiveDate, hoy: NaiveDate) -> Option<NaiveDate> {
+    let afuera = dia.month() != primero.month();
+    let deshabilitado = dia > hoy;
+    let respuesta: Response = ui.interact(caja, ui.id().with(("dia", dia)), if deshabilitado { Sense::hover() } else { Sense::click() });
+    let (fondo, tinta, peso) = if elegida == dia {
+        (color::VERDE, color::BLANCO, Peso::Semi)
+    } else if dia == hoy {
+        (color::VERDE_CHIP, color::VERDE, Peso::Semi)
+    } else if respuesta.hovered() && !deshabilitado {
+        (color::FONDO_APP, color::TEXTO, Peso::Normal)
+    } else {
+        (Color32::TRANSPARENT, if afuera { color::TEXTO_DESHABILITADO } else { color::TEXTO }, Peso::Normal)
+    };
+    let alfa = if deshabilitado { 0.45 } else { 1.0 };
+    ui.painter().rect_filled(caja, radio::ICONO, fondo.gamma_multiply(alfa));
+    v2::pintar_texto(ui, caja.center(), egui::Align2::CENTER_CENTER, dia.day().to_string(), tam::CONTROL, peso, tinta.gamma_multiply(alfa));
+    (!deshabilitado && respuesta.on_hover_cursor(CursorIcon::PointingHand).clicked()).then_some(dia)
+}
+
+#[cfg(test)]
+mod pruebas {
+    use super::*;
+
+    #[test]
+    fn resume_el_periodo_como_el_diseno() {
+        let dia = |d| NaiveDate::from_ymd_opt(2026, 10, d).unwrap();
+        assert_eq!(fecha_con_dia(dia(10)), "sábado, 10 de octubre");
+        assert_eq!(
+            resumen_periodo(dia(10), dia(10), "00:00", "23:59"),
+            "Desde el sábado, 10 de octubre a las 00:00 hasta el sábado, 10 de octubre a las 23:59."
+        );
+        assert_eq!(
+            resumen_periodo(dia(9), dia(10), "08:00", "23:59"),
+            "Desde el viernes, 9 de octubre a las 08:00 hasta el sábado, 10 de octubre a las 23:59. Es un cierre de varios días."
+        );
+        assert_eq!(nombre_mes(dia(1)), "Octubre 2026");
+    }
 }

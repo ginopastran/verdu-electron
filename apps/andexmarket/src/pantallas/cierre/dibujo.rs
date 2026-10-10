@@ -1,70 +1,93 @@
-use std::f32::consts::{PI, TAU};
+use chrono::{NaiveDateTime, Timelike};
+use eframe::egui::{self, text::LayoutJob, Color32, Frame, Margin, Rect, Sense, TextFormat, Ui, Vec2};
+use nucleo::formato;
 
-use eframe::egui::{self, Color32, Pos2, Rect, Response, Sense, Shape, Stroke, Ui, Vec2};
+use crate::ui::marca::{color, fuente, radio};
+use crate::ui::v2::{self, Tono};
+use crate::ui::{pintar_icono_solar_en, Peso};
 
-use crate::ui::{self, fuente, Peso, Tam};
-
-pub fn color_degradado_texto() -> Color32 {
-    ui::mezclar(ui::color::ESMERALDA_DESDE, ui::color::ESMERALDA_HASTA, 0.6)
+pub fn dinero(valor: f64) -> String {
+    let valor = if valor.is_finite() { valor } else { 0.0 };
+    let signo = if valor < 0.0 { "−" } else { "" };
+    format!("{signo}${}", formato::numero_con(valor.abs(), 0, 2))
 }
 
-pub fn parrafo(ui: &mut Ui, contenido: &str, tam: Tam, peso: Peso, color: Color32, alto_linea: f32) -> Response {
-    let ancho = ui.available_width();
-    let natural = ui.ctx().fonts_mut(|f| f.row_height(&fuente(tam, peso)));
-    let mut trabajo = egui::text::LayoutJob::single_section(
+pub fn metodo_pago(clave: &str) -> (String, &'static str, Tono) {
+    match clave {
+        "efectivo" => ("Efectivo".into(), "cash", Tono::Exito),
+        "tarjeta" => ("Tarjeta".into(), "card", Tono::Azul),
+        "qr" => ("Transferencia".into(), "qr", Tono::Violeta),
+        "transferencia" => ("Transferencia".into(), "transfer", Tono::Violeta),
+        "split" => ("Mixto".into(), "split", Tono::Aviso),
+        otro => (nucleo::pedidos::capitalizar(otro), "wallet", Tono::Marca),
+    }
+}
+
+pub fn hora_corta(fecha: NaiveDateTime) -> String {
+    let (tarde, hora) = fecha.hour12();
+    format!("{hora:02}:{:02} {}", fecha.minute(), if tarde { "p. m." } else { "a. m." })
+}
+
+pub fn etiqueta(ui: &mut Ui, contenido: &str, px: f32, peso: Peso) {
+    v2::texto(ui, contenido, px, peso, color::TEXTO_SECUNDARIO);
+}
+
+pub fn texto_envuelto(ui: &mut Ui, contenido: &str, px: f32, peso: Peso, tinta: Color32, interlineado: f32, ancho: f32) {
+    let mut trabajo = LayoutJob::single_section(
         contenido.to_string(),
-        egui::TextFormat { font_id: fuente(tam, peso), color, line_height: Some(alto_linea), ..Default::default() },
+        TextFormat { font_id: fuente(px, peso), color: tinta, line_height: Some((px * interlineado).round()), ..Default::default() },
     );
     trabajo.wrap.max_width = ancho;
-    let galeria = ui.ctx().fonts_mut(|f| f.layout_job(trabajo));
-    let (rect, respuesta) = ui.allocate_exact_size(Vec2::new(ancho, galeria.size().y), Sense::hover());
-    ui.painter().galley(rect.min + Vec2::new(0.0, ((alto_linea - natural) / 2.0).round()), galeria, color);
-    respuesta
+    let galeria = ui.painter().layout_job(trabajo);
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(ancho, galeria.size().y), Sense::hover());
+    ui.painter().galley(rect.min, galeria, tinta);
 }
 
-fn angulo(ui: &Ui) -> f32 {
-    ui.ctx().request_repaint();
-    (ui.input(|i| i.time) as f32 % 1.0) * TAU
+pub fn nota(ui: &mut Ui, icono: &str, tam_icono: f32, contenido: &str, px: f32, fondo: Color32, tinta: Color32, color_icono: Color32) {
+    Frame::NONE.fill(fondo).corner_radius(radio::CAMPO).inner_margin(Margin::symmetric(14, 12)).show(ui, |ui| {
+        let ancho = ui.available_width();
+        ui.set_width(ancho);
+        ui.horizontal_top(|ui| {
+            ui.spacing_mut().item_spacing.x = 10.0;
+            let (caja, _) = ui.allocate_exact_size(Vec2::new(tam_icono, tam_icono + 1.0), Sense::hover());
+            pintar_icono_solar_en(ui, Rect::from_min_size(caja.min + Vec2::new(0.0, 1.0), Vec2::splat(tam_icono)), icono, color_icono);
+            texto_envuelto(ui, contenido, px, Peso::Normal, tinta, 1.5, ancho - tam_icono - 10.0);
+        });
+    });
 }
 
-fn punto(centro: Pos2, radio: f32, a: f32) -> Pos2 {
-    centro + Vec2::new(a.cos(), a.sin()) * radio
-}
-
-fn arco(ui: &Ui, rect: Rect, grosor: f32, desde: f32, barrido: f32, color: Color32) {
-    let centro = rect.center();
-    let radio = rect.width() / 2.0 - grosor / 2.0;
-    let pasos = 48;
-    let puntos: Vec<Pos2> = (0..=pasos).map(|i| punto(centro, radio, desde + barrido * i as f32 / pasos as f32)).collect();
-    ui.painter().add(Shape::line(puntos, Stroke::new(grosor, color)));
-}
-
-pub fn aro_con_hueco(ui: &Ui, rect: Rect, grosor: f32, color: Color32) {
-    let giro = angulo(ui);
-    arco(ui, rect, grosor, -0.25 * PI + giro, 1.5 * PI, color);
-}
-
-pub fn aro_girando(ui: &Ui, rect: Rect, grosor: f32, aro: Color32, arco: Color32) {
-    let centro = rect.center();
-    let radio = rect.width() / 2.0 - grosor / 2.0;
-    if aro != Color32::TRANSPARENT {
-        ui.painter().circle_stroke(centro, radio, Stroke::new(grosor, aro));
+pub fn caja_entrada(ui: &mut Ui, ancho: f32, alto: f32, abierto: bool) -> (Rect, egui::Response) {
+    let (rect, respuesta) = ui.allocate_exact_size(Vec2::new(ancho, alto), Sense::click());
+    let borde = if abierto {
+        color::VERDE
+    } else if respuesta.hovered() {
+        color::BORDE_HOVER
+    } else {
+        color::BORDE
+    };
+    ui.painter().rect(rect, radio::CONTROL, color::BLANCO, egui::Stroke::new(1.0, borde), egui::StrokeKind::Inside);
+    if abierto {
+        crate::ui::marca::pintar_anillo(ui.painter(), rect, radio::CONTROL, color::ANILLO_FOCO);
     }
-    let giro = angulo(ui);
-    self::arco(ui, rect, grosor, -0.75 * PI + giro, PI / 2.0, arco);
+    (rect, respuesta.on_hover_cursor(egui::CursorIcon::PointingHand))
 }
 
-pub fn media_luna_girando(ui: &Ui, rect: Rect, grosor: f32, color: Color32) {
-    let centro = rect.center();
-    let giro = angulo(ui);
-    let pasos = 32;
-    for i in 0..pasos {
-        let t0 = i as f32 / pasos as f32;
-        let t1 = (i + 1) as f32 / pasos as f32;
-        let ancho = grosor * (PI * (t0 + t1) / 2.0).sin();
-        let radio = rect.width() / 2.0 - ancho / 2.0;
-        let a0 = giro + PI * t0;
-        let a1 = giro + PI * t1;
-        ui.painter().line_segment([punto(centro, radio, a0), punto(centro, radio, a1)], Stroke::new(ancho, color));
+#[cfg(test)]
+mod pruebas {
+    use chrono::NaiveDate;
+
+    use super::*;
+
+    #[test]
+    fn montos_y_horas_como_el_diseno() {
+        assert_eq!(dinero(59560.0), "$59.560");
+        assert_eq!(dinero(8508.571), "$8.508,57");
+        assert_eq!(dinero(-239.0), "−$239");
+        assert_eq!(dinero(f64::NAN), "$0");
+        let fecha = |h, m| NaiveDate::from_ymd_opt(2026, 10, 10).unwrap().and_hms_opt(h, m, 0).unwrap();
+        assert_eq!(hora_corta(fecha(8, 14)), "08:14 a. m.");
+        assert_eq!(hora_corta(fecha(12, 36)), "12:36 p. m.");
+        assert_eq!(hora_corta(fecha(0, 5)), "12:05 a. m.");
+        assert_eq!(hora_corta(fecha(23, 59)), "11:59 p. m.");
     }
 }

@@ -159,9 +159,8 @@ pub fn desplegable(ui: &mut Ui, id: impl Hash + std::fmt::Debug, seleccion: &mut
         Some(o) => (o.as_str(), color::TEXTO),
         None => (sugerencia, color::TEXTO_SUGERENCIA),
     };
-    let g = galeria(ui, contenido, fuente(tam::CONTROL, Peso::Normal), texto_color);
-    let pintor = ui.painter().with_clip_rect(rect.shrink2(Vec2::new(12.0, 0.0)).with_max_x(rect.right() - 34.0));
-    pintor.galley(egui::pos2(rect.left() + 12.0, rect.center().y - g.size().y / 2.0), g, texto_color);
+    let area_texto = Rect::from_min_max(egui::pos2(rect.left() + 12.0, rect.top()), egui::pos2(rect.right() - 34.0, rect.bottom()));
+    super::tarjetas::celda_texto(ui.painter(), area_texto, contenido, tam::CONTROL, Peso::Normal, texto_color, false);
     pintar_icono_solar_en(ui, Rect::from_center_size(egui::pos2(rect.right() - 18.0, rect.center().y), Vec2::splat(16.0)), "chevron-down", color::TEXTO_TENUE);
     if respuesta.clicked() {
         Popover::alternar(ui.ctx(), id);

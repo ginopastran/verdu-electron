@@ -3,11 +3,14 @@ use eframe::egui::Ui;
 use hardware::impresora;
 use serde_json::{json, Value};
 
-use super::{campo, encabezado, parrafo, selector, texto_valor};
+use super::texto_valor;
+use crate::pantallas::cierre::dibujo::{etiqueta, nota};
 use crate::app::{Contexto, Servicios};
 use crate::impresion::{imprimir, Comprobante};
 use crate::tareas::{esperar, Tarea};
-use crate::ui::{self, color, toast, Boton, Peso, Tam, Variante};
+use crate::ui::marca::{color, tam};
+use crate::ui::v2::{self, desplegable, segmentado, toast, Boton, EstiloSegmentado, Segmento};
+use crate::ui::Peso;
 
 const POR_DEFECTO: &str = "Compartida como TP806L (por defecto)";
 const ANCHOS: [u8; 2] = [80, 58];
@@ -118,50 +121,54 @@ impl DialogoImpresion {
     }
 
     fn contenido(&mut self, ui: &mut Ui, cx: &mut Contexto) -> bool {
-        encabezado(ui, "Impresión", "Impresora térmica, ancho del papel y prueba del encabezado.");
-        ui.add_space(16.0);
-
-        let mut valores: Vec<Option<String>> = vec![None];
-        let mut etiquetas = vec![POR_DEFECTO.to_string()];
-        for nombre in &self.impresoras {
-            valores.push(Some(nombre.clone()));
-            etiquetas.push(nombre.clone());
-        }
-        if let Some(actual) = self.impresora.as_ref().filter(|actual| !self.impresoras.contains(actual)) {
-            valores.push(Some(actual.clone()));
-            etiquetas.push(format!("{actual} (no conectada)"));
-        }
-        let seleccion = valores.iter().position(|valor| *valor == self.impresora);
-        let elegida = campo(ui, "Impresora", |ui| selector(ui, "impresora", seleccion, &etiquetas, "", self.eligiendo.is_none()));
-        if let Some(indice) = elegida {
-            self.elegir_impresora(cx, valores[indice].clone());
-        }
-        ui.add_space(4.0);
-        parrafo(ui, &format!("Se imprime en «{}».", self.recurso), Tam::Xs, Peso::Normal, color::APAGADO_TEXTO, 16.0);
-        ui.add_space(16.0);
-
-        let etiquetas_ancho: Vec<String> = ANCHOS.iter().map(|ancho| format!("{ancho} mm")).collect();
-        let seleccion_ancho = ANCHOS.iter().position(|ancho| *ancho == self.ancho_papel);
-        if let Some(indice) = campo(ui, "Ancho del papel", |ui| selector(ui, "ancho-papel", seleccion_ancho, &etiquetas_ancho, "", true)) {
-            self.ancho_papel = ANCHOS[indice];
-            cx.servicios.config.set("anchoPapel", json!(self.ancho_papel));
-        }
-        ui.add_space(16.0);
-
-        let logo = if self.tiene_logo {
-            "Se usa el logo del negocio cargado en Administración → Configuración."
-        } else {
-            "Sin logo del negocio: se imprime el logo por defecto. Cargalo en Administración → Configuración."
-        };
-        parrafo(ui, logo, Tam::Sm, Peso::Normal, color::APAGADO_TEXTO, 20.0);
-        ui.add_space(16.0);
-
         let mut cerrar = false;
-        ui::pie_dialogo(ui, |ui| {
-            if Boton::new("Impresión de prueba").cargando(self.imprimiendo.is_some()).ui(ui).clicked() {
+        v2::cuerpo_modal(ui, 20, |ui| {
+            let ancho = ui.available_width();
+            let mut valores: Vec<Option<String>> = vec![None];
+            let mut etiquetas = vec![POR_DEFECTO.to_string()];
+            for nombre in &self.impresoras {
+                valores.push(Some(nombre.clone()));
+                etiquetas.push(nombre.clone());
+            }
+            if let Some(actual) = self.impresora.as_ref().filter(|actual| !self.impresoras.contains(actual)) {
+                valores.push(Some(actual.clone()));
+                etiquetas.push(format!("{actual} (no conectada)"));
+            }
+            let mut seleccion = valores.iter().position(|valor| *valor == self.impresora).unwrap_or(usize::MAX);
+            etiqueta(ui, "Impresora", tam::ETIQUETA, Peso::Semi);
+            ui.add_space(6.0);
+            let cambio = ui.add_enabled_ui(self.eligiendo.is_none(), |ui| desplegable(ui, "impresora", &mut seleccion, &etiquetas, "", ancho, 44.0).changed()).inner;
+            if cambio {
+                self.elegir_impresora(cx, valores[seleccion].clone());
+            }
+            ui.add_space(6.0);
+            v2::texto(ui, format!("Se imprime en el recurso compartido «{}».", self.recurso), tam::CHICO, Peso::Normal, color::TEXTO_APAGADO);
+            ui.add_space(16.0);
+
+            etiqueta(ui, "Ancho del papel", tam::ETIQUETA, Peso::Semi);
+            ui.add_space(6.0);
+            let segmentos: Vec<String> = ANCHOS.iter().map(|ancho| format!("{ancho} mm")).collect();
+            let segmentos: Vec<Segmento> = segmentos.iter().map(|s| Segmento::texto(s)).collect();
+            let mut indice = ANCHOS.iter().position(|ancho| *ancho == self.ancho_papel).unwrap_or(usize::MAX);
+            if segmentado(ui, &segmentos, &mut indice, Some(ancho), EstiloSegmentado::Claro).changed() {
+                self.ancho_papel = ANCHOS[indice];
+                cx.servicios.config.set("anchoPapel", json!(self.ancho_papel));
+            }
+            ui.add_space(16.0);
+
+            let logo = if self.tiene_logo {
+                "Se usa el logo del negocio cargado en Administración › Configuración."
+            } else {
+                "Sin logo del negocio: se imprime el logo por defecto. Cargalo en Administración › Configuración."
+            };
+            nota(ui, "info", 17.0, logo, tam::ETIQUETA, color::FONDO_APP, color::TEXTO_SECUNDARIO, color::VERDE);
+        });
+        v2::pie_modal(ui, |ui| {
+            let probando = self.imprimiendo.is_some();
+            if Boton::primario("Impresión de prueba").icono("printer").modal().cargando(probando).ui(ui).clicked() {
                 self.imprimir_prueba(cx);
             }
-            cerrar = Boton::new("Cerrar").variante(Variante::Contorno).ui(ui).clicked();
+            cerrar = Boton::secundario("Cerrar").modal().ui(ui).clicked();
         });
         cerrar
     }
@@ -175,7 +182,11 @@ impl DialogoImpresion {
             self.cargar(cx);
         }
         let ctx = cx.egui.clone();
-        let respuesta = ui::Dialogo::new("impresion").ancho(448.0).mostrar(&ctx, |ui| self.contenido(ui, cx));
+        let respuesta = v2::Modal::new("impresion", "Impresión")
+            .subtitulo("Impresora térmica y ancho del papel")
+            .icono("printer")
+            .ancho(480.0)
+            .mostrar(&ctx, |ui| self.contenido(ui, cx));
         if respuesta.cerrar || respuesta.interior {
             self.abierto = false;
         }
