@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 
 use nucleo::api::Cliente;
 use nucleo::carrito::Producto;
-use nucleo::entorno;
+use nucleo::{entorno, formato};
 use serde_json::Value;
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -251,28 +251,8 @@ fn numero_de_texto(texto: &str) -> Option<f64> {
     if limpio.is_empty() { Some(0.0) } else { limpio.parse().ok() }
 }
 
-pub fn formato_local(valor: f64) -> String {
-    if !valor.is_finite() {
-        return if valor.is_nan() { "NaN".into() } else if valor > 0.0 { "∞".into() } else { "-∞".into() };
-    }
-    let corto = format!("{}", valor.abs());
-    let (entero, fraccion) = corto.split_once('.').unwrap_or((&corto, ""));
-    let mut digitos: String = entero.to_string();
-    digitos.extend(fraccion.chars().chain(std::iter::repeat('0')).take(3));
-    let sube = fraccion.chars().nth(3).is_some_and(|c| c >= '5');
-    let escalado = digitos.parse::<u128>().unwrap_or(0) + u128::from(sube);
-    let texto = format!("{}.{:03}", escalado / 1000, escalado % 1000);
-    let (entero, decimales) = texto.split_once('.').unwrap_or((&texto, ""));
-    let decimales = decimales.trim_end_matches('0');
-    let mut agrupado = String::new();
-    for (i, c) in entero.chars().enumerate() {
-        if i > 0 && (entero.len() - i) % 3 == 0 {
-            agrupado.push(',');
-        }
-        agrupado.push(c);
-    }
-    let signo = if valor < 0.0 && (agrupado != "0" || !decimales.is_empty()) { "-" } else { "" };
-    if decimales.is_empty() { format!("{signo}{agrupado}") } else { format!("{signo}{agrupado}.{decimales}") }
+pub fn monto(valor: f64) -> String {
+    formato::numero_con(valor, 0, 2)
 }
 
 pub fn numero_js(valor: f64) -> String {
@@ -286,7 +266,7 @@ pub fn numero_js(valor: f64) -> String {
 pub fn texto_peso(peso: &Value) -> String {
     match peso {
         Value::String(s) => s.clone(),
-        Value::Number(n) => n.as_f64().map(numero_js).unwrap_or_else(|| n.to_string()),
+        Value::Number(n) => n.as_f64().map(formato::numero).unwrap_or_else(|| n.to_string()),
         Value::Null => "null".into(),
         Value::Bool(b) => b.to_string(),
         otro => otro.to_string(),
@@ -373,16 +353,13 @@ mod pruebas {
     }
 
     #[test]
-    fn numeros_como_to_locale_string() {
-        assert_eq!(formato_local(22449.5), "22,449.5");
-        assert_eq!(formato_local(1867.5), "1,867.5");
-        assert_eq!(formato_local(0.0), "0");
-        assert_eq!(formato_local(1234567.0), "1,234,567");
-        assert_eq!(formato_local(2.0004), "2");
-        assert_eq!(formato_local(1.2345), "1.235");
+    fn numeros_en_formato_argentino() {
+        assert_eq!(monto(22449.5), "22.449,5");
+        assert_eq!(monto(2652.0), "2.652");
+        assert_eq!(monto(1234.5675), "1.234,57");
+        assert_eq!(texto_peso(&serde_json::json!(1245)), "1.245");
         assert_eq!(numero_js(1.0), "1");
         assert_eq!(numero_js(0.415), "0.415");
-        assert_eq!(texto_peso(&serde_json::json!(1245)), "1245");
         assert_eq!(parse_float("1750"), 1750.0);
         assert_eq!(parse_float("3abc"), 3.0);
         assert!(parse_float("").is_nan());

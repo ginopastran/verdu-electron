@@ -56,8 +56,15 @@ impl Carritos {
         if carritos.active_screen >= carritos.screens.len() {
             carritos.active_screen = 0;
         }
+        carritos.numerar();
         carritos.archivo = Some(archivo);
         carritos
+    }
+
+    fn numerar(&mut self) {
+        for (indice, pantalla) in self.screens.iter_mut().enumerate() {
+            pantalla.id = indice;
+        }
     }
 
     fn guardar(&self) {
@@ -150,20 +157,61 @@ impl Carritos {
         true
     }
 
-    pub fn borrar_pantalla(&mut self, id: usize) -> bool {
-        if self.screens.len() <= 1 {
+    pub fn borrar_pantalla(&mut self, indice: usize) -> bool {
+        if self.screens.len() <= 1 || indice >= self.screens.len() {
             return false;
         }
-        self.screens.retain(|pantalla| pantalla.id != id);
-        if self.active_screen == id {
+        self.screens.remove(indice);
+        self.numerar();
+        if self.active_screen == indice {
             self.active_screen = 0;
-        } else if self.active_screen > id {
+        } else if self.active_screen > indice {
             self.active_screen -= 1;
-        }
-        if self.active_screen >= self.screens.len() {
-            self.active_screen = 0;
         }
         self.guardar();
         true
+    }
+}
+
+#[cfg(test)]
+mod pruebas {
+    use super::*;
+
+    fn con_items(carritos: &mut Carritos, nombre: &str) {
+        carritos.agregar(Producto { cart_id: nombre.into(), name: nombre.into(), ..Default::default() });
+    }
+
+    #[test]
+    fn pestanas_quedan_consistentes_al_borrar_una_del_medio() {
+        let mut carritos = Carritos::default();
+        con_items(&mut carritos, "a");
+        carritos.agregar_pantalla();
+        con_items(&mut carritos, "b");
+        carritos.agregar_pantalla();
+        con_items(&mut carritos, "c");
+        assert!(carritos.borrar_pantalla(1));
+        assert_eq!(carritos.active_screen, 1);
+        assert_eq!(carritos.items()[0].name, "c");
+        assert!(carritos.agregar_pantalla());
+        let ids: Vec<usize> = carritos.screens.iter().map(|p| p.id).collect();
+        assert_eq!(ids, [0, 1, 2]);
+        assert_eq!(carritos.active_screen, 2);
+        assert!(carritos.items().is_empty());
+        carritos.elegir(1);
+        assert_eq!(carritos.items()[0].name, "c");
+        assert!(carritos.borrar_pantalla(1));
+        assert_eq!(carritos.active_screen, 0);
+        assert_eq!(carritos.items()[0].name, "a");
+        assert!(!carritos.borrar_pantalla(5));
+    }
+
+    #[test]
+    fn cargar_renumera_ids_repetidos() {
+        let archivo = std::env::temp_dir().join(format!("carritos-ids-{}.json", std::process::id()));
+        std::fs::write(&archivo, r#"{"screens":[{"id":0,"items":[]},{"id":2,"items":[]},{"id":2,"items":[]}],"activeScreen":2}"#).unwrap();
+        let carritos = Carritos::cargar(archivo.clone());
+        let _ = std::fs::remove_file(archivo);
+        assert_eq!(carritos.screens.iter().map(|p| p.id).collect::<Vec<_>>(), [0, 1, 2]);
+        assert_eq!(carritos.active_screen, 2);
     }
 }

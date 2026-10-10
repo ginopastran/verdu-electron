@@ -3,7 +3,7 @@ use nucleo::carrito::Producto;
 use serde_json::Value;
 
 use super::diseno::Texto;
-use super::productos::{self, formato_local, numero_js, parse_float, texto_peso, FilaLista, ProductoDisponible};
+use super::productos::{self, monto, numero_js, parse_float, texto_peso, FilaLista, ProductoDisponible};
 use super::vista::precio_visual;
 use crate::app::Contexto;
 use crate::tareas::{self, Tarea};
@@ -222,7 +222,7 @@ impl DialogoAgregar {
             (Some(_), Some(f)) => format!(" — {}", f.nombre_lista),
             (Some(_), None) => String::new(),
         };
-        let descripcion = format!("{}{sufijo} — ${} / {medida}", producto.nombre, formato_local(visual(precio)));
+        let descripcion = format!("{}{sufijo} — ${} / {medida}", producto.nombre, monto(visual(precio)));
         let permiso_manual = cx.global.usuario.as_ref().is_some_and(|u| u["permisos"]["pesoManualEnabled"] == Value::Bool(true));
         let id_cantidad = Id::new("agregar-producto-cantidad");
         let peso = cx.global.peso.clone();
@@ -241,7 +241,7 @@ impl DialogoAgregar {
                 ui.add_space(16.0);
                 etiqueta_campo(ui, "Lista de precios");
                 let mut opciones = vec![etiqueta.clone()];
-                opciones.extend(self.filas.iter().map(|f| format!("{} — ${}", f.nombre_lista, formato_local(visual(f.precio)))));
+                opciones.extend(self.filas.iter().map(|f| format!("{} — ${}", f.nombre_lista, monto(visual(f.precio)))));
                 let mut indice = self.lista.and_then(|id| self.filas.iter().position(|f| f.lista_precio_id == id)).map_or(0, |i| i + 1);
                 if selector_nativo(ui, Id::new("agregar-producto-lista"), &mut indice, &opciones).changed() {
                     self.lista = indice.checked_sub(1).map(|i| self.filas[i].lista_precio_id);
@@ -368,11 +368,11 @@ impl DialogoEscanear {
             let n = parse_float(&self.cantidad);
             if n.is_nan() || n <= 0.0 { 0.0 } else if es_peso { n / 1000.0 } else { n }
         };
-        let descripcion = format!("{} — ${} / {medida}", producto.nombre, formato_local(visual(precio)));
-        let mut opciones = vec![format!("{etiqueta} — ${} / {medida_producto}", formato_local(visual(producto.precio)))];
+        let descripcion = format!("{} — ${} / {medida}", producto.nombre, monto(visual(precio)));
+        let mut opciones = vec![format!("{etiqueta} — ${} / {medida_producto}", monto(visual(producto.precio)))];
         opciones.extend(filas.iter().map(|f| {
             let medida_fila = f.tipo_medida.clone().filter(|t| !t.is_empty()).unwrap_or_else(|| medida_producto.clone());
-            format!("{} — ${} / {medida_fila}", f.nombre_lista, formato_local(visual(f.precio)))
+            format!("{} — ${} / {medida_fila}", f.nombre_lista, monto(visual(f.precio)))
         }));
         let id_selector = Id::new("escanear-lista-selector");
         let mut confirmar = false;

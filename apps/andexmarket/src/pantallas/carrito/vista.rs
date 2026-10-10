@@ -1,15 +1,17 @@
 use eframe::egui::{
-    self, Align, Area, Color32, CursorIcon, Id, Layout, Order, Pos2, Rect, Response, Sense, StrokeKind, Ui, UiBuilder, Vec2,
+    self, Align, Area, Color32, CursorIcon, Id, Layout, Order, Pos2, Rect, Response, ScrollArea, Sense, StrokeKind, Ui, UiBuilder, Vec2,
 };
 use nucleo::carrito::{Carritos, Producto};
+use nucleo::formato;
 use nucleo::iva::precio_visual_con_iva;
 use serde_json::Value;
 
 use super::diseno::{encoger, Texto};
-use super::productos::{formato_local, numero_js, ProductoDisponible};
+use super::productos::{monto, ProductoDisponible};
 use crate::ui::{self, borde, color, fuente, paleta, Boton, Direccion, Peso, Tam, TamBoton, Variante};
 
 pub const ANCHO_BARRA: f32 = 384.0;
+const ALTO_MAXIMO_RESULTADOS: f32 = 400.0;
 
 pub fn en_rect<R>(ui: &mut Ui, rect: Rect, contenido: impl FnOnce(&mut Ui) -> R) -> R {
     let mut hijo = ui.new_child(UiBuilder::new().max_rect(rect).layout(Layout::left_to_right(Align::Min)));
@@ -29,8 +31,8 @@ pub fn precio_visual(precio: f64, iva_incluido: Option<bool>, iva_porcentaje: Op
 
 pub fn atajos(negocio: Option<&Value>) -> Vec<(&'static str, &'static str)> {
     let bandera = |clave: &str| negocio.is_some_and(|n| n[clave].as_bool().unwrap_or(false));
-    let afip = bandera("afipHabilitado");
     let facturacion = bandera("facturacionHabilitada");
+    let afip = facturacion && bandera("afipHabilitado");
     [
         ("F1", "CANCELAR", true),
         ("F2", if afip { "PAGAR CON AFIP" } else { "PAGAR" }, true),
@@ -78,10 +80,12 @@ pub fn resultados(
     productos: &[ProductoDisponible],
     indices: &[usize],
     seleccion: Option<usize>,
+    mostrar_seleccion: bool,
     negocio: Option<&Value>,
 ) -> Option<usize> {
     let mut elegido = None;
-    Area::new(Id::new("resultados-busqueda")).order(Order::Foreground).fixed_pos(origen).show(ctx, |ui| {
+    let alto_maximo = (ctx.content_rect().bottom() - origen.y - 8.0).clamp(0.0, ALTO_MAXIMO_RESULTADOS);
+    Area::new(Id::new("resultados-busqueda")).order(Order::Foreground).fixed_pos(origen).constrain(false).show(ctx, |ui| {
         let pintor = ui.painter().clone();
         let ancho_item = ancho - 18.0;
         let disponible = ancho_item - 24.0;
@@ -96,7 +100,7 @@ pub fn resultados(
                 let insignia = p.plu.as_ref().map(|plu| Texto::new(format!("PLU: {plu}"), Tam::Xs, Peso::Medio, paleta::BLUE_800));
                 let ancho_insignia = insignia.as_ref().map_or(0.0, |t| t.maximo(&pintor) + 16.0 + 8.0);
                 let nombre = Texto::new(p.nombre.clone(), Tam::Base, peso, color_nombre);
-                let precio = format!("${}/{}", formato_local(precio_visual(p.precio, p.iva_incluido, p.iva_porcentaje, negocio)), p.unidad);
+                let precio = format!("${}/{}", monto(precio_visual(p.precio, p.iva_incluido, p.iva_porcentaje, negocio)), p.unidad);
                 let precio = Texto::new(precio, Tam::Base, peso, paleta::EMERALD_600);
                 let ancho_precio = precio.maximo(&pintor);
                 let tamanos = encoger(
@@ -109,37 +113,43 @@ pub fn resultados(
                 (elegida, insignia, ancho_insignia, nombre, galeria_nombre, precio, ancho_precio, alto)
             })
             .collect();
-        let alto_total = filas.iter().map(|f| f.7).sum::<f32>() + 18.0;
-        let (tarjeta, _) = ui.allocate_exact_size(Vec2::new(ancho, alto_total), Sense::hover());
+        let alto_contenido = filas.iter().map(|f| f.7).sum::<f32>();
+        let (tarjeta, _) = ui.allocate_exact_size(Vec2::new(ancho, (alto_contenido + 18.0).min(alto_maximo)), Sense::hover());
         ui.painter().add(ui::sombra_lg().as_shape(tarjeta, ui::RADIO_XL));
         ui.painter().rect(tarjeta, ui::RADIO_XL, color::FONDO, borde(color::BORDE), StrokeKind::Inside);
-        let mut y = tarjeta.top() + 9.0;
-        for (posicion, (elegida, insignia, ancho_insignia, nombre, galeria_nombre, precio, ancho_precio, alto)) in filas.into_iter().enumerate() {
-            let caja = Rect::from_min_size(Pos2::new(tarjeta.left() + 9.0, y), Vec2::new(ancho_item, alto));
-            let r = ui.interact(caja, Id::new("resultado").with(posicion), Sense::click()).on_hover_cursor(CursorIcon::PointingHand);
-            if elegida {
-                ui.painter().rect_filled(caja, ui::RADIO, paleta::EMERALD_100);
-            } else if r.hovered() {
-                ui.painter().rect_filled(caja, ui::RADIO, color::APAGADO);
+        let interior = tarjeta.shrink(9.0);
+        let mut hijo = ui.new_child(UiBuilder::new().max_rect(interior).layout(Layout::top_down(Align::Min)));
+        ScrollArea::vertical().id_salt("resultados-busqueda-scroll").max_height(interior.height()).auto_shrink(false).show(&mut hijo, |ui| {
+            let pintor = ui.painter().clone();
+            for (posicion, (elegida, insignia, ancho_insignia, nombre, galeria_nombre, precio, ancho_precio, alto)) in filas.into_iter().enumerate() {
+                let (caja, r) = ui.allocate_exact_size(Vec2::new(ancho_item, alto), Sense::click());
+                let r = r.on_hover_cursor(CursorIcon::PointingHand);
+                if elegida && mostrar_seleccion {
+                    ui.scroll_to_rect(caja, None);
+                }
+                if elegida {
+                    pintor.rect_filled(caja, ui::RADIO, paleta::EMERALD_100);
+                } else if r.hovered() {
+                    pintor.rect_filled(caja, ui::RADIO, color::APAGADO);
+                }
+                let centro = caja.center().y;
+                let mut x = caja.left() + 12.0;
+                if let Some(insignia) = insignia {
+                    let caja_insignia = Rect::from_min_size(Pos2::new(x, centro - 12.0), Vec2::new(ancho_insignia - 8.0, 24.0));
+                    pintor.rect_filled(caja_insignia, ui::RADIO_SM, paleta::BLUE_100);
+                    let g = insignia.galeria(&pintor, f32::INFINITY);
+                    insignia.pintar(&pintor, &g, Pos2::new(x + 8.0, centro - 8.0));
+                    x += ancho_insignia;
+                }
+                let alto_nombre = nombre.alto(&galeria_nombre);
+                nombre.pintar(&pintor, &galeria_nombre, Pos2::new(x, centro - alto_nombre / 2.0));
+                let g = precio.galeria(&pintor, f32::INFINITY);
+                precio.pintar(&pintor, &g, Pos2::new(caja.right() - 12.0 - ancho_precio, centro - 12.0));
+                if r.clicked() {
+                    elegido = Some(posicion);
+                }
             }
-            let centro = caja.center().y;
-            let mut x = caja.left() + 12.0;
-            if let Some(insignia) = insignia {
-                let caja_insignia = Rect::from_min_size(Pos2::new(x, centro - 12.0), Vec2::new(ancho_insignia - 8.0, 24.0));
-                ui.painter().rect_filled(caja_insignia, ui::RADIO_SM, paleta::BLUE_100);
-                let g = insignia.galeria(&pintor, f32::INFINITY);
-                insignia.pintar(&pintor, &g, Pos2::new(x + 8.0, centro - 8.0));
-                x += ancho_insignia;
-            }
-            let alto_nombre = nombre.alto(&galeria_nombre);
-            nombre.pintar(&pintor, &galeria_nombre, Pos2::new(x, centro - alto_nombre / 2.0));
-            let g = precio.galeria(&pintor, f32::INFINITY);
-            precio.pintar(&pintor, &g, Pos2::new(caja.right() - 12.0 - ancho_precio, centro - 12.0));
-            if r.clicked() {
-                elegido = Some(posicion);
-            }
-            y += alto;
-        }
+        });
     });
     elegido
 }
@@ -151,7 +161,7 @@ pub enum AccionPestana {
 }
 
 struct Pestana {
-    id: usize,
+    indice: usize,
     caja: Rect,
     borrar: Option<Rect>,
 }
@@ -159,20 +169,20 @@ struct Pestana {
 fn disponer_pestanas(ui: &Ui, carritos: &Carritos, origen: Pos2) -> (Vec<Pestana>, Option<Rect>, f32) {
     let mut x = origen.x;
     let mut pestanas = Vec::new();
-    for pantalla in &carritos.screens {
-        if pantalla.id > 0 {
+    for indice in 0..carritos.screens.len() {
+        if indice > 0 {
             x += 16.0;
         }
-        let activa = carritos.active_screen == pantalla.id;
-        let ancho = 64.0 + ancho_texto(ui, &format!("Orden {}", pantalla.id + 1), Tam::Sm, Peso::Medio) + if activa { 0.0 } else { 2.0 };
+        let activa = carritos.active_screen == indice;
+        let ancho = 64.0 + ancho_texto(ui, &format!("Orden {}", indice + 1), Tam::Sm, Peso::Medio) + if activa { 0.0 } else { 2.0 };
         let caja = Rect::from_min_size(Pos2::new(x, origen.y - 20.0), Vec2::new(ancho, 40.0));
         x += ancho;
-        let borrar = (pantalla.id > 0).then(|| {
+        let borrar = (indice > 0).then(|| {
             let r = Rect::from_min_size(Pos2::new(x, origen.y - 16.0), Vec2::new(28.0, 32.0));
             x += 28.0;
             r
         });
-        pestanas.push(Pestana { id: pantalla.id, caja, borrar });
+        pestanas.push(Pestana { indice, caja, borrar });
     }
     let mas = (carritos.screens.len() < 4).then(|| {
         x += 4.0;
@@ -191,8 +201,8 @@ pub fn pestanas(ui: &mut Ui, carritos: &Carritos, origen: Pos2) -> Option<Accion
     let (lista, mas, _) = disponer_pestanas(ui, carritos, origen);
     let mut accion = None;
     for pestana in lista {
-        let activa = carritos.active_screen == pestana.id;
-        let r = ui.interact(pestana.caja, Id::new("pestana-orden").with(pestana.id), Sense::click()).on_hover_cursor(CursorIcon::PointingHand);
+        let activa = carritos.active_screen == pestana.indice;
+        let r = ui.interact(pestana.caja, Id::new("pestana-orden").with(pestana.indice), Sense::click()).on_hover_cursor(CursorIcon::PointingHand);
         let (fondo, texto_color, trazo) = match (activa, r.hovered()) {
             (true, false) => (Color32::BLACK, Color32::WHITE, None),
             (true, true) => (color::PRIMARIO.gamma_multiply(0.9), Color32::WHITE, None),
@@ -200,12 +210,12 @@ pub fn pestanas(ui: &mut Ui, carritos: &Carritos, origen: Pos2) -> Option<Accion
             (false, true) => (color::ACENTO, color::ACENTO_TEXTO, Some(color::BORDE)),
         };
         ui.painter().rect(pestana.caja, ui::RADIO, fondo, trazo.map_or(egui::Stroke::NONE, borde), StrokeKind::Inside);
-        ui.painter().text(pestana.caja.center(), egui::Align2::CENTER_CENTER, format!("Orden {}", pestana.id + 1), fuente(Tam::Sm, Peso::Medio), texto_color);
+        ui.painter().text(pestana.caja.center(), egui::Align2::CENTER_CENTER, format!("Orden {}", pestana.indice + 1), fuente(Tam::Sm, Peso::Medio), texto_color);
         if r.clicked() {
-            accion = Some(AccionPestana::Elegir(pestana.id));
+            accion = Some(AccionPestana::Elegir(pestana.indice));
         }
         if let Some(caja) = pestana.borrar {
-            let r = ui.interact(caja, Id::new("borrar-orden").with(pestana.id), Sense::click()).on_hover_cursor(CursorIcon::PointingHand);
+            let r = ui.interact(caja, Id::new("borrar-orden").with(pestana.indice), Sense::click()).on_hover_cursor(CursorIcon::PointingHand);
             let icono_color = if r.hovered() {
                 ui.painter().rect_filled(caja, ui::RADIO, paleta::RED_100);
                 paleta::RED_600
@@ -214,7 +224,7 @@ pub fn pestanas(ui: &mut Ui, carritos: &Carritos, origen: Pos2) -> Option<Accion
             };
             ui::pintar_icono_en(ui, Rect::from_center_size(caja.center(), Vec2::splat(16.0)), "x", icono_color);
             if r.clicked() {
-                accion = Some(AccionPestana::Borrar(pestana.id));
+                accion = Some(AccionPestana::Borrar(pestana.indice));
             }
         }
     }
@@ -243,7 +253,7 @@ pub enum AccionCabecera {
 pub struct Cabecera<'a> {
     pub facturacion: bool,
     pub cierre: bool,
-    pub usuario: Option<(&'a str, &'a str)>,
+    pub usuario: (&'a str, &'a str),
 }
 
 impl Cabecera<'_> {
@@ -264,28 +274,24 @@ impl Cabecera<'_> {
 
     pub fn ancho(&self, ui: &Ui) -> f32 {
         let botones = self.botones();
-        let mut ancho: f32 = botones.iter().map(|(_, t, _)| Self::ancho_boton(ui, t)).sum::<f32>() + 16.0 * (botones.len() as f32 - 1.0);
-        if let Some((nombre, _)) = self.usuario {
-            ancho += 16.0 + ancho_texto(ui, nombre, Tam::Base, Peso::Medio) + 8.0 + 40.0;
-        }
-        ancho
+        let ancho: f32 = botones.iter().map(|(_, t, _)| Self::ancho_boton(ui, t)).sum::<f32>() + 16.0 * (botones.len() as f32 - 1.0);
+        ancho + 16.0 + ancho_texto(ui, self.usuario.0, Tam::Base, Peso::Medio) + 8.0 + 40.0
     }
 
     pub fn mostrar(&self, ui: &mut Ui, derecha: f32, centro_y: f32) -> Option<AccionCabecera> {
         let mut accion = None;
         let mut x = derecha;
-        if let Some((nombre, email)) = self.usuario {
-            let caja = Rect::from_min_size(Pos2::new(x - 40.0, centro_y - 20.0), Vec2::splat(40.0));
-            let r = en_rect(ui, caja, |ui| {
-                Boton::new("").variante(Variante::Esmeralda).tam(TamBoton::Icono).icono("user").tam_icono(24.0).ui(ui)
-            });
-            x -= 48.0;
-            let ancho_nombre = ancho_texto(ui, nombre, Tam::Base, Peso::Medio);
-            ui.painter().text(Pos2::new(x, centro_y), egui::Align2::RIGHT_CENTER, nombre, fuente(Tam::Base, Peso::Medio), color::TEXTO);
-            x -= ancho_nombre + 16.0;
-            if let Some(Some(a)) = menu_usuario(&r, nombre, email) {
-                accion = Some(a);
-            }
+        let (nombre, email) = self.usuario;
+        let caja = Rect::from_min_size(Pos2::new(x - 40.0, centro_y - 20.0), Vec2::splat(40.0));
+        let r = en_rect(ui, caja, |ui| {
+            Boton::new("").variante(Variante::Esmeralda).tam(TamBoton::Icono).icono("user").tam_icono(24.0).ui(ui)
+        });
+        x -= 48.0;
+        let ancho_nombre = ancho_texto(ui, nombre, Tam::Base, Peso::Medio);
+        ui.painter().text(Pos2::new(x, centro_y), egui::Align2::RIGHT_CENTER, nombre, fuente(Tam::Base, Peso::Medio), color::TEXTO);
+        x -= ancho_nombre + 16.0;
+        if let Some(Some(a)) = menu_usuario(&r, nombre, email) {
+            accion = Some(a);
         }
         for (icono, texto, a) in self.botones().into_iter().rev() {
             let ancho = Self::ancho_boton(ui, texto);
@@ -339,9 +345,9 @@ pub fn item_carrito(ui: &mut Ui, item: &Producto, negocio: Option<&Value>, permi
     let nombre = Texto::new(item.name.clone(), Tam::X2, Peso::Medio, color::TEXTO);
     let etiqueta_precio = if item.unit == "Kg" { "$/Kg" } else { "$/U" };
     let detalles = [
-        Texto::new(format!("Cantidad: {} {}", numero_js(item.quantity), item.unit), Tam::Base, Peso::Normal, color::APAGADO_TEXTO),
-        Texto::new(format!("{etiqueta_precio}: ${}", formato_local(unitario)), Tam::Base, Peso::Normal, color::APAGADO_TEXTO),
-        Texto::new(format!("SUBTOTAL: ${}", formato_local(subtotal)), Tam::Base, Peso::Normal, color::APAGADO_TEXTO),
+        Texto::new(format!("Cantidad: {} {}", formato::numero(item.quantity), item.unit), Tam::Base, Peso::Normal, color::APAGADO_TEXTO),
+        Texto::new(format!("{etiqueta_precio}: ${}", monto(unitario)), Tam::Base, Peso::Normal, color::APAGADO_TEXTO),
+        Texto::new(format!("SUBTOTAL: ${}", monto(subtotal)), Tam::Base, Peso::Normal, color::APAGADO_TEXTO),
     ];
     let maximo_nombre = nombre.maximo(&pintor) + if ancho_insignia > 0.0 { 8.0 + ancho_insignia } else { 0.0 };
     let minimo_nombre = nombre.minimo(&pintor).max(ancho_insignia);
@@ -420,7 +426,7 @@ impl Resumen {
         let pintor = ui.painter().clone();
         let ancho_cancelar = 112.0 + ancho_texto(ui, "CANCELAR", Tam::Xl, Peso::Medio);
         let ancho_pagar = 112.0 + ancho_texto(ui, "PAGAR", Tam::Xl, Peso::Medio);
-        let texto = Texto::new(format!("TOTAL: ${}", formato_local(total)), Tam::X4, Peso::Semi, color::TEXTO);
+        let texto = Texto::new(format!("TOTAL: ${}", monto(total)), Tam::X4, Peso::Semi, color::TEXTO);
         let anchos = encoger(
             &[ancho_cancelar + 8.0 + ancho_pagar, texto.maximo(&pintor) + 66.0],
             &[ancho_cancelar.max(ancho_pagar), texto.minimo(&pintor) + 66.0],
