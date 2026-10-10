@@ -1,0 +1,94 @@
+# Capturas de referencia de la UI del POS (React)
+
+Capturas PNG de 1200x800 de la UI React de verdu-tauri, con la API y el IPC de Tauri simulados (`mock.json`). Se generan con `node capturar.mjs` contra la app corriendo en modo dev con `--remote-debugging-port=9222`.
+
+## Capturas
+
+- `01-admin-login.png` → Configuración inicial (login de administrador) vacía. Cómo se llega: Primer arranque sin adminData guardado: la ruta / redirige a #/admin-login.
+- `02-admin-login-error.png` → Login de administrador con error (alerta roja en el formulario + toast de error arriba). Cómo se llega: Email y contraseña incorrectos → botón Configurar Negocio.
+- `03-admin-login-cargando.png` → Login de administrador procesando (botón con spinner 'Configurando...', campos deshabilitados). Cómo se llega: Botón Configurar Negocio mientras espera la respuesta de /api/login.
+- `04-admin-login-exito.png` → Tras configurar el negocio: selector de vendedores con toast verde 'Configuración guardada'. Cómo se llega: Login de administrador correcto → navega a #/user-login.
+- `05-user-login-cargando.png` → Selector de vendedores cargando (spinner verde centrado). Cómo se llega: Arranque con negocio configurado mientras se piden /api/usuarios/vendedores.
+- `06-user-login.png` → Selector de vendedores '¿Quién está vendiendo?' con tarjetas numeradas 1-9, banda del negocio y botón Reconfigurar. Cómo se llega: Arranque con negocio configurado (ruta / → #/user-login).
+- `07-user-login-contrasena.png` → Diálogo de contraseña del vendedor elegido. Cómo se llega: Tecla 1 (o clic en la tarjeta) en el selector de vendedores.
+- `08-user-login-contrasena-corta.png` → Diálogo de contraseña con error de validación (menos de 4 caracteres). Cómo se llega: Escribir 2 caracteres y Enter.
+- `09-user-login-error.png` → Contraseña incorrecta: toast rojo 'Error al iniciar sesión' con el mensaje del servidor. Cómo se llega: Contraseña de 4+ caracteres rechazada por /api/login.
+- `10-user-login-iniciando.png` → Diálogo de contraseña enviando (botón 'Iniciando sesión...' con spinner). Cómo se llega: Enter con contraseña válida mientras responde /api/login.
+- `11-user-login-reconfigurar.png` → Confirmación de reconfiguración del punto de venta. Cómo se llega: Botón Reconfigurar (arriba a la derecha) del selector de vendedores.
+- `12-user-login-error-vendedores.png` → Selector sin vendedores y toast de error 'Error al cargar vendedores'. Cómo se llega: Falla de /api/usuarios/vendedores.
+- `13-admin-message.png` → Mensaje para usuarios ADMIN (no pueden vender desde el POS). Cómo se llega: Iniciar sesión con un usuario de rol ADMIN → #/admin-message.
+- `14-carrito-vacio.png` → Pantalla principal con carrito vacío: sidebar verde con logo, buscador y atajos F1/F2/F7/F4, pestaña 'Orden 1', botones Órdenes y Cierre de caja, total $0. Cómo se llega: Login de vendedor sin AFIP ni facturación (negocio simple).
+- `15-toast-error-carrito-vacio.png` → Toast de error 'No hay productos en el carrito'. Cómo se llega: F2 (pagar) con el carrito vacío.
+- `16-busqueda-resultados.png` → Resultados de búsqueda desplegados bajo el buscador (badge PLU, nombre, precio/unidad; primer resultado resaltado). Cómo se llega: Escribir 'ma' en el buscador del sidebar.
+- `17-busqueda-flechas.png` → Resultados de búsqueda con selección movida con flechas. Cómo se llega: Flecha abajo dos veces.
+- `18-agregar-producto-kg-balanza.png` → Agregar producto por kilo tomando el peso de la balanza (sin listas de precios). Cómo se llega: Buscar 'zapallo' + Enter.
+- `19-agregar-producto-con-listas.png` → Agregar producto por kilo con opciones de lista de precios (Precio catálogo / Mayorista / Comercios). Cómo se llega: Buscar 'tomate' + Enter (producto con listas de precios).
+- `20-agregar-producto-unidad.png` → Agregar producto por unidad con cantidad escrita. Cómo se llega: Buscar 'palta' + Enter y escribir 3.
+- `21-agregar-producto-peso-manual.png` → Agregar producto por kilo con peso manual en gramos (usuario con pesoManualEnabled). Cómo se llega: Vendedor con permiso de peso manual: buscar 'zapallo' + Enter y escribir 1750.
+- `22-carrito-con-items.png` → Carrito con varios ítems (por kilo y por unidad), dos pestañas de órdenes y total con botones Cancelar / Pagar. Cómo se llega: Cargar productos al carrito (aquí sembrados en cartScreens).
+- `23-pestanas-carritos.png` → Segunda pestaña de orden activa. Cómo se llega: Clic en la pestaña 'Orden 2'.
+- `24-cancelar-orden.png` → Confirmación para cancelar el carrito. Cómo se llega: F1 con productos en el carrito.
+- `25-pago-metodos.png` → Diálogo de pago: Transferencia (1, abre el QR de Mercado Pago), Tarjeta (2), Efectivo (3), Pago Mixto (4). Cómo se llega: F2 o botón Pagar con productos en el carrito.
+- `26-pago-efectivo-redondeo.png` → Pago en efectivo con redondeo a $50 (monto original tachado vs. monto a cobrar, botón 'Aplicar D (F5)' para el descuento por efectivo). Cómo se llega: En el diálogo de pago, tecla 3 (sistemaPago = redondeo).
+- `27-pago-efectivo-con-descuento.png` → Pago en efectivo con el descuento por efectivo (10%) aplicado. Cómo se llega: Botón 'Aplicar D (F5)' en el diálogo de efectivo.
+- `28-pago-dividido.png` → Pago mixto: monto en efectivo + segundo método. Cómo se llega: En el diálogo de pago, tecla 4.
+- `29-pago-dividido-con-monto.png` → Pago mixto con $10.000 en efectivo y el resto calculado. Cómo se llega: Escribir el monto en efectivo.
+- `30-pago-qr-mercadopago.png` → Pago QR de Mercado Pago pendiente (imagen QR, monto, estado y botón para completar manualmente). Cómo se llega: En el diálogo de pago, tecla 1 (mpEnabled = true).
+- `31-pago-qr-manual.png` → Contraseña para completar manualmente un pago QR. Cómo se llega: Botón de completar manualmente en el diálogo QR.
+- `32-descuento.png` → Diálogo de descuento (porcentaje o monto fijo) sobre el subtotal. Cómo se llega: F7 (pagar con descuento).
+- `33-descuento-con-valor.png` → Diálogo de descuento con 10% escrito y el total resultante. Cómo se llega: Escribir 10 en el diálogo de descuento.
+- `33b-descuento-cantidad-fija.png` → Diálogo de descuento en modo Cantidad Fija con $1.500. Cómo se llega: Pestaña Cantidad Fija del diálogo de descuento y escribir 1500.
+- `34-pago-con-descuento.png` → Diálogo de pago mostrando subtotal, descuento y total. Cómo se llega: Enter en el diálogo de descuento.
+- `35-toast-exito-orden.png` → Toast verde 'Orden completada exitosamente' y carrito vacío después del pago con tarjeta. Cómo se llega: Tecla 2 (tarjeta) en el diálogo de pago (impresión interceptada).
+- `36-ordenes-recientes.png` → Órdenes del día del vendedor (tabla con hora, método, descuento, total y reimpresión). Cómo se llega: Botón Órdenes (arriba a la derecha).
+- `37-cierre-caja.png` → Selección del período de cierre de caja: Mañana (1), Tarde (2), Todo el día (3), Cierre Manual (4). Cómo se llega: Botón Cierre de caja (usuario con cierreDeCajaEnabled).
+- `38-cierre-caja-procesando.png` → Cierre de caja procesando (spinners en los botones). Cómo se llega: Clic en Mañana mientras responde /api/cierres.
+- `39-cierre-caja-resultado.png` → Resultado del cierre: toast 'Cierre de mañana realizado correctamente' (el ticket se imprime aparte). Cómo se llega: Clic en Mañana (1) con /api/cierres respondiendo bien (impresión interceptada).
+- `40-cierre-manual.png` → Cierre manual: fechas/horas de inicio y fin, vendedor y sucursal. Cómo se llega: En el diálogo de cierre, botón Cierre Manual (4).
+- `41-actualizacion-disponible.png` → Aviso de actualización disponible (toast + tarjeta de UpdateNotification). Cómo se llega: 5 s después de arrancar, checkForUpdates devuelve available = true.
+- `42-actualizacion-descargando.png` → Actualización descargándose. Cómo se llega: Botón Descargar del aviso.
+- `43-actualizacion-descargada.png` → Actualización descargada, lista para reiniciar. Cómo se llega: Fin de downloadUpdate.
+- `44-carrito-afip.png` → Carrito con AFIP y facturación habilitados: atajos F1, F2 pagar con AFIP, F7, F3 pagar orden, F8, F6 cuenta corriente, F4; botón Cuenta Corriente. Cómo se llega: Negocio con afipHabilitado + facturacionHabilitada.
+- `45-pago-afip.png` → Diálogo de pago en modo AFIP (factura electrónica). Cómo se llega: F2 con AFIP habilitado.
+- `46-pago-afip-efectivo-exacto.png` → Pago exacto en efectivo (AFIP): campo 'paga con' y vuelto. Cómo se llega: Tecla 3 en el pago AFIP (sistemaPago = pago-exacto).
+- `47-pago-afip-efectivo-vuelto.png` → Pago exacto con monto entregado y vuelto calculado. Cómo se llega: Escribir 50000.
+- `48-pago-afip-dividido.png` → Pago mixto con factura AFIP. Cómo se llega: Tecla 4 en el pago AFIP.
+- `49-pago-afip-dividido-con-monto.png` → Pago mixto AFIP con $15.000 en efectivo. Cómo se llega: Escribir el monto en efectivo.
+- `50-pago-afip-qr.png` → Pago QR con factura AFIP. Cómo se llega: Tecla 1 en el pago AFIP.
+- `51-pago-efectivo-exacto.png` → Pago exacto en efectivo sin factura (orden común). Cómo se llega: F3 (pagar orden) y tecla 3, con sistemaPago = pago-exacto.
+- `52-pago-afip-con-descuento.png` → Pago AFIP con descuento del 5%. Cómo se llega: F7 con AFIP, escribir 5 y Enter.
+- `53-pago-afip-procesando.png` → Pago AFIP en curso: método Tarjeta con spinner y toast 'Factura AFIP creada exitosamente' con el CAE. Cómo se llega: Tecla 2 en el pago AFIP (crear-afip mockeado, impresión interceptada).
+- `53b-pago-afip-terminado.png` → Fin del pago AFIP: diálogo cerrado, carrito vaciado y toasts finales. Cómo se llega: Esperar a que termine el pago AFIP.
+- `54-cancelacion-motivo.png` → Cancelación controlada: motivo obligatorio y detalle de lo que se cancela. Cómo se llega: F1 y confirmar, con cancelacionHabilitada = true.
+- `55-escanear-lista-precios.png` → Elegir lista de precios para un producto escaneado (popupListaPreciosEnabled). Cómo se llega: Escanear el código de barras del Ananá (7791234500026).
+- `56-factura-form-desde-carrito.png` → Formulario de factura (cuenta corriente) precargado con los productos del carrito. Cómo se llega: F6 con facturación habilitada.
+- `56b-factura-form-totales.png` → Parte inferior del formulario de factura: ítems, totales (subtotal, IVA, total), observaciones y botones. Cómo se llega: Desplazar hacia abajo el formulario de factura.
+- `57-selector-cliente.png` → Selector de cliente con búsqueda y paginación. Cómo se llega: Botón de seleccionar cliente en el formulario de factura.
+- `58-factura-form-con-cliente.png` → Formulario de factura con cliente elegido. Cómo se llega: Elegir 'Restaurante El Mesón' en el selector.
+- `59-selector-producto.png` → Selector de producto para la factura. Cómo se llega: Botón Agregar producto en el formulario de factura.
+- `60-cantidad-producto.png` → Diálogo de cantidad del producto elegido. Cómo se llega: Elegir 'Cebolla' en el selector de producto.
+- `61-facturas-cargando.png` → Cuenta corriente cargando. Cómo se llega: Botón Cuenta Corriente mientras responde /api/facturas.
+- `62-facturas-lista.png` → Cuenta corriente: filtros y tarjetas de facturas/remitos con estado, total, pagado y saldo. Cómo se llega: Botón Cuenta Corriente del carrito (o #/facturas).
+- `63-facturas-filtro-estado.png` → Filtro de estado desplegado. Cómo se llega: Clic en el selector de estado.
+- `64-historial-pagos.png` → Historial de pagos de una factura. Cómo se llega: Botón Pagos/Ver pagos de la primera tarjeta.
+- `65-agregar-pago.png` → Agregar pago a una factura en cuenta corriente. Cómo se llega: Botón Agregar pago de la primera tarjeta.
+- `66-factura-editar.png` → Modal de edición de factura. Cómo se llega: Botón Editar de la primera tarjeta.
+- `67-factura-detalle.png` → Detalle de factura (A) con cliente, ítems, totales, CAE y pagos. Cómo se llega: Botón Ver de una tarjeta (navega a #/facturas/:id).
+- `68-factura-detalle-remito.png` → Detalle de un remito con saldo pendiente. Cómo se llega: Ver de un remito con pagos parciales.
+- `69-facturas-vacio.png` → Cuenta corriente sin facturas. Cómo se llega: Cuenta Corriente cuando /api/facturas devuelve una lista vacía.
+- `70-factura-form-nueva.png` → Formulario de factura nueva (vacío). Cómo se llega: Botón Crear primera factura.
+- `71-menu-usuario.png` → Menú de usuario abierto (nombre, email, Impresión, Balanza, Cerrar sesión). Cómo se llega: Botón con ícono de usuario en la cabecera (hoy comentado en HeaderActions: se habilitó temporalmente para la captura).
+- `72-impresion.png` → Configuración de impresión (impresora, ancho de papel, logo, ticket de prueba). Cómo se llega: Menú de usuario → Impresión.
+- `73-balanza.png` → Configuración de balanza (modo, puerto, baudios, formato, estado y peso leído). Cómo se llega: Menú de usuario → Balanza.
+
+## Notas
+
+- El menú de usuario (`UserMenu`, con Impresión y Balanza) está comentado en `src/components/shopping-cart/HeaderActions.tsx`, así que en la UI actual no se puede abrir. Para las capturas 71-73 se descomentó temporalmente esa línea y se volvió a comentar al terminar.
+- `CloseResultDialog` (resultado del cierre de caja en un diálogo) no está montado en ningún lado: el resultado real del cierre es el toast de la captura 39 y el ticket impreso.
+- No se capturaron por no estar montados en ninguna ruta: `ClienteSelector` y `ProductoSelector` (las versiones sin diálogo; las usadas son `ClienteSelectorDialog` y `ProductoSelectorDialog`), `CancelOrderDialog`, `BackgroundLayout`, `QrStatusWatcher`, `ElectronDebug`, `PrinterDebug` y la página `pages/Login.tsx` (no está en el router).
+- Algunas confirmaciones usan diálogos nativos del navegador (`window.confirm` al borrar una pestaña de orden o una factura, `alert` en validaciones de Agregar pago y Agregar producto): no son parte de la UI React y no se capturaron.
+- Los `<select>` nativos (lista de precios en Agregar producto y en Escanear lista) abren un desplegable del sistema operativo que la captura del WebView no incluye; se muestran cerrados.
+- A 1200 px de ancho, con dos pestañas de órdenes y los tres botones de la cabecera (Órdenes, Cuenta Corriente, Cierre de caja) la cabecera desborda y aparece scroll horizontal (capturas 44 en adelante); con muchos ítems y total grande, Pagar baja debajo de Cancelar (22). Es el comportamiento real de la UI.
+- El método 1 del diálogo de pago dice 'Transferencia (1)' aunque abre el flujo de QR de Mercado Pago cuando `mpEnabled` es true.
+- Variantes: negocio simple (sin AFIP ni facturación, `sistemaPago` = redondeo) en 14-43; negocio con AFIP + facturación + cancelación controlada + popup de listas de precios y `sistemaPago` = pago-exacto en 44-70; vendedor con peso manual en 21.
+- Impresión, balanza, actualizaciones y almacenamiento (`window.printer`, `pesoReader`, `autoUpdater`, `electronStore`, `electron.ipcRenderer`) se reemplazaron en memoria: no se imprimió nada ni se tocó la configuración real; localStorage y sessionStorage también fueron en memoria.

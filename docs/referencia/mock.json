@@ -1,0 +1,5154 @@
+{
+  "api": "https://market.andex.tech",
+  "generado": "2026-10-10T15:38:41.484Z",
+  "nota": "Respuestas falsas servidas a la UI React durante las capturas. Las fechas son relativas al momento de la corrida. qrImageUrl es un QR de mentira en SVG (data URL).",
+  "escenarios": {
+    "simple": {
+      "negocio": "negocioBase",
+      "usuario": {
+        "pesoManualEnabled": false,
+        "cierreDeCajaEnabled": true
+      }
+    },
+    "afip": {
+      "negocio": {
+        "id": 7,
+        "nombre": "Verdulería La Huerta",
+        "tipo": "verduleria",
+        "creadoEn": "2025-09-05T15:35:37.370Z",
+        "sistemaPago": "pago-exacto",
+        "descuentoEfectivo": 10,
+        "mpEnabled": true,
+        "mpExternalPosId": "LAHUERTA01",
+        "mpUserId": "123456789",
+        "afipHabilitado": true,
+        "facturacionHabilitada": true,
+        "dobleImpresionEnabled": false,
+        "cancelacionHabilitada": true,
+        "ivaIncluidoEnPrecios": true,
+        "popupListaPreciosEnabled": true,
+        "listaPrecioPorDefectoId": null,
+        "etiquetaPrecioBase": "Precio catálogo",
+        "cuit": "30-71234567-8",
+        "sucursales": [
+          {
+            "id": 1,
+            "nombre": "Casa central",
+            "ubicacion": "Av. San Martín 1450, Godoy Cruz, Mendoza",
+            "direccion": "Av. San Martín 1450, Godoy Cruz",
+            "telefono": "261 424-8890",
+            "esPrincipal": true,
+            "businessId": 7
+          },
+          {
+            "id": 2,
+            "nombre": "Sucursal Mercado",
+            "ubicacion": "Mercado Cooperativo, Guaymallén",
+            "direccion": "Mercado Cooperativo, Guaymallén",
+            "telefono": "261 431-2207",
+            "esPrincipal": false,
+            "businessId": 7
+          }
+        ],
+        "configuracionAfip": {
+          "id": 1,
+          "cuit": "30-71234567-8",
+          "produccion": false,
+          "puntoVenta": 2,
+          "ultimoNumeroA": 12,
+          "ultimoNumeroB": 212,
+          "ultimoNumeroC": 3,
+          "activo": true,
+          "condicionIva": "Responsable Inscripto",
+          "domicilioFiscal": "Av. San Martín 1450, Godoy Cruz, Mendoza",
+          "razonSocial": "La Huerta S.R.L.",
+          "tipoFactura": "B"
+        }
+      }
+    },
+    "pesoManual": {
+      "usuario": {
+        "pesoManualEnabled": true
+      }
+    },
+    "carritoSembrado": {
+      "screens": [
+        {
+          "id": 0,
+          "items": [
+            {
+              "id": 1,
+              "cartId": "1-seed-1.245",
+              "name": "Tomate perito",
+              "quantity": 1.245,
+              "unit": "Kg",
+              "pricePerUnit": 2400,
+              "subtotal": 2988,
+              "costo": 1488,
+              "ivaIncluido": true,
+              "ivaPorcentaje": 10.5,
+              "listaPrecioId": null,
+              "listaPrecioNombre": "Precio catálogo"
+            },
+            {
+              "id": 2,
+              "cartId": "2-seed-2.5",
+              "name": "Papa negra",
+              "quantity": 2.5,
+              "unit": "Kg",
+              "pricePerUnit": 900,
+              "subtotal": 2250,
+              "costo": 558,
+              "ivaIncluido": true,
+              "ivaPorcentaje": 10.5,
+              "listaPrecioId": null,
+              "listaPrecioNombre": "Precio catálogo"
+            },
+            {
+              "id": 5,
+              "cartId": "5-seed-0.98",
+              "name": "Manzana roja",
+              "quantity": 0.98,
+              "unit": "Kg",
+              "pricePerUnit": 2800,
+              "subtotal": 2744,
+              "costo": 1736,
+              "ivaIncluido": true,
+              "ivaPorcentaje": 10.5,
+              "listaPrecioId": null,
+              "listaPrecioNombre": "Precio catálogo"
+            },
+            {
+              "id": 21,
+              "cartId": "21-seed-1",
+              "name": "Huevos blancos maple x30",
+              "quantity": 1,
+              "unit": "Unidad",
+              "pricePerUnit": 6500,
+              "subtotal": 6500,
+              "costo": 4030,
+              "ivaIncluido": true,
+              "ivaPorcentaje": 21,
+              "listaPrecioId": null,
+              "listaPrecioNombre": "Precio catálogo"
+            },
+            {
+              "id": 19,
+              "cartId": "19-seed-3",
+              "name": "Palta Hass",
+              "quantity": 3,
+              "unit": "Unidad",
+              "pricePerUnit": 1500,
+              "subtotal": 4500,
+              "costo": 930,
+              "ivaIncluido": true,
+              "ivaPorcentaje": 10.5,
+              "listaPrecioId": null,
+              "listaPrecioNombre": "Precio catálogo"
+            },
+            {
+              "id": 12,
+              "cartId": "12-seed-0.415",
+              "name": "Pimiento morrón rojo",
+              "quantity": 0.415,
+              "unit": "Kg",
+              "pricePerUnit": 4500,
+              "subtotal": 1867.5,
+              "costo": 2790,
+              "ivaIncluido": true,
+              "ivaPorcentaje": 10.5,
+              "listaPrecioId": null,
+              "listaPrecioNombre": "Precio catálogo"
+            },
+            {
+              "id": 23,
+              "cartId": "23-seed-2",
+              "name": "Perejil (atado)",
+              "quantity": 2,
+              "unit": "Unidad",
+              "pricePerUnit": 800,
+              "subtotal": 1600,
+              "costo": 496,
+              "ivaIncluido": true,
+              "ivaPorcentaje": 10.5,
+              "listaPrecioId": null,
+              "listaPrecioNombre": "Precio catálogo"
+            }
+          ]
+        },
+        {
+          "id": 1,
+          "items": [
+            {
+              "id": 4,
+              "cartId": "4-seed-1.1",
+              "name": "Banana Ecuador",
+              "quantity": 1.1,
+              "unit": "Kg",
+              "pricePerUnit": 2200,
+              "subtotal": 2420,
+              "costo": 1364,
+              "ivaIncluido": true,
+              "ivaPorcentaje": 10.5,
+              "listaPrecioId": null,
+              "listaPrecioNombre": "Precio catálogo"
+            },
+            {
+              "id": 25,
+              "cartId": "25-seed-1",
+              "name": "Frutilla bandeja 500 g",
+              "quantity": 1,
+              "unit": "Unidad",
+              "pricePerUnit": 3000,
+              "subtotal": 3000,
+              "costo": 1860,
+              "ivaIncluido": true,
+              "ivaPorcentaje": 10.5,
+              "listaPrecioId": null,
+              "listaPrecioNombre": "Precio catálogo"
+            }
+          ]
+        }
+      ],
+      "activeScreen": 0
+    }
+  },
+  "datos": {
+    "productos": [
+      {
+        "id": 1,
+        "nombre": "Tomate perito",
+        "precio": 2400,
+        "tipoMedida": "Kg",
+        "costo": 1488,
+        "codigoBarras": null,
+        "plu": "001",
+        "ivaIncluido": true,
+        "ivaPorcentaje": 10.5,
+        "stock": 85,
+        "activo": true
+      },
+      {
+        "id": 2,
+        "nombre": "Papa negra",
+        "precio": 900,
+        "tipoMedida": "Kg",
+        "costo": 558,
+        "codigoBarras": null,
+        "plu": "002",
+        "ivaIncluido": true,
+        "ivaPorcentaje": 10.5,
+        "stock": 85,
+        "activo": true
+      },
+      {
+        "id": 3,
+        "nombre": "Cebolla",
+        "precio": 1100,
+        "tipoMedida": "Kg",
+        "costo": 682,
+        "codigoBarras": null,
+        "plu": "003",
+        "ivaIncluido": true,
+        "ivaPorcentaje": 10.5,
+        "stock": 85,
+        "activo": true
+      },
+      {
+        "id": 4,
+        "nombre": "Banana Ecuador",
+        "precio": 2200,
+        "tipoMedida": "Kg",
+        "costo": 1364,
+        "codigoBarras": null,
+        "plu": "004",
+        "ivaIncluido": true,
+        "ivaPorcentaje": 10.5,
+        "stock": 85,
+        "activo": true
+      },
+      {
+        "id": 5,
+        "nombre": "Manzana roja",
+        "precio": 2800,
+        "tipoMedida": "Kg",
+        "costo": 1736,
+        "codigoBarras": null,
+        "plu": "005",
+        "ivaIncluido": true,
+        "ivaPorcentaje": 10.5,
+        "stock": 85,
+        "activo": true
+      },
+      {
+        "id": 6,
+        "nombre": "Naranja de jugo",
+        "precio": 1500,
+        "tipoMedida": "Kg",
+        "costo": 930,
+        "codigoBarras": null,
+        "plu": "006",
+        "ivaIncluido": true,
+        "ivaPorcentaje": 10.5,
+        "stock": 85,
+        "activo": true
+      },
+      {
+        "id": 7,
+        "nombre": "Mandarina",
+        "precio": 1600,
+        "tipoMedida": "Kg",
+        "costo": 992,
+        "codigoBarras": null,
+        "plu": "007",
+        "ivaIncluido": true,
+        "ivaPorcentaje": 10.5,
+        "stock": 85,
+        "activo": true
+      },
+      {
+        "id": 8,
+        "nombre": "Zapallo anco",
+        "precio": 1200,
+        "tipoMedida": "Kg",
+        "costo": 744,
+        "codigoBarras": null,
+        "plu": "008",
+        "ivaIncluido": true,
+        "ivaPorcentaje": 10.5,
+        "stock": 85,
+        "activo": true
+      },
+      {
+        "id": 9,
+        "nombre": "Zanahoria",
+        "precio": 1000,
+        "tipoMedida": "Kg",
+        "costo": 620,
+        "codigoBarras": null,
+        "plu": "009",
+        "ivaIncluido": true,
+        "ivaPorcentaje": 10.5,
+        "stock": 85,
+        "activo": true
+      },
+      {
+        "id": 10,
+        "nombre": "Limón",
+        "precio": 2000,
+        "tipoMedida": "Kg",
+        "costo": 1240,
+        "codigoBarras": null,
+        "plu": "010",
+        "ivaIncluido": true,
+        "ivaPorcentaje": 10.5,
+        "stock": 85,
+        "activo": true
+      },
+      {
+        "id": 11,
+        "nombre": "Lechuga criolla",
+        "precio": 2500,
+        "tipoMedida": "Kg",
+        "costo": 1550,
+        "codigoBarras": null,
+        "plu": "011",
+        "ivaIncluido": true,
+        "ivaPorcentaje": 10.5,
+        "stock": 85,
+        "activo": true
+      },
+      {
+        "id": 12,
+        "nombre": "Pimiento morrón rojo",
+        "precio": 4500,
+        "tipoMedida": "Kg",
+        "costo": 2790,
+        "codigoBarras": null,
+        "plu": "012",
+        "ivaIncluido": true,
+        "ivaPorcentaje": 10.5,
+        "stock": 85,
+        "activo": true
+      },
+      {
+        "id": 13,
+        "nombre": "Batata",
+        "precio": 1300,
+        "tipoMedida": "Kg",
+        "costo": 806,
+        "codigoBarras": null,
+        "plu": "013",
+        "ivaIncluido": true,
+        "ivaPorcentaje": 10.5,
+        "stock": 85,
+        "activo": true
+      },
+      {
+        "id": 14,
+        "nombre": "Pera Williams",
+        "precio": 2600,
+        "tipoMedida": "Kg",
+        "costo": 1612,
+        "codigoBarras": null,
+        "plu": "014",
+        "ivaIncluido": true,
+        "ivaPorcentaje": 10.5,
+        "stock": 85,
+        "activo": true
+      },
+      {
+        "id": 15,
+        "nombre": "Uva blanca",
+        "precio": 4800,
+        "tipoMedida": "Kg",
+        "costo": 2976,
+        "codigoBarras": null,
+        "plu": "015",
+        "ivaIncluido": true,
+        "ivaPorcentaje": 10.5,
+        "stock": 85,
+        "activo": true
+      },
+      {
+        "id": 16,
+        "nombre": "Berenjena",
+        "precio": 2000,
+        "tipoMedida": "Kg",
+        "costo": 1240,
+        "codigoBarras": null,
+        "plu": "016",
+        "ivaIncluido": true,
+        "ivaPorcentaje": 10.5,
+        "stock": 85,
+        "activo": true
+      },
+      {
+        "id": 17,
+        "nombre": "Zucchini",
+        "precio": 2200,
+        "tipoMedida": "Kg",
+        "costo": 1364,
+        "codigoBarras": null,
+        "plu": "017",
+        "ivaIncluido": true,
+        "ivaPorcentaje": 10.5,
+        "stock": 85,
+        "activo": true
+      },
+      {
+        "id": 18,
+        "nombre": "Kiwi",
+        "precio": 4000,
+        "tipoMedida": "Kg",
+        "costo": 2480,
+        "codigoBarras": null,
+        "plu": "018",
+        "ivaIncluido": true,
+        "ivaPorcentaje": 10.5,
+        "stock": 85,
+        "activo": true
+      },
+      {
+        "id": 19,
+        "nombre": "Palta Hass",
+        "precio": 1500,
+        "tipoMedida": "Unidad",
+        "costo": 930,
+        "codigoBarras": "7791234500019",
+        "plu": null,
+        "ivaIncluido": true,
+        "ivaPorcentaje": 10.5,
+        "stock": 40,
+        "activo": true
+      },
+      {
+        "id": 20,
+        "nombre": "Ananá",
+        "precio": 3500,
+        "tipoMedida": "Unidad",
+        "costo": 2170,
+        "codigoBarras": "7791234500026",
+        "plu": null,
+        "ivaIncluido": true,
+        "ivaPorcentaje": 10.5,
+        "stock": 40,
+        "activo": true
+      },
+      {
+        "id": 21,
+        "nombre": "Huevos blancos maple x30",
+        "precio": 6500,
+        "tipoMedida": "Unidad",
+        "costo": 4030,
+        "codigoBarras": "7791234500033",
+        "plu": null,
+        "ivaIncluido": true,
+        "ivaPorcentaje": 21,
+        "stock": 40,
+        "activo": true
+      },
+      {
+        "id": 22,
+        "nombre": "Ajo (cabeza)",
+        "precio": 600,
+        "tipoMedida": "Unidad",
+        "costo": 372,
+        "codigoBarras": "7791234500040",
+        "plu": null,
+        "ivaIncluido": true,
+        "ivaPorcentaje": 10.5,
+        "stock": 40,
+        "activo": true
+      },
+      {
+        "id": 23,
+        "nombre": "Perejil (atado)",
+        "precio": 800,
+        "tipoMedida": "Unidad",
+        "costo": 496,
+        "codigoBarras": "7791234500057",
+        "plu": null,
+        "ivaIncluido": true,
+        "ivaPorcentaje": 10.5,
+        "stock": 40,
+        "activo": true
+      },
+      {
+        "id": 24,
+        "nombre": "Choclo",
+        "precio": 700,
+        "tipoMedida": "Unidad",
+        "costo": 434,
+        "codigoBarras": "7791234500064",
+        "plu": null,
+        "ivaIncluido": true,
+        "ivaPorcentaje": 10.5,
+        "stock": 40,
+        "activo": true
+      },
+      {
+        "id": 25,
+        "nombre": "Frutilla bandeja 500 g",
+        "precio": 3000,
+        "tipoMedida": "Unidad",
+        "costo": 1860,
+        "codigoBarras": "7791234500071",
+        "plu": null,
+        "ivaIncluido": true,
+        "ivaPorcentaje": 10.5,
+        "stock": 40,
+        "activo": true
+      },
+      {
+        "id": 26,
+        "nombre": "Acelga (atado)",
+        "precio": 1200,
+        "tipoMedida": "Unidad",
+        "costo": 744,
+        "codigoBarras": "7791234500088",
+        "plu": null,
+        "ivaIncluido": true,
+        "ivaPorcentaje": 10.5,
+        "stock": 40,
+        "activo": true
+      }
+    ],
+    "listasPrecios": [
+      {
+        "id": 1,
+        "nombre": "Mayorista",
+        "descripcion": "Compras desde 10 kg",
+        "activa": true,
+        "_count": {
+          "productos": 6
+        }
+      },
+      {
+        "id": 2,
+        "nombre": "Comercios",
+        "descripcion": "Restaurantes y almacenes",
+        "activa": true,
+        "_count": {
+          "productos": 4
+        }
+      }
+    ],
+    "preciosLista": {
+      "1": {
+        "1": 2100,
+        "2": 780,
+        "3": 950,
+        "5": 2450,
+        "20": 3100,
+        "21": 5900
+      },
+      "2": {
+        "1": 2250,
+        "2": 830,
+        "5": 2600,
+        "21": 6100
+      }
+    },
+    "vendedores": [
+      {
+        "id": 11,
+        "nombre": "Lucía Fernández",
+        "email": "lucia@lahuerta.test"
+      },
+      {
+        "id": 12,
+        "nombre": "Martín Gómez",
+        "email": "martin@lahuerta.test"
+      },
+      {
+        "id": 13,
+        "nombre": "Sofía Ramírez",
+        "email": "sofia@lahuerta.test"
+      },
+      {
+        "id": 14,
+        "nombre": "Diego Álvarez",
+        "email": "diego@lahuerta.test"
+      },
+      {
+        "id": 15,
+        "nombre": "Carla Benítez",
+        "email": "carla@lahuerta.test"
+      }
+    ],
+    "admin": {
+      "id": 1,
+      "nombre": "Roberto Sánchez",
+      "email": "admin@lahuerta.test"
+    },
+    "sucursales": [
+      {
+        "id": 1,
+        "nombre": "Casa central",
+        "ubicacion": "Av. San Martín 1450, Godoy Cruz, Mendoza",
+        "direccion": "Av. San Martín 1450, Godoy Cruz",
+        "telefono": "261 424-8890",
+        "esPrincipal": true,
+        "businessId": 7
+      },
+      {
+        "id": 2,
+        "nombre": "Sucursal Mercado",
+        "ubicacion": "Mercado Cooperativo, Guaymallén",
+        "direccion": "Mercado Cooperativo, Guaymallén",
+        "telefono": "261 431-2207",
+        "esPrincipal": false,
+        "businessId": 7
+      }
+    ],
+    "negocioBase": {
+      "id": 7,
+      "nombre": "Verdulería La Huerta",
+      "tipo": "verduleria",
+      "creadoEn": "2025-09-05T15:35:37.370Z",
+      "sistemaPago": "redondeo",
+      "descuentoEfectivo": 10,
+      "mpEnabled": true,
+      "mpExternalPosId": "LAHUERTA01",
+      "mpUserId": "123456789",
+      "afipHabilitado": false,
+      "facturacionHabilitada": false,
+      "dobleImpresionEnabled": false,
+      "cancelacionHabilitada": false,
+      "ivaIncluidoEnPrecios": true,
+      "popupListaPreciosEnabled": false,
+      "listaPrecioPorDefectoId": null,
+      "etiquetaPrecioBase": "Precio catálogo",
+      "cuit": "30-71234567-8",
+      "sucursales": [
+        {
+          "id": 1,
+          "nombre": "Casa central",
+          "ubicacion": "Av. San Martín 1450, Godoy Cruz, Mendoza",
+          "direccion": "Av. San Martín 1450, Godoy Cruz",
+          "telefono": "261 424-8890",
+          "esPrincipal": true,
+          "businessId": 7
+        },
+        {
+          "id": 2,
+          "nombre": "Sucursal Mercado",
+          "ubicacion": "Mercado Cooperativo, Guaymallén",
+          "direccion": "Mercado Cooperativo, Guaymallén",
+          "telefono": "261 431-2207",
+          "esPrincipal": false,
+          "businessId": 7
+        }
+      ],
+      "configuracionAfip": {
+        "id": 1,
+        "cuit": "30-71234567-8",
+        "produccion": false,
+        "puntoVenta": 2,
+        "ultimoNumeroA": 12,
+        "ultimoNumeroB": 212,
+        "ultimoNumeroC": 3,
+        "activo": true,
+        "condicionIva": "Responsable Inscripto",
+        "domicilioFiscal": "Av. San Martín 1450, Godoy Cruz, Mendoza",
+        "razonSocial": "La Huerta S.R.L.",
+        "tipoFactura": "B"
+      }
+    },
+    "clientes": [
+      {
+        "id": "c1",
+        "nombre": "Restaurante El Mesón",
+        "apellido": null,
+        "razonSocial": "El Mesón S.A.",
+        "cuit": "30-70987654-3",
+        "condicionFiscal": "Responsable Inscripto",
+        "email": "compras@elmeson.test",
+        "telefono": "261 555-0101",
+        "direccion": "Belgrano 320, Mendoza"
+      },
+      {
+        "id": "c2",
+        "nombre": "Almacén Don Pepe",
+        "apellido": null,
+        "razonSocial": "José Pérez",
+        "cuit": "20-23456789-1",
+        "condicionFiscal": "Monotributista",
+        "email": "donpepe@correo.test",
+        "telefono": "261 555-0102",
+        "direccion": "Perú 1120, Godoy Cruz"
+      },
+      {
+        "id": "c3",
+        "nombre": "María",
+        "apellido": "Quiroga",
+        "razonSocial": null,
+        "cuit": "27-30111222-4",
+        "condicionFiscal": "Consumidor Final",
+        "email": null,
+        "telefono": "261 555-0103",
+        "direccion": "Barrio Bombal, Godoy Cruz"
+      },
+      {
+        "id": "c4",
+        "nombre": "Hotel Aconcagua",
+        "apellido": null,
+        "razonSocial": "Hotelera Cuyana S.A.",
+        "cuit": "30-71555444-9",
+        "condicionFiscal": "Responsable Inscripto",
+        "email": "proveedores@aconcagua.test",
+        "telefono": "261 555-0104",
+        "direccion": "San Lorenzo 545, Mendoza"
+      },
+      {
+        "id": "c5",
+        "nombre": "Comedor Los Peques",
+        "apellido": null,
+        "razonSocial": "Asociación Civil Los Peques",
+        "cuit": "30-70222333-5",
+        "condicionFiscal": "Exento",
+        "email": null,
+        "telefono": "261 555-0105",
+        "direccion": "Lavalle 77, Las Heras"
+      },
+      {
+        "id": "c6",
+        "nombre": "Carlos",
+        "apellido": "Molina",
+        "razonSocial": null,
+        "cuit": "20-28999111-7",
+        "condicionFiscal": "Monotributista",
+        "email": "cmolina@correo.test",
+        "telefono": "261 555-0106",
+        "direccion": "Mitre 2301, Luján de Cuyo"
+      }
+    ],
+    "facturas": [
+      {
+        "id": "f101",
+        "numero": "R-0002-00000148",
+        "tipoFactura": "remito",
+        "puntoVenta": 2,
+        "fecha": "2026-10-09T15:35:37.370Z",
+        "subtotal": 86500,
+        "impuestos": 0,
+        "total": 86500,
+        "estado": "pendiente",
+        "cliente": {
+          "id": "c1",
+          "nombre": "Restaurante El Mesón",
+          "apellido": null,
+          "razonSocial": "El Mesón S.A.",
+          "cuit": "30-70987654-3",
+          "condicionFiscal": "Responsable Inscripto",
+          "email": "compras@elmeson.test",
+          "telefono": "261 555-0101",
+          "direccion": "Belgrano 320, Mendoza"
+        },
+        "clienteId": "c1",
+        "esCuentaCorriente": true,
+        "observaciones": "Entrega por la mañana",
+        "detalles": [
+          {
+            "id": 1,
+            "productoId": 1,
+            "descripcion": "Tomate perito",
+            "cantidad": 15,
+            "precioUnitario": 2100,
+            "subtotal": 31500,
+            "producto": {
+              "id": 1,
+              "nombre": "Tomate perito",
+              "precio": 2400,
+              "tipoMedida": "Kg",
+              "costo": 1488,
+              "codigoBarras": null,
+              "plu": "001",
+              "ivaIncluido": true,
+              "ivaPorcentaje": 10.5,
+              "stock": 85,
+              "activo": true
+            }
+          },
+          {
+            "id": 2,
+            "productoId": 2,
+            "descripcion": "Papa negra",
+            "cantidad": 25,
+            "precioUnitario": 780,
+            "subtotal": 19500,
+            "producto": {
+              "id": 2,
+              "nombre": "Papa negra",
+              "precio": 900,
+              "tipoMedida": "Kg",
+              "costo": 558,
+              "codigoBarras": null,
+              "plu": "002",
+              "ivaIncluido": true,
+              "ivaPorcentaje": 10.5,
+              "stock": 85,
+              "activo": true
+            }
+          },
+          {
+            "id": 3,
+            "productoId": 3,
+            "descripcion": "Cebolla",
+            "cantidad": 10,
+            "precioUnitario": 950,
+            "subtotal": 9500,
+            "producto": {
+              "id": 3,
+              "nombre": "Cebolla",
+              "precio": 1100,
+              "tipoMedida": "Kg",
+              "costo": 682,
+              "codigoBarras": null,
+              "plu": "003",
+              "ivaIncluido": true,
+              "ivaPorcentaje": 10.5,
+              "stock": 85,
+              "activo": true
+            }
+          },
+          {
+            "id": 4,
+            "productoId": 12,
+            "descripcion": "Pimiento morrón rojo",
+            "cantidad": 4,
+            "precioUnitario": 4500,
+            "subtotal": 18000,
+            "producto": {
+              "id": 12,
+              "nombre": "Pimiento morrón rojo",
+              "precio": 4500,
+              "tipoMedida": "Kg",
+              "costo": 2790,
+              "codigoBarras": null,
+              "plu": "012",
+              "ivaIncluido": true,
+              "ivaPorcentaje": 10.5,
+              "stock": 85,
+              "activo": true
+            }
+          }
+        ],
+        "pagos": [
+          {
+            "id": 501,
+            "monto": 30000,
+            "metodoPago": "efectivo",
+            "fecha": "2026-10-09T15:35:37.370Z",
+            "referencia": "Seña",
+            "estado": "aprobado"
+          }
+        ],
+        "pagoInicial": 30000,
+        "saldoPendiente": 56500
+      },
+      {
+        "id": "f102",
+        "numero": "A-0002-00000013",
+        "tipoFactura": "A",
+        "puntoVenta": 2,
+        "fecha": "2026-10-07T15:35:37.370Z",
+        "subtotal": 57851.24,
+        "impuestos": 6074.38,
+        "total": 63925.62,
+        "estado": "pagada",
+        "cliente": {
+          "id": "c4",
+          "nombre": "Hotel Aconcagua",
+          "apellido": null,
+          "razonSocial": "Hotelera Cuyana S.A.",
+          "cuit": "30-71555444-9",
+          "condicionFiscal": "Responsable Inscripto",
+          "email": "proveedores@aconcagua.test",
+          "telefono": "261 555-0104",
+          "direccion": "San Lorenzo 545, Mendoza"
+        },
+        "clienteId": "c4",
+        "esCuentaCorriente": true,
+        "cae": "75412369874521",
+        "vencimientoCae": "2026-10-17T15:35:37.370Z",
+        "detalles": [
+          {
+            "id": 5,
+            "productoId": 5,
+            "descripcion": "Manzana roja",
+            "cantidad": 8,
+            "precioUnitario": 2800,
+            "subtotal": 22400,
+            "producto": {
+              "id": 5,
+              "nombre": "Manzana roja",
+              "precio": 2800,
+              "tipoMedida": "Kg",
+              "costo": 1736,
+              "codigoBarras": null,
+              "plu": "005",
+              "ivaIncluido": true,
+              "ivaPorcentaje": 10.5,
+              "stock": 85,
+              "activo": true
+            }
+          },
+          {
+            "id": 6,
+            "productoId": 15,
+            "descripcion": "Uva blanca",
+            "cantidad": 3,
+            "precioUnitario": 4800,
+            "subtotal": 14400,
+            "producto": {
+              "id": 15,
+              "nombre": "Uva blanca",
+              "precio": 4800,
+              "tipoMedida": "Kg",
+              "costo": 2976,
+              "codigoBarras": null,
+              "plu": "015",
+              "ivaIncluido": true,
+              "ivaPorcentaje": 10.5,
+              "stock": 85,
+              "activo": true
+            }
+          },
+          {
+            "id": 7,
+            "productoId": 21,
+            "descripcion": "Huevos blancos maple x30",
+            "cantidad": 4,
+            "precioUnitario": 6500,
+            "subtotal": 26000,
+            "producto": {
+              "id": 21,
+              "nombre": "Huevos blancos maple x30",
+              "precio": 6500,
+              "tipoMedida": "Unidad",
+              "costo": 4030,
+              "codigoBarras": "7791234500033",
+              "plu": null,
+              "ivaIncluido": true,
+              "ivaPorcentaje": 21,
+              "stock": 40,
+              "activo": true
+            }
+          },
+          {
+            "id": 8,
+            "productoId": 18,
+            "descripcion": "Kiwi",
+            "cantidad": 2.5,
+            "precioUnitario": 4000,
+            "subtotal": 10000,
+            "producto": {
+              "id": 18,
+              "nombre": "Kiwi",
+              "precio": 4000,
+              "tipoMedida": "Kg",
+              "costo": 2480,
+              "codigoBarras": null,
+              "plu": "018",
+              "ivaIncluido": true,
+              "ivaPorcentaje": 10.5,
+              "stock": 85,
+              "activo": true
+            }
+          }
+        ],
+        "pagos": [
+          {
+            "id": 502,
+            "monto": 40000,
+            "metodoPago": "transferencia",
+            "fecha": "2026-10-07T15:35:37.370Z",
+            "referencia": "Transf. Banco Nación #88231",
+            "estado": "aprobado"
+          },
+          {
+            "id": 503,
+            "monto": 23925.62,
+            "metodoPago": "tarjeta",
+            "fecha": "2026-10-08T15:35:37.370Z",
+            "referencia": "Visa débito",
+            "estado": "aprobado"
+          }
+        ],
+        "pagoInicial": 40000,
+        "saldoPendiente": 0
+      },
+      {
+        "id": "f103",
+        "numero": "R-0002-00000147",
+        "tipoFactura": "remito",
+        "puntoVenta": 2,
+        "fecha": "2026-10-06T15:35:37.370Z",
+        "subtotal": 41200,
+        "impuestos": 0,
+        "total": 41200,
+        "estado": "pendiente",
+        "cliente": {
+          "id": "c2",
+          "nombre": "Almacén Don Pepe",
+          "apellido": null,
+          "razonSocial": "José Pérez",
+          "cuit": "20-23456789-1",
+          "condicionFiscal": "Monotributista",
+          "email": "donpepe@correo.test",
+          "telefono": "261 555-0102",
+          "direccion": "Perú 1120, Godoy Cruz"
+        },
+        "clienteId": "c2",
+        "esCuentaCorriente": true,
+        "detalles": [
+          {
+            "id": 9,
+            "productoId": 6,
+            "descripcion": "Naranja de jugo",
+            "cantidad": 10,
+            "precioUnitario": 1500,
+            "subtotal": 15000,
+            "producto": {
+              "id": 6,
+              "nombre": "Naranja de jugo",
+              "precio": 1500,
+              "tipoMedida": "Kg",
+              "costo": 930,
+              "codigoBarras": null,
+              "plu": "006",
+              "ivaIncluido": true,
+              "ivaPorcentaje": 10.5,
+              "stock": 85,
+              "activo": true
+            }
+          },
+          {
+            "id": 10,
+            "productoId": 7,
+            "descripcion": "Mandarina",
+            "cantidad": 8,
+            "precioUnitario": 1600,
+            "subtotal": 12800,
+            "producto": {
+              "id": 7,
+              "nombre": "Mandarina",
+              "precio": 1600,
+              "tipoMedida": "Kg",
+              "costo": 992,
+              "codigoBarras": null,
+              "plu": "007",
+              "ivaIncluido": true,
+              "ivaPorcentaje": 10.5,
+              "stock": 85,
+              "activo": true
+            }
+          },
+          {
+            "id": 11,
+            "productoId": 4,
+            "descripcion": "Banana Ecuador",
+            "cantidad": 6,
+            "precioUnitario": 2200,
+            "subtotal": 13200,
+            "producto": {
+              "id": 4,
+              "nombre": "Banana Ecuador",
+              "precio": 2200,
+              "tipoMedida": "Kg",
+              "costo": 1364,
+              "codigoBarras": null,
+              "plu": "004",
+              "ivaIncluido": true,
+              "ivaPorcentaje": 10.5,
+              "stock": 85,
+              "activo": true
+            }
+          }
+        ],
+        "pagos": [],
+        "pagoInicial": 0,
+        "saldoPendiente": 41200
+      },
+      {
+        "id": "f104",
+        "numero": "C-0002-00000004",
+        "tipoFactura": "C",
+        "puntoVenta": 2,
+        "fecha": "2026-10-04T15:35:37.370Z",
+        "subtotal": 18600,
+        "impuestos": 0,
+        "total": 18600,
+        "estado": "pagada",
+        "cliente": {
+          "id": "c3",
+          "nombre": "María",
+          "apellido": "Quiroga",
+          "razonSocial": null,
+          "cuit": "27-30111222-4",
+          "condicionFiscal": "Consumidor Final",
+          "email": null,
+          "telefono": "261 555-0103",
+          "direccion": "Barrio Bombal, Godoy Cruz"
+        },
+        "clienteId": "c3",
+        "esCuentaCorriente": false,
+        "cae": "75412369870044",
+        "vencimientoCae": "2026-10-06T15:35:37.370Z",
+        "detalles": [
+          {
+            "id": 12,
+            "productoId": 25,
+            "descripcion": "Frutilla bandeja 500 g",
+            "cantidad": 2,
+            "precioUnitario": 3000,
+            "subtotal": 6000,
+            "producto": {
+              "id": 25,
+              "nombre": "Frutilla bandeja 500 g",
+              "precio": 3000,
+              "tipoMedida": "Unidad",
+              "costo": 1860,
+              "codigoBarras": "7791234500071",
+              "plu": null,
+              "ivaIncluido": true,
+              "ivaPorcentaje": 10.5,
+              "stock": 40,
+              "activo": true
+            }
+          },
+          {
+            "id": 13,
+            "productoId": 19,
+            "descripcion": "Palta Hass",
+            "cantidad": 4,
+            "precioUnitario": 1500,
+            "subtotal": 6000,
+            "producto": {
+              "id": 19,
+              "nombre": "Palta Hass",
+              "precio": 1500,
+              "tipoMedida": "Unidad",
+              "costo": 930,
+              "codigoBarras": "7791234500019",
+              "plu": null,
+              "ivaIncluido": true,
+              "ivaPorcentaje": 10.5,
+              "stock": 40,
+              "activo": true
+            }
+          },
+          {
+            "id": 14,
+            "productoId": 23,
+            "descripcion": "Perejil (atado)",
+            "cantidad": 3,
+            "precioUnitario": 800,
+            "subtotal": 2400,
+            "producto": {
+              "id": 23,
+              "nombre": "Perejil (atado)",
+              "precio": 800,
+              "tipoMedida": "Unidad",
+              "costo": 496,
+              "codigoBarras": "7791234500057",
+              "plu": null,
+              "ivaIncluido": true,
+              "ivaPorcentaje": 10.5,
+              "stock": 40,
+              "activo": true
+            }
+          }
+        ],
+        "pagos": [
+          {
+            "id": 504,
+            "monto": 18600,
+            "metodoPago": "efectivo",
+            "fecha": "2026-10-04T15:35:37.370Z",
+            "estado": "aprobado"
+          }
+        ],
+        "pagoInicial": 18600,
+        "saldoPendiente": 0
+      },
+      {
+        "id": "f105",
+        "numero": "R-0002-00000146",
+        "tipoFactura": "remito",
+        "puntoVenta": 2,
+        "fecha": "2026-10-02T15:35:37.370Z",
+        "subtotal": 128400,
+        "impuestos": 0,
+        "total": 128400,
+        "estado": "pendiente",
+        "cliente": {
+          "id": "c5",
+          "nombre": "Comedor Los Peques",
+          "apellido": null,
+          "razonSocial": "Asociación Civil Los Peques",
+          "cuit": "30-70222333-5",
+          "condicionFiscal": "Exento",
+          "email": null,
+          "telefono": "261 555-0105",
+          "direccion": "Lavalle 77, Las Heras"
+        },
+        "clienteId": "c5",
+        "esCuentaCorriente": true,
+        "observaciones": "Pago a 30 días",
+        "detalles": [
+          {
+            "id": 15,
+            "productoId": 2,
+            "descripcion": "Papa negra",
+            "cantidad": 40,
+            "precioUnitario": 780,
+            "subtotal": 31200,
+            "producto": {
+              "id": 2,
+              "nombre": "Papa negra",
+              "precio": 900,
+              "tipoMedida": "Kg",
+              "costo": 558,
+              "codigoBarras": null,
+              "plu": "002",
+              "ivaIncluido": true,
+              "ivaPorcentaje": 10.5,
+              "stock": 85,
+              "activo": true
+            }
+          },
+          {
+            "id": 16,
+            "productoId": 8,
+            "descripcion": "Zapallo anco",
+            "cantidad": 20,
+            "precioUnitario": 1200,
+            "subtotal": 24000,
+            "producto": {
+              "id": 8,
+              "nombre": "Zapallo anco",
+              "precio": 1200,
+              "tipoMedida": "Kg",
+              "costo": 744,
+              "codigoBarras": null,
+              "plu": "008",
+              "ivaIncluido": true,
+              "ivaPorcentaje": 10.5,
+              "stock": 85,
+              "activo": true
+            }
+          },
+          {
+            "id": 17,
+            "productoId": 9,
+            "descripcion": "Zanahoria",
+            "cantidad": 15,
+            "precioUnitario": 1000,
+            "subtotal": 15000,
+            "producto": {
+              "id": 9,
+              "nombre": "Zanahoria",
+              "precio": 1000,
+              "tipoMedida": "Kg",
+              "costo": 620,
+              "codigoBarras": null,
+              "plu": "009",
+              "ivaIncluido": true,
+              "ivaPorcentaje": 10.5,
+              "stock": 85,
+              "activo": true
+            }
+          },
+          {
+            "id": 18,
+            "productoId": 13,
+            "descripcion": "Batata",
+            "cantidad": 12,
+            "precioUnitario": 1300,
+            "subtotal": 15600,
+            "producto": {
+              "id": 13,
+              "nombre": "Batata",
+              "precio": 1300,
+              "tipoMedida": "Kg",
+              "costo": 806,
+              "codigoBarras": null,
+              "plu": "013",
+              "ivaIncluido": true,
+              "ivaPorcentaje": 10.5,
+              "stock": 85,
+              "activo": true
+            }
+          },
+          {
+            "id": 19,
+            "productoId": 26,
+            "descripcion": "Acelga (atado)",
+            "cantidad": 10,
+            "precioUnitario": 1200,
+            "subtotal": 12000,
+            "producto": {
+              "id": 26,
+              "nombre": "Acelga (atado)",
+              "precio": 1200,
+              "tipoMedida": "Unidad",
+              "costo": 744,
+              "codigoBarras": "7791234500088",
+              "plu": null,
+              "ivaIncluido": true,
+              "ivaPorcentaje": 10.5,
+              "stock": 40,
+              "activo": true
+            }
+          }
+        ],
+        "pagos": [
+          {
+            "id": 505,
+            "monto": 50000,
+            "metodoPago": "transferencia",
+            "fecha": "2026-10-03T15:35:37.370Z",
+            "referencia": "Transf. #10293",
+            "estado": "aprobado"
+          },
+          {
+            "id": 506,
+            "monto": 25000,
+            "metodoPago": "efectivo",
+            "fecha": "2026-10-08T15:35:37.370Z",
+            "estado": "aprobado"
+          }
+        ],
+        "pagoInicial": 50000,
+        "saldoPendiente": 53400
+      },
+      {
+        "id": "f106",
+        "numero": "A-0002-00000012",
+        "tipoFactura": "A",
+        "puntoVenta": 2,
+        "fecha": "2026-09-30T15:35:37.370Z",
+        "subtotal": 34710.74,
+        "impuestos": 3644.63,
+        "total": 38355.37,
+        "estado": "pendiente",
+        "cliente": {
+          "id": "c1",
+          "nombre": "Restaurante El Mesón",
+          "apellido": null,
+          "razonSocial": "El Mesón S.A.",
+          "cuit": "30-70987654-3",
+          "condicionFiscal": "Responsable Inscripto",
+          "email": "compras@elmeson.test",
+          "telefono": "261 555-0101",
+          "direccion": "Belgrano 320, Mendoza"
+        },
+        "clienteId": "c1",
+        "esCuentaCorriente": true,
+        "cae": "75412369861177",
+        "vencimientoCae": "2026-10-10T15:35:37.370Z",
+        "detalles": [
+          {
+            "id": 20,
+            "productoId": 1,
+            "descripcion": "Tomate perito",
+            "cantidad": 10,
+            "precioUnitario": 2400,
+            "subtotal": 24000,
+            "producto": {
+              "id": 1,
+              "nombre": "Tomate perito",
+              "precio": 2400,
+              "tipoMedida": "Kg",
+              "costo": 1488,
+              "codigoBarras": null,
+              "plu": "001",
+              "ivaIncluido": true,
+              "ivaPorcentaje": 10.5,
+              "stock": 85,
+              "activo": true
+            }
+          },
+          {
+            "id": 21,
+            "productoId": 11,
+            "descripcion": "Lechuga criolla",
+            "cantidad": 3,
+            "precioUnitario": 2500,
+            "subtotal": 7500,
+            "producto": {
+              "id": 11,
+              "nombre": "Lechuga criolla",
+              "precio": 2500,
+              "tipoMedida": "Kg",
+              "costo": 1550,
+              "codigoBarras": null,
+              "plu": "011",
+              "ivaIncluido": true,
+              "ivaPorcentaje": 10.5,
+              "stock": 85,
+              "activo": true
+            }
+          },
+          {
+            "id": 22,
+            "productoId": 16,
+            "descripcion": "Berenjena",
+            "cantidad": 2.5,
+            "precioUnitario": 2000,
+            "subtotal": 5000,
+            "producto": {
+              "id": 16,
+              "nombre": "Berenjena",
+              "precio": 2000,
+              "tipoMedida": "Kg",
+              "costo": 1240,
+              "codigoBarras": null,
+              "plu": "016",
+              "ivaIncluido": true,
+              "ivaPorcentaje": 10.5,
+              "stock": 85,
+              "activo": true
+            }
+          }
+        ],
+        "pagos": [],
+        "pagoInicial": 0,
+        "saldoPendiente": 38355.37
+      }
+    ],
+    "ordenesHoy": [
+      {
+        "id": 9021,
+        "idReal": 9021,
+        "fecha": "2026-10-10T15:23:37.370Z",
+        "metodoPago": "efectivo",
+        "total": 7650,
+        "tieneDescuento": true,
+        "tipoDescuento": "porcentual",
+        "valorDescuento": 10,
+        "montoDescuento": 850,
+        "subtotalSinDescuento": 8500,
+        "estado": "COMPLETADA",
+        "vendedor": {
+          "nombre": "Lucía Fernández"
+        },
+        "items": [
+          {
+            "productoId": 1,
+            "nombre": "Tomate perito",
+            "cantidad": 1.25,
+            "precioHistorico": 2400,
+            "subtotal": 3000
+          },
+          {
+            "productoId": 21,
+            "nombre": "Huevos blancos maple x30",
+            "cantidad": 1,
+            "precioHistorico": 5500,
+            "subtotal": 5500
+          }
+        ]
+      },
+      {
+        "id": 9020,
+        "idReal": 9020,
+        "fecha": "2026-10-10T15:00:37.370Z",
+        "metodoPago": "qr",
+        "total": 12480,
+        "tieneDescuento": false,
+        "estado": "COMPLETADA",
+        "vendedor": {
+          "nombre": "Lucía Fernández"
+        },
+        "items": [
+          {
+            "productoId": 5,
+            "nombre": "Manzana roja",
+            "cantidad": 2.1,
+            "precioHistorico": 2800,
+            "subtotal": 5880
+          },
+          {
+            "productoId": 15,
+            "nombre": "Uva blanca",
+            "cantidad": 1.375,
+            "precioHistorico": 4800,
+            "subtotal": 6600
+          }
+        ]
+      },
+      {
+        "id": 9019,
+        "idReal": 9019,
+        "fecha": "2026-10-10T14:30:37.370Z",
+        "metodoPago": "tarjeta",
+        "total": 23900,
+        "tieneDescuento": false,
+        "estado": "COMPLETADA",
+        "vendedor": {
+          "nombre": "Lucía Fernández"
+        },
+        "items": [
+          {
+            "productoId": 20,
+            "nombre": "Ananá",
+            "cantidad": 2,
+            "precioHistorico": 3500,
+            "subtotal": 7000
+          },
+          {
+            "productoId": 18,
+            "nombre": "Kiwi",
+            "cantidad": 1.2,
+            "precioHistorico": 4000,
+            "subtotal": 4800
+          },
+          {
+            "productoId": 12,
+            "nombre": "Pimiento morrón rojo",
+            "cantidad": 0.8,
+            "precioHistorico": 4500,
+            "subtotal": 3600
+          },
+          {
+            "productoId": 21,
+            "nombre": "Huevos blancos maple x30",
+            "cantidad": 1,
+            "precioHistorico": 6500,
+            "subtotal": 6500
+          },
+          {
+            "productoId": 22,
+            "nombre": "Ajo (cabeza)",
+            "cantidad": 3,
+            "precioHistorico": 600,
+            "subtotal": 1800
+          },
+          {
+            "productoId": 24,
+            "nombre": "Choclo",
+            "cantidad": 3,
+            "precioHistorico": 700,
+            "subtotal": 200
+          }
+        ]
+      },
+      {
+        "id": 9018,
+        "idReal": 9018,
+        "fecha": "2026-10-10T13:55:37.370Z",
+        "metodoPago": "split",
+        "total": 15300,
+        "tieneDescuento": false,
+        "estado": "COMPLETADA",
+        "vendedor": {
+          "nombre": "Lucía Fernández"
+        },
+        "items": [
+          {
+            "productoId": 2,
+            "nombre": "Papa negra",
+            "cantidad": 5,
+            "precioHistorico": 900,
+            "subtotal": 4500
+          },
+          {
+            "productoId": 3,
+            "nombre": "Cebolla",
+            "cantidad": 3,
+            "precioHistorico": 1100,
+            "subtotal": 3300
+          },
+          {
+            "productoId": 8,
+            "nombre": "Zapallo anco",
+            "cantidad": 2.5,
+            "precioHistorico": 1200,
+            "subtotal": 3000
+          },
+          {
+            "productoId": 9,
+            "nombre": "Zanahoria",
+            "cantidad": 4.5,
+            "precioHistorico": 1000,
+            "subtotal": 4500
+          }
+        ]
+      },
+      {
+        "id": 9017,
+        "idReal": 9017,
+        "fecha": "2026-10-10T13:20:37.370Z",
+        "metodoPago": "efectivo",
+        "total": 4350,
+        "tieneDescuento": false,
+        "estado": "COMPLETADA",
+        "vendedor": {
+          "nombre": "Lucía Fernández"
+        },
+        "items": [
+          {
+            "productoId": 4,
+            "nombre": "Banana Ecuador",
+            "cantidad": 1.5,
+            "precioHistorico": 2200,
+            "subtotal": 3300
+          },
+          {
+            "productoId": 23,
+            "nombre": "Perejil (atado)",
+            "cantidad": 1,
+            "precioHistorico": 800,
+            "subtotal": 800
+          }
+        ]
+      },
+      {
+        "id": 9016,
+        "idReal": 9016,
+        "fecha": "2026-10-10T12:33:37.370Z",
+        "metodoPago": "tarjeta",
+        "total": 9800,
+        "tieneDescuento": true,
+        "tipoDescuento": "cantidad",
+        "valorDescuento": 500,
+        "montoDescuento": 500,
+        "subtotalSinDescuento": 10300,
+        "estado": "COMPLETADA",
+        "vendedor": {
+          "nombre": "Lucía Fernández"
+        },
+        "items": [
+          {
+            "productoId": 25,
+            "nombre": "Frutilla bandeja 500 g",
+            "cantidad": 2,
+            "precioHistorico": 3000,
+            "subtotal": 6000
+          },
+          {
+            "productoId": 10,
+            "nombre": "Limón",
+            "cantidad": 1,
+            "precioHistorico": 2000,
+            "subtotal": 2000
+          },
+          {
+            "productoId": 6,
+            "nombre": "Naranja de jugo",
+            "cantidad": 1.5,
+            "precioHistorico": 1500,
+            "subtotal": 2300
+          }
+        ]
+      }
+    ],
+    "facturasBHoy": [
+      {
+        "id": "fb88",
+        "numero": "B-0002-00000212",
+        "fecha": "2026-10-10T14:45:37.370Z",
+        "metodoPago": "tarjeta",
+        "total": 18750,
+        "tipoFactura": "B",
+        "cae": "75412369899001",
+        "vendedor": {
+          "nombre": "Lucía Fernández"
+        },
+        "detalles": [
+          {
+            "descripcion": "Manzana roja",
+            "cantidad": 3,
+            "precioUnitario": 2800,
+            "subtotal": 8400
+          },
+          {
+            "descripcion": "Pera Williams",
+            "cantidad": 2.5,
+            "precioUnitario": 2600,
+            "subtotal": 6500
+          },
+          {
+            "descripcion": "Palta Hass",
+            "cantidad": 2,
+            "precioUnitario": 1500,
+            "subtotal": 3000
+          },
+          {
+            "descripcion": "Ajo (cabeza)",
+            "cantidad": 1,
+            "precioUnitario": 600,
+            "subtotal": 850
+          }
+        ]
+      },
+      {
+        "id": "fb87",
+        "numero": "B-0002-00000211",
+        "fecha": "2026-10-10T12:50:37.370Z",
+        "metodoPago": "efectivo",
+        "total": 6300,
+        "tipoFactura": "B",
+        "cae": "75412369898877",
+        "vendedor": {
+          "nombre": "Lucía Fernández"
+        },
+        "detalles": [
+          {
+            "descripcion": "Papa negra",
+            "cantidad": 3,
+            "precioUnitario": 900,
+            "subtotal": 2700
+          },
+          {
+            "descripcion": "Batata",
+            "cantidad": 2,
+            "precioUnitario": 1300,
+            "subtotal": 2600
+          },
+          {
+            "descripcion": "Choclo",
+            "cantidad": 1,
+            "precioUnitario": 700,
+            "subtotal": 1000
+          }
+        ]
+      }
+    ]
+  },
+  "endpoints": [
+    {
+      "metodo": "POST",
+      "ruta": "/api/login",
+      "ejemplos": [
+        {
+          "rutaReal": "/api/login",
+          "cuerpoEnviado": {
+            "email": "admin@lahuerta.test",
+            "password": "clave-incorrecta"
+          },
+          "estado": 401,
+          "respuesta": {
+            "message": "Credenciales inválidas"
+          }
+        },
+        {
+          "rutaReal": "/api/login",
+          "cuerpoEnviado": {
+            "email": "admin@lahuerta.test",
+            "password": "clave-incorrecta"
+          },
+          "estado": 200,
+          "respuesta": {
+            "token": "token-admin"
+          }
+        },
+        {
+          "rutaReal": "/api/login",
+          "cuerpoEnviado": {
+            "email": "lucia@lahuerta.test",
+            "password": "1234"
+          },
+          "estado": 200,
+          "respuesta": {
+            "token": "token-lucia@lahuerta.test"
+          }
+        }
+      ]
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/auth/session",
+      "ejemplos": [
+        {
+          "rutaReal": "/api/auth/session",
+          "cuerpoEnviado": null,
+          "estado": 200,
+          "respuesta": {
+            "user": {
+              "id": 1,
+              "nombre": "Roberto Sánchez",
+              "email": "admin@lahuerta.test",
+              "rol": {
+                "nombre": "ADMIN"
+              },
+              "businessId": 7,
+              "sucursalId": 1,
+              "sucursal": {
+                "id": 1,
+                "nombre": "Casa central",
+                "businessId": 7
+              },
+              "pesoManualEnabled": false,
+              "cierreDeCajaEnabled": true
+            },
+            "expires": "2026-10-11T15:35:46.264Z"
+          }
+        },
+        {
+          "rutaReal": "/api/auth/session",
+          "cuerpoEnviado": null,
+          "estado": 200,
+          "respuesta": {
+            "user": {
+              "id": 11,
+              "nombre": "Lucía Fernández",
+              "email": "lucia@lahuerta.test",
+              "rol": {
+                "nombre": "ADMIN"
+              },
+              "businessId": 7,
+              "sucursalId": 1,
+              "sucursal": {
+                "id": 1,
+                "nombre": "Casa central",
+                "businessId": 7
+              },
+              "pesoManualEnabled": false,
+              "cierreDeCajaEnabled": true
+            },
+            "expires": "2026-10-11T15:36:04.877Z"
+          }
+        },
+        {
+          "rutaReal": "/api/auth/session",
+          "cuerpoEnviado": null,
+          "estado": 200,
+          "respuesta": {
+            "user": {
+              "id": 11,
+              "nombre": "Lucía Fernández",
+              "email": "lucia@lahuerta.test",
+              "rol": {
+                "nombre": "VENDEDOR"
+              },
+              "businessId": 7,
+              "sucursalId": 1,
+              "sucursal": {
+                "id": 1,
+                "nombre": "Casa central",
+                "businessId": 7
+              },
+              "pesoManualEnabled": false,
+              "cierreDeCajaEnabled": true
+            },
+            "expires": "2026-10-11T15:36:08.390Z"
+          }
+        }
+      ]
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/business/:id",
+      "ejemplos": [
+        {
+          "rutaReal": "/api/business/7",
+          "cuerpoEnviado": null,
+          "estado": 200,
+          "respuesta": {
+            "id": 7,
+            "nombre": "Verdulería La Huerta",
+            "tipo": "verduleria",
+            "creadoEn": "2025-09-05T15:35:37.370Z",
+            "sistemaPago": "redondeo",
+            "descuentoEfectivo": 10,
+            "mpEnabled": true,
+            "mpExternalPosId": "LAHUERTA01",
+            "mpUserId": "123456789",
+            "afipHabilitado": false,
+            "facturacionHabilitada": false,
+            "dobleImpresionEnabled": false,
+            "cancelacionHabilitada": false,
+            "ivaIncluidoEnPrecios": true,
+            "popupListaPreciosEnabled": false,
+            "listaPrecioPorDefectoId": null,
+            "etiquetaPrecioBase": "Precio catálogo",
+            "cuit": "30-71234567-8",
+            "sucursales": [
+              {
+                "id": 1,
+                "nombre": "Casa central",
+                "ubicacion": "Av. San Martín 1450, Godoy Cruz, Mendoza",
+                "direccion": "Av. San Martín 1450, Godoy Cruz",
+                "telefono": "261 424-8890",
+                "esPrincipal": true,
+                "businessId": 7
+              },
+              {
+                "id": 2,
+                "nombre": "Sucursal Mercado",
+                "ubicacion": "Mercado Cooperativo, Guaymallén",
+                "direccion": "Mercado Cooperativo, Guaymallén",
+                "telefono": "261 431-2207",
+                "esPrincipal": false,
+                "businessId": 7
+              }
+            ],
+            "configuracionAfip": {
+              "id": 1,
+              "cuit": "30-71234567-8",
+              "produccion": false,
+              "puntoVenta": 2,
+              "ultimoNumeroA": 12,
+              "ultimoNumeroB": 212,
+              "ultimoNumeroC": 3,
+              "activo": true,
+              "condicionIva": "Responsable Inscripto",
+              "domicilioFiscal": "Av. San Martín 1450, Godoy Cruz, Mendoza",
+              "razonSocial": "La Huerta S.R.L.",
+              "tipoFactura": "B"
+            }
+          }
+        },
+        {
+          "rutaReal": "/api/business/7?include=sucursales,configuracionAfip",
+          "cuerpoEnviado": null,
+          "estado": 200,
+          "respuesta": {
+            "id": 7,
+            "nombre": "Verdulería La Huerta",
+            "tipo": "verduleria",
+            "creadoEn": "2025-09-05T15:35:37.370Z",
+            "sistemaPago": "pago-exacto",
+            "descuentoEfectivo": 10,
+            "mpEnabled": true,
+            "mpExternalPosId": "LAHUERTA01",
+            "mpUserId": "123456789",
+            "afipHabilitado": true,
+            "facturacionHabilitada": true,
+            "dobleImpresionEnabled": false,
+            "cancelacionHabilitada": true,
+            "ivaIncluidoEnPrecios": true,
+            "popupListaPreciosEnabled": true,
+            "listaPrecioPorDefectoId": null,
+            "etiquetaPrecioBase": "Precio catálogo",
+            "cuit": "30-71234567-8",
+            "sucursales": [
+              {
+                "id": 1,
+                "nombre": "Casa central",
+                "ubicacion": "Av. San Martín 1450, Godoy Cruz, Mendoza",
+                "direccion": "Av. San Martín 1450, Godoy Cruz",
+                "telefono": "261 424-8890",
+                "esPrincipal": true,
+                "businessId": 7
+              },
+              {
+                "id": 2,
+                "nombre": "Sucursal Mercado",
+                "ubicacion": "Mercado Cooperativo, Guaymallén",
+                "direccion": "Mercado Cooperativo, Guaymallén",
+                "telefono": "261 431-2207",
+                "esPrincipal": false,
+                "businessId": 7
+              }
+            ],
+            "configuracionAfip": {
+              "id": 1,
+              "cuit": "30-71234567-8",
+              "produccion": false,
+              "puntoVenta": 2,
+              "ultimoNumeroA": 12,
+              "ultimoNumeroB": 212,
+              "ultimoNumeroC": 3,
+              "activo": true,
+              "condicionIva": "Responsable Inscripto",
+              "domicilioFiscal": "Av. San Martín 1450, Godoy Cruz, Mendoza",
+              "razonSocial": "La Huerta S.R.L.",
+              "tipoFactura": "B"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/usuarios/vendedores",
+      "ejemplos": [
+        {
+          "rutaReal": "/api/usuarios/vendedores?businessId=7",
+          "cuerpoEnviado": null,
+          "estado": 200,
+          "respuesta": [
+            {
+              "id": 11,
+              "nombre": "Lucía Fernández",
+              "email": "lucia@lahuerta.test"
+            },
+            {
+              "id": 12,
+              "nombre": "Martín Gómez",
+              "email": "martin@lahuerta.test"
+            },
+            {
+              "id": 13,
+              "nombre": "Sofía Ramírez",
+              "email": "sofia@lahuerta.test"
+            },
+            {
+              "id": 14,
+              "nombre": "Diego Álvarez",
+              "email": "diego@lahuerta.test"
+            },
+            {
+              "id": 15,
+              "nombre": "Carla Benítez",
+              "email": "carla@lahuerta.test"
+            }
+          ]
+        },
+        {
+          "rutaReal": "/api/usuarios/vendedores?businessId=7",
+          "cuerpoEnviado": null,
+          "estado": 500,
+          "respuesta": {
+            "error": "Error interno"
+          }
+        }
+      ]
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/productos",
+      "ejemplos": [
+        {
+          "rutaReal": "/api/productos?limit=150&page=1",
+          "cuerpoEnviado": null,
+          "estado": 200,
+          "respuesta": {
+            "productos": [
+              {
+                "id": 1,
+                "nombre": "Tomate perito",
+                "precio": 2400,
+                "tipoMedida": "Kg",
+                "costo": 1488,
+                "codigoBarras": null,
+                "plu": "001",
+                "ivaIncluido": true,
+                "ivaPorcentaje": 10.5,
+                "stock": 85,
+                "activo": true
+              },
+              {
+                "id": 2,
+                "nombre": "Papa negra",
+                "precio": 900,
+                "tipoMedida": "Kg",
+                "costo": 558,
+                "codigoBarras": null,
+                "plu": "002",
+                "ivaIncluido": true,
+                "ivaPorcentaje": 10.5,
+                "stock": 85,
+                "activo": true
+              },
+              {
+                "id": 3,
+                "nombre": "Cebolla",
+                "precio": 1100,
+                "tipoMedida": "Kg",
+                "costo": 682,
+                "codigoBarras": null,
+                "plu": "003",
+                "ivaIncluido": true,
+                "ivaPorcentaje": 10.5,
+                "stock": 85,
+                "activo": true
+              },
+              {
+                "id": 4,
+                "nombre": "Banana Ecuador",
+                "precio": 2200,
+                "tipoMedida": "Kg",
+                "costo": 1364,
+                "codigoBarras": null,
+                "plu": "004",
+                "ivaIncluido": true,
+                "ivaPorcentaje": 10.5,
+                "stock": 85,
+                "activo": true
+              },
+              {
+                "id": 5,
+                "nombre": "Manzana roja",
+                "precio": 2800,
+                "tipoMedida": "Kg",
+                "costo": 1736,
+                "codigoBarras": null,
+                "plu": "005",
+                "ivaIncluido": true,
+                "ivaPorcentaje": 10.5,
+                "stock": 85,
+                "activo": true
+              },
+              {
+                "id": 6,
+                "nombre": "Naranja de jugo",
+                "precio": 1500,
+                "tipoMedida": "Kg",
+                "costo": 930,
+                "codigoBarras": null,
+                "plu": "006",
+                "ivaIncluido": true,
+                "ivaPorcentaje": 10.5,
+                "stock": 85,
+                "activo": true
+              },
+              {
+                "id": 7,
+                "nombre": "Mandarina",
+                "precio": 1600,
+                "tipoMedida": "Kg",
+                "costo": 992,
+                "codigoBarras": null,
+                "plu": "007",
+                "ivaIncluido": true,
+                "ivaPorcentaje": 10.5,
+                "stock": 85,
+                "activo": true
+              },
+              {
+                "id": 8,
+                "nombre": "Zapallo anco",
+                "precio": 1200,
+                "tipoMedida": "Kg",
+                "costo": 744,
+                "codigoBarras": null,
+                "plu": "008",
+                "ivaIncluido": true,
+                "ivaPorcentaje": 10.5,
+                "stock": 85,
+                "activo": true
+              },
+              {
+                "id": 9,
+                "nombre": "Zanahoria",
+                "precio": 1000,
+                "tipoMedida": "Kg",
+                "costo": 620,
+                "codigoBarras": null,
+                "plu": "009",
+                "ivaIncluido": true,
+                "ivaPorcentaje": 10.5,
+                "stock": 85,
+                "activo": true
+              },
+              {
+                "id": 10,
+                "nombre": "Limón",
+                "precio": 2000,
+                "tipoMedida": "Kg",
+                "costo": 1240,
+                "codigoBarras": null,
+                "plu": "010",
+                "ivaIncluido": true,
+                "ivaPorcentaje": 10.5,
+                "stock": 85,
+                "activo": true
+              },
+              {
+                "id": 11,
+                "nombre": "Lechuga criolla",
+                "precio": 2500,
+                "tipoMedida": "Kg",
+                "costo": 1550,
+                "codigoBarras": null,
+                "plu": "011",
+                "ivaIncluido": true,
+                "ivaPorcentaje": 10.5,
+                "stock": 85,
+                "activo": true
+              },
+              {
+                "id": 12,
+                "nombre": "Pimiento morrón rojo",
+                "precio": 4500,
+                "tipoMedida": "Kg",
+                "costo": 2790,
+                "codigoBarras": null,
+                "plu": "012",
+                "ivaIncluido": true,
+                "ivaPorcentaje": 10.5,
+                "stock": 85,
+                "activo": true
+              },
+              {
+                "id": 13,
+                "nombre": "Batata",
+                "precio": 1300,
+                "tipoMedida": "Kg",
+                "costo": 806,
+                "codigoBarras": null,
+                "plu": "013",
+                "ivaIncluido": true,
+                "ivaPorcentaje": 10.5,
+                "stock": 85,
+                "activo": true
+              },
+              {
+                "id": 14,
+                "nombre": "Pera Williams",
+                "precio": 2600,
+                "tipoMedida": "Kg",
+                "costo": 1612,
+                "codigoBarras": null,
+                "plu": "014",
+                "ivaIncluido": true,
+                "ivaPorcentaje": 10.5,
+                "stock": 85,
+                "activo": true
+              },
+              {
+                "id": 15,
+                "nombre": "Uva blanca",
+                "precio": 4800,
+                "tipoMedida": "Kg",
+                "costo": 2976,
+                "codigoBarras": null,
+                "plu": "015",
+                "ivaIncluido": true,
+                "ivaPorcentaje": 10.5,
+                "stock": 85,
+                "activo": true
+              },
+              {
+                "id": 16,
+                "nombre": "Berenjena",
+                "precio": 2000,
+                "tipoMedida": "Kg",
+                "costo": 1240,
+                "codigoBarras": null,
+                "plu": "016",
+                "ivaIncluido": true,
+                "ivaPorcentaje": 10.5,
+                "stock": 85,
+                "activo": true
+              },
+              {
+                "id": 17,
+                "nombre": "Zucchini",
+                "precio": 2200,
+                "tipoMedida": "Kg",
+                "costo": 1364,
+                "codigoBarras": null,
+                "plu": "017",
+                "ivaIncluido": true,
+                "ivaPorcentaje": 10.5,
+                "stock": 85,
+                "activo": true
+              },
+              {
+                "id": 18,
+                "nombre": "Kiwi",
+                "precio": 4000,
+                "tipoMedida": "Kg",
+                "costo": 2480,
+                "codigoBarras": null,
+                "plu": "018",
+                "ivaIncluido": true,
+                "ivaPorcentaje": 10.5,
+                "stock": 85,
+                "activo": true
+              },
+              {
+                "id": 19,
+                "nombre": "Palta Hass",
+                "precio": 1500,
+                "tipoMedida": "Unidad",
+                "costo": 930,
+                "codigoBarras": "7791234500019",
+                "plu": null,
+                "ivaIncluido": true,
+                "ivaPorcentaje": 10.5,
+                "stock": 40,
+                "activo": true
+              },
+              {
+                "id": 20,
+                "nombre": "Ananá",
+                "precio": 3500,
+                "tipoMedida": "Unidad",
+                "costo": 2170,
+                "codigoBarras": "7791234500026",
+                "plu": null,
+                "ivaIncluido": true,
+                "ivaPorcentaje": 10.5,
+                "stock": 40,
+                "activo": true
+              },
+              {
+                "id": 21,
+                "nombre": "Huevos blancos maple x30",
+                "precio": 6500,
+                "tipoMedida": "Unidad",
+                "costo": 4030,
+                "codigoBarras": "7791234500033",
+                "plu": null,
+                "ivaIncluido": true,
+                "ivaPorcentaje": 21,
+                "stock": 40,
+                "activo": true
+              },
+              {
+                "id": 22,
+                "nombre": "Ajo (cabeza)",
+                "precio": 600,
+                "tipoMedida": "Unidad",
+                "costo": 372,
+                "codigoBarras": "7791234500040",
+                "plu": null,
+                "ivaIncluido": true,
+                "ivaPorcentaje": 10.5,
+                "stock": 40,
+                "activo": true
+              },
+              {
+                "id": 23,
+                "nombre": "Perejil (atado)",
+                "precio": 800,
+                "tipoMedida": "Unidad",
+                "costo": 496,
+                "codigoBarras": "7791234500057",
+                "plu": null,
+                "ivaIncluido": true,
+                "ivaPorcentaje": 10.5,
+                "stock": 40,
+                "activo": true
+              },
+              {
+                "id": 24,
+                "nombre": "Choclo",
+                "precio": 700,
+                "tipoMedida": "Unidad",
+                "costo": 434,
+                "codigoBarras": "7791234500064",
+                "plu": null,
+                "ivaIncluido": true,
+                "ivaPorcentaje": 10.5,
+                "stock": 40,
+                "activo": true
+              },
+              {
+                "id": 25,
+                "nombre": "Frutilla bandeja 500 g",
+                "precio": 3000,
+                "tipoMedida": "Unidad",
+                "costo": 1860,
+                "codigoBarras": "7791234500071",
+                "plu": null,
+                "ivaIncluido": true,
+                "ivaPorcentaje": 10.5,
+                "stock": 40,
+                "activo": true
+              },
+              {
+                "id": 26,
+                "nombre": "Acelga (atado)",
+                "precio": 1200,
+                "tipoMedida": "Unidad",
+                "costo": 744,
+                "codigoBarras": "7791234500088",
+                "plu": null,
+                "ivaIncluido": true,
+                "ivaPorcentaje": 10.5,
+                "stock": 40,
+                "activo": true
+              }
+            ],
+            "pagination": {
+              "page": 1,
+              "limit": 150,
+              "total": 26,
+              "totalPages": 1,
+              "hasNext": false,
+              "hasPrev": false
+            }
+          }
+        },
+        {
+          "rutaReal": "/api/productos?limit=1000",
+          "cuerpoEnviado": null,
+          "estado": 200,
+          "respuesta": {
+            "productos": [
+              {
+                "id": 1,
+                "nombre": "Tomate perito",
+                "precio": 2400,
+                "tipoMedida": "Kg",
+                "costo": 1488,
+                "codigoBarras": null,
+                "plu": "001",
+                "ivaIncluido": true,
+                "ivaPorcentaje": 10.5,
+                "stock": 85,
+                "activo": true
+              },
+              {
+                "id": 2,
+                "nombre": "Papa negra",
+                "precio": 900,
+                "tipoMedida": "Kg",
+                "costo": 558,
+                "codigoBarras": null,
+                "plu": "002",
+                "ivaIncluido": true,
+                "ivaPorcentaje": 10.5,
+                "stock": 85,
+                "activo": true
+              },
+              {
+                "id": 3,
+                "nombre": "Cebolla",
+                "precio": 1100,
+                "tipoMedida": "Kg",
+                "costo": 682,
+                "codigoBarras": null,
+                "plu": "003",
+                "ivaIncluido": true,
+                "ivaPorcentaje": 10.5,
+                "stock": 85,
+                "activo": true
+              },
+              {
+                "id": 4,
+                "nombre": "Banana Ecuador",
+                "precio": 2200,
+                "tipoMedida": "Kg",
+                "costo": 1364,
+                "codigoBarras": null,
+                "plu": "004",
+                "ivaIncluido": true,
+                "ivaPorcentaje": 10.5,
+                "stock": 85,
+                "activo": true
+              },
+              {
+                "id": 5,
+                "nombre": "Manzana roja",
+                "precio": 2800,
+                "tipoMedida": "Kg",
+                "costo": 1736,
+                "codigoBarras": null,
+                "plu": "005",
+                "ivaIncluido": true,
+                "ivaPorcentaje": 10.5,
+                "stock": 85,
+                "activo": true
+              },
+              {
+                "id": 6,
+                "nombre": "Naranja de jugo",
+                "precio": 1500,
+                "tipoMedida": "Kg",
+                "costo": 930,
+                "codigoBarras": null,
+                "plu": "006",
+                "ivaIncluido": true,
+                "ivaPorcentaje": 10.5,
+                "stock": 85,
+                "activo": true
+              },
+              {
+                "id": 7,
+                "nombre": "Mandarina",
+                "precio": 1600,
+                "tipoMedida": "Kg",
+                "costo": 992,
+                "codigoBarras": null,
+                "plu": "007",
+                "ivaIncluido": true,
+                "ivaPorcentaje": 10.5,
+                "stock": 85,
+                "activo": true
+              },
+              {
+                "id": 8,
+                "nombre": "Zapallo anco",
+                "precio": 1200,
+                "tipoMedida": "Kg",
+                "costo": 744,
+                "codigoBarras": null,
+                "plu": "008",
+                "ivaIncluido": true,
+                "ivaPorcentaje": 10.5,
+                "stock": 85,
+                "activo": true
+              },
+              {
+                "id": 9,
+                "nombre": "Zanahoria",
+                "precio": 1000,
+                "tipoMedida": "Kg",
+                "costo": 620,
+                "codigoBarras": null,
+                "plu": "009",
+                "ivaIncluido": true,
+                "ivaPorcentaje": 10.5,
+                "stock": 85,
+                "activo": true
+              },
+              {
+                "id": 10,
+                "nombre": "Limón",
+                "precio": 2000,
+                "tipoMedida": "Kg",
+                "costo": 1240,
+                "codigoBarras": null,
+                "plu": "010",
+                "ivaIncluido": true,
+                "ivaPorcentaje": 10.5,
+                "stock": 85,
+                "activo": true
+              },
+              {
+                "id": 11,
+                "nombre": "Lechuga criolla",
+                "precio": 2500,
+                "tipoMedida": "Kg",
+                "costo": 1550,
+                "codigoBarras": null,
+                "plu": "011",
+                "ivaIncluido": true,
+                "ivaPorcentaje": 10.5,
+                "stock": 85,
+                "activo": true
+              },
+              {
+                "id": 12,
+                "nombre": "Pimiento morrón rojo",
+                "precio": 4500,
+                "tipoMedida": "Kg",
+                "costo": 2790,
+                "codigoBarras": null,
+                "plu": "012",
+                "ivaIncluido": true,
+                "ivaPorcentaje": 10.5,
+                "stock": 85,
+                "activo": true
+              },
+              {
+                "id": 13,
+                "nombre": "Batata",
+                "precio": 1300,
+                "tipoMedida": "Kg",
+                "costo": 806,
+                "codigoBarras": null,
+                "plu": "013",
+                "ivaIncluido": true,
+                "ivaPorcentaje": 10.5,
+                "stock": 85,
+                "activo": true
+              },
+              {
+                "id": 14,
+                "nombre": "Pera Williams",
+                "precio": 2600,
+                "tipoMedida": "Kg",
+                "costo": 1612,
+                "codigoBarras": null,
+                "plu": "014",
+                "ivaIncluido": true,
+                "ivaPorcentaje": 10.5,
+                "stock": 85,
+                "activo": true
+              },
+              {
+                "id": 15,
+                "nombre": "Uva blanca",
+                "precio": 4800,
+                "tipoMedida": "Kg",
+                "costo": 2976,
+                "codigoBarras": null,
+                "plu": "015",
+                "ivaIncluido": true,
+                "ivaPorcentaje": 10.5,
+                "stock": 85,
+                "activo": true
+              },
+              {
+                "id": 16,
+                "nombre": "Berenjena",
+                "precio": 2000,
+                "tipoMedida": "Kg",
+                "costo": 1240,
+                "codigoBarras": null,
+                "plu": "016",
+                "ivaIncluido": true,
+                "ivaPorcentaje": 10.5,
+                "stock": 85,
+                "activo": true
+              },
+              {
+                "id": 17,
+                "nombre": "Zucchini",
+                "precio": 2200,
+                "tipoMedida": "Kg",
+                "costo": 1364,
+                "codigoBarras": null,
+                "plu": "017",
+                "ivaIncluido": true,
+                "ivaPorcentaje": 10.5,
+                "stock": 85,
+                "activo": true
+              },
+              {
+                "id": 18,
+                "nombre": "Kiwi",
+                "precio": 4000,
+                "tipoMedida": "Kg",
+                "costo": 2480,
+                "codigoBarras": null,
+                "plu": "018",
+                "ivaIncluido": true,
+                "ivaPorcentaje": 10.5,
+                "stock": 85,
+                "activo": true
+              },
+              {
+                "id": 19,
+                "nombre": "Palta Hass",
+                "precio": 1500,
+                "tipoMedida": "Unidad",
+                "costo": 930,
+                "codigoBarras": "7791234500019",
+                "plu": null,
+                "ivaIncluido": true,
+                "ivaPorcentaje": 10.5,
+                "stock": 40,
+                "activo": true
+              },
+              {
+                "id": 20,
+                "nombre": "Ananá",
+                "precio": 3500,
+                "tipoMedida": "Unidad",
+                "costo": 2170,
+                "codigoBarras": "7791234500026",
+                "plu": null,
+                "ivaIncluido": true,
+                "ivaPorcentaje": 10.5,
+                "stock": 40,
+                "activo": true
+              },
+              {
+                "id": 21,
+                "nombre": "Huevos blancos maple x30",
+                "precio": 6500,
+                "tipoMedida": "Unidad",
+                "costo": 4030,
+                "codigoBarras": "7791234500033",
+                "plu": null,
+                "ivaIncluido": true,
+                "ivaPorcentaje": 21,
+                "stock": 40,
+                "activo": true
+              },
+              {
+                "id": 22,
+                "nombre": "Ajo (cabeza)",
+                "precio": 600,
+                "tipoMedida": "Unidad",
+                "costo": 372,
+                "codigoBarras": "7791234500040",
+                "plu": null,
+                "ivaIncluido": true,
+                "ivaPorcentaje": 10.5,
+                "stock": 40,
+                "activo": true
+              },
+              {
+                "id": 23,
+                "nombre": "Perejil (atado)",
+                "precio": 800,
+                "tipoMedida": "Unidad",
+                "costo": 496,
+                "codigoBarras": "7791234500057",
+                "plu": null,
+                "ivaIncluido": true,
+                "ivaPorcentaje": 10.5,
+                "stock": 40,
+                "activo": true
+              },
+              {
+                "id": 24,
+                "nombre": "Choclo",
+                "precio": 700,
+                "tipoMedida": "Unidad",
+                "costo": 434,
+                "codigoBarras": "7791234500064",
+                "plu": null,
+                "ivaIncluido": true,
+                "ivaPorcentaje": 10.5,
+                "stock": 40,
+                "activo": true
+              },
+              {
+                "id": 25,
+                "nombre": "Frutilla bandeja 500 g",
+                "precio": 3000,
+                "tipoMedida": "Unidad",
+                "costo": 1860,
+                "codigoBarras": "7791234500071",
+                "plu": null,
+                "ivaIncluido": true,
+                "ivaPorcentaje": 10.5,
+                "stock": 40,
+                "activo": true
+              },
+              {
+                "id": 26,
+                "nombre": "Acelga (atado)",
+                "precio": 1200,
+                "tipoMedida": "Unidad",
+                "costo": 744,
+                "codigoBarras": "7791234500088",
+                "plu": null,
+                "ivaIncluido": true,
+                "ivaPorcentaje": 10.5,
+                "stock": 40,
+                "activo": true
+              }
+            ],
+            "pagination": {
+              "page": 1,
+              "limit": 1000,
+              "total": 26,
+              "totalPages": 1,
+              "hasNext": false,
+              "hasPrev": false
+            }
+          }
+        }
+      ]
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/listas-precios",
+      "ejemplos": [
+        {
+          "rutaReal": "/api/listas-precios?activa=true",
+          "cuerpoEnviado": null,
+          "estado": 200,
+          "respuesta": {
+            "listasPrecios": [
+              {
+                "id": 1,
+                "nombre": "Mayorista",
+                "descripcion": "Compras desde 10 kg",
+                "activa": true,
+                "_count": {
+                  "productos": 6
+                }
+              },
+              {
+                "id": 2,
+                "nombre": "Comercios",
+                "descripcion": "Restaurantes y almacenes",
+                "activa": true,
+                "_count": {
+                  "productos": 4
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/business/logo-comprobante",
+      "ejemplos": [
+        {
+          "rutaReal": "/api/business/logo-comprobante",
+          "cuerpoEnviado": null,
+          "estado": 404,
+          "respuesta": {
+            "error": "Sin logo"
+          }
+        }
+      ]
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/productos/:id/listas-precios",
+      "ejemplos": [
+        {
+          "rutaReal": "/api/productos/8/listas-precios",
+          "cuerpoEnviado": null,
+          "estado": 200,
+          "respuesta": {
+            "productos": []
+          }
+        },
+        {
+          "rutaReal": "/api/productos/1/listas-precios",
+          "cuerpoEnviado": null,
+          "estado": 200,
+          "respuesta": {
+            "productos": [
+              {
+                "id": 101,
+                "listaPrecioId": 1,
+                "productoId": 1,
+                "precio": 2100,
+                "activa": true,
+                "tipoMedida": "Kg",
+                "listaPrecio": {
+                  "id": 1,
+                  "nombre": "Mayorista",
+                  "activa": true,
+                  "tipoMedida": "Kg"
+                }
+              },
+              {
+                "id": 201,
+                "listaPrecioId": 2,
+                "productoId": 1,
+                "precio": 2250,
+                "activa": true,
+                "tipoMedida": "Kg",
+                "listaPrecio": {
+                  "id": 2,
+                  "nombre": "Comercios",
+                  "activa": true,
+                  "tipoMedida": "Kg"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "rutaReal": "/api/productos/20/listas-precios",
+          "cuerpoEnviado": null,
+          "estado": 200,
+          "respuesta": {
+            "productos": [
+              {
+                "id": 120,
+                "listaPrecioId": 1,
+                "productoId": 20,
+                "precio": 3100,
+                "activa": true,
+                "tipoMedida": "Unidad",
+                "listaPrecio": {
+                  "id": 1,
+                  "nombre": "Mayorista",
+                  "activa": true,
+                  "tipoMedida": "Unidad"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/mercadopago/generate-qr",
+      "ejemplos": [
+        {
+          "rutaReal": "/api/mercadopago/generate-qr",
+          "cuerpoEnviado": {
+            "monto": 22449.5,
+            "descripcion": "Compra de 7 productos",
+            "vendedorId": 11,
+            "sucursalId": 1,
+            "items": [
+              {
+                "productoId": 1,
+                "nombre": "Tomate perito",
+                "cantidad": 1.245,
+                "subtotal": 2988,
+                "precioHistorico": 2400,
+                "costo": 1488,
+                "listaPrecioId": null
+              },
+              {
+                "productoId": 2,
+                "nombre": "Papa negra",
+                "cantidad": 2.5,
+                "subtotal": 2250,
+                "precioHistorico": 900,
+                "costo": 558,
+                "listaPrecioId": null
+              },
+              {
+                "productoId": 5,
+                "nombre": "Manzana roja",
+                "cantidad": 0.98,
+                "subtotal": 2744,
+                "precioHistorico": 2800,
+                "costo": 1736,
+                "listaPrecioId": null
+              },
+              {
+                "productoId": 21,
+                "nombre": "Huevos blancos maple x30",
+                "cantidad": 1,
+                "subtotal": 6500,
+                "precioHistorico": 6500,
+                "costo": 4030,
+                "listaPrecioId": null
+              },
+              {
+                "productoId": 19,
+                "nombre": "Palta Hass",
+                "cantidad": 3,
+                "subtotal": 4500,
+                "precioHistorico": 1500,
+                "costo": 930,
+                "listaPrecioId": null
+              },
+              {
+                "productoId": 12,
+                "nombre": "Pimiento morrón rojo",
+                "cantidad": 0.415,
+                "subtotal": 1867.5,
+                "precioHistorico": 4500,
+                "costo": 2790,
+                "listaPrecioId": null
+              },
+              {
+                "productoId": 23,
+                "nombre": "Perejil (atado)",
+                "cantidad": 2,
+                "subtotal": 1600,
+                "precioHistorico": 800,
+                "costo": 496,
+                "listaPrecioId": null
+              }
+            ],
+            "requiresAfipInvoice": false,
+            "isSplitPayment": false,
+            "cashAmount": 0,
+            "afipData": null,
+            "tieneDescuento": false
+          },
+          "estado": 200,
+          "respuesta": {
+            "id": 9023,
+            "orderId": 9023,
+            "qrData": "00020101021243650016COM.MERCADOLIBRE0201306364fake-qr-lahuerta-9023",
+            "qrImageUrl": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMyAzMyIgc2hhcGUtcmVuZGVyaW5nPSJjcmlzcEVkZ2VzIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZmZmIi8+PGcgZmlsbD0iIzAwMCI+PHJlY3QgeD0iMiIgeT0iMiIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjIiIHk9IjMiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIyIiB5PSI0IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMiIgeT0iNSIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjIiIHk9IjYiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIyIiB5PSI3IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMiIgeT0iOCIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjIiIHk9IjEwIiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMiIgeT0iMTIiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIyIiB5PSIxMyIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjIiIHk9IjE0IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMiIgeT0iMTUiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIyIiB5PSIxNiIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjIiIHk9IjE3IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMiIgeT0iMTkiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIyIiB5PSIyMiIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjIiIHk9IjI0IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMiIgeT0iMjUiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIyIiB5PSIyNiIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjIiIHk9IjI3IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMiIgeT0iMjgiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIyIiB5PSIyOSIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjIiIHk9IjMwIiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMyIgeT0iMiIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjMiIHk9IjgiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIzIiB5PSIxNCIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjMiIHk9IjE1IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMyIgeT0iMTYiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIzIiB5PSIxNyIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjMiIHk9IjE5IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMyIgeT0iMjIiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIzIiB5PSIyNCIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjMiIHk9IjMwIiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iNCIgeT0iMiIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjQiIHk9IjQiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSI0IiB5PSI1IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iNCIgeT0iNiIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjQiIHk9IjgiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSI0IiB5PSIxMSIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjQiIHk9IjE0IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iNCIgeT0iMTUiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSI0IiB5PSIxNiIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjQiIHk9IjE3IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iNCIgeT0iMTgiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSI0IiB5PSIxOSIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjQiIHk9IjI0IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iNCIgeT0iMjYiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSI0IiB5PSIyNyIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjQiIHk9IjI4IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iNCIgeT0iMzAiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSI1IiB5PSIyIiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iNSIgeT0iNCIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjUiIHk9IjUiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSI1IiB5PSI2IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iNSIgeT0iOCIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjUiIHk9IjEwIiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iNSIgeT0iMTMiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSI1IiB5PSIxNSIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjUiIHk9IjE2IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iNSIgeT0iMTkiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSI1IiB5PSIyMiIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjUiIHk9IjI0IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iNSIgeT0iMjYiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSI1IiB5PSIyNyIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjUiIHk9IjI4IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iNSIgeT0iMzAiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSI2IiB5PSIyIiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iNiIgeT0iNCIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjYiIHk9IjUiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSI2IiB5PSI2IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iNiIgeT0iOCIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjYiIHk9IjEwIiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iNiIgeT0iMTIiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSI2IiB5PSIxMyIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjYiIHk9IjE1IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iNiIgeT0iMTgiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSI2IiB5PSIxOSIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjYiIHk9IjI0IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iNiIgeT0iMjYiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSI2IiB5PSIyNyIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjYiIHk9IjI4IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iNiIgeT0iMzAiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSI3IiB5PSIyIiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iNyIgeT0iOCIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjciIHk9IjExIiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iNyIgeT0iMTQiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSI3IiB5PSIxNSIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjciIHk9IjE2IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iNyIgeT0iMTciIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSI3IiB5PSIyMSIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjciIHk9IjIyIiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iNyIgeT0iMjQiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSI3IiB5PSIzMCIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjgiIHk9IjIiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSI4IiB5PSIzIiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iOCIgeT0iNCIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjgiIHk9IjUiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSI4IiB5PSI2IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iOCIgeT0iNyIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjgiIHk9IjgiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSI4IiB5PSIxMiIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjgiIHk9IjE1IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iOCIgeT0iMTYiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSI4IiB5PSIxOSIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjgiIHk9IjIyIiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iOCIgeT0iMjQiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSI4IiB5PSIyNSIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjgiIHk9IjI2IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iOCIgeT0iMjciIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSI4IiB5PSIyOCIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjgiIHk9IjI5IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iOCIgeT0iMzAiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSI5IiB5PSIxMSIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjkiIHk9IjEzIiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iOSIgeT0iMTQiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSI5IiB5PSIxNyIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjkiIHk9IjIxIiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMTAiIHk9IjUiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxMCIgeT0iNyIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjEwIiB5PSI4IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMTAiIHk9IjkiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxMCIgeT0iMTAiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxMCIgeT0iMTEiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxMCIgeT0iMTYiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxMCIgeT0iMTciIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxMCIgeT0iMTgiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxMCIgeT0iMTkiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxMCIgeT0iMjAiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxMCIgeT0iMjEiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxMCIgeT0iMjMiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxMCIgeT0iMjQiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxMCIgeT0iMjciIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxMCIgeT0iMjgiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxMCIgeT0iMjkiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxMSIgeT0iNiIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjExIiB5PSI3IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMTEiIHk9IjkiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxMSIgeT0iMTIiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxMSIgeT0iMTMiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxMSIgeT0iMTQiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxMSIgeT0iMTUiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxMSIgeT0iMTciIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxMSIgeT0iMTkiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxMSIgeT0iMjIiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxMSIgeT0iMjQiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxMSIgeT0iMjciIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxMSIgeT0iMjkiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxMSIgeT0iMzAiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxMiIgeT0iMyIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjEyIiB5PSI1IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMTIiIHk9IjYiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxMiIgeT0iOCIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjEyIiB5PSI5IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMTIiIHk9IjEwIiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMTIiIHk9IjEyIiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMTIiIHk9IjE1IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMTIiIHk9IjE2IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMTIiIHk9IjE4IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMTIiIHk9IjIzIiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMTIiIHk9IjI0IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMTIiIHk9IjI1IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMTIiIHk9IjI4IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMTMiIHk9IjQiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxMyIgeT0iNSIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjEzIiB5PSI3IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMTMiIHk9IjkiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxMyIgeT0iMTEiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxMyIgeT0iMTUiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxMyIgeT0iMTciIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxMyIgeT0iMjQiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxMyIgeT0iMzAiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxNCIgeT0iMiIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjE0IiB5PSIzIiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMTQiIHk9IjQiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxNCIgeT0iNyIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjE0IiB5PSI4IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMTQiIHk9IjExIiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMTQiIHk9IjEyIiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMTQiIHk9IjE4IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMTQiIHk9IjE5IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMTQiIHk9IjIwIiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMTQiIHk9IjIxIiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMTQiIHk9IjIyIiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMTQiIHk9IjIzIiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMTQiIHk9IjI1IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMTQiIHk9IjI2IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMTQiIHk9IjI3IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMTQiIHk9IjI4IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMTQiIHk9IjI5IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMTQiIHk9IjMwIiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMTUiIHk9IjIiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxNSIgeT0iMyIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjE1IiB5PSI1IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMTUiIHk9IjciIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxNSIgeT0iOCIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjE1IiB5PSI5IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMTUiIHk9IjEwIiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMTUiIHk9IjExIiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMTUiIHk9IjEzIiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMTUiIHk9IjE1IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMTUiIHk9IjE3IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMTUiIHk9IjE5IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMTUiIHk9IjIwIiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMTUiIHk9IjI0IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMTUiIHk9IjI5IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMTUiIHk9IjMwIiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMTYiIHk9IjIiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxNiIgeT0iNCIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjE2IiB5PSI1IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMTYiIHk9IjYiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxNiIgeT0iOCIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjE2IiB5PSI5IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMTYiIHk9IjE2IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMTYiIHk9IjE3IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMTYiIHk9IjE4IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMTYiIHk9IjE5IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMTYiIHk9IjIwIiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMTYiIHk9IjIxIiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMTYiIHk9IjIyIiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMTYiIHk9IjIzIiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMTYiIHk9IjI0IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMTYiIHk9IjI4IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMTYiIHk9IjI5IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMTciIHk9IjMiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxNyIgeT0iNCIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjE3IiB5PSI1IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMTciIHk9IjYiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxNyIgeT0iMTAiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxNyIgeT0iMTEiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxNyIgeT0iMTMiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxNyIgeT0iMTciIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxNyIgeT0iMTgiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxNyIgeT0iMjIiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxNyIgeT0iMjMiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxNyIgeT0iMjciIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxNyIgeT0iMjkiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxNyIgeT0iMzAiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxOCIgeT0iMyIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjE4IiB5PSI0IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMTgiIHk9IjUiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxOCIgeT0iNiIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjE4IiB5PSI3IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMTgiIHk9IjgiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxOCIgeT0iOSIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjE4IiB5PSIxMCIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjE4IiB5PSIxMSIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjE4IiB5PSIxMiIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjE4IiB5PSIxMyIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjE4IiB5PSIxNiIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjE4IiB5PSIxNyIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjE4IiB5PSIxOCIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjE4IiB5PSIxOSIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjE4IiB5PSIyMSIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjE4IiB5PSIyMyIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjE4IiB5PSIyNCIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjE4IiB5PSIyNiIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjE4IiB5PSIyNyIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjE4IiB5PSIyOSIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjE5IiB5PSI0IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMTkiIHk9IjUiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxOSIgeT0iNyIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjE5IiB5PSI4IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMTkiIHk9IjkiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxOSIgeT0iMTQiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxOSIgeT0iMTgiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxOSIgeT0iMTkiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxOSIgeT0iMjAiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxOSIgeT0iMjEiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxOSIgeT0iMjIiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxOSIgeT0iMjQiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIxOSIgeT0iMjgiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIyMCIgeT0iNCIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjIwIiB5PSI1IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMjAiIHk9IjYiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIyMCIgeT0iOCIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjIwIiB5PSIxMiIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjIwIiB5PSIxNCIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjIwIiB5PSIxNSIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjIwIiB5PSIxNiIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjIwIiB5PSIxNyIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjIwIiB5PSIyNCIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjIwIiB5PSIyOCIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjIxIiB5PSIzIiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMjEiIHk9IjQiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIyMSIgeT0iNyIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjIxIiB5PSIxMCIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjIxIiB5PSIxMSIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjIxIiB5PSIxMyIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjIxIiB5PSIxNCIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjIxIiB5PSIxNSIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjIxIiB5PSIxNiIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjIxIiB5PSIxNyIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjIxIiB5PSIxOSIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjIxIiB5PSIyMiIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjIxIiB5PSIyMyIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjIxIiB5PSIyNyIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjIxIiB5PSIyOCIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjIxIiB5PSIzMCIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjIyIiB5PSIyIiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMjIiIHk9IjMiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIyMiIgeT0iNCIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjIyIiB5PSI1IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMjIiIHk9IjgiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIyMiIgeT0iMTMiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIyMiIgeT0iMTQiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIyMiIgeT0iMTUiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIyMiIgeT0iMTYiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIyMiIgeT0iMTciIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIyMiIgeT0iMTkiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIyMiIgeT0iMjAiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIyMiIgeT0iMjQiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIyMiIgeT0iMjYiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIyMiIgeT0iMjciIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIyMyIgeT0iMTQiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIyMyIgeT0iMTciIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIyMyIgeT0iMTkiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIyMyIgeT0iMjAiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIyMyIgeT0iMjEiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIyMyIgeT0iMjIiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIyMyIgeT0iMjQiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIyMyIgeT0iMjUiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIyMyIgeT0iMjYiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIyMyIgeT0iMjciIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIyMyIgeT0iMjgiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIyNCIgeT0iMiIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjI0IiB5PSIzIiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMjQiIHk9IjQiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIyNCIgeT0iNSIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjI0IiB5PSI2IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMjQiIHk9IjciIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIyNCIgeT0iOCIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjI0IiB5PSIxMyIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjI0IiB5PSIxNSIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjI0IiB5PSIxNiIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjI0IiB5PSIxOCIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjI0IiB5PSIyMSIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjI0IiB5PSIyMiIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjI0IiB5PSIyMyIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjI0IiB5PSIyNCIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjI0IiB5PSIyNSIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjI0IiB5PSIyOSIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjI1IiB5PSIyIiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMjUiIHk9IjgiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIyNSIgeT0iMTEiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIyNSIgeT0iMTMiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIyNSIgeT0iMTQiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIyNSIgeT0iMTUiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIyNSIgeT0iMTgiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIyNSIgeT0iMjQiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIyNSIgeT0iMjUiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIyNSIgeT0iMzAiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIyNiIgeT0iMiIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjI2IiB5PSI0IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMjYiIHk9IjUiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIyNiIgeT0iNiIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjI2IiB5PSI4IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMjYiIHk9IjEwIiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMjYiIHk9IjExIiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMjYiIHk9IjEzIiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMjYiIHk9IjE2IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMjYiIHk9IjE5IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMjYiIHk9IjI4IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMjYiIHk9IjI5IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMjYiIHk9IjMwIiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMjciIHk9IjIiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIyNyIgeT0iNCIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjI3IiB5PSI1IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMjciIHk9IjYiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIyNyIgeT0iOCIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjI3IiB5PSIxMiIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjI3IiB5PSIxNSIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjI3IiB5PSIxNiIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjI3IiB5PSIxNyIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjI3IiB5PSIyMCIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjI3IiB5PSIyMiIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjI3IiB5PSIyMyIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjI3IiB5PSIyNCIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjI3IiB5PSIyNiIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjI3IiB5PSIyOCIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjI3IiB5PSIyOSIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjI3IiB5PSIzMCIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjI4IiB5PSIyIiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMjgiIHk9IjQiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIyOCIgeT0iNSIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjI4IiB5PSI2IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMjgiIHk9IjgiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIyOCIgeT0iMTAiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIyOCIgeT0iMTIiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIyOCIgeT0iMTgiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIyOCIgeT0iMTkiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIyOCIgeT0iMjEiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIyOCIgeT0iMjIiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIyOCIgeT0iMjMiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIyOCIgeT0iMjYiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIyOCIgeT0iMjciIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIyOCIgeT0iMjkiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIyOSIgeT0iMiIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjI5IiB5PSI4IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMjkiIHk9IjExIiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMjkiIHk9IjI2IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMjkiIHk9IjI5IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMjkiIHk9IjMwIiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMzAiIHk9IjIiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIzMCIgeT0iMyIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjMwIiB5PSI0IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMzAiIHk9IjUiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIzMCIgeT0iNiIgd2lkdGg9IjEiIGhlaWdodD0iMSIvPjxyZWN0IHg9IjMwIiB5PSI3IiB3aWR0aD0iMSIgaGVpZ2h0PSIxIi8+PHJlY3QgeD0iMzAiIHk9IjgiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIzMCIgeT0iMTAiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIzMCIgeT0iMTIiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIzMCIgeT0iMTQiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIzMCIgeT0iMTUiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIzMCIgeT0iMTYiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIzMCIgeT0iMjIiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIzMCIgeT0iMjMiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIzMCIgeT0iMjQiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIzMCIgeT0iMjYiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48cmVjdCB4PSIzMCIgeT0iMjgiIHdpZHRoPSIxIiBoZWlnaHQ9IjEiLz48L2c+PC9zdmc+",
+            "status": "PENDING",
+            "monto": 22449.5,
+            "isSplitPayment": false,
+            "cashAmount": 0
+          }
+        }
+      ]
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/mercadopago/check-status/:id",
+      "ejemplos": [
+        {
+          "rutaReal": "/api/mercadopago/check-status/9023",
+          "cuerpoEnviado": null,
+          "estado": 200,
+          "respuesta": {
+            "status": "PENDING"
+          }
+        }
+      ]
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/ordenes",
+      "ejemplos": [
+        {
+          "rutaReal": "/api/ordenes",
+          "cuerpoEnviado": {
+            "metodoPago": "tarjeta",
+            "total": 20204.55,
+            "items": [
+              {
+                "productoId": 1,
+                "cantidad": 1.245,
+                "subtotal": 2988,
+                "costo": 1488,
+                "precioHistorico": 2400,
+                "nombre": "Tomate perito",
+                "listaPrecioId": null,
+                "listaPrecioNombre": "Precio catálogo"
+              },
+              {
+                "productoId": 2,
+                "cantidad": 2.5,
+                "subtotal": 2250,
+                "costo": 558,
+                "precioHistorico": 900,
+                "nombre": "Papa negra",
+                "listaPrecioId": null,
+                "listaPrecioNombre": "Precio catálogo"
+              },
+              {
+                "productoId": 5,
+                "cantidad": 0.98,
+                "subtotal": 2744,
+                "costo": 1736,
+                "precioHistorico": 2800,
+                "nombre": "Manzana roja",
+                "listaPrecioId": null,
+                "listaPrecioNombre": "Precio catálogo"
+              },
+              {
+                "productoId": 21,
+                "cantidad": 1,
+                "subtotal": 6500,
+                "costo": 4030,
+                "precioHistorico": 6500,
+                "nombre": "Huevos blancos maple x30",
+                "listaPrecioId": null,
+                "listaPrecioNombre": "Precio catálogo"
+              },
+              {
+                "productoId": 19,
+                "cantidad": 3,
+                "subtotal": 4500,
+                "costo": 930,
+                "precioHistorico": 1500,
+                "nombre": "Palta Hass",
+                "listaPrecioId": null,
+                "listaPrecioNombre": "Precio catálogo"
+              },
+              {
+                "productoId": 12,
+                "cantidad": 0.415,
+                "subtotal": 1867.5,
+                "costo": 2790,
+                "precioHistorico": 4500,
+                "nombre": "Pimiento morrón rojo",
+                "listaPrecioId": null,
+                "listaPrecioNombre": "Precio catálogo"
+              },
+              {
+                "productoId": 23,
+                "cantidad": 2,
+                "subtotal": 1600,
+                "costo": 496,
+                "precioHistorico": 800,
+                "nombre": "Perejil (atado)",
+                "listaPrecioId": null,
+                "listaPrecioNombre": "Precio catálogo"
+              }
+            ],
+            "vendedorId": 11,
+            "sucursalId": 1,
+            "vendedor": "Lucía Fernández",
+            "businessName": "Verdulería La Huerta",
+            "createdAt": "2026-10-10T15:36:51.426Z",
+            "tieneDescuento": true,
+            "tipoDescuento": "porcentual",
+            "valorDescuento": 10,
+            "montoDescuento": 2244.9500000000003,
+            "subtotalSinDescuento": 22449.5,
+            "discountData": {
+              "type": "percentage",
+              "value": 10,
+              "amount": 2244.9500000000003
+            },
+            "subtotal": 22449.5,
+            "pagos": [
+              {
+                "metodoPago": "tarjeta",
+                "monto": 20204.55
+              }
+            ]
+          },
+          "estado": 200,
+          "respuesta": {
+            "id": 9022,
+            "idReal": 9022,
+            "estado": "COMPLETADA"
+          }
+        }
+      ]
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/ordenes/vendedor/:id",
+      "ejemplos": [
+        {
+          "rutaReal": "/api/ordenes/vendedor/11",
+          "cuerpoEnviado": null,
+          "estado": 200,
+          "respuesta": [
+            {
+              "id": 9021,
+              "idReal": 9021,
+              "fecha": "2026-10-10T15:23:37.370Z",
+              "metodoPago": "efectivo",
+              "total": 7650,
+              "tieneDescuento": true,
+              "tipoDescuento": "porcentual",
+              "valorDescuento": 10,
+              "montoDescuento": 850,
+              "subtotalSinDescuento": 8500,
+              "estado": "COMPLETADA",
+              "vendedor": {
+                "nombre": "Lucía Fernández"
+              },
+              "items": [
+                {
+                  "productoId": 1,
+                  "nombre": "Tomate perito",
+                  "cantidad": 1.25,
+                  "precioHistorico": 2400,
+                  "subtotal": 3000
+                },
+                {
+                  "productoId": 21,
+                  "nombre": "Huevos blancos maple x30",
+                  "cantidad": 1,
+                  "precioHistorico": 5500,
+                  "subtotal": 5500
+                }
+              ]
+            },
+            {
+              "id": 9020,
+              "idReal": 9020,
+              "fecha": "2026-10-10T15:00:37.370Z",
+              "metodoPago": "qr",
+              "total": 12480,
+              "tieneDescuento": false,
+              "estado": "COMPLETADA",
+              "vendedor": {
+                "nombre": "Lucía Fernández"
+              },
+              "items": [
+                {
+                  "productoId": 5,
+                  "nombre": "Manzana roja",
+                  "cantidad": 2.1,
+                  "precioHistorico": 2800,
+                  "subtotal": 5880
+                },
+                {
+                  "productoId": 15,
+                  "nombre": "Uva blanca",
+                  "cantidad": 1.375,
+                  "precioHistorico": 4800,
+                  "subtotal": 6600
+                }
+              ]
+            },
+            {
+              "id": 9019,
+              "idReal": 9019,
+              "fecha": "2026-10-10T14:30:37.370Z",
+              "metodoPago": "tarjeta",
+              "total": 23900,
+              "tieneDescuento": false,
+              "estado": "COMPLETADA",
+              "vendedor": {
+                "nombre": "Lucía Fernández"
+              },
+              "items": [
+                {
+                  "productoId": 20,
+                  "nombre": "Ananá",
+                  "cantidad": 2,
+                  "precioHistorico": 3500,
+                  "subtotal": 7000
+                },
+                {
+                  "productoId": 18,
+                  "nombre": "Kiwi",
+                  "cantidad": 1.2,
+                  "precioHistorico": 4000,
+                  "subtotal": 4800
+                },
+                {
+                  "productoId": 12,
+                  "nombre": "Pimiento morrón rojo",
+                  "cantidad": 0.8,
+                  "precioHistorico": 4500,
+                  "subtotal": 3600
+                },
+                {
+                  "productoId": 21,
+                  "nombre": "Huevos blancos maple x30",
+                  "cantidad": 1,
+                  "precioHistorico": 6500,
+                  "subtotal": 6500
+                },
+                {
+                  "productoId": 22,
+                  "nombre": "Ajo (cabeza)",
+                  "cantidad": 3,
+                  "precioHistorico": 600,
+                  "subtotal": 1800
+                },
+                {
+                  "productoId": 24,
+                  "nombre": "Choclo",
+                  "cantidad": 3,
+                  "precioHistorico": 700,
+                  "subtotal": 200
+                }
+              ]
+            },
+            {
+              "id": 9018,
+              "idReal": 9018,
+              "fecha": "2026-10-10T13:55:37.370Z",
+              "metodoPago": "split",
+              "total": 15300,
+              "tieneDescuento": false,
+              "estado": "COMPLETADA",
+              "vendedor": {
+                "nombre": "Lucía Fernández"
+              },
+              "items": [
+                {
+                  "productoId": 2,
+                  "nombre": "Papa negra",
+                  "cantidad": 5,
+                  "precioHistorico": 900,
+                  "subtotal": 4500
+                },
+                {
+                  "productoId": 3,
+                  "nombre": "Cebolla",
+                  "cantidad": 3,
+                  "precioHistorico": 1100,
+                  "subtotal": 3300
+                },
+                {
+                  "productoId": 8,
+                  "nombre": "Zapallo anco",
+                  "cantidad": 2.5,
+                  "precioHistorico": 1200,
+                  "subtotal": 3000
+                },
+                {
+                  "productoId": 9,
+                  "nombre": "Zanahoria",
+                  "cantidad": 4.5,
+                  "precioHistorico": 1000,
+                  "subtotal": 4500
+                }
+              ]
+            },
+            {
+              "id": 9017,
+              "idReal": 9017,
+              "fecha": "2026-10-10T13:20:37.370Z",
+              "metodoPago": "efectivo",
+              "total": 4350,
+              "tieneDescuento": false,
+              "estado": "COMPLETADA",
+              "vendedor": {
+                "nombre": "Lucía Fernández"
+              },
+              "items": [
+                {
+                  "productoId": 4,
+                  "nombre": "Banana Ecuador",
+                  "cantidad": 1.5,
+                  "precioHistorico": 2200,
+                  "subtotal": 3300
+                },
+                {
+                  "productoId": 23,
+                  "nombre": "Perejil (atado)",
+                  "cantidad": 1,
+                  "precioHistorico": 800,
+                  "subtotal": 800
+                }
+              ]
+            },
+            {
+              "id": 9016,
+              "idReal": 9016,
+              "fecha": "2026-10-10T12:33:37.370Z",
+              "metodoPago": "tarjeta",
+              "total": 9800,
+              "tieneDescuento": true,
+              "tipoDescuento": "cantidad",
+              "valorDescuento": 500,
+              "montoDescuento": 500,
+              "subtotalSinDescuento": 10300,
+              "estado": "COMPLETADA",
+              "vendedor": {
+                "nombre": "Lucía Fernández"
+              },
+              "items": [
+                {
+                  "productoId": 25,
+                  "nombre": "Frutilla bandeja 500 g",
+                  "cantidad": 2,
+                  "precioHistorico": 3000,
+                  "subtotal": 6000
+                },
+                {
+                  "productoId": 10,
+                  "nombre": "Limón",
+                  "cantidad": 1,
+                  "precioHistorico": 2000,
+                  "subtotal": 2000
+                },
+                {
+                  "productoId": 6,
+                  "nombre": "Naranja de jugo",
+                  "cantidad": 1.5,
+                  "precioHistorico": 1500,
+                  "subtotal": 2300
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/cierres",
+      "ejemplos": [
+        {
+          "rutaReal": "/api/cierres",
+          "cuerpoEnviado": {
+            "vendedorId": 11,
+            "sucursalId": 1,
+            "fechaInicio": "2026-10-10T00:00:00.000Z",
+            "fechaCierre": "2026-10-10T12:37:00.619Z",
+            "periodo": "mañana"
+          },
+          "estado": 200,
+          "respuesta": {
+            "id": 311,
+            "periodo": "mañana",
+            "fechaInicio": "2026-10-10T00:00:00.000Z",
+            "fechaCierre": "2026-10-10T12:37:00.619Z",
+            "totalVentas": 186450,
+            "cantidadVentas": 27,
+            "ventasPorMetodo": {
+              "efectivo": 84300,
+              "tarjeta": 61250,
+              "qr": 32400,
+              "transferencia": 8500
+            },
+            "ventasPorVendedor": [
+              {
+                "vendedorId": 11,
+                "nombre": "Lucía Fernández",
+                "total": 112300,
+                "cantidad": 16
+              },
+              {
+                "vendedorId": 12,
+                "nombre": "Martín Gómez",
+                "total": 74150,
+                "cantidad": 11
+              }
+            ],
+            "vendedor": {
+              "nombre": "Lucía Fernández"
+            },
+            "sucursal": {
+              "nombre": "Casa central"
+            },
+            "totalFacturas": 2,
+            "montoFacturas": 25050
+          }
+        },
+        {
+          "rutaReal": "/api/cierres",
+          "cuerpoEnviado": {
+            "vendedorId": 11,
+            "sucursalId": 1,
+            "fechaInicio": "2026-10-10T00:00:00.000Z",
+            "fechaCierre": "2026-10-10T12:37:06.625Z",
+            "periodo": "mañana"
+          },
+          "estado": 200,
+          "respuesta": {
+            "id": 311,
+            "periodo": "mañana",
+            "fechaInicio": "2026-10-10T00:00:00.000Z",
+            "fechaCierre": "2026-10-10T12:37:06.625Z",
+            "totalVentas": 186450,
+            "cantidadVentas": 27,
+            "ventasPorMetodo": {
+              "efectivo": 84300,
+              "tarjeta": 61250,
+              "qr": 32400,
+              "transferencia": 8500
+            },
+            "ventasPorVendedor": [
+              {
+                "vendedorId": 11,
+                "nombre": "Lucía Fernández",
+                "total": 112300,
+                "cantidad": 16
+              },
+              {
+                "vendedorId": 12,
+                "nombre": "Martín Gómez",
+                "total": 74150,
+                "cantidad": 11
+              }
+            ],
+            "vendedor": {
+              "nombre": "Lucía Fernández"
+            },
+            "sucursal": {
+              "nombre": "Casa central"
+            },
+            "totalFacturas": 2,
+            "montoFacturas": 25050
+          }
+        }
+      ]
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/usuarios",
+      "ejemplos": [
+        {
+          "rutaReal": "/api/usuarios",
+          "cuerpoEnviado": null,
+          "estado": 200,
+          "respuesta": [
+            {
+              "id": 11,
+              "nombre": "Lucía Fernández",
+              "email": "lucia@lahuerta.test",
+              "rol": {
+                "nombre": "VENDEDOR"
+              },
+              "sucursalId": 1
+            },
+            {
+              "id": 12,
+              "nombre": "Martín Gómez",
+              "email": "martin@lahuerta.test",
+              "rol": {
+                "nombre": "VENDEDOR"
+              },
+              "sucursalId": 1
+            },
+            {
+              "id": 13,
+              "nombre": "Sofía Ramírez",
+              "email": "sofia@lahuerta.test",
+              "rol": {
+                "nombre": "VENDEDOR"
+              },
+              "sucursalId": 1
+            },
+            {
+              "id": 14,
+              "nombre": "Diego Álvarez",
+              "email": "diego@lahuerta.test",
+              "rol": {
+                "nombre": "VENDEDOR"
+              },
+              "sucursalId": 1
+            },
+            {
+              "id": 15,
+              "nombre": "Carla Benítez",
+              "email": "carla@lahuerta.test",
+              "rol": {
+                "nombre": "VENDEDOR"
+              },
+              "sucursalId": 1
+            },
+            {
+              "id": 1,
+              "nombre": "Roberto Sánchez",
+              "email": "admin@lahuerta.test",
+              "rol": {
+                "nombre": "ADMIN"
+              },
+              "sucursalId": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/sucursales",
+      "ejemplos": [
+        {
+          "rutaReal": "/api/sucursales",
+          "cuerpoEnviado": null,
+          "estado": 200,
+          "respuesta": [
+            {
+              "id": 1,
+              "nombre": "Casa central",
+              "ubicacion": "Av. San Martín 1450, Godoy Cruz, Mendoza",
+              "direccion": "Av. San Martín 1450, Godoy Cruz",
+              "telefono": "261 424-8890",
+              "esPrincipal": true,
+              "businessId": 7
+            },
+            {
+              "id": 2,
+              "nombre": "Sucursal Mercado",
+              "ubicacion": "Mercado Cooperativo, Guaymallén",
+              "direccion": "Mercado Cooperativo, Guaymallén",
+              "telefono": "261 431-2207",
+              "esPrincipal": false,
+              "businessId": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "metodo": "POST",
+      "ruta": "/api/facturas/crear-afip",
+      "ejemplos": [
+        {
+          "rutaReal": "/api/facturas/crear-afip",
+          "cuerpoEnviado": {
+            "tipoFactura": "B",
+            "esConsumidorFinal": true,
+            "clienteId": null,
+            "productos": [
+              {
+                "productoId": 1,
+                "cantidad": 1.245,
+                "precio": 2400,
+                "subtotal": 2988,
+                "nombre": "Tomate perito"
+              },
+              {
+                "productoId": 2,
+                "cantidad": 2.5,
+                "precio": 900,
+                "subtotal": 2250,
+                "nombre": "Papa negra"
+              },
+              {
+                "productoId": 5,
+                "cantidad": 0.98,
+                "precio": 2800,
+                "subtotal": 2744,
+                "nombre": "Manzana roja"
+              },
+              {
+                "productoId": 21,
+                "cantidad": 1,
+                "precio": 6500,
+                "subtotal": 6500,
+                "nombre": "Huevos blancos maple x30"
+              },
+              {
+                "productoId": 19,
+                "cantidad": 3,
+                "precio": 1500,
+                "subtotal": 4500,
+                "nombre": "Palta Hass"
+              },
+              {
+                "productoId": 12,
+                "cantidad": 0.415,
+                "precio": 4500,
+                "subtotal": 1867.5,
+                "nombre": "Pimiento morrón rojo"
+              },
+              {
+                "productoId": 23,
+                "cantidad": 2,
+                "precio": 800,
+                "subtotal": 1600,
+                "nombre": "Perejil (atado)"
+              }
+            ],
+            "metodoPago": "tarjeta",
+            "vendedorId": 11,
+            "sucursalId": 1,
+            "observaciones": "Factura generada desde Electron",
+            "tieneDescuento": true,
+            "tipoDescuento": "porcentual",
+            "valorDescuento": 5,
+            "montoDescuento": 1122.4750000000001,
+            "subtotalSinDescuento": 22449.5,
+            "total": 22449.5
+          },
+          "estado": 200,
+          "respuesta": {
+            "success": true,
+            "factura": {
+              "id": "fb89",
+              "numero": "B-0002-00000213",
+              "tipoFactura": "B",
+              "puntoVenta": 2,
+              "fecha": "2026-10-10T15:37:44.641Z"
+            },
+            "afip": {
+              "cae": "75412369899123",
+              "vencimientoCae": "2026-10-20T15:37:44.641Z",
+              "numeroComprobante": 213,
+              "puntoVenta": 2,
+              "tipoComprobante": 6
+            }
+          }
+        }
+      ]
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/productos/:id",
+      "ejemplos": [
+        {
+          "rutaReal": "/api/productos/1",
+          "cuerpoEnviado": null,
+          "estado": 200,
+          "respuesta": {
+            "id": 1,
+            "nombre": "Tomate perito",
+            "precio": 2400,
+            "tipoMedida": "Kg",
+            "costo": 1488,
+            "codigoBarras": null,
+            "plu": "001",
+            "ivaIncluido": true,
+            "ivaPorcentaje": 10.5,
+            "stock": 85,
+            "activo": true
+          }
+        },
+        {
+          "rutaReal": "/api/productos/2",
+          "cuerpoEnviado": null,
+          "estado": 200,
+          "respuesta": {
+            "id": 2,
+            "nombre": "Papa negra",
+            "precio": 900,
+            "tipoMedida": "Kg",
+            "costo": 558,
+            "codigoBarras": null,
+            "plu": "002",
+            "ivaIncluido": true,
+            "ivaPorcentaje": 10.5,
+            "stock": 85,
+            "activo": true
+          }
+        },
+        {
+          "rutaReal": "/api/productos/5",
+          "cuerpoEnviado": null,
+          "estado": 200,
+          "respuesta": {
+            "id": 5,
+            "nombre": "Manzana roja",
+            "precio": 2800,
+            "tipoMedida": "Kg",
+            "costo": 1736,
+            "codigoBarras": null,
+            "plu": "005",
+            "ivaIncluido": true,
+            "ivaPorcentaje": 10.5,
+            "stock": 85,
+            "activo": true
+          }
+        }
+      ]
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/clientes",
+      "ejemplos": [
+        {
+          "rutaReal": "/api/clientes?page=1&limit=10",
+          "cuerpoEnviado": null,
+          "estado": 200,
+          "respuesta": {
+            "clientes": [
+              {
+                "id": "c1",
+                "nombre": "Restaurante El Mesón",
+                "apellido": null,
+                "razonSocial": "El Mesón S.A.",
+                "cuit": "30-70987654-3",
+                "condicionFiscal": "Responsable Inscripto",
+                "email": "compras@elmeson.test",
+                "telefono": "261 555-0101",
+                "direccion": "Belgrano 320, Mendoza"
+              },
+              {
+                "id": "c2",
+                "nombre": "Almacén Don Pepe",
+                "apellido": null,
+                "razonSocial": "José Pérez",
+                "cuit": "20-23456789-1",
+                "condicionFiscal": "Monotributista",
+                "email": "donpepe@correo.test",
+                "telefono": "261 555-0102",
+                "direccion": "Perú 1120, Godoy Cruz"
+              },
+              {
+                "id": "c3",
+                "nombre": "María",
+                "apellido": "Quiroga",
+                "razonSocial": null,
+                "cuit": "27-30111222-4",
+                "condicionFiscal": "Consumidor Final",
+                "email": null,
+                "telefono": "261 555-0103",
+                "direccion": "Barrio Bombal, Godoy Cruz"
+              },
+              {
+                "id": "c4",
+                "nombre": "Hotel Aconcagua",
+                "apellido": null,
+                "razonSocial": "Hotelera Cuyana S.A.",
+                "cuit": "30-71555444-9",
+                "condicionFiscal": "Responsable Inscripto",
+                "email": "proveedores@aconcagua.test",
+                "telefono": "261 555-0104",
+                "direccion": "San Lorenzo 545, Mendoza"
+              },
+              {
+                "id": "c5",
+                "nombre": "Comedor Los Peques",
+                "apellido": null,
+                "razonSocial": "Asociación Civil Los Peques",
+                "cuit": "30-70222333-5",
+                "condicionFiscal": "Exento",
+                "email": null,
+                "telefono": "261 555-0105",
+                "direccion": "Lavalle 77, Las Heras"
+              },
+              {
+                "id": "c6",
+                "nombre": "Carlos",
+                "apellido": "Molina",
+                "razonSocial": null,
+                "cuit": "20-28999111-7",
+                "condicionFiscal": "Monotributista",
+                "email": "cmolina@correo.test",
+                "telefono": "261 555-0106",
+                "direccion": "Mitre 2301, Luján de Cuyo"
+              }
+            ],
+            "pagination": {
+              "page": 1,
+              "limit": 10,
+              "total": 6,
+              "totalPages": 1,
+              "hasNext": false,
+              "hasPrev": false
+            }
+          }
+        }
+      ]
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/facturas",
+      "ejemplos": [
+        {
+          "rutaReal": "/api/facturas?excludeTipoFactura=B&page=1&limit=12&sort=fecha&order=desc",
+          "cuerpoEnviado": null,
+          "estado": 200,
+          "respuesta": {
+            "facturas": [
+              {
+                "id": "f101",
+                "numero": "R-0002-00000148",
+                "tipoFactura": "remito",
+                "puntoVenta": 2,
+                "fecha": "2026-10-09T15:35:37.370Z",
+                "subtotal": 86500,
+                "impuestos": 0,
+                "total": 86500,
+                "estado": "pendiente",
+                "cliente": {
+                  "id": "c1",
+                  "nombre": "Restaurante El Mesón",
+                  "apellido": null,
+                  "razonSocial": "El Mesón S.A.",
+                  "cuit": "30-70987654-3",
+                  "condicionFiscal": "Responsable Inscripto",
+                  "email": "compras@elmeson.test",
+                  "telefono": "261 555-0101",
+                  "direccion": "Belgrano 320, Mendoza"
+                },
+                "clienteId": "c1",
+                "esCuentaCorriente": true,
+                "observaciones": "Entrega por la mañana",
+                "detalles": [
+                  {
+                    "id": 1,
+                    "productoId": 1,
+                    "descripcion": "Tomate perito",
+                    "cantidad": 15,
+                    "precioUnitario": 2100,
+                    "subtotal": 31500,
+                    "producto": {
+                      "id": 1,
+                      "nombre": "Tomate perito",
+                      "precio": 2400,
+                      "tipoMedida": "Kg",
+                      "costo": 1488,
+                      "codigoBarras": null,
+                      "plu": "001",
+                      "ivaIncluido": true,
+                      "ivaPorcentaje": 10.5,
+                      "stock": 85,
+                      "activo": true
+                    }
+                  },
+                  {
+                    "id": 2,
+                    "productoId": 2,
+                    "descripcion": "Papa negra",
+                    "cantidad": 25,
+                    "precioUnitario": 780,
+                    "subtotal": 19500,
+                    "producto": {
+                      "id": 2,
+                      "nombre": "Papa negra",
+                      "precio": 900,
+                      "tipoMedida": "Kg",
+                      "costo": 558,
+                      "codigoBarras": null,
+                      "plu": "002",
+                      "ivaIncluido": true,
+                      "ivaPorcentaje": 10.5,
+                      "stock": 85,
+                      "activo": true
+                    }
+                  },
+                  {
+                    "id": 3,
+                    "productoId": 3,
+                    "descripcion": "Cebolla",
+                    "cantidad": 10,
+                    "precioUnitario": 950,
+                    "subtotal": 9500,
+                    "producto": {
+                      "id": 3,
+                      "nombre": "Cebolla",
+                      "precio": 1100,
+                      "tipoMedida": "Kg",
+                      "costo": 682,
+                      "codigoBarras": null,
+                      "plu": "003",
+                      "ivaIncluido": true,
+                      "ivaPorcentaje": 10.5,
+                      "stock": 85,
+                      "activo": true
+                    }
+                  },
+                  {
+                    "id": 4,
+                    "productoId": 12,
+                    "descripcion": "Pimiento morrón rojo",
+                    "cantidad": 4,
+                    "precioUnitario": 4500,
+                    "subtotal": 18000,
+                    "producto": {
+                      "id": 12,
+                      "nombre": "Pimiento morrón rojo",
+                      "precio": 4500,
+                      "tipoMedida": "Kg",
+                      "costo": 2790,
+                      "codigoBarras": null,
+                      "plu": "012",
+                      "ivaIncluido": true,
+                      "ivaPorcentaje": 10.5,
+                      "stock": 85,
+                      "activo": true
+                    }
+                  }
+                ],
+                "pagos": [
+                  {
+                    "id": 501,
+                    "monto": 30000,
+                    "metodoPago": "efectivo",
+                    "fecha": "2026-10-09T15:35:37.370Z",
+                    "referencia": "Seña",
+                    "estado": "aprobado"
+                  }
+                ],
+                "pagoInicial": 30000,
+                "saldoPendiente": 56500
+              },
+              {
+                "id": "f102",
+                "numero": "A-0002-00000013",
+                "tipoFactura": "A",
+                "puntoVenta": 2,
+                "fecha": "2026-10-07T15:35:37.370Z",
+                "subtotal": 57851.24,
+                "impuestos": 6074.38,
+                "total": 63925.62,
+                "estado": "pagada",
+                "cliente": {
+                  "id": "c4",
+                  "nombre": "Hotel Aconcagua",
+                  "apellido": null,
+                  "razonSocial": "Hotelera Cuyana S.A.",
+                  "cuit": "30-71555444-9",
+                  "condicionFiscal": "Responsable Inscripto",
+                  "email": "proveedores@aconcagua.test",
+                  "telefono": "261 555-0104",
+                  "direccion": "San Lorenzo 545, Mendoza"
+                },
+                "clienteId": "c4",
+                "esCuentaCorriente": true,
+                "cae": "75412369874521",
+                "vencimientoCae": "2026-10-17T15:35:37.370Z",
+                "detalles": [
+                  {
+                    "id": 5,
+                    "productoId": 5,
+                    "descripcion": "Manzana roja",
+                    "cantidad": 8,
+                    "precioUnitario": 2800,
+                    "subtotal": 22400,
+                    "producto": {
+                      "id": 5,
+                      "nombre": "Manzana roja",
+                      "precio": 2800,
+                      "tipoMedida": "Kg",
+                      "costo": 1736,
+                      "codigoBarras": null,
+                      "plu": "005",
+                      "ivaIncluido": true,
+                      "ivaPorcentaje": 10.5,
+                      "stock": 85,
+                      "activo": true
+                    }
+                  },
+                  {
+                    "id": 6,
+                    "productoId": 15,
+                    "descripcion": "Uva blanca",
+                    "cantidad": 3,
+                    "precioUnitario": 4800,
+                    "subtotal": 14400,
+                    "producto": {
+                      "id": 15,
+                      "nombre": "Uva blanca",
+                      "precio": 4800,
+                      "tipoMedida": "Kg",
+                      "costo": 2976,
+                      "codigoBarras": null,
+                      "plu": "015",
+                      "ivaIncluido": true,
+                      "ivaPorcentaje": 10.5,
+                      "stock": 85,
+                      "activo": true
+                    }
+                  },
+                  {
+                    "id": 7,
+                    "productoId": 21,
+                    "descripcion": "Huevos blancos maple x30",
+                    "cantidad": 4,
+                    "precioUnitario": 6500,
+                    "subtotal": 26000,
+                    "producto": {
+                      "id": 21,
+                      "nombre": "Huevos blancos maple x30",
+                      "precio": 6500,
+                      "tipoMedida": "Unidad",
+                      "costo": 4030,
+                      "codigoBarras": "7791234500033",
+                      "plu": null,
+                      "ivaIncluido": true,
+                      "ivaPorcentaje": 21,
+                      "stock": 40,
+                      "activo": true
+                    }
+                  },
+                  {
+                    "id": 8,
+                    "productoId": 18,
+                    "descripcion": "Kiwi",
+                    "cantidad": 2.5,
+                    "precioUnitario": 4000,
+                    "subtotal": 10000,
+                    "producto": {
+                      "id": 18,
+                      "nombre": "Kiwi",
+                      "precio": 4000,
+                      "tipoMedida": "Kg",
+                      "costo": 2480,
+                      "codigoBarras": null,
+                      "plu": "018",
+                      "ivaIncluido": true,
+                      "ivaPorcentaje": 10.5,
+                      "stock": 85,
+                      "activo": true
+                    }
+                  }
+                ],
+                "pagos": [
+                  {
+                    "id": 502,
+                    "monto": 40000,
+                    "metodoPago": "transferencia",
+                    "fecha": "2026-10-07T15:35:37.370Z",
+                    "referencia": "Transf. Banco Nación #88231",
+                    "estado": "aprobado"
+                  },
+                  {
+                    "id": 503,
+                    "monto": 23925.62,
+                    "metodoPago": "tarjeta",
+                    "fecha": "2026-10-08T15:35:37.370Z",
+                    "referencia": "Visa débito",
+                    "estado": "aprobado"
+                  }
+                ],
+                "pagoInicial": 40000,
+                "saldoPendiente": 0
+              },
+              {
+                "id": "f103",
+                "numero": "R-0002-00000147",
+                "tipoFactura": "remito",
+                "puntoVenta": 2,
+                "fecha": "2026-10-06T15:35:37.370Z",
+                "subtotal": 41200,
+                "impuestos": 0,
+                "total": 41200,
+                "estado": "pendiente",
+                "cliente": {
+                  "id": "c2",
+                  "nombre": "Almacén Don Pepe",
+                  "apellido": null,
+                  "razonSocial": "José Pérez",
+                  "cuit": "20-23456789-1",
+                  "condicionFiscal": "Monotributista",
+                  "email": "donpepe@correo.test",
+                  "telefono": "261 555-0102",
+                  "direccion": "Perú 1120, Godoy Cruz"
+                },
+                "clienteId": "c2",
+                "esCuentaCorriente": true,
+                "detalles": [
+                  {
+                    "id": 9,
+                    "productoId": 6,
+                    "descripcion": "Naranja de jugo",
+                    "cantidad": 10,
+                    "precioUnitario": 1500,
+                    "subtotal": 15000,
+                    "producto": {
+                      "id": 6,
+                      "nombre": "Naranja de jugo",
+                      "precio": 1500,
+                      "tipoMedida": "Kg",
+                      "costo": 930,
+                      "codigoBarras": null,
+                      "plu": "006",
+                      "ivaIncluido": true,
+                      "ivaPorcentaje": 10.5,
+                      "stock": 85,
+                      "activo": true
+                    }
+                  },
+                  {
+                    "id": 10,
+                    "productoId": 7,
+                    "descripcion": "Mandarina",
+                    "cantidad": 8,
+                    "precioUnitario": 1600,
+                    "subtotal": 12800,
+                    "producto": {
+                      "id": 7,
+                      "nombre": "Mandarina",
+                      "precio": 1600,
+                      "tipoMedida": "Kg",
+                      "costo": 992,
+                      "codigoBarras": null,
+                      "plu": "007",
+                      "ivaIncluido": true,
+                      "ivaPorcentaje": 10.5,
+                      "stock": 85,
+                      "activo": true
+                    }
+                  },
+                  {
+                    "id": 11,
+                    "productoId": 4,
+                    "descripcion": "Banana Ecuador",
+                    "cantidad": 6,
+                    "precioUnitario": 2200,
+                    "subtotal": 13200,
+                    "producto": {
+                      "id": 4,
+                      "nombre": "Banana Ecuador",
+                      "precio": 2200,
+                      "tipoMedida": "Kg",
+                      "costo": 1364,
+                      "codigoBarras": null,
+                      "plu": "004",
+                      "ivaIncluido": true,
+                      "ivaPorcentaje": 10.5,
+                      "stock": 85,
+                      "activo": true
+                    }
+                  }
+                ],
+                "pagos": [],
+                "pagoInicial": 0,
+                "saldoPendiente": 41200
+              },
+              {
+                "id": "f104",
+                "numero": "C-0002-00000004",
+                "tipoFactura": "C",
+                "puntoVenta": 2,
+                "fecha": "2026-10-04T15:35:37.370Z",
+                "subtotal": 18600,
+                "impuestos": 0,
+                "total": 18600,
+                "estado": "pagada",
+                "cliente": {
+                  "id": "c3",
+                  "nombre": "María",
+                  "apellido": "Quiroga",
+                  "razonSocial": null,
+                  "cuit": "27-30111222-4",
+                  "condicionFiscal": "Consumidor Final",
+                  "email": null,
+                  "telefono": "261 555-0103",
+                  "direccion": "Barrio Bombal, Godoy Cruz"
+                },
+                "clienteId": "c3",
+                "esCuentaCorriente": false,
+                "cae": "75412369870044",
+                "vencimientoCae": "2026-10-06T15:35:37.370Z",
+                "detalles": [
+                  {
+                    "id": 12,
+                    "productoId": 25,
+                    "descripcion": "Frutilla bandeja 500 g",
+                    "cantidad": 2,
+                    "precioUnitario": 3000,
+                    "subtotal": 6000,
+                    "producto": {
+                      "id": 25,
+                      "nombre": "Frutilla bandeja 500 g",
+                      "precio": 3000,
+                      "tipoMedida": "Unidad",
+                      "costo": 1860,
+                      "codigoBarras": "7791234500071",
+                      "plu": null,
+                      "ivaIncluido": true,
+                      "ivaPorcentaje": 10.5,
+                      "stock": 40,
+                      "activo": true
+                    }
+                  },
+                  {
+                    "id": 13,
+                    "productoId": 19,
+                    "descripcion": "Palta Hass",
+                    "cantidad": 4,
+                    "precioUnitario": 1500,
+                    "subtotal": 6000,
+                    "producto": {
+                      "id": 19,
+                      "nombre": "Palta Hass",
+                      "precio": 1500,
+                      "tipoMedida": "Unidad",
+                      "costo": 930,
+                      "codigoBarras": "7791234500019",
+                      "plu": null,
+                      "ivaIncluido": true,
+                      "ivaPorcentaje": 10.5,
+                      "stock": 40,
+                      "activo": true
+                    }
+                  },
+                  {
+                    "id": 14,
+                    "productoId": 23,
+                    "descripcion": "Perejil (atado)",
+                    "cantidad": 3,
+                    "precioUnitario": 800,
+                    "subtotal": 2400,
+                    "producto": {
+                      "id": 23,
+                      "nombre": "Perejil (atado)",
+                      "precio": 800,
+                      "tipoMedida": "Unidad",
+                      "costo": 496,
+                      "codigoBarras": "7791234500057",
+                      "plu": null,
+                      "ivaIncluido": true,
+                      "ivaPorcentaje": 10.5,
+                      "stock": 40,
+                      "activo": true
+                    }
+                  }
+                ],
+                "pagos": [
+                  {
+                    "id": 504,
+                    "monto": 18600,
+                    "metodoPago": "efectivo",
+                    "fecha": "2026-10-04T15:35:37.370Z",
+                    "estado": "aprobado"
+                  }
+                ],
+                "pagoInicial": 18600,
+                "saldoPendiente": 0
+              },
+              {
+                "id": "f105",
+                "numero": "R-0002-00000146",
+                "tipoFactura": "remito",
+                "puntoVenta": 2,
+                "fecha": "2026-10-02T15:35:37.370Z",
+                "subtotal": 128400,
+                "impuestos": 0,
+                "total": 128400,
+                "estado": "pendiente",
+                "cliente": {
+                  "id": "c5",
+                  "nombre": "Comedor Los Peques",
+                  "apellido": null,
+                  "razonSocial": "Asociación Civil Los Peques",
+                  "cuit": "30-70222333-5",
+                  "condicionFiscal": "Exento",
+                  "email": null,
+                  "telefono": "261 555-0105",
+                  "direccion": "Lavalle 77, Las Heras"
+                },
+                "clienteId": "c5",
+                "esCuentaCorriente": true,
+                "observaciones": "Pago a 30 días",
+                "detalles": [
+                  {
+                    "id": 15,
+                    "productoId": 2,
+                    "descripcion": "Papa negra",
+                    "cantidad": 40,
+                    "precioUnitario": 780,
+                    "subtotal": 31200,
+                    "producto": {
+                      "id": 2,
+                      "nombre": "Papa negra",
+                      "precio": 900,
+                      "tipoMedida": "Kg",
+                      "costo": 558,
+                      "codigoBarras": null,
+                      "plu": "002",
+                      "ivaIncluido": true,
+                      "ivaPorcentaje": 10.5,
+                      "stock": 85,
+                      "activo": true
+                    }
+                  },
+                  {
+                    "id": 16,
+                    "productoId": 8,
+                    "descripcion": "Zapallo anco",
+                    "cantidad": 20,
+                    "precioUnitario": 1200,
+                    "subtotal": 24000,
+                    "producto": {
+                      "id": 8,
+                      "nombre": "Zapallo anco",
+                      "precio": 1200,
+                      "tipoMedida": "Kg",
+                      "costo": 744,
+                      "codigoBarras": null,
+                      "plu": "008",
+                      "ivaIncluido": true,
+                      "ivaPorcentaje": 10.5,
+                      "stock": 85,
+                      "activo": true
+                    }
+                  },
+                  {
+                    "id": 17,
+                    "productoId": 9,
+                    "descripcion": "Zanahoria",
+                    "cantidad": 15,
+                    "precioUnitario": 1000,
+                    "subtotal": 15000,
+                    "producto": {
+                      "id": 9,
+                      "nombre": "Zanahoria",
+                      "precio": 1000,
+                      "tipoMedida": "Kg",
+                      "costo": 620,
+                      "codigoBarras": null,
+                      "plu": "009",
+                      "ivaIncluido": true,
+                      "ivaPorcentaje": 10.5,
+                      "stock": 85,
+                      "activo": true
+                    }
+                  },
+                  {
+                    "id": 18,
+                    "productoId": 13,
+                    "descripcion": "Batata",
+                    "cantidad": 12,
+                    "precioUnitario": 1300,
+                    "subtotal": 15600,
+                    "producto": {
+                      "id": 13,
+                      "nombre": "Batata",
+                      "precio": 1300,
+                      "tipoMedida": "Kg",
+                      "costo": 806,
+                      "codigoBarras": null,
+                      "plu": "013",
+                      "ivaIncluido": true,
+                      "ivaPorcentaje": 10.5,
+                      "stock": 85,
+                      "activo": true
+                    }
+                  },
+                  {
+                    "id": 19,
+                    "productoId": 26,
+                    "descripcion": "Acelga (atado)",
+                    "cantidad": 10,
+                    "precioUnitario": 1200,
+                    "subtotal": 12000,
+                    "producto": {
+                      "id": 26,
+                      "nombre": "Acelga (atado)",
+                      "precio": 1200,
+                      "tipoMedida": "Unidad",
+                      "costo": 744,
+                      "codigoBarras": "7791234500088",
+                      "plu": null,
+                      "ivaIncluido": true,
+                      "ivaPorcentaje": 10.5,
+                      "stock": 40,
+                      "activo": true
+                    }
+                  }
+                ],
+                "pagos": [
+                  {
+                    "id": 505,
+                    "monto": 50000,
+                    "metodoPago": "transferencia",
+                    "fecha": "2026-10-03T15:35:37.370Z",
+                    "referencia": "Transf. #10293",
+                    "estado": "aprobado"
+                  },
+                  {
+                    "id": 506,
+                    "monto": 25000,
+                    "metodoPago": "efectivo",
+                    "fecha": "2026-10-08T15:35:37.370Z",
+                    "estado": "aprobado"
+                  }
+                ],
+                "pagoInicial": 50000,
+                "saldoPendiente": 53400
+              },
+              {
+                "id": "f106",
+                "numero": "A-0002-00000012",
+                "tipoFactura": "A",
+                "puntoVenta": 2,
+                "fecha": "2026-09-30T15:35:37.370Z",
+                "subtotal": 34710.74,
+                "impuestos": 3644.63,
+                "total": 38355.37,
+                "estado": "pendiente",
+                "cliente": {
+                  "id": "c1",
+                  "nombre": "Restaurante El Mesón",
+                  "apellido": null,
+                  "razonSocial": "El Mesón S.A.",
+                  "cuit": "30-70987654-3",
+                  "condicionFiscal": "Responsable Inscripto",
+                  "email": "compras@elmeson.test",
+                  "telefono": "261 555-0101",
+                  "direccion": "Belgrano 320, Mendoza"
+                },
+                "clienteId": "c1",
+                "esCuentaCorriente": true,
+                "cae": "75412369861177",
+                "vencimientoCae": "2026-10-10T15:35:37.370Z",
+                "detalles": [
+                  {
+                    "id": 20,
+                    "productoId": 1,
+                    "descripcion": "Tomate perito",
+                    "cantidad": 10,
+                    "precioUnitario": 2400,
+                    "subtotal": 24000,
+                    "producto": {
+                      "id": 1,
+                      "nombre": "Tomate perito",
+                      "precio": 2400,
+                      "tipoMedida": "Kg",
+                      "costo": 1488,
+                      "codigoBarras": null,
+                      "plu": "001",
+                      "ivaIncluido": true,
+                      "ivaPorcentaje": 10.5,
+                      "stock": 85,
+                      "activo": true
+                    }
+                  },
+                  {
+                    "id": 21,
+                    "productoId": 11,
+                    "descripcion": "Lechuga criolla",
+                    "cantidad": 3,
+                    "precioUnitario": 2500,
+                    "subtotal": 7500,
+                    "producto": {
+                      "id": 11,
+                      "nombre": "Lechuga criolla",
+                      "precio": 2500,
+                      "tipoMedida": "Kg",
+                      "costo": 1550,
+                      "codigoBarras": null,
+                      "plu": "011",
+                      "ivaIncluido": true,
+                      "ivaPorcentaje": 10.5,
+                      "stock": 85,
+                      "activo": true
+                    }
+                  },
+                  {
+                    "id": 22,
+                    "productoId": 16,
+                    "descripcion": "Berenjena",
+                    "cantidad": 2.5,
+                    "precioUnitario": 2000,
+                    "subtotal": 5000,
+                    "producto": {
+                      "id": 16,
+                      "nombre": "Berenjena",
+                      "precio": 2000,
+                      "tipoMedida": "Kg",
+                      "costo": 1240,
+                      "codigoBarras": null,
+                      "plu": "016",
+                      "ivaIncluido": true,
+                      "ivaPorcentaje": 10.5,
+                      "stock": 85,
+                      "activo": true
+                    }
+                  }
+                ],
+                "pagos": [],
+                "pagoInicial": 0,
+                "saldoPendiente": 38355.37
+              }
+            ],
+            "pagination": {
+              "total": 6,
+              "page": 1,
+              "limit": 12,
+              "totalPages": 1
+            }
+          }
+        },
+        {
+          "rutaReal": "/api/facturas?excludeTipoFactura=B&page=1&limit=12&sort=fecha&order=desc",
+          "cuerpoEnviado": null,
+          "estado": 200,
+          "respuesta": {
+            "facturas": [],
+            "pagination": {
+              "total": 0,
+              "page": 1,
+              "limit": 12,
+              "totalPages": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "metodo": "GET",
+      "ruta": "/api/facturas/:id",
+      "ejemplos": [
+        {
+          "rutaReal": "/api/facturas/f102",
+          "cuerpoEnviado": null,
+          "estado": 200,
+          "respuesta": {
+            "id": "f102",
+            "numero": "A-0002-00000013",
+            "tipoFactura": "A",
+            "puntoVenta": 2,
+            "fecha": "2026-10-07T15:35:37.370Z",
+            "subtotal": 57851.24,
+            "impuestos": 6074.38,
+            "total": 63925.62,
+            "estado": "pagada",
+            "cliente": {
+              "id": "c4",
+              "nombre": "Hotel Aconcagua",
+              "apellido": null,
+              "razonSocial": "Hotelera Cuyana S.A.",
+              "cuit": "30-71555444-9",
+              "condicionFiscal": "Responsable Inscripto",
+              "email": "proveedores@aconcagua.test",
+              "telefono": "261 555-0104",
+              "direccion": "San Lorenzo 545, Mendoza"
+            },
+            "clienteId": "c4",
+            "esCuentaCorriente": true,
+            "cae": "75412369874521",
+            "vencimientoCae": "2026-10-17T15:35:37.370Z",
+            "detalles": [
+              {
+                "id": 5,
+                "productoId": 5,
+                "descripcion": "Manzana roja",
+                "cantidad": 8,
+                "precioUnitario": 2800,
+                "subtotal": 22400,
+                "producto": {
+                  "id": 5,
+                  "nombre": "Manzana roja",
+                  "precio": 2800,
+                  "tipoMedida": "Kg",
+                  "costo": 1736,
+                  "codigoBarras": null,
+                  "plu": "005",
+                  "ivaIncluido": true,
+                  "ivaPorcentaje": 10.5,
+                  "stock": 85,
+                  "activo": true
+                }
+              },
+              {
+                "id": 6,
+                "productoId": 15,
+                "descripcion": "Uva blanca",
+                "cantidad": 3,
+                "precioUnitario": 4800,
+                "subtotal": 14400,
+                "producto": {
+                  "id": 15,
+                  "nombre": "Uva blanca",
+                  "precio": 4800,
+                  "tipoMedida": "Kg",
+                  "costo": 2976,
+                  "codigoBarras": null,
+                  "plu": "015",
+                  "ivaIncluido": true,
+                  "ivaPorcentaje": 10.5,
+                  "stock": 85,
+                  "activo": true
+                }
+              },
+              {
+                "id": 7,
+                "productoId": 21,
+                "descripcion": "Huevos blancos maple x30",
+                "cantidad": 4,
+                "precioUnitario": 6500,
+                "subtotal": 26000,
+                "producto": {
+                  "id": 21,
+                  "nombre": "Huevos blancos maple x30",
+                  "precio": 6500,
+                  "tipoMedida": "Unidad",
+                  "costo": 4030,
+                  "codigoBarras": "7791234500033",
+                  "plu": null,
+                  "ivaIncluido": true,
+                  "ivaPorcentaje": 21,
+                  "stock": 40,
+                  "activo": true
+                }
+              },
+              {
+                "id": 8,
+                "productoId": 18,
+                "descripcion": "Kiwi",
+                "cantidad": 2.5,
+                "precioUnitario": 4000,
+                "subtotal": 10000,
+                "producto": {
+                  "id": 18,
+                  "nombre": "Kiwi",
+                  "precio": 4000,
+                  "tipoMedida": "Kg",
+                  "costo": 2480,
+                  "codigoBarras": null,
+                  "plu": "018",
+                  "ivaIncluido": true,
+                  "ivaPorcentaje": 10.5,
+                  "stock": 85,
+                  "activo": true
+                }
+              }
+            ],
+            "pagos": [
+              {
+                "id": 502,
+                "monto": 40000,
+                "metodoPago": "transferencia",
+                "fecha": "2026-10-07T15:35:37.370Z",
+                "referencia": "Transf. Banco Nación #88231",
+                "estado": "aprobado"
+              },
+              {
+                "id": 503,
+                "monto": 23925.62,
+                "metodoPago": "tarjeta",
+                "fecha": "2026-10-08T15:35:37.370Z",
+                "referencia": "Visa débito",
+                "estado": "aprobado"
+              }
+            ],
+            "pagoInicial": 40000,
+            "saldoPendiente": 0
+          }
+        },
+        {
+          "rutaReal": "/api/facturas/f101",
+          "cuerpoEnviado": null,
+          "estado": 200,
+          "respuesta": {
+            "id": "f101",
+            "numero": "R-0002-00000148",
+            "tipoFactura": "remito",
+            "puntoVenta": 2,
+            "fecha": "2026-10-09T15:35:37.370Z",
+            "subtotal": 86500,
+            "impuestos": 0,
+            "total": 86500,
+            "estado": "pendiente",
+            "cliente": {
+              "id": "c1",
+              "nombre": "Restaurante El Mesón",
+              "apellido": null,
+              "razonSocial": "El Mesón S.A.",
+              "cuit": "30-70987654-3",
+              "condicionFiscal": "Responsable Inscripto",
+              "email": "compras@elmeson.test",
+              "telefono": "261 555-0101",
+              "direccion": "Belgrano 320, Mendoza"
+            },
+            "clienteId": "c1",
+            "esCuentaCorriente": true,
+            "observaciones": "Entrega por la mañana",
+            "detalles": [
+              {
+                "id": 1,
+                "productoId": 1,
+                "descripcion": "Tomate perito",
+                "cantidad": 15,
+                "precioUnitario": 2100,
+                "subtotal": 31500,
+                "producto": {
+                  "id": 1,
+                  "nombre": "Tomate perito",
+                  "precio": 2400,
+                  "tipoMedida": "Kg",
+                  "costo": 1488,
+                  "codigoBarras": null,
+                  "plu": "001",
+                  "ivaIncluido": true,
+                  "ivaPorcentaje": 10.5,
+                  "stock": 85,
+                  "activo": true
+                }
+              },
+              {
+                "id": 2,
+                "productoId": 2,
+                "descripcion": "Papa negra",
+                "cantidad": 25,
+                "precioUnitario": 780,
+                "subtotal": 19500,
+                "producto": {
+                  "id": 2,
+                  "nombre": "Papa negra",
+                  "precio": 900,
+                  "tipoMedida": "Kg",
+                  "costo": 558,
+                  "codigoBarras": null,
+                  "plu": "002",
+                  "ivaIncluido": true,
+                  "ivaPorcentaje": 10.5,
+                  "stock": 85,
+                  "activo": true
+                }
+              },
+              {
+                "id": 3,
+                "productoId": 3,
+                "descripcion": "Cebolla",
+                "cantidad": 10,
+                "precioUnitario": 950,
+                "subtotal": 9500,
+                "producto": {
+                  "id": 3,
+                  "nombre": "Cebolla",
+                  "precio": 1100,
+                  "tipoMedida": "Kg",
+                  "costo": 682,
+                  "codigoBarras": null,
+                  "plu": "003",
+                  "ivaIncluido": true,
+                  "ivaPorcentaje": 10.5,
+                  "stock": 85,
+                  "activo": true
+                }
+              },
+              {
+                "id": 4,
+                "productoId": 12,
+                "descripcion": "Pimiento morrón rojo",
+                "cantidad": 4,
+                "precioUnitario": 4500,
+                "subtotal": 18000,
+                "producto": {
+                  "id": 12,
+                  "nombre": "Pimiento morrón rojo",
+                  "precio": 4500,
+                  "tipoMedida": "Kg",
+                  "costo": 2790,
+                  "codigoBarras": null,
+                  "plu": "012",
+                  "ivaIncluido": true,
+                  "ivaPorcentaje": 10.5,
+                  "stock": 85,
+                  "activo": true
+                }
+              }
+            ],
+            "pagos": [
+              {
+                "id": 501,
+                "monto": 30000,
+                "metodoPago": "efectivo",
+                "fecha": "2026-10-09T15:35:37.370Z",
+                "referencia": "Seña",
+                "estado": "aprobado"
+              }
+            ],
+            "pagoInicial": 30000,
+            "saldoPendiente": 56500
+          }
+        }
+      ]
+    }
+  ],
+  "ipc": [
+    {
+      "canal": "read-peso",
+      "ejemploArgs": [],
+      "respuesta": {
+        "success": true,
+        "peso": 1245
+      }
+    },
+    {
+      "canal": "store-get",
+      "ejemploArgs": [
+        "adminData"
+      ],
+      "respuesta": null
+    },
+    {
+      "canal": "check-for-updates",
+      "ejemploArgs": [],
+      "respuesta": {
+        "available": false
+      }
+    },
+    {
+      "canal": "store-set",
+      "ejemploArgs": [
+        "adminData"
+      ]
+    },
+    {
+      "canal": "logo-negocio-guardar",
+      "ejemploArgs": [
+        null
+      ],
+      "respuesta": null
+    },
+    {
+      "canal": "print-ticket",
+      "ejemploArgs": [
+        {
+          "metodoPago": "tarjeta",
+          "total": 20204.55,
+          "items": [
+            {
+              "productoId": 1,
+              "cantidad": 1.245,
+              "subtotal": 2988,
+              "precioHistorico": 2400,
+              "costo": 1488,
+              "nombre": "Tomate perito",
+              "listaPrecioId": null,
+              "listaPrecioNombre": "Precio catálogo"
+            },
+            {
+              "productoId": 2,
+              "cantidad": 2.5,
+              "subtotal": 2250,
+              "precioHistorico": 900,
+              "costo": 558,
+              "nombre": "Papa negra",
+              "listaPrecioId": null,
+              "listaPrecioNombre": "Precio catálogo"
+            },
+            {
+              "productoId": 5,
+              "cantidad": 0.98,
+              "subtotal": 2744,
+              "precioHistorico": 2800,
+              "costo": 1736,
+              "nombre": "Manzana roja",
+              "listaPrecioId": null,
+              "listaPrecioNombre": "Precio catálogo"
+            },
+            {
+              "productoId": 21,
+              "cantidad": 1,
+              "subtotal": 6500,
+              "precioHistorico": 6500,
+              "costo": 4030,
+              "nombre": "Huevos blancos maple x30",
+              "listaPrecioId": null,
+              "listaPrecioNombre": "Precio catálogo"
+            },
+            {
+              "productoId": 19,
+              "cantidad": 3,
+              "subtotal": 4500,
+              "precioHistorico": 1500,
+              "costo": 930,
+              "nombre": "Palta Hass",
+              "listaPrecioId": null,
+              "listaPrecioNombre": "Precio catálogo"
+            },
+            {
+              "productoId": 12,
+              "cantidad": 0.415,
+              "subtotal": 1867.5,
+              "precioHistorico": 4500,
+              "costo": 2790,
+              "nombre": "Pimiento morrón rojo",
+              "listaPrecioId": null,
+              "listaPrecioNombre": "Precio catálogo"
+            },
+            {
+              "productoId": 23,
+              "cantidad": 2,
+              "subtotal": 1600,
+              "precioHistorico": 800,
+              "costo": 496,
+              "nombre": "Perejil (atado)",
+              "listaPrecioId": null,
+              "listaPrecioNombre": "Precio catálogo"
+            }
+          ],
+          "vendedorId": 11,
+          "sucursalId": 1,
+          "vendedor": "Lucía Fernández",
+          "businessName": "Verdulería La Huerta",
+          "createdAt": "2026-10-10T15:36:51.426Z",
+          "tieneDescuento": true,
+          "tipoDescuento": "porcentual",
+          "valorDescuento": 10,
+          "montoDescuento": 2244.9500000000003,
+          "subtotalSinDescuento": 22449.5,
+          "discountData": {
+            "type": "percentage",
+            "value": 10,
+            "amount": 2244.9500000000003
+          },
+          "subtotal": 22449.5,
+          "idReal": 9022,
+          "id": 9022
+        }
+      ],
+      "respuesta": {
+        "success": true
+      }
+    },
+    {
+      "canal": "print-closing",
+      "ejemploArgs": [
+        {
+          "id": 311,
+          "periodo": "mañana",
+          "fechaInicio": "2026-10-10T00:00:00.000Z",
+          "fechaCierre": "2026-10-10T12:37:06.625Z",
+          "totalVentas": 186450,
+          "cantidadVentas": 27,
+          "ventasPorMetodo": {
+            "efectivo": 84300,
+            "tarjeta": 61250,
+            "qr": 32400,
+            "transferencia": 8500
+          },
+          "ventasPorVendedor": [
+            {
+              "vendedorId": 11,
+              "nombre": "Lucía Fernández",
+              "total": 112300,
+              "cantidad": 16
+            },
+            {
+              "vendedorId": 12,
+              "nombre": "Martín Gómez",
+              "total": 74150,
+              "cantidad": 11
+            }
+          ],
+          "vendedor": {
+            "nombre": "Lucía Fernández"
+          },
+          "sucursal": {
+            "nombre": "Casa central"
+          },
+          "totalFacturas": 2,
+          "montoFacturas": 25050
+        }
+      ],
+      "respuesta": {
+        "success": true
+      }
+    },
+    {
+      "canal": "download-update",
+      "ejemploArgs": [],
+      "respuesta": {
+        "success": true
+      }
+    },
+    {
+      "canal": "print-afip-ticket",
+      "ejemploArgs": [
+        {
+          "success": true,
+          "factura": {
+            "id": "fb89",
+            "numero": "B-0002-00000213",
+            "tipoFactura": "B",
+            "puntoVenta": 2,
+            "fecha": "2026-10-10T15:37:44.641Z"
+          },
+          "afip": {
+            "cae": "75412369899123",
+            "vencimientoCae": "2026-10-20T15:37:44.641Z",
+            "numeroComprobante": 213,
+            "puntoVenta": 2,
+            "tipoComprobante": 6
+          },
+          "metodoPago": "tarjeta",
+          "items": [
+            {
+              "productoId": 1,
+              "cantidad": 1.245,
+              "precio": 2400,
+              "subtotal": 2988,
+              "nombre": "Tomate perito"
+            },
+            {
+              "productoId": 2,
+              "cantidad": 2.5,
+              "precio": 900,
+              "subtotal": 2250,
+              "nombre": "Papa negra"
+            },
+            {
+              "productoId": 5,
+              "cantidad": 0.98,
+              "precio": 2800,
+              "subtotal": 2744,
+              "nombre": "Manzana roja"
+            },
+            {
+              "productoId": 21,
+              "cantidad": 1,
+              "precio": 6500,
+              "subtotal": 6500,
+              "nombre": "Huevos blancos maple x30"
+            },
+            {
+              "productoId": 19,
+              "cantidad": 3,
+              "precio": 1500,
+              "subtotal": 4500,
+              "nombre": "Palta Hass"
+            },
+            {
+              "productoId": 12,
+              "cantidad": 0.415,
+              "precio": 4500,
+              "subtotal": 1867.5,
+              "nombre": "Pimiento morrón rojo"
+            },
+            {
+              "productoId": 23,
+              "cantidad": 2,
+              "precio": 800,
+              "subtotal": 1600,
+              "nombre": "Perejil (atado)"
+            }
+          ],
+          "total": 22449.5,
+          "usuario": "Lucía Fernández",
+          "fechaHora": "10/10/2026, 12:37:44",
+          "businessName": "Verdulería La Huerta",
+          "razonSocial": "La Huerta S.R.L.",
+          "cuit": "30-71234567-8",
+          "condicionIva": "Responsable Inscripto",
+          "configuracionAfip": {
+            "id": 1,
+            "cuit": "30-71234567-8",
+            "produccion": false,
+            "puntoVenta": 2,
+            "ultimoNumeroA": 12,
+            "ultimoNumeroB": 212,
+            "ultimoNumeroC": 3,
+            "activo": true,
+            "condicionIva": "Responsable Inscripto",
+            "domicilioFiscal": "Av. San Martín 1450, Godoy Cruz, Mendoza",
+            "razonSocial": "La Huerta S.R.L.",
+            "tipoFactura": "B"
+          },
+          "direccion": "Av. San Martín 1450, Godoy Cruz, Mendoza",
+          "telefono": "261 424-8890",
+          "cae": "75412369899123",
+          "afipQrUrl": null,
+          "puntoVenta": 2,
+          "numeroFactura": "B-0002-00000213",
+          "tipoFactura": "FACTURA B",
+          "vendedor": "Lucía Fernández",
+          "idReal": null,
+          "tieneDescuento": true,
+          "tipoDescuento": "porcentual",
+          "valorDescuento": 5,
+          "montoDescuento": 1122.4750000000001,
+          "subtotalSinDescuento": 22449.5,
+          "subtotal": 22449.5,
+          "discountData": {
+            "type": "percentage",
+            "value": 5,
+            "amount": 1122.4750000000001
+          }
+        }
+      ],
+      "respuesta": {
+        "success": true
+      }
+    },
+    {
+      "canal": "impresion-config-get",
+      "ejemploArgs": [],
+      "respuesta": {
+        "anchoPapel": 80,
+        "tieneLogo": true,
+        "impresora": null,
+        "recurso": "TP806L"
+      }
+    },
+    {
+      "canal": "get-available-printers",
+      "ejemploArgs": [],
+      "respuesta": [
+        {
+          "name": "TP806L"
+        },
+        {
+          "name": "Microsoft Print to PDF"
+        }
+      ]
+    },
+    {
+      "canal": "balanza-config-get",
+      "ejemploArgs": [],
+      "respuesta": {
+        "config": {
+          "modo": "serie",
+          "puerto": "COM3",
+          "baudRate": 9600,
+          "formato": "8N1",
+          "consulta": "enq",
+          "unidadEntera": "gramos"
+        },
+        "estado": {
+          "conectada": true
+        }
+      }
+    },
+    {
+      "canal": "balanza-puertos",
+      "ejemploArgs": [],
+      "respuesta": [
+        {
+          "path": "COM3",
+          "manufacturer": "Prolific"
+        },
+        {
+          "path": "COM4",
+          "manufacturer": "FTDI"
+        }
+      ]
+    }
+  ]
+}
