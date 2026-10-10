@@ -6,6 +6,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use andexmarket::app::{App, Global, Ruta, Servicios};
+use andexmarket::pantallas::carrito::id_buscador;
 use andexmarket::pantallas::carrito::productos::ProductoDisponible;
 use eframe::egui::{Event, Key, Modifiers, PointerButton, Pos2};
 use egui_kittest::Harness;
@@ -59,7 +60,7 @@ fn productos() -> Vec<ProductoDisponible> {
 
 fn negocio_simple() -> Value {
     json!({
-        "id": 7, "nombre": "Verdulería La Huerta", "sistemaPago": "redondeo", "descuentoEfectivo": 10,
+        "id": 4, "nombre": "Verdulería La Huerta", "sistemaPago": "redondeo", "descuentoEfectivo": 10,
         "mpEnabled": true, "afipHabilitado": false, "facturacionHabilitada": false,
         "cancelacionHabilitada": false, "ivaIncluidoEnPrecios": true, "popupListaPreciosEnabled": false,
         "listaPrecioPorDefectoId": null, "etiquetaPrecioBase": "Precio catálogo"
@@ -156,10 +157,14 @@ fn servicios() -> Servicios {
 }
 
 fn capturar(nombre: &str, global: Global, preparar: impl FnOnce(&mut App), pasos: impl FnOnce(&mut Harness<'_, App>)) {
+    capturar_en(nombre, [1200.0, 800.0], global, preparar, pasos);
+}
+
+fn capturar_en(nombre: &str, tam: [f32; 2], global: Global, preparar: impl FnOnce(&mut App), pasos: impl FnOnce(&mut Harness<'_, App>)) {
     let mut app = App::de_prueba(global, servicios());
     app.pantallas().carrito.precargar_productos(productos());
     preparar(&mut app);
-    let mut harness = Harness::builder().with_size([1200.0, 800.0]).wgpu().build_ui_state(|ui, app: &mut App| app.mostrar(ui), app);
+    let mut harness = Harness::builder().with_size(tam).wgpu().build_ui_state(|ui, app: &mut App| app.mostrar(ui), app);
     harness.run_steps(3);
     pasos(&mut harness);
     harness.run_steps(6);
@@ -289,7 +294,7 @@ fn escanear_lista_precios() {
 
 #[test]
 fn menu_usuario() {
-    capturar("71-menu-usuario", global(negocio_simple(), false), |app| app.pantallas().carrito.menu_usuario_visible = true, |h| {
+    capturar("71-menu-usuario", global(negocio_simple(), false), |_| {}, |h| {
         clic(h, Pos2::new(1156.0, 44.0));
     });
 }
@@ -337,3 +342,68 @@ fn borrar_pestana_y_cerrar_sesion() {
     h.run_steps(70);
     assert_eq!(h.state_mut().global().ruta, Ruta::UsuarioLogin);
 }
+
+fn buscador_enfocado(harness: &Harness<'_, App>) -> bool {
+    harness.ctx.memory(|m| m.has_focus(id_buscador()))
+}
+
+fn buscar_muchos(h: &mut Harness<'_, App>) {
+    escribir(h, "a");
+    for _ in 0..14 {
+        tecla(h, Key::ArrowDown);
+    }
+    assert!(buscador_enfocado(h));
+}
+
+#[test]
+fn busqueda_muchos_resultados() {
+    capturar("16b-busqueda-muchos-resultados", global(negocio_simple(), false), |_| {}, buscar_muchos);
+}
+
+#[test]
+fn busqueda_muchos_resultados_1920() {
+    capturar_en("16c-busqueda-muchos-resultados-1920", [1920.0, 1080.0], global(negocio_simple(), false), |_| {}, buscar_muchos);
+}
+
+#[test]
+fn menu_usuario_1920() {
+    let mut g = global(negocio_afip(), false);
+    g.carritos = carritos_sembrados();
+    capturar_en("71b-menu-usuario-1920", [1920.0, 1080.0], g, |_| {}, |h| clic(h, Pos2::new(1876.0, 44.0)));
+}
+
+#[test]
+fn pestana_clickeada_enfoca_buscador() {
+    let mut g = global(negocio_simple(), false);
+    g.carritos = carritos_sembrados();
+    let mut app = App::de_prueba(g, servicios());
+    app.pantallas().carrito.precargar_productos(productos());
+    let mut h = Harness::builder().with_size([1200.0, 800.0]).build_ui_state(|ui, app: &mut App| app.mostrar(ui), app);
+    h.run_steps(3);
+    clic(&mut h, Pos2::new(598.0, 45.0));
+    assert_eq!(h.state_mut().global().carritos.active_screen, 1);
+    assert!(buscador_enfocado(&h));
+    escribir(&mut h, "ma");
+    assert_eq!(h.state_mut().global().carritos.active_screen, 1);
+    tecla(&mut h, Key::Escape);
+    clic(&mut h, Pos2::new(465.0, 45.0));
+    assert_eq!(h.state_mut().global().carritos.active_screen, 0);
+    assert!(buscador_enfocado(&h));
+}
+
+#[test]
+fn menu_usuario_abre_impresion_y_balanza() {
+    let mut app = App::de_prueba(global(negocio_simple(), false), servicios());
+    app.pantallas().carrito.precargar_productos(productos());
+    let mut h = Harness::builder().with_size([1200.0, 800.0]).build_ui_state(|ui, app: &mut App| app.mostrar(ui), app);
+    h.run_steps(3);
+    clic(&mut h, Pos2::new(1156.0, 44.0));
+    clic(&mut h, Pos2::new(1020.0, 140.0));
+    assert!(h.state_mut().pantallas().carrito.impresion.abierto());
+    tecla(&mut h, Key::Escape);
+    assert!(!h.state_mut().pantallas().carrito.impresion.abierto());
+    clic(&mut h, Pos2::new(1156.0, 44.0));
+    clic(&mut h, Pos2::new(1015.0, 172.0));
+    assert!(h.state_mut().pantallas().carrito.balanza.abierto());
+}
+

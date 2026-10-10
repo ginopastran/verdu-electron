@@ -35,12 +35,14 @@ struct Busqueda {
     consulta: String,
     resultados: Vec<usize>,
     seleccion: Option<usize>,
+    mostrar_seleccion: bool,
 }
 
 impl Busqueda {
     fn filtrar(&mut self, productos: &[ProductoDisponible]) {
         self.resultados = productos::buscar(productos, &self.consulta);
         self.seleccion = (!self.resultados.is_empty()).then_some(0);
+        self.mostrar_seleccion = true;
     }
 
     fn limpiar(&mut self) {
@@ -66,7 +68,6 @@ pub struct Carrito {
     pub pedidos: DialogoPedidos,
     pub impresion: DialogoImpresion,
     pub balanza: DialogoBalanza,
-    pub menu_usuario_visible: bool,
     productos: Vec<ProductoDisponible>,
     productos_precargados: bool,
     tarea_productos: Option<Tarea<Result<Vec<ProductoDisponible>, String>>>,
@@ -270,6 +271,7 @@ impl Carrito {
             return false;
         }
         let total = self.busqueda.resultados.len();
+        self.busqueda.mostrar_seleccion |= abajo || arriba;
         if abajo {
             self.busqueda.seleccion = Some(self.busqueda.seleccion.map_or(0, |s| (s + 1).min(total - 1)));
         }
@@ -395,10 +397,11 @@ impl Carrito {
         if !self.busqueda.resultados.is_empty() && !self.hay_dialogo() {
             let origen = Pos2::new(caja_buscador.left(), caja_buscador.bottom() + 4.0);
             let negocio = cx.global.negocio.clone();
-            if let Some(posicion) = vista::resultados(ui.ctx(), origen, caja_buscador.width(), &self.productos, &self.busqueda.resultados, self.busqueda.seleccion, negocio.as_ref()) {
+            if let Some(posicion) = vista::resultados(ui.ctx(), origen, caja_buscador.width(), &self.productos, &self.busqueda.resultados, self.busqueda.seleccion, self.busqueda.mostrar_seleccion, negocio.as_ref()) {
                 let indice = self.busqueda.resultados[posicion];
                 self.elegir_producto(indice, cx);
             }
+            self.busqueda.mostrar_seleccion = false;
         }
 
         let principal = Rect::from_min_max(Pos2::new(barra.right(), pantalla.top()), pantalla.max);
@@ -415,6 +418,7 @@ impl Carrito {
         if self.enfocar > 0 && !hay_dialogo {
             ui.memory_mut(|m| m.request_focus(id_buscador()));
             self.enfocar -= 1;
+            ui.ctx().request_repaint();
         }
         if hay_dialogo {
             ui.memory_mut(|m| m.surrender_focus(id_buscador()));
@@ -435,7 +439,7 @@ impl Carrito {
         let cabecera = Cabecera {
             facturacion: cx.global.negocio_bool("facturacionHabilitada"),
             cierre: usuario.as_ref().is_some_and(|u| u["permisos"]["cierreDeCajaEnabled"].as_bool().unwrap_or(false)),
-            usuario: self.menu_usuario_visible.then_some((nombre.as_str(), email.as_str())),
+            usuario: (nombre.as_str(), email.as_str()),
         };
         let ancho_pestanas = vista::ancho_pestanas(ui, &cx.global.carritos);
         let ancho_columna = ui.max_rect().width() - 48.0;
@@ -479,8 +483,8 @@ impl Carrito {
     fn cabecera(&mut self, ui: &mut Ui, cx: &mut Contexto, cabecera: &Cabecera, columna: Rect, ancho_pestanas: f32, desborda: bool) {
         let centro_y = columna.top() + 20.0;
         match vista::pestanas(ui, &cx.global.carritos, Pos2::new(columna.left(), centro_y)) {
-            Some(AccionPestana::Elegir(id)) => {
-                cx.global.carritos.elegir(id);
+            Some(AccionPestana::Elegir(indice)) => {
+                cx.global.carritos.elegir(indice);
                 self.enfocar = CUADROS_ENFOQUE;
             }
             Some(AccionPestana::Agregar) => {
@@ -490,11 +494,11 @@ impl Carrito {
                     ui::toast::error(&cx.egui, "No se pueden crear más de 4 pantallas");
                 }
             }
-            Some(AccionPestana::Borrar(id)) => {
+            Some(AccionPestana::Borrar(indice)) => {
                 if cx.global.carritos.screens.len() <= 1 {
                     ui::toast::error(&cx.egui, "No se puede eliminar la última pantalla");
                 } else {
-                    self.borrar_pantalla = Some(id);
+                    self.borrar_pantalla = Some(indice);
                 }
             }
             None => {}
@@ -560,11 +564,11 @@ impl Carrito {
             }
             Salida::Nada => {}
         }
-        if let Some(id) = self.borrar_pantalla {
+        if let Some(indice) = self.borrar_pantalla {
             match dialogos::confirmar_borrado(ui) {
                 Some(true) => {
                     self.borrar_pantalla = None;
-                    if cx.global.carritos.borrar_pantalla(id) {
+                    if cx.global.carritos.borrar_pantalla(indice) {
                         ui::toast::exito(&cx.egui, "Pantalla eliminada correctamente");
                         self.enfocar = CUADROS_ENFOQUE;
                     }
