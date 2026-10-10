@@ -2,7 +2,7 @@ use eframe::egui::{self, Align2, Context, Frame, Margin, Rect, ScrollArea, Sense
 use nucleo::facturas as logica;
 use serde_json::Value;
 
-use super::comun::{self, RELLENO_CHIP_ESTADO};
+use super::vista::{self, RELLENO_CHIP_ESTADO};
 use super::pagos::{self, descargar_pdf};
 use super::{id_texto, mostrar_valor, numero, pesos, texto};
 use crate::app::Contexto;
@@ -81,7 +81,7 @@ impl ModalFactura {
         let titulo = if self.edicion { "Editar factura" } else { "Factura" };
         let subtitulo = pagos::subtitulo(&self.factura);
         let r = Modal::new("facturas-modal", titulo).subtitulo(&subtitulo).icono("file-text").ancho(760.0).mostrar(ctx, |ui| {
-            comun::cuerpo_desplazable(ui, "facturas-modal-cuerpo", 160.0, |ui| {
+            vista::cuerpo_desplazable(ui, "facturas-modal-cuerpo", 160.0, |ui| {
                 v2::cuerpo_modal(ui, 20, |ui| self.cuerpo(ui));
             });
             v2::pie_modal(ui, |ui| accion = self.botones(ui));
@@ -134,18 +134,18 @@ impl ModalFactura {
         ui.horizontal_top(|ui| {
             ui.vertical(|ui| {
                 ui.set_width(izquierda);
-                comun::etiqueta(ui, "Cliente");
+                vista::etiqueta(ui, "Cliente");
                 ui.add_space(6.0);
                 let (caja, _) = ui.allocate_exact_size(Vec2::new(izquierda, 44.0), Sense::hover());
                 ui.painter().rect(caja, radio::BOTON_MODAL, color::FONDO_APP, Stroke::new(1.0, color::BORDE), StrokeKind::Inside);
                 v2::pintar_icono(ui, egui::pos2(caja.left() + 20.5, caja.center().y), "user", 17.0, color::TEXTO_TENUE);
                 let celda = Rect::from_x_y_ranges(caja.left() + 37.0..=caja.right() - 12.0, caja.y_range());
-                celda_texto(ui.painter(), celda, &comun::nombre_cliente(&f), tam::CUERPO, Peso::Normal, color::TEXTO, false);
+                celda_texto(ui.painter(), celda, &vista::nombre_cliente(&f), tam::CUERPO, Peso::Normal, color::TEXTO, false);
             });
             ui.add_space(14.0);
             ui.vertical(|ui| {
                 ui.set_width(derecha);
-                comun::etiqueta(ui, "Estado");
+                vista::etiqueta(ui, "Estado");
                 ui.add_space(6.0);
                 if self.edicion {
                     let opciones = self.opciones_estado();
@@ -156,22 +156,22 @@ impl ModalFactura {
                     }
                 } else {
                     let (rect, _) = ui.allocate_exact_size(Vec2::new(derecha, 44.0), Sense::hover());
-                    let estado = comun::capitalizar(texto(&f, "estado"));
-                    let tam_chip = comun::medir_chip(ui, &estado, tam::XS, RELLENO_CHIP_ESTADO);
+                    let estado = vista::capitalizar(texto(&f, "estado"));
+                    let tam_chip = vista::medir_chip(ui, &estado, tam::XS, RELLENO_CHIP_ESTADO);
                     let colores = match texto(&f, "estado") {
                         "pagada" => (color::VERDE_EXITO_FONDO, color::VERDE_EXITO),
                         "anulada" => (color::FONDO_APP, color::TEXTO_APAGADO),
                         _ => (color::DORADO_FONDO, color::DORADO_TEXTO),
                     };
-                    comun::pintar_chip(ui, egui::pos2(rect.left(), rect.center().y - tam_chip.y / 2.0), &estado, tam::XS, RELLENO_CHIP_ESTADO, colores.0, colores.1);
+                    vista::pintar_chip(ui, egui::pos2(rect.left(), rect.center().y - tam_chip.y / 2.0), &estado, tam::XS, RELLENO_CHIP_ESTADO, colores.0, colores.1);
                 }
             });
         });
         ui.add_space(16.0);
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = 8.0;
-            let (tipo, colores) = comun::tipo(texto(&f, "tipoFactura"));
-            comun::chip(ui, &tipo, tam::XS, RELLENO_CHIP_ESTADO, colores);
+            let (tipo, colores) = vista::tipo(texto(&f, "tipoFactura"));
+            vista::chip(ui, &tipo, tam::XS, RELLENO_CHIP_ESTADO, colores);
             let mut datos = format!("Emitida el {} · Punto de venta {}", logica::fecha_es_ar(texto(&f, "fecha")), mostrar_valor(&f["puntoVenta"]));
             if !texto(&f, "cae").is_empty() {
                 datos.push_str(&format!(" · CAE {}", texto(&f, "cae")));
@@ -192,7 +192,7 @@ impl ModalFactura {
             v2::pintar_texto(ui, fila.left_center(), Align2::LEFT_CENTER, desglose, tam::ETIQUETA, Peso::Normal, color::TEXTO_APAGADO);
         }
         ui.add_space(16.0);
-        comun::etiqueta(ui, "Observaciones");
+        vista::etiqueta(ui, "Observaciones");
         ui.add_space(6.0);
         if self.edicion {
             CampoTexto::new(&mut self.observaciones)
@@ -229,11 +229,21 @@ fn tabla(ui: &mut Ui, f: &Value) {
                 let nombre = Some(texto(producto, "nombre")).filter(|n| !n.is_empty()).unwrap_or(texto(detalle, "descripcion"));
                 let pintor = ui.painter();
                 celda_texto(pintor, celdas[0], nombre, tam::CONTROL, Peso::Medio, color::TEXTO, false);
-                let cantidad = comun::cantidad_con_medida(numero(detalle, "cantidad"), texto(producto, "tipoMedida"));
+                let cantidad = vista::cantidad_con_medida(numero(detalle, "cantidad"), texto(producto, "tipoMedida"));
                 celda_texto(pintor, celdas[1], &cantidad, tam::CONTROL, Peso::Normal, color::TEXTO, true);
                 celda_texto(pintor, celdas[2], &pesos(numero(detalle, "precioUnitario")), tam::CONTROL, Peso::Normal, color::TEXTO_APAGADO, true);
                 celda_texto(pintor, celdas[3], &pesos(numero(detalle, "subtotal")), tam::CONTROL, Peso::Semi, color::TEXTO, true);
             }
         });
     });
+}
+
+pub fn estilo_desplazamiento(ui: &mut Ui) {
+    ui.spacing_mut().scroll = egui::style::ScrollStyle {
+        floating: false,
+        bar_width: 11.0,
+        bar_inner_margin: 2.0,
+        bar_outer_margin: 2.0,
+        ..egui::style::ScrollStyle::solid()
+    };
 }

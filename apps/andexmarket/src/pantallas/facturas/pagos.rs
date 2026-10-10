@@ -2,7 +2,7 @@ use eframe::egui::{self, Align2, Context, CursorIcon, Id, Key, ScrollArea, Sense
 use nucleo::facturas as logica;
 use serde_json::Value;
 
-use super::comun;
+use super::vista;
 use super::{pesos, texto};
 use crate::app::Contexto;
 use crate::tareas::{esperar, Tarea};
@@ -25,7 +25,7 @@ pub fn descargar_pdf(cx: &Contexto, factura: &Value) {
 }
 
 pub fn subtitulo(factura: &Value) -> String {
-    format!("{} · {}", texto(factura, "numero"), comun::nombre_cliente(factura))
+    format!("{} · {}", texto(factura, "numero"), vista::nombre_cliente(factura))
 }
 
 pub enum ResultadoPago {
@@ -110,7 +110,7 @@ impl AgregarPago {
                 ui.add_space(6.0);
                 CampoTexto::new(&mut self.monto).alto(48.0).prefijo("$").tam_texto(18.0).sugerencia("0").id(Id::new("pago-monto")).ui(ui);
                 ui.add_space(14.0);
-                comun::etiqueta(ui, "Método");
+                vista::etiqueta(ui, "Método");
                 ui.add_space(6.0);
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = 8.0;
@@ -131,14 +131,14 @@ impl AgregarPago {
                 ui.horizontal_top(|ui| {
                     ui.vertical(|ui| {
                         ui.set_width(150.0);
-                        comun::etiqueta(ui, "Fecha");
+                        vista::etiqueta(ui, "Fecha");
                         ui.add_space(6.0);
                         CampoTexto::new(&mut self.fecha).alto(42.0).radio(radio::CONTROL).tam_texto(tam::CUERPO).relleno(10.0, 10.0).sugerencia("dd/mm/aaaa").ui(ui);
                     });
                     ui.add_space(10.0);
                     ui.vertical(|ui| {
                         ui.horizontal(|ui| {
-                            comun::etiqueta(ui, "Referencia");
+                            vista::etiqueta(ui, "Referencia");
                             ui.add_space(4.0);
                             v2::texto(ui, "(opcional)", tam::ETIQUETA, Peso::Normal, color::TEXTO_TENUE);
                         });
@@ -208,7 +208,7 @@ pub fn historial(ctx: &Context, factura: &Value) -> ResultadoHistorial {
             } else {
                 ScrollArea::vertical().id_salt("historial-pagos").max_height(336.0).auto_shrink([false, true]).show(ui, |ui| {
                     for pago in &pagos {
-                        comun::fila_pago(ui, pago, 11.0, false);
+                        vista::fila_pago(ui, pago, 11.0, false);
                     }
                 });
             }

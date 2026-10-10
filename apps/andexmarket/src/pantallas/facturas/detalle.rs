@@ -2,7 +2,7 @@ use eframe::egui::{self, Align2, Context, Margin, Rect, ScrollArea, Sense, Strok
 use nucleo::facturas as logica;
 use serde_json::Value;
 
-use super::comun::{self, RELLENO_CHIP_ESTADO};
+use super::vista::{self, RELLENO_CHIP_ESTADO};
 use super::pagos::{descargar_pdf, AgregarPago, ResultadoPago};
 use super::{mostrar_valor, numero, pesos, recien_montada, texto};
 use crate::app::{Contexto, Ruta};
@@ -52,15 +52,15 @@ impl Detalle {
                 Err(_) => self.error = Some("Error al cargar la factura".into()),
             }
         }
-        comun::fondo(ui);
+        vista::fondo(ui);
         ui.spacing_mut().item_spacing = Vec2::ZERO;
         let factura = self.factura.clone().filter(|_| self.error.is_none() && !self.cargando);
         let titulo = factura.as_ref().map_or("Factura".to_string(), |f| texto(f, "numero").to_string());
-        if comun::encabezado(ui, "Cuenta corriente", &titulo) {
+        if vista::encabezado(ui, "Cuenta corriente", &titulo) {
             cx.global.ir(Ruta::Facturas);
         }
         if self.cargando {
-            comun::cargando(ui, ui.available_height() - 68.0, "Cargando factura…");
+            vista::cargando(ui, ui.available_height() - 68.0, "Cargando factura…");
             return;
         }
         let Some(factura) = factura else {
@@ -73,9 +73,9 @@ impl Detalle {
     fn error_ui(&self, ui: &mut Ui, cx: &mut Contexto) {
         let error = format!("Error: {}", self.error.clone().unwrap_or_default());
         ui.add_space((ui.available_height() / 2.0 - 60.0).max(24.0));
-        comun::vacio(ui, "alert", &error);
+        vista::vacio(ui, "alert", &error);
         ui.add_space(16.0);
-        if comun::boton_centrado(ui, Boton::secundario("Volver").alto(36.0).radio(radio::CONTROL).tam_texto(tam::CONTROL)) {
+        if vista::boton_centrado(ui, Boton::secundario("Volver").alto(36.0).radio(radio::CONTROL).tam_texto(tam::CONTROL)) {
             cx.global.ir(Ruta::Facturas);
         }
     }
@@ -141,7 +141,7 @@ fn cabecera(ui: &mut Ui, factura: &Value) {
     let cuit = texto(cliente, "cuit");
     let condicion = texto(cliente, "condicionFiscal");
     let ancho_cliente = v2::ancho_texto(ui, &nombre, tam::DESTACADO, Peso::Semi).max(220.0);
-    comun::tarjeta(24, 22).show(ui, |ui| {
+    vista::tarjeta(24, 22).show(ui, |ui| {
         ui.set_width(ui.available_width());
         let ancho_datos = ui.available_width() - ancho_cliente - 16.0;
         ui.horizontal_top(|ui| {
@@ -149,10 +149,10 @@ fn cabecera(ui: &mut Ui, factura: &Value) {
                 ui.set_width(ancho_datos);
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = 8.0;
-                    let (tipo, colores_tipo) = comun::tipo(texto(factura, "tipoFactura"));
-                    comun::chip(ui, &tipo, tam::XS, RELLENO_CHIP_ESTADO, colores_tipo);
-                    let (estado, colores_estado) = comun::estado(factura);
-                    comun::chip(ui, &estado, tam::XS, RELLENO_CHIP_ESTADO, colores_estado);
+                    let (tipo, colores_tipo) = vista::tipo(texto(factura, "tipoFactura"));
+                    vista::chip(ui, &tipo, tam::XS, RELLENO_CHIP_ESTADO, colores_tipo);
+                    let (estado, colores_estado) = vista::estado(factura);
+                    vista::chip(ui, &estado, tam::XS, RELLENO_CHIP_ESTADO, colores_estado);
                 });
                 ui.add_space(8.0);
                 let g = v2::galeria(ui, texto(factura, "numero"), fuente_mono(tam::TITULO_SECCION, Peso::Medio), color::TEXTO);
@@ -185,7 +185,7 @@ fn cabecera(ui: &mut Ui, factura: &Value) {
                     ui.painter().galley(rect.min, g, color::TEXTO_APAGADO);
                 }
                 if !condicion.is_empty() {
-                    v2::texto(ui, comun::condicion_fiscal(condicion), tam::ETIQUETA, Peso::Normal, color::TEXTO_APAGADO);
+                    v2::texto(ui, vista::condicion_fiscal(condicion), tam::ETIQUETA, Peso::Normal, color::TEXTO_APAGADO);
                 }
             });
         });
@@ -194,12 +194,12 @@ fn cabecera(ui: &mut Ui, factura: &Value) {
 
 fn productos(ui: &mut Ui, factura: &Value) {
     let detalles = factura["detalles"].as_array().cloned().unwrap_or_default();
-    comun::tarjeta(0, 0).show(ui, |ui| {
+    vista::tarjeta(0, 0).show(ui, |ui| {
         ui.set_width(ui.available_width());
         let (fila, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 52.0), Sense::hover());
         let interior = fila.shrink2(Vec2::new(22.0, 0.0));
         v2::pintar_texto(ui, interior.left_center(), Align2::LEFT_CENTER, "Productos", tam::ENTRADA, Peso::Semi, color::TEXTO);
-        v2::pintar_texto(ui, interior.right_center(), Align2::RIGHT_CENTER, comun::productos(detalles.len()), tam::ETIQUETA, Peso::Normal, color::TEXTO_APAGADO);
+        v2::pintar_texto(ui, interior.right_center(), Align2::RIGHT_CENTER, vista::productos(detalles.len()), tam::ETIQUETA, Peso::Normal, color::TEXTO_APAGADO);
         let tabla = Tabla::new(&COLUMNAS).relleno(22.0).radio_superior(0);
         let arriba = ui.cursor().top();
         ui.painter().hline(ui.max_rect().x_range(), arriba + 0.5, Stroke::new(1.0, color::BORDE_SUAVE));
@@ -212,7 +212,7 @@ fn productos(ui: &mut Ui, factura: &Value) {
             let nombre = Some(texto(producto, "nombre")).filter(|n| !n.is_empty()).unwrap_or(texto(detalle, "descripcion"));
             let pintor = ui.painter();
             celda_texto(pintor, celdas[0], nombre, tam::CUERPO, Peso::Medio, color::TEXTO, false);
-            let cantidad = comun::cantidad_con_medida(numero(detalle, "cantidad"), texto(producto, "tipoMedida"));
+            let cantidad = vista::cantidad_con_medida(numero(detalle, "cantidad"), texto(producto, "tipoMedida"));
             celda_texto(pintor, celdas[1], &cantidad, tam::CUERPO, Peso::Normal, color::TEXTO, true);
             celda_texto(pintor, celdas[2], &pesos(numero(detalle, "precioUnitario")), tam::CUERPO, Peso::Normal, color::TEXTO_APAGADO, true);
             celda_texto(pintor, celdas[3], &pesos(numero(detalle, "subtotal")), tam::CUERPO, Peso::Semi, color::TEXTO, true);
@@ -237,7 +237,7 @@ fn productos(ui: &mut Ui, factura: &Value) {
 }
 
 fn observaciones(ui: &mut Ui, factura: &Value) {
-    comun::tarjeta(20, 18).show(ui, |ui| {
+    vista::tarjeta(20, 18).show(ui, |ui| {
         ui.set_width(ui.available_width());
         v2::texto(ui, "Observaciones", tam::ENTRADA, Peso::Semi, color::TEXTO);
         ui.add_space(8.0);
@@ -257,7 +257,7 @@ fn saldo(ui: &mut Ui, factura: &Value) -> AccionesSaldo {
     let pagado = logica::total_pagado(factura);
     let saldo = logica::saldo_pendiente(factura);
     let mut acciones = AccionesSaldo { agregar_pago: false, pdf: false, cliente: false };
-    comun::tarjeta(22, 20).show(ui, |ui| {
+    vista::tarjeta(22, 20).show(ui, |ui| {
         ui.set_width(ui.available_width());
         ui.spacing_mut().item_spacing.y = 14.0;
         v2::texto(ui, "Saldo pendiente", tam::ETIQUETA, Peso::Medio, color::TEXTO_APAGADO);
@@ -290,7 +290,7 @@ fn saldo(ui: &mut Ui, factura: &Value) -> AccionesSaldo {
 
 fn historial(ui: &mut Ui, factura: &Value) {
     let pagos = factura["pagos"].as_array().cloned().unwrap_or_default();
-    comun::tarjeta(20, 18).show(ui, |ui| {
+    vista::tarjeta(20, 18).show(ui, |ui| {
         ui.set_width(ui.available_width());
         v2::texto(ui, "Historial de pagos", tam::ENTRADA, Peso::Semi, color::TEXTO);
         ui.add_space(12.0);
@@ -303,7 +303,7 @@ fn historial(ui: &mut Ui, factura: &Value) {
             if indice > 0 {
                 ui.add_space(4.0);
             }
-            comun::fila_pago(ui, pago, 10.0, true);
+            vista::fila_pago(ui, pago, 10.0, true);
         }
     });
 }
@@ -317,12 +317,12 @@ fn dialogo_cliente(ctx: &Context, cliente: &Value) -> bool {
         }
     }
     let condicion = texto(cliente, "condicionFiscal");
-    datos.push(("Condición Fiscal", if condicion.is_empty() { "N/A".into() } else { comun::condicion_fiscal(condicion) }));
+    datos.push(("Condición Fiscal", if condicion.is_empty() { "N/A".into() } else { vista::condicion_fiscal(condicion) }));
     let mut cerrar = false;
     let r = Modal::new("factura-detalle-cliente", "Datos del cliente").subtitulo(&nombre).icono("user").ancho(460.0).mostrar(ctx, |ui| {
         v2::cuerpo_modal(ui, 12, |ui| {
             for (etiqueta, valor) in &datos {
-                comun::fila_dato(ui, etiqueta, valor);
+                vista::fila_dato(ui, etiqueta, valor);
             }
         });
         v2::pie_modal(ui, |ui| {

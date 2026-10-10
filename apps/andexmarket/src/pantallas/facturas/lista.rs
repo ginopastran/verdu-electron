@@ -2,7 +2,7 @@ use eframe::egui::{self, Align, Align2, Id, Layout, Rect, ScrollArea, Sense, Ui,
 use nucleo::facturas as logica;
 use serde_json::{json, Value};
 
-use super::comun::{self, RELLENO_CHIP_ESTADO, RELLENO_CHIP_TIPO};
+use super::vista::{self, RELLENO_CHIP_ESTADO, RELLENO_CHIP_TIPO};
 use super::formulario::{FormularioFactura, ResultadoFactura};
 use super::modal::{ModalFactura, ResultadoModal};
 use super::pagos::{self, AgregarPago, ResultadoHistorial, ResultadoPago};
@@ -191,9 +191,9 @@ impl Lista {
         self.rebotar_busqueda(ui);
         self.pedir(cx);
 
-        comun::fondo(ui);
+        vista::fondo(ui);
         ui.spacing_mut().item_spacing = Vec2::ZERO;
-        let volver = comun::encabezado(ui, "Volver a la venta", "Cuenta corriente");
+        let volver = vista::encabezado(ui, "Volver a la venta", "Cuenta corriente");
         let mut accion = None;
         ScrollArea::vertical().id_salt("facturas-lista").auto_shrink(false).show(ui, |ui| {
             egui::Frame::NONE.inner_margin(egui::Margin { left: 28, right: 28, top: 24, bottom: 40 }).show(ui, |ui| {
@@ -352,11 +352,11 @@ impl Lista {
     fn vacio(&mut self, ui: &mut Ui) {
         let con_filtros = self.filtros.activos();
         let mensaje = if con_filtros { "No hay facturas que coincidan" } else { "Todavía no hay facturas registradas" };
-        comun::vacio(ui, "doc", mensaje);
+        vista::vacio(ui, "doc", mensaje);
         if con_filtros {
             ui.add_space(16.0);
             let boton = Boton::secundario("Limpiar filtros").alto(36.0).radio(radio::CONTROL).tam_texto(tam::CONTROL);
-            if comun::boton_centrado(ui, boton) {
+            if vista::boton_centrado(ui, boton) {
                 self.busqueda.clear();
                 self.actualizar_filtros(|f| {
                     f.search.clear();
@@ -381,10 +381,10 @@ impl Lista {
         v2::pintar_texto(ui, interior.left_center(), Align2::LEFT_CENTER, info, tam::CONTROL, Peso::Normal, color::TEXTO_APAGADO);
         let mut hijo = ui.new_child(UiBuilder::new().max_rect(interior).layout(Layout::right_to_left(Align::Center)));
         hijo.spacing_mut().item_spacing.x = 6.0;
-        if comun::boton_pagina(&mut hijo, "Siguiente", "chevron-right", true, p.page < p.total_pages).clicked() {
+        if vista::boton_pagina(&mut hijo, "Siguiente", "chevron-right", true, p.page < p.total_pages).clicked() {
             self.paginacion.page = p.page + 1;
         }
-        if comun::boton_pagina(&mut hijo, "Anterior", "chevron-left", false, p.page > 1).clicked() {
+        if vista::boton_pagina(&mut hijo, "Anterior", "chevron-left", false, p.page > 1).clicked() {
             self.paginacion.page = p.page.saturating_sub(1).max(1);
         }
     }
@@ -501,24 +501,24 @@ fn fila(ui: &mut Ui, tabla: &Tabla, factura: &Value) -> Option<Accion> {
     let respuesta = tabla.fila(ui, alto::FILA_TABLA, None, |ui, celdas| {
         let pintor = ui.painter().clone();
         let numero_factura = v2::galeria(ui, texto(factura, "numero"), fuente_mono(tam::ETIQUETA, Peso::Medio), color::TEXTO);
-        let (tipo, colores_tipo) = comun::tipo(texto(factura, "tipoFactura"));
-        let tam_chip = comun::medir_chip(ui, &tipo, tam::MINI, RELLENO_CHIP_TIPO);
+        let (tipo, colores_tipo) = vista::tipo(texto(factura, "tipoFactura"));
+        let tam_chip = vista::medir_chip(ui, &tipo, tam::MINI, RELLENO_CHIP_TIPO);
         let arriba = celdas[0].center().y - (numero_factura.size().y + 3.0 + tam_chip.y) / 2.0;
         pintor.galley(egui::pos2(celdas[0].left(), arriba), numero_factura.clone(), color::TEXTO);
-        comun::pintar_chip(ui, egui::pos2(celdas[0].left(), arriba + numero_factura.size().y + 3.0), &tipo, tam::MINI, RELLENO_CHIP_TIPO, colores_tipo.0, colores_tipo.1);
+        vista::pintar_chip(ui, egui::pos2(celdas[0].left(), arriba + numero_factura.size().y + 3.0), &tipo, tam::MINI, RELLENO_CHIP_TIPO, colores_tipo.0, colores_tipo.1);
 
         let cantidad = factura["detalles"].as_array().map_or(0, Vec::len);
         let arriba = celdas[1].center().y - 16.5;
-        celda_texto(&pintor, Rect::from_x_y_ranges(celdas[1].x_range(), arriba..=arriba + 17.0), &comun::nombre_cliente(factura), tam::CUERPO, Peso::Medio, color::TEXTO, false);
-        celda_texto(&pintor, Rect::from_x_y_ranges(celdas[1].x_range(), arriba + 18.0..=arriba + 33.0), &comun::productos(cantidad), tam::XS, Peso::Normal, color::TEXTO_TENUE, false);
+        celda_texto(&pintor, Rect::from_x_y_ranges(celdas[1].x_range(), arriba..=arriba + 17.0), &vista::nombre_cliente(factura), tam::CUERPO, Peso::Medio, color::TEXTO, false);
+        celda_texto(&pintor, Rect::from_x_y_ranges(celdas[1].x_range(), arriba + 18.0..=arriba + 33.0), &vista::productos(cantidad), tam::XS, Peso::Normal, color::TEXTO_TENUE, false);
 
         celda_texto(&pintor, celdas[2], &logica::fecha_es_ar(texto(factura, "fecha")), tam::CUERPO, Peso::Normal, color::TEXTO_SECUNDARIO, false);
         celda_texto(&pintor, celdas[3], &pesos(total), tam::CUERPO, Peso::Semi, color::TEXTO, true);
         celda_texto(&pintor, celdas[4], &pesos(pagado), tam::CUERPO, Peso::Normal, color::VERDE_EXITO, true);
         celda_texto(&pintor, celdas[5], &pesos(saldo), tam::CUERPO, Peso::Semi, if saldo > 0.0 { color::ROJO } else { color::VERDE_EXITO }, true);
-        let (estado, colores_estado) = comun::estado(factura);
-        let tam_estado = comun::medir_chip(ui, &estado, tam::XS, RELLENO_CHIP_ESTADO);
-        comun::pintar_chip(ui, egui::pos2(celdas[6].left(), celdas[6].center().y - tam_estado.y / 2.0), &estado, tam::XS, RELLENO_CHIP_ESTADO, colores_estado.0, colores_estado.1);
+        let (estado, colores_estado) = vista::estado(factura);
+        let tam_estado = vista::medir_chip(ui, &estado, tam::XS, RELLENO_CHIP_ESTADO);
+        vista::pintar_chip(ui, egui::pos2(celdas[6].left(), celdas[6].center().y - tam_estado.y / 2.0), &estado, tam::XS, RELLENO_CHIP_ESTADO, colores_estado.0, colores_estado.1);
 
         let mut acciones = ui.new_child(UiBuilder::new().id_salt(("acciones", &id)).max_rect(celdas[7]).layout(Layout::right_to_left(Align::Center)));
         acciones.spacing_mut().item_spacing.x = 4.0;

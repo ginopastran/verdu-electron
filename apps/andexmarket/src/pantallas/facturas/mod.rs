@@ -5,6 +5,7 @@ mod lista;
 mod modal;
 mod pagos;
 mod selectores;
+mod vista;
 
 use std::path::PathBuf;
 
