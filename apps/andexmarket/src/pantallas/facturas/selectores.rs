@@ -1,13 +1,15 @@
-use eframe::egui::{self, Align2, Color32, Context, Id, Key, Rect, Sense, Stroke, StrokeKind, Ui, Vec2};
+use eframe::egui::{self, Align, Align2, Color32, Context, CursorIcon, Id, Key, Layout, Rect, ScrollArea, Sense, Stroke, StrokeKind, Ui, UiBuilder, Vec2};
 use nucleo::facturas::{self as logica};
 use nucleo::formato;
 use serde_json::Value;
 
-use super::comun::{self, Boton, Relleno};
-use super::{id_texto, numero, texto};
+use super::comun;
+use super::{id_texto, numero, pesos, texto};
 use crate::app::Contexto;
 use crate::tareas::{esperar, Tarea};
-use crate::ui::{self, color, paleta, Entrada, Peso, Tam};
+use crate::ui::marca::{color, fuente, fuente_mono, radio, tam};
+use crate::ui::v2::{self, tarjetas::celda_texto, toast, Boton, CampoTexto, Modal};
+use crate::ui::Peso;
 
 const CLIENTES_POR_PAGINA: u32 = 10;
 const PRODUCTOS_POR_PAGINA: usize = 6;
@@ -50,70 +52,87 @@ fn razon(estado: u16) -> &'static str {
 }
 
 fn alerta_error(ui: &mut Ui, error: &str) {
-    let ancho = ui.available_width();
-    let b = comun::bloque(ui, error, Tam::Sm, Peso::Normal, paleta::RED_700, ancho - 50.0);
-    let (rect, _) = ui.allocate_exact_size(Vec2::new(ancho, b.alto() + 26.0), Sense::hover());
-    ui.painter().rect(rect, 6, paleta::RED_50, Stroke::new(1.0, paleta::RED_200), StrokeKind::Inside);
-    ui::pintar_icono_en(ui, Rect::from_min_size(rect.min + Vec2::new(13.0, 15.0), Vec2::splat(16.0)), "alert-circle", paleta::RED_500);
-    b.pintar(ui, rect.min + Vec2::new(37.0, 13.0), paleta::RED_700);
-    ui.add_space(16.0);
+    egui::Frame::NONE
+        .fill(color::ROJO_FONDO)
+        .stroke(Stroke::new(1.0, color::ROJO_BORDE))
+        .corner_radius(radio::CAMPO)
+        .inner_margin(egui::Margin::symmetric(12, 10))
+        .show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            ui.horizontal_top(|ui| {
+                ui.spacing_mut().item_spacing.x = 8.0;
+                let (caja, _) = ui.allocate_exact_size(Vec2::splat(18.0), Sense::hover());
+                v2::pintar_icono(ui, caja.center(), "alert", 18.0, color::ROJO_INTENSO);
+                let ancho = ui.available_width();
+                v2::parrafo(ui, error, tam::ETIQUETA, color::ROJO, 1.45, ancho);
+            });
+        });
+    ui.add_space(12.0);
 }
 
 fn vacio(ui: &mut Ui, icono: &str, mensaje: &str, limpiar: bool, pista: bool) -> bool {
-    let ancho = ui.available_width();
-    let mut alto = 32.0 + 48.0 + 8.0 + 24.0 + 32.0;
-    if limpiar {
-        alto += 8.0 + 36.0 + if pista { 8.0 + 16.0 + 8.0 } else { 0.0 };
-    }
-    let (rect, _) = ui.allocate_exact_size(Vec2::new(ancho, alto), Sense::hover());
-    let centro = rect.center().x;
-    let mut y = rect.top() + 32.0;
-    ui::pintar_icono_en(ui, Rect::from_min_size(egui::pos2(centro - 24.0, y), Vec2::splat(48.0)), icono, color::APAGADO_TEXTO);
-    y += 56.0;
-    comun::texto_en(ui, egui::pos2(centro, y + 12.0), Align2::CENTER_CENTER, mensaje, Tam::Base, Peso::Normal, color::APAGADO_TEXTO);
-    y += 24.0;
+    comun::vacio(ui, icono, mensaje);
     let mut clic = false;
     if limpiar {
-        y += if pista { 16.0 } else { 8.0 };
-        let boton = Boton::contorno("Limpiar búsqueda").chico();
-        let w = boton.ancho_natural(ui);
-        clic = boton.en(ui, Rect::from_min_size(egui::pos2(centro - w / 2.0, y), Vec2::new(w, 36.0)), "limpiar").clicked();
+        ui.add_space(16.0);
+        clic = comun::boton_centrado(ui, Boton::secundario("Limpiar búsqueda").alto(36.0).radio(radio::CONTROL).tam_texto(tam::CONTROL));
         if pista {
-            comun::texto_en(ui, egui::pos2(centro, y + 36.0 + 8.0 + 8.0), Align2::CENTER_CENTER, "Intenta con términos más generales", Tam::Xs, Peso::Normal, color::APAGADO_TEXTO);
+            ui.add_space(8.0);
+            let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 16.0), Sense::hover());
+            v2::pintar_texto(ui, rect.center(), Align2::CENTER_CENTER, "Intentá con términos más generales", tam::XS, Peso::Normal, color::TEXTO_TENUE);
         }
     }
+    ui.add_space(32.0);
     clic
 }
 
-fn cargando(ui: &mut Ui, texto: &str) {
-    comun::cargando_centro(ui, 88.0, texto, color::APAGADO_TEXTO, color::APAGADO_TEXTO, Tam::Base);
-}
-
 fn resumen(ui: &mut Ui, izquierda: &str, derecha: Option<String>) {
-    let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 20.0), Sense::hover());
-    comun::texto_en(ui, egui::pos2(rect.left(), rect.center().y), Align2::LEFT_CENTER, izquierda, Tam::Sm, Peso::Normal, color::APAGADO_TEXTO);
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 16.0), Sense::hover());
+    v2::pintar_texto(ui, rect.left_center(), Align2::LEFT_CENTER, izquierda, tam::CHICO, Peso::Normal, color::TEXTO_APAGADO);
     if let Some(derecha) = derecha {
-        comun::texto_en(ui, egui::pos2(rect.right(), rect.center().y), Align2::RIGHT_CENTER, &derecha, Tam::Sm, Peso::Normal, color::APAGADO_TEXTO);
+        v2::pintar_texto(ui, rect.right_center(), Align2::RIGHT_CENTER, derecha, tam::CHICO, Peso::Normal, color::TEXTO_APAGADO);
     }
 }
 
-fn paginacion(ui: &mut Ui, id: &str, pagina: u32, total: u32, anterior: bool, siguiente: bool) -> Option<u32> {
-    ui.add_space(16.0);
-    comun::borde_superior(ui);
-    ui.add_space(8.0);
-    let paginas = logica::paginas_visibles(pagina, total);
-    comun::fila_paginacion(ui, id, pagina, &paginas, anterior, siguiente, 8.0)
+fn paginacion(ui: &mut Ui, pagina: u32, total: u32, anterior: bool, siguiente: bool) -> Option<u32> {
+    ui.add_space(12.0);
+    v2::separador(ui);
+    ui.add_space(12.0);
+    let mut destino = None;
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 32.0), Sense::hover());
+    v2::pintar_texto(ui, rect.center(), Align2::CENTER_CENTER, format!("Página {pagina} de {total}"), tam::CONTROL, Peso::Normal, color::TEXTO_APAGADO);
+    let mut izquierda = ui.new_child(UiBuilder::new().max_rect(rect).layout(Layout::left_to_right(Align::Center)));
+    if comun::boton_pagina(&mut izquierda, "Anterior", "chevron-left", false, anterior).clicked() {
+        destino = Some(pagina.saturating_sub(1));
+    }
+    let mut derecha = ui.new_child(UiBuilder::new().max_rect(rect).layout(Layout::right_to_left(Align::Center)));
+    if comun::boton_pagina(&mut derecha, "Siguiente", "chevron-right", true, siguiente).clicked() {
+        destino = Some(pagina + 1);
+    }
+    destino
 }
 
 fn pie(ui: &mut Ui, habilitado: bool) -> bool {
-    ui.add_space(16.0);
-    comun::borde_superior(ui);
-    ui.add_space(16.0);
-    ui::pie_dialogo(ui, |ui| Boton::contorno("Cancelar").habilitado(habilitado).ui(ui).clicked())
+    v2::pie_modal(ui, |ui| Boton::secundario("Cancelar").modal().habilitado(habilitado).ui(ui).clicked())
 }
 
 fn alto_lista(ctx: &Context, fijo: f32) -> f32 {
     (ctx.content_rect().height() * 0.8 - fijo).max(64.0)
+}
+
+fn fila_opcion(ui: &mut Ui, id: Id, alto: f32, activo: bool, contenido: impl FnOnce(&Ui, Rect)) -> egui::Response {
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), alto), Sense::hover());
+    let respuesta = ui.interact(rect, id, Sense::click()).on_hover_cursor(CursorIcon::PointingHand);
+    let fondo = if activo {
+        color::VERDE_ELEGIDO
+    } else if respuesta.hovered() {
+        color::FONDO_APP
+    } else {
+        Color32::TRANSPARENT
+    };
+    ui.painter().rect_filled(rect, radio::ICONO, fondo);
+    contenido(ui, rect.shrink2(Vec2::new(10.0, 0.0)));
+    respuesta
 }
 
 #[derive(Default)]
@@ -173,7 +192,7 @@ impl SelectorCliente {
             }
             Err(error) => {
                 self.error = Some(mensaje_error(&error));
-                ui::toast::error(&cx.egui, "Error al cargar la lista de clientes");
+                toast::error(&cx.egui, "Error al cargar la lista de clientes");
             }
         }
     }
@@ -186,64 +205,64 @@ impl SelectorCliente {
         self.pedir(cx);
         let mut elegido = None;
         let mut cerrar = false;
-        let fijo = 277.0 + if self.error.is_some() { 64.0 } else { 0.0 } + if self.total_paginas > 1 && !self.cargando { 61.0 } else { 0.0 };
+        let fijo = 260.0 + if self.error.is_some() { 64.0 } else { 0.0 } + if self.total_paginas > 1 && !self.cargando { 57.0 } else { 0.0 };
         let alto = alto_lista(ctx, fijo);
-        let r = ui::Dialogo::new("facturas-selector-cliente").ancho(672.0).mostrar(ctx, |ui| {
-            super::modal::estilo_desplazamiento(ui);
-            comun::encabezado_dialogo(ui, "user", "Seleccionar Cliente", "Busque y seleccione un cliente para la factura", 12.0);
-            ui.add_space(16.0);
-            let anterior = self.busqueda.clone();
-            ui.scope(|ui| {
-                Entrada::new(&mut self.busqueda)
-                    .tam(Tam::Sm)
-                    .icono("search")
-                    .sugerencia("Buscar por nombre, razón social, CUIT...")
-                    .habilitado(!self.cargando)
-                    .id(Id::new("facturas-buscar-cliente"))
-                    .ui(ui)
-            });
-            if self.busqueda != anterior && !self.busqueda.is_empty() {
-                self.pagina = 1;
-            }
-            ui.add_space(16.0);
-            let derecha = (self.total_paginas > 1).then(|| format!("Página {} de {}", self.pagina, self.total_paginas));
-            resumen(ui, &logica::resumen_clientes(self.cargando, !self.busqueda.is_empty(), self.total), derecha);
-            ui.add_space(16.0);
-            if let Some(error) = &self.error {
-                alerta_error(ui, error);
-            }
-            comun::desplazable(ui, Id::new("facturas-lista-clientes"), alto, |ui| {
-                ui.set_width(ui.available_width());
-                if self.cargando {
-                    cargando(ui, "Cargando clientes...");
-                } else if self.clientes.is_empty() {
-                    let mensaje = if self.busqueda.is_empty() {
-                        "No hay clientes disponibles"
-                    } else {
-                        "No se encontraron clientes con ese criterio de búsqueda"
-                    };
-                    if vacio(ui, "user", mensaje, !self.busqueda.is_empty(), false) {
-                        self.busqueda.clear();
+        let r = Modal::new("facturas-selector-cliente", "Seleccionar cliente")
+            .subtitulo("Buscá y elegí el cliente de la factura")
+            .icono("user")
+            .ancho(560.0)
+            .mostrar(ctx, |ui| {
+                v2::cuerpo_modal(ui, 18, |ui| {
+                    let anterior = self.busqueda.clone();
+                    CampoTexto::new(&mut self.busqueda)
+                        .alto(44.0)
+                        .radio(radio::BOTON_MODAL)
+                        .relleno(12.0, 12.0)
+                        .icono("search")
+                        .tam_texto(tam::CUERPO)
+                        .sugerencia("Buscar por nombre, razón social o CUIT")
+                        .habilitado(!self.cargando)
+                        .id(Id::new("facturas-buscar-cliente"))
+                        .ui(ui);
+                    if self.busqueda != anterior && !self.busqueda.is_empty() {
+                        self.pagina = 1;
                     }
-                } else {
-                    for (i, cliente) in self.clientes.iter().enumerate() {
-                        if i > 0 {
-                            ui.add_space(8.0);
+                    ui.add_space(12.0);
+                    let derecha = (self.total_paginas > 1).then(|| format!("Página {} de {}", self.pagina, self.total_paginas));
+                    resumen(ui, &logica::resumen_clientes(self.cargando, !self.busqueda.is_empty(), self.total), derecha);
+                    ui.add_space(10.0);
+                    if let Some(error) = &self.error {
+                        alerta_error(ui, error);
+                    }
+                    ScrollArea::vertical().id_salt("facturas-lista-clientes").max_height(alto).auto_shrink([false, true]).show(ui, |ui| {
+                        if self.cargando {
+                            comun::cargando(ui, 88.0, "Cargando clientes…");
+                        } else if self.clientes.is_empty() {
+                            let mensaje = if self.busqueda.is_empty() {
+                                "No hay clientes disponibles"
+                            } else {
+                                "No se encontraron clientes con ese criterio de búsqueda"
+                            };
+                            if vacio(ui, "user", mensaje, !self.busqueda.is_empty(), false) {
+                                self.busqueda.clear();
+                            }
+                        } else {
+                            for (i, cliente) in self.clientes.iter().enumerate() {
+                                let activo = seleccionado.as_deref() == Some(id_texto(&cliente["id"]).as_str());
+                                if fila_cliente(ui, cliente, activo, i).clicked() {
+                                    elegido = Some(cliente.clone());
+                                }
+                            }
                         }
-                        let activo = seleccionado.as_deref() == Some(id_texto(&cliente["id"]).as_str());
-                        if boton_cliente(ui, cliente, activo, i).clicked() {
-                            elegido = Some(cliente.clone());
+                    });
+                    if self.total_paginas > 1 && !self.cargando {
+                        if let Some(destino) = paginacion(ui, self.pagina, self.total_paginas, self.hay_anterior, self.hay_siguiente) {
+                            self.pagina = destino.clamp(1, self.total_paginas);
                         }
                     }
-                }
+                });
+                cerrar = pie(ui, !self.cargando);
             });
-            if self.total_paginas > 1 && !self.cargando {
-                if let Some(destino) = paginacion(ui, "clientes", self.pagina, self.total_paginas, self.hay_anterior, self.hay_siguiente) {
-                    self.pagina = destino.clamp(1, self.total_paginas);
-                }
-            }
-            cerrar = pie(ui, !self.cargando);
-        });
         if elegido.is_some() || cerrar || r.cerrar {
             self.abierto = false;
         }
@@ -251,31 +270,24 @@ impl SelectorCliente {
     }
 }
 
-fn boton_cliente(ui: &mut Ui, cliente: &Value, activo: bool, indice: usize) -> egui::Response {
-    let ancho = ui.available_width();
-    let cuit = texto(cliente, "cuit");
-    let alto = 2.0 + 32.0 + 20.0 + 4.0 + if cuit.is_empty() { 20.0 } else { 44.0 };
-    let (rect, _) = ui.allocate_exact_size(Vec2::new(ancho, alto), Sense::hover());
-    let boton = if activo { Boton::primario("") } else { Boton::contorno("").encima(Relleno::Liso(color::ACENTO)) };
-    let respuesta = boton.borde(Some(color::BORDE_ENTRADA)).en(ui, rect, ("cliente", indice));
-    let x = rect.left() + 17.0;
-    let mut y = rect.top() + 17.0;
-    let principal = if activo { color::PRIMARIO_TEXTO } else { color::TEXTO };
-    comun::texto_en(ui, egui::pos2(x, y + 10.0), Align2::LEFT_CENTER, &logica::nombre_cliente(cliente), Tam::Sm, Peso::Medio, principal);
-    y += 24.0;
-    let mut dato = |etiqueta: &str, valor: &str| {
-        let r = comun::texto_en(ui, egui::pos2(x, y + 10.0), Align2::LEFT_CENTER, etiqueta, Tam::Sm, Peso::Medio, color::APAGADO_TEXTO);
-        comun::texto_en(ui, egui::pos2(r.right() + 4.0, y + 10.0), Align2::LEFT_CENTER, valor, Tam::Sm, Peso::Normal, color::APAGADO_TEXTO);
-        y += 24.0;
-    };
-    if !cuit.is_empty() {
-        dato("CUIT:", cuit);
-    }
-    dato("Condición Fiscal:", texto(cliente, "condicionFiscal"));
-    if activo {
-        ui::pintar_icono_en(ui, Rect::from_center_size(egui::pos2(rect.right() - 25.0, rect.center().y), Vec2::splat(16.0)), "user", color::PRIMARIO);
-    }
-    respuesta
+fn fila_cliente(ui: &mut Ui, cliente: &Value, activo: bool, indice: usize) -> egui::Response {
+    fila_opcion(ui, Id::new(("facturas-cliente", indice)), 50.0, activo, |ui, rect| {
+        let derecha = if activo { rect.right() - 28.0 } else { rect.right() };
+        let arriba = rect.center().y - 16.0;
+        celda_texto(ui.painter(), Rect::from_x_y_ranges(rect.left()..=derecha, arriba..=arriba + 17.0), &logica::nombre_cliente(cliente), tam::CUERPO, Peso::Medio, color::TEXTO, false);
+        let cuit = texto(cliente, "cuit");
+        let condicion = comun::condicion_fiscal(texto(cliente, "condicionFiscal"));
+        let detalle = match (cuit.is_empty(), condicion.is_empty()) {
+            (false, false) => format!("{cuit} · {condicion}"),
+            (false, true) => cuit.to_string(),
+            _ => condicion,
+        };
+        let g = v2::galeria(ui, detalle, fuente_mono(tam::XS, Peso::Normal), color::TEXTO_TENUE);
+        ui.painter().with_clip_rect(rect.with_max_x(derecha)).galley(egui::pos2(rect.left(), arriba + 18.0), g, color::TEXTO_TENUE);
+        if activo {
+            v2::pintar_icono(ui, egui::pos2(rect.right() - 8.0, rect.center().y), "check", 16.0, color::VERDE);
+        }
+    })
 }
 
 #[derive(Default)]
@@ -316,7 +328,7 @@ impl SelectorProducto {
                 Ok(datos) => self.productos = datos["productos"].as_array().cloned().unwrap_or_default(),
                 Err(error) => {
                     self.error = Some(mensaje_error(&error));
-                    ui::toast::error(&cx.egui, "Error al cargar la lista de productos");
+                    toast::error(&cx.egui, "Error al cargar la lista de productos");
                 }
             }
         }
@@ -326,75 +338,74 @@ impl SelectorProducto {
         let pagina: Vec<Value> = filtrados.iter().skip(inicio).take(PRODUCTOS_POR_PAGINA).cloned().collect();
         let mut elegido = None;
         let mut cerrar = false;
-        let fijo = 277.0 + if self.error.is_some() { 64.0 } else { 0.0 } + if total_paginas > 1 && !self.cargando { 61.0 } else { 0.0 };
+        let fijo = 260.0 + if self.error.is_some() { 64.0 } else { 0.0 } + if total_paginas > 1 && !self.cargando { 57.0 } else { 0.0 };
         let alto = alto_lista(ctx, fijo);
-        let r = ui::Dialogo::new("facturas-selector-producto").ancho(672.0).mostrar(ctx, |ui| {
-            super::modal::estilo_desplazamiento(ui);
-            comun::encabezado_dialogo(ui, "package", "Seleccionar Producto", "Busque y seleccione productos para agregar a la factura", 12.0);
-            ui.add_space(16.0);
-            let anterior = self.busqueda.clone();
-            let id = Id::new("facturas-buscar-producto");
-            let respuesta = ui
-                .scope(|ui| {
-                    Entrada::new(&mut self.busqueda)
-                        .tam(Tam::Sm)
+        let r = Modal::new("facturas-selector-producto", "Agregar producto")
+            .subtitulo("Buscá el producto para sumarlo a la factura")
+            .icono("cart-plus")
+            .ancho(600.0)
+            .mostrar(ctx, |ui| {
+                v2::cuerpo_modal(ui, 18, |ui| {
+                    let anterior = self.busqueda.clone();
+                    let id = Id::new("facturas-buscar-producto");
+                    let respuesta = CampoTexto::new(&mut self.busqueda)
+                        .alto(44.0)
+                        .radio(radio::BOTON_MODAL)
+                        .relleno(12.0, 12.0)
                         .icono("search")
-                        .sugerencia("Buscar producto (nombre o PLU)...")
+                        .tam_texto(tam::CUERPO)
+                        .sugerencia("Buscar producto por nombre o PLU")
                         .habilitado(!self.cargando)
                         .id(id)
                         .ui(ui)
-                })
-                .inner;
-            if self.enfocar {
-                respuesta.request_focus();
-                self.enfocar = false;
-            }
-            if respuesta.has_focus() && ui.input(|i| i.key_pressed(Key::Escape)) {
-                cerrar = true;
-            }
-            if self.busqueda != anterior {
-                self.pagina = 1;
-            }
-            ui.add_space(16.0);
-            let derecha = (total_paginas > 1).then(|| format!("Página {} de {}", self.pagina, total_paginas));
-            resumen(ui, &logica::resumen_productos(self.cargando, !self.busqueda.is_empty(), filtrados.len()), derecha);
-            ui.add_space(16.0);
-            if let Some(error) = &self.error {
-                alerta_error(ui, error);
-            }
-            comun::desplazable(ui, Id::new("facturas-lista-productos"), alto, |ui| {
-                ui.set_width(ui.available_width());
-                if self.cargando {
-                    cargando(ui, "Cargando productos...");
-                } else if pagina.is_empty() {
-                    let mensaje = if self.busqueda.is_empty() {
-                        "No hay productos disponibles".to_string()
-                    } else {
-                        format!("No se encontraron productos que coincidan con \"{}\"", self.busqueda)
-                    };
-                    if vacio(ui, "package", &mensaje, !self.busqueda.is_empty(), true) {
-                        self.busqueda.clear();
+                        .respuesta;
+                    if self.enfocar {
+                        respuesta.request_focus();
+                        self.enfocar = false;
                     }
-                } else {
-                    for (i, producto) in pagina.iter().enumerate() {
-                        if i > 0 {
-                            ui.add_space(8.0);
+                    if respuesta.has_focus() && ui.input(|i| i.key_pressed(Key::Escape)) {
+                        cerrar = true;
+                    }
+                    if self.busqueda != anterior {
+                        self.pagina = 1;
+                    }
+                    ui.add_space(12.0);
+                    let derecha = (total_paginas > 1).then(|| format!("Página {} de {}", self.pagina, total_paginas));
+                    resumen(ui, &logica::resumen_productos(self.cargando, !self.busqueda.is_empty(), filtrados.len()), derecha);
+                    ui.add_space(10.0);
+                    if let Some(error) = &self.error {
+                        alerta_error(ui, error);
+                    }
+                    ScrollArea::vertical().id_salt("facturas-lista-productos").max_height(alto).auto_shrink([false, true]).show(ui, |ui| {
+                        if self.cargando {
+                            comun::cargando(ui, 88.0, "Cargando productos…");
+                        } else if pagina.is_empty() {
+                            let mensaje = if self.busqueda.is_empty() {
+                                "No hay productos disponibles".to_string()
+                            } else {
+                                format!("No se encontraron productos que coincidan con \"{}\"", self.busqueda)
+                            };
+                            if vacio(ui, "cart", &mensaje, !self.busqueda.is_empty(), true) {
+                                self.busqueda.clear();
+                            }
+                        } else {
+                            for producto in &pagina {
+                                if fila_producto(ui, producto, &lista, iva_en_precios).clicked() {
+                                    elegido = Some(producto.clone());
+                                }
+                            }
                         }
-                        if boton_producto(ui, producto, &lista, iva_en_precios).clicked() {
-                            elegido = Some(producto.clone());
+                    });
+                    if total_paginas > 1 && !self.cargando {
+                        if let Some(destino) = paginacion(ui, self.pagina as u32, total_paginas, self.pagina != 1, self.pagina as u32 != total_paginas) {
+                            self.pagina = (destino.clamp(1, total_paginas.max(1))) as usize;
                         }
                     }
+                });
+                if pie(ui, !self.cargando) {
+                    cerrar = true;
                 }
             });
-            if total_paginas > 1 && !self.cargando {
-                if let Some(destino) = paginacion(ui, "productos", self.pagina as u32, total_paginas, self.pagina != 1, self.pagina as u32 != total_paginas) {
-                    self.pagina = (destino.clamp(1, total_paginas.max(1))) as usize;
-                }
-            }
-            if pie(ui, !self.cargando) {
-                cerrar = true;
-            }
-        });
         if elegido.is_some() {
             self.busqueda.clear();
         }
@@ -405,54 +416,66 @@ impl SelectorProducto {
     }
 }
 
-fn chip(ui: &Ui, x: f32, centro: f32, contenido: &str, fondo: Color32, tinta: Color32, peso: Peso) -> f32 {
-    let ancho = comun::ancho_texto(ui, contenido, Tam::Xs, peso) + 16.0;
-    let rect = Rect::from_min_size(egui::pos2(x, centro - 12.0), Vec2::new(ancho, 24.0));
-    ui.painter().rect_filled(rect, 4, fondo);
-    comun::texto_en(ui, egui::pos2(x + 8.0, centro), Align2::LEFT_CENTER, contenido, Tam::Xs, peso, tinta);
-    ancho
-}
-
-fn boton_producto(ui: &mut Ui, producto: &Value, lista: &ListaActiva, iva_en_precios: Option<bool>) -> egui::Response {
-    let ancho = ui.available_width();
-    let (rect, _) = ui.allocate_exact_size(Vec2::new(ancho, 86.0), Sense::hover());
+fn fila_producto(ui: &mut Ui, producto: &Value, lista: &ListaActiva, iva_en_precios: Option<bool>) -> egui::Response {
     let id = producto["id"].as_i64().unwrap_or_default();
-    let respuesta = Boton::contorno("").borde(Some(color::BORDE_ENTRADA)).en(ui, rect, ("producto", id));
-    let mut x = rect.left() + 17.0;
-    let fila1 = rect.top() + 17.0 + 12.0;
-    let plu = texto(producto, "plu");
-    if !plu.is_empty() {
-        x += chip(ui, x, fila1, &format!("PLU: {plu}"), paleta::BLUE_100, paleta::BLUE_800, Peso::Medio) + 8.0;
-    }
-    let precio_lista = lista.precios.get(&id).copied().filter(|p| *p != 0.0);
-    if let (Some(nombre), true) = (&lista.nombre, lista.precios.contains_key(&id)) {
-        let w = comun::ancho_texto(ui, nombre, Tam::Xs, Peso::Medio) + 16.0 + 16.0;
-        let caja = Rect::from_min_size(egui::pos2(x, fila1 - 12.0), Vec2::new(w, 24.0));
-        comun::pintar_relleno(ui, caja, 4.0, comun::esmeralda(), 1.0);
-        ui::pintar_icono_en(ui, Rect::from_center_size(egui::pos2(x + 14.0, fila1), Vec2::splat(12.0)), "file-text", Color32::WHITE);
-        comun::texto_en(ui, egui::pos2(x + 24.0, fila1), Align2::LEFT_CENTER, nombre, Tam::Xs, Peso::Medio, Color32::WHITE);
-        x += w + 8.0;
-    }
-    comun::texto_en(ui, egui::pos2(x, fila1), Align2::LEFT_CENTER, texto(producto, "nombre"), Tam::Sm, Peso::Medio, color::TEXTO);
-    let fila2 = fila1 + 12.0 + 4.0 + 12.0;
-    let mut x = rect.left() + 17.0;
-    x += chip(ui, x, fila2, texto(producto, "tipoMedida"), color::APAGADO, color::APAGADO_TEXTO, Peso::Normal) + 8.0;
-    let base = numero(producto, "precio");
-    let precio = formato::pesos(logica::precio_con_iva(Some(producto), precio_lista.unwrap_or(base), iva_en_precios));
-    let r = comun::texto_en(ui, egui::pos2(x, fila2), Align2::LEFT_CENTER, &precio, Tam::Sm, Peso::Medio, color::PRIMARIO);
-    x = r.right() + 8.0;
-    if precio_lista.is_some_and(|p| p != base) {
-        let tachado = formato::pesos(logica::precio_con_iva(Some(producto), base, iva_en_precios));
-        let r = comun::texto_en(ui, egui::pos2(x, fila2), Align2::LEFT_CENTER, &tachado, Tam::Xs, Peso::Normal, color::APAGADO_TEXTO);
-        ui.painter().hline(r.x_range(), r.center().y, Stroke::new(1.0, color::APAGADO_TEXTO));
-        x = r.right() + 8.0;
-    }
-    if let Some(stock) = producto["stock"].as_f64() {
-        let (fondo, tinta) = if stock > 0.0 { (paleta::GREEN_100, paleta::GREEN_700) } else { (paleta::RED_100, paleta::RED_700) };
-        chip(ui, x, fila2, &format!("Stock: {}", formato::numero(stock)), fondo, tinta, Peso::Normal);
-    }
-    ui::pintar_icono_en(ui, Rect::from_center_size(egui::pos2(rect.right() - 27.0, rect.center().y), Vec2::splat(20.0)), "plus", color::APAGADO_TEXTO);
-    respuesta
+    fila_opcion(ui, Id::new(("facturas-producto", id)), 50.0, false, |ui, rect| {
+        let precio_lista = lista.precios.get(&id).copied().filter(|p| *p != 0.0);
+        let base = numero(producto, "precio");
+        let precio = v2::pintar_texto(
+            ui,
+            egui::pos2(rect.right(), rect.center().y),
+            Align2::RIGHT_CENTER,
+            pesos(logica::precio_con_iva(Some(producto), precio_lista.unwrap_or(base), iva_en_precios)),
+            tam::CONTROL,
+            Peso::Semi,
+            color::TEXTO,
+        );
+        let mut derecha = precio.left() - 10.0;
+        if precio_lista.is_some_and(|p| p != base) {
+            let tachado = v2::pintar_texto(
+                ui,
+                egui::pos2(derecha, rect.center().y),
+                Align2::RIGHT_CENTER,
+                pesos(logica::precio_con_iva(Some(producto), base, iva_en_precios)),
+                tam::XS,
+                Peso::Normal,
+                color::TEXTO_DESHABILITADO,
+            );
+            ui.painter().hline(tachado.x_range(), tachado.center().y, Stroke::new(1.0, color::TEXTO_DESHABILITADO));
+            derecha = tachado.left() - 10.0;
+        }
+        let arriba = rect.center().y - 16.0;
+        let mut izquierda = rect.left();
+        if let (Some(nombre), true) = (&lista.nombre, lista.precios.contains_key(&id)) {
+            let chip = comun::pintar_chip(ui, egui::pos2(izquierda, arriba + 0.5), nombre, tam::MINI, comun::RELLENO_CHIP_TIPO, color::VERDE_CHIP, color::VERDE);
+            izquierda = chip.right() + 6.0;
+        }
+        celda_texto(ui.painter(), Rect::from_x_y_ranges(izquierda..=derecha, arriba..=arriba + 17.0), texto(producto, "nombre"), tam::CONTROL, Peso::Medio, color::TEXTO, false);
+        let mut detalle = Vec::new();
+        let plu = texto(producto, "plu");
+        if !plu.is_empty() {
+            detalle.push(format!("PLU {plu}"));
+        }
+        let medida = texto(producto, "tipoMedida");
+        if !medida.is_empty() {
+            detalle.push(medida.to_string());
+        }
+        let g = v2::galeria(ui, detalle.join(" · "), fuente_mono(tam::MINI, Peso::Normal), color::TEXTO_TENUE);
+        let ancho_detalle = g.size().x;
+        let y = arriba + 18.0;
+        ui.painter().galley(egui::pos2(rect.left(), y), g, color::TEXTO_TENUE);
+        if let Some(stock) = producto["stock"].as_f64() {
+            let tinta = if stock > 0.0 { color::VERDE_EXITO } else { color::ROJO };
+            let prefijo = if ancho_detalle > 0.0 { " · " } else { "" };
+            ui.painter().text(
+                egui::pos2(rect.left() + ancho_detalle, y),
+                Align2::LEFT_TOP,
+                format!("{prefijo}Stock {}", formato::numero(stock)),
+                fuente_mono(tam::MINI, Peso::Normal),
+                tinta,
+            );
+        }
+    })
 }
 
 pub struct CantidadProducto {
@@ -501,84 +524,81 @@ impl CantidadProducto {
         let subtotal = self.cantidad * self.precio_con_iva;
         let mut resultado = None;
         let mut confirmar = false;
-        let r = ui::Dialogo::new("facturas-cantidad").ancho(448.0).mostrar(ctx, |ui| {
-            comun::encabezado_dialogo(ui, "package", "Agregar Producto", "Especifique la cantidad para agregar a la factura", 12.0);
-            ui.add_space(16.0);
-            let ancho = ui.available_width();
-            let stock = producto["stock"].as_f64();
-            let alto = 16.0 + 28.0 + 8.0 + 20.0 + 8.0 + 20.0 + if stock.is_some() { 28.0 } else { 0.0 } + 16.0;
-            let (caja, _) = ui.allocate_exact_size(Vec2::new(ancho, alto), Sense::hover());
-            ui.painter().rect_filled(caja, 8, color::APAGADO.gamma_multiply(0.3));
-            let x0 = caja.left() + 16.0;
-            let x1 = caja.right() - 16.0;
-            let mut y = caja.top() + 16.0;
-            let mut x = x0;
-            let plu = texto(&producto, "plu");
-            if !plu.is_empty() {
-                x += chip(ui, x, y + 14.0, &format!("PLU: {plu}"), paleta::BLUE_100, paleta::BLUE_800, Peso::Medio) + 8.0;
-            }
-            comun::texto_en(ui, egui::pos2(x, y + 14.0), Align2::LEFT_CENTER, texto(&producto, "nombre"), Tam::Lg, Peso::Semi, color::TEXTO);
-            y += 36.0;
-            let mut fila = |etiqueta: &str, valor: &str, tinta: Color32| {
-                comun::texto_en(ui, egui::pos2(x0, y + 10.0), Align2::LEFT_CENTER, etiqueta, Tam::Sm, Peso::Normal, color::APAGADO_TEXTO);
-                comun::texto_en(ui, egui::pos2(x1, y + 10.0), Align2::RIGHT_CENTER, valor, Tam::Sm, Peso::Medio, tinta);
-                y += 28.0;
-            };
-            fila("Precio unitario:", &formato::pesos(self.precio_con_iva), color::TEXTO);
-            fila("Unidad:", texto(&producto, "tipoMedida"), color::TEXTO);
-            if let Some(stock) = stock {
-                fila("Stock disponible:", &formato::numero(stock), if stock > 0.0 { paleta::GREEN_600 } else { paleta::RED_600 });
-            }
-            ui.add_space(24.0);
-            comun::etiqueta(ui, "Cantidad");
-            ui.add_space(16.0);
-            let (fila_rect, _) = ui.allocate_exact_size(Vec2::new(ancho, 40.0), Sense::hover());
-            let partes = comun::encoger(&[40.0, ancho, 40.0], &[18.0, 0.0, 18.0], ancho - 24.0);
-            let menos = Boton::contorno("").chico().icono("minus").habilitado(self.cantidad > 1.0);
-            if menos.en(ui, Rect::from_min_size(fila_rect.min, Vec2::new(partes[0], 40.0)), "menos").clicked() && self.cantidad > 1.0 {
-                self.cantidad -= 1.0;
-                self.texto = logica::texto_entrada(self.cantidad);
-                self.error = None;
-            }
-            let mas = Boton::contorno("").chico().icono("plus");
-            if mas.en(ui, Rect::from_min_size(egui::pos2(fila_rect.right() - partes[2], fila_rect.top()), Vec2::new(partes[2], 40.0)), "mas").clicked() {
-                self.cantidad += 1.0;
-                self.texto = logica::texto_entrada(self.cantidad);
-                self.error = None;
-            }
-            let campo = Rect::from_min_size(egui::pos2(fila_rect.left() + partes[0] + 12.0, fila_rect.top()), Vec2::new(partes[1], 40.0));
-            let mut hijo = ui.new_child(egui::UiBuilder::new().max_rect(campo));
-            let entrada = Entrada::new(&mut self.texto).tam(Tam::Lg).peso(Peso::Medio).centrado().id(Id::new("facturas-cantidad-entrada")).ui(&mut hijo);
-            if self.enfocar {
-                entrada.request_focus();
-                self.enfocar = false;
-            }
-            if entrada.changed() {
-                self.cambiar_texto();
-            }
-            if entrada.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter)) {
-                confirmar = true;
-            }
-            if let Some(error) = &self.error {
-                ui.add_space(16.0);
-                comun::linea(ui, error.clone(), Tam::Sm, Peso::Normal, paleta::RED_600);
-            }
-            ui.add_space(16.0);
-            let (total, _) = ui.allocate_exact_size(Vec2::new(ancho, 52.0), Sense::hover());
-            ui.painter().rect_filled(total, 8, color::PRIMARIO.gamma_multiply(0.05));
-            comun::texto_en(ui, egui::pos2(total.left() + 12.0, total.center().y), Align2::LEFT_CENTER, "Subtotal:", Tam::Base, Peso::Medio, color::TEXTO);
-            comun::texto_en(ui, egui::pos2(total.right() - 12.0, total.center().y), Align2::RIGHT_CENTER, &formato::pesos(subtotal), Tam::Lg, Peso::Negrita, color::PRIMARIO);
-            ui.add_space(16.0);
-            comun::borde_superior(ui);
-            ui.add_space(16.0);
-            ui::pie_dialogo(ui, |ui| {
-                let habilitado = self.cantidad > 0.0 && self.error.is_none();
-                let agregar = Boton::esmeralda("Agregar a Factura").icono("plus").separacion(16.0).habilitado(habilitado);
-                if agregar.ui(ui).clicked() {
+        let nombre = texto(&producto, "nombre").to_string();
+        let r = Modal::new("facturas-cantidad", "Cantidad").subtitulo(&nombre).icono("cart-plus").ancho(440.0).mostrar(ctx, |ui| {
+            v2::cuerpo_modal(ui, 18, |ui| {
+                egui::Frame::NONE.fill(color::FONDO_APP).corner_radius(radio::CAMPO).inner_margin(egui::Margin::symmetric(16, 12)).show(ui, |ui| {
+                    ui.set_width(ui.available_width());
+                    let plu = texto(&producto, "plu");
+                    let mut filas = vec![("Precio unitario", pesos(self.precio_con_iva), color::TEXTO), ("Unidad", texto(&producto, "tipoMedida").to_string(), color::TEXTO)];
+                    if !plu.is_empty() {
+                        filas.insert(0, ("PLU", plu.to_string(), color::TEXTO));
+                    }
+                    if let Some(stock) = producto["stock"].as_f64() {
+                        filas.push(("Stock disponible", formato::numero(stock), if stock > 0.0 { color::VERDE_EXITO } else { color::ROJO }));
+                    }
+                    for (indice, (etiqueta, valor, tinta)) in filas.iter().enumerate() {
+                        if indice > 0 {
+                            ui.add_space(6.0);
+                        }
+                        let (fila, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 17.0), Sense::hover());
+                        v2::pintar_texto(ui, fila.left_center(), Align2::LEFT_CENTER, *etiqueta, tam::CONTROL, Peso::Normal, color::TEXTO_APAGADO);
+                        v2::pintar_texto(ui, fila.right_center(), Align2::RIGHT_CENTER, valor.as_str(), tam::CONTROL, Peso::Semi, *tinta);
+                    }
+                });
+                ui.add_space(14.0);
+                comun::etiqueta(ui, "Cantidad");
+                ui.add_space(6.0);
+                let ancho = ui.available_width();
+                let (fila, _) = ui.allocate_exact_size(Vec2::new(ancho, 46.0), Sense::hover());
+                let mut menos = ui.new_child(UiBuilder::new().max_rect(Rect::from_min_size(fila.min, Vec2::splat(46.0))));
+                if paso(&mut menos, "menos", self.cantidad > 1.0).clicked() && self.cantidad > 1.0 {
+                    self.cantidad -= 1.0;
+                    self.texto = logica::texto_entrada(self.cantidad);
+                    self.error = None;
+                }
+                let mut mas = ui.new_child(UiBuilder::new().max_rect(Rect::from_min_size(egui::pos2(fila.right() - 46.0, fila.top()), Vec2::splat(46.0))));
+                if paso(&mut mas, "mas", true).clicked() {
+                    self.cantidad += 1.0;
+                    self.texto = logica::texto_entrada(self.cantidad);
+                    self.error = None;
+                }
+                let campo = Rect::from_min_max(egui::pos2(fila.left() + 56.0, fila.top()), egui::pos2(fila.right() - 56.0, fila.bottom()));
+                let mut hijo = ui.new_child(UiBuilder::new().max_rect(campo));
+                let entrada = CampoTexto::new(&mut self.texto)
+                    .tam_texto(18.0)
+                    .peso(Peso::Medio)
+                    .centrado()
+                    .error(self.error.is_some())
+                    .id(Id::new("facturas-cantidad-entrada"))
+                    .ui(&mut hijo)
+                    .respuesta;
+                if self.enfocar {
+                    entrada.request_focus();
+                    self.enfocar = false;
+                }
+                if entrada.changed() {
+                    self.cambiar_texto();
+                }
+                if entrada.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter)) {
                     confirmar = true;
                 }
-                ui.add_space(4.0);
-                if Boton::contorno("Cancelar").ui(ui).clicked() {
+                if let Some(error) = &self.error {
+                    ui.add_space(6.0);
+                    v2::texto(ui, error.clone(), tam::CHICO, Peso::Normal, color::ROJO);
+                }
+                ui.add_space(14.0);
+                let (total, _) = ui.allocate_exact_size(Vec2::new(ancho, 52.0), Sense::hover());
+                ui.painter().rect_filled(total, radio::CAMPO, color::VERDE_ELEGIDO);
+                v2::pintar_texto(ui, egui::pos2(total.left() + 16.0, total.center().y), Align2::LEFT_CENTER, "Subtotal", tam::CUERPO, Peso::Normal, color::TEXTO_SECUNDARIO);
+                v2::pintar_texto(ui, egui::pos2(total.right() - 16.0, total.center().y), Align2::RIGHT_CENTER, pesos(subtotal), tam::GRANDE, Peso::Semi, color::VERDE);
+            });
+            v2::pie_modal(ui, |ui| {
+                let habilitado = self.cantidad > 0.0 && self.error.is_none();
+                if Boton::primario("Agregar a la factura").icono("plus").modal().habilitado(habilitado).ui(ui).clicked() {
+                    confirmar = true;
+                }
+                if Boton::secundario("Cancelar").modal().ui(ui).clicked() {
                     resultado = Some(ResultadoCantidad::Cerrada);
                 }
             });
@@ -597,5 +617,26 @@ impl CantidadProducto {
             self.producto = None;
         }
         resultado
+    }
+}
+
+fn paso(ui: &mut Ui, clave: &str, habilitado: bool) -> egui::Response {
+    let rect = ui.max_rect();
+    let respuesta = ui.interact(rect, ui.id().with(clave), if habilitado { Sense::click() } else { Sense::hover() });
+    let encima = habilitado && respuesta.hovered();
+    let alfa = if habilitado { 1.0 } else { 0.45 };
+    let tinta = if encima { color::VERDE } else { color::TEXTO_SECUNDARIO }.gamma_multiply(alfa);
+    let borde = if encima { color::VERDE } else { color::BORDE }.gamma_multiply(alfa);
+    ui.painter().rect(rect, radio::CAMPO, color::BLANCO, Stroke::new(1.0, borde), StrokeKind::Inside);
+    if clave == "mas" {
+        v2::pintar_icono(ui, rect.center(), "plus", 18.0, tinta);
+    } else {
+        ui.painter().hline(rect.center().x - 6.0..=rect.center().x + 6.0, rect.center().y, Stroke::new(2.0, tinta));
+    }
+    let _ = fuente;
+    if habilitado {
+        respuesta.on_hover_cursor(CursorIcon::PointingHand)
+    } else {
+        respuesta
     }
 }
