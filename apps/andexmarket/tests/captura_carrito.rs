@@ -302,13 +302,40 @@ fn pos_cancelacion_controlada() {
 }
 
 #[test]
-fn pos_header_angosto() {
-    for (sufijo, tam) in [("1200", [1200.0, 800.0]), ("1024", [1024.0, 768.0])] {
+fn pos_responsive() {
+    for (sufijo, tam) in [("1280", [1280.0, 720.0]), ("1200", [1200.0, 800.0]), ("1024", [1024.0, 768.0])] {
         let mut harness = arnes(con_items(POR_DEFECTO), tam, true);
         harness.run_steps(6);
         let imagen = harness.render().expect("render");
-        imagen.save(comun::carpeta_capturas().join(format!("22-pos-header-angosto-{sufijo}.png"))).expect("guardar captura");
+        imagen.save(comun::carpeta_capturas().join(format!("22-pos-responsive-{sufijo}.png"))).expect("guardar captura");
     }
+}
+
+#[test]
+fn pos_buscador_muchos_resultados() {
+    capturar("13b-pos-buscador-muchos-resultados", || con_items(POR_DEFECTO), |h, _| {
+        escribir(h, "a");
+        for _ in 0..9 {
+            tecla(h, Key::ArrowDown);
+        }
+        assert!(buscador_enfocado(h));
+    });
+}
+
+#[test]
+fn modal_escanear_lista() {
+    capturar(
+        "55-modal-escanear-lista",
+        || {
+            let mut g = con_items(POR_DEFECTO);
+            g.negocio.as_mut().unwrap()["popupListaPreciosEnabled"] = json!(true);
+            g
+        },
+        |h, _| {
+            escribir(h, "7790001000213");
+            esperar_red(h);
+        },
+    );
 }
 
 #[test]
