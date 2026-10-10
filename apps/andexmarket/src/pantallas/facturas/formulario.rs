@@ -110,6 +110,18 @@ impl FormularioFactura {
         self.abierto || self.envio.is_some()
     }
 
+    fn iva_visible(&self, cx: &Contexto) -> Option<bool> {
+        logica::iva_visible(&self.tipo_factura, super::iva_en_precios(cx))
+    }
+
+    fn cambiar_tipo(&mut self, tipo: &str, iva_en_precios: Option<bool>) {
+        self.tipo_factura = tipo.to_string();
+        let iva = logica::iva_visible(tipo, iva_en_precios);
+        for fila in &mut self.filas {
+            fila.precio = logica::texto_precio_con_iva(fila.detalle.producto.as_ref(), fila.detalle.precio_unitario, iva);
+        }
+    }
+
     fn detalles(&self) -> Vec<Detalle> {
         self.filas.iter().map(|f| f.detalle.clone()).collect()
     }
@@ -228,7 +240,8 @@ impl FormularioFactura {
                 Respuesta::Iniciales(apertura, detalles) => {
                     if apertura == self.apertura {
                         self.cargando_iniciales = false;
-                        self.filas = detalles.into_iter().map(|d| Fila::new(d, super::iva_en_precios(cx))).collect();
+                        let iva = self.iva_visible(cx);
+                        self.filas = detalles.into_iter().map(|d| Fila::new(d, iva)).collect();
                         if let Some(id) = id_lista(&self.lista_seleccionada) {
                             self.actualizar_precios(cx, Some(id));
                         }
@@ -236,7 +249,8 @@ impl FormularioFactura {
                 }
                 Respuesta::Actualizados(apertura, lista, detalles) => {
                     if apertura == self.apertura && lista == id_lista(&self.lista_seleccionada) {
-                        self.filas = detalles.into_iter().map(|d| Fila::new(d, super::iva_en_precios(cx))).collect();
+                        let iva = self.iva_visible(cx);
+                        self.filas = detalles.into_iter().map(|d| Fila::new(d, iva)).collect();
                     }
                 }
             }
@@ -395,16 +409,17 @@ impl FormularioFactura {
         let excluidos: Vec<i64> = self.filas.iter().map(|f| f.detalle.producto_id).collect();
         let nombre_lista = self.lista_seleccionada.as_ref().map(|l| texto(l, "nombre").to_string());
         let lista = ListaActiva { nombre: nombre_lista, precios: &self.precios_lista };
-        if let Some(producto) = self.selector_producto.mostrar(&ctx, cx, &excluidos, lista) {
+        let iva = self.iva_visible(cx);
+        if let Some(producto) = self.selector_producto.mostrar(&ctx, cx, &excluidos, lista, iva) {
             let id = producto["id"].as_i64().unwrap_or_default();
             let precio_lista = self.lista_seleccionada.as_ref().and(self.precios_lista.get(&id).copied());
             let precio = logica::precio_con_lista(&producto, precio_lista);
-            self.cantidad.abrir(producto, precio, super::iva_en_precios(cx));
+            self.cantidad.abrir(producto, precio, iva);
         }
         if let Some(ResultadoCantidad::Confirmada(producto, cantidad, precio)) = self.cantidad.mostrar(&ctx) {
             let id = producto["id"].as_i64().unwrap_or_default();
             let nombre = texto(&producto, "nombre").to_string();
-            self.filas.push(Fila::new(Detalle::nuevo(id, Some(producto), nombre, cantidad, precio), super::iva_en_precios(cx)));
+            self.filas.push(Fila::new(Detalle::nuevo(id, Some(producto), nombre, cantidad, precio), iva));
         }
         if r.cerrar {
             self.abierto = false;
@@ -451,7 +466,7 @@ impl FormularioFactura {
                     let mut indice = TIPOS.iter().position(|(v, _)| *v == self.tipo_factura).unwrap_or(usize::MAX);
                     let opciones: Vec<Opcion> = TIPOS.iter().map(|(_, t)| Opcion { icono: None, texto: t.to_string() }).collect();
                     if comun::selector(ui, "factura-tipo", mitad, &mut indice, &opciones, true) {
-                        self.tipo_factura = TIPOS[indice].0.to_string();
+                        self.cambiar_tipo(TIPOS[indice].0, super::iva_en_precios(cx));
                     }
                 }
             });
@@ -526,7 +541,7 @@ impl FormularioFactura {
         }
         if !self.filas.is_empty() {
             ui.add_space(16.0);
-            self.tabla(ui, super::iva_en_precios(cx));
+            self.tabla(ui, self.iva_visible(cx));
             ui.add_space(16.0);
             resumen(ui, &self.tipo_factura, totales);
         }
@@ -747,4 +762,27 @@ fn resumen(ui: &mut Ui, tipo: &str, totales: logica::Totales) {
     y += 9.0;
     comun::texto_en(ui, egui::pos2(x0, y + 14.0), Align2::LEFT_CENTER, "Total:", Tam::Lg, Peso::Negrita, color::TEXTO);
     comun::texto_en(ui, egui::pos2(x1, y + 14.0), Align2::RIGHT_CENTER, &formato::pesos(totales.total), Tam::Lg, Peso::Negrita, color::TEXTO);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cambiar_de_remito_a_factura_y_volver_recalcula_los_precios() {
+        let producto = json!({ "ivaIncluido": false, "ivaPorcentaje": 21.0 });
+        let mut formulario = FormularioFactura::default();
+        formulario.cambiar_tipo("remito", Some(false));
+        let iva = logica::iva_visible(&formulario.tipo_factura, Some(false));
+        formulario.filas.push(Fila::new(Detalle::nuevo(1, Some(producto), "Tomate".into(), 2.0, 100.0), iva));
+        formulario.filas.push(Fila::new(Detalle::nuevo(2, None, "Varios".into(), 1.0, 50.0), iva));
+        let precios = |f: &FormularioFactura| f.filas.iter().map(|f| f.precio.clone()).collect::<Vec<_>>();
+        assert_eq!(precios(&formulario), ["100", "50"]);
+        formulario.cambiar_tipo("B", Some(false));
+        assert_eq!(formulario.tipo_factura, "B");
+        assert_eq!(precios(&formulario), ["121", "60,5"]);
+        formulario.cambiar_tipo("remito", Some(false));
+        assert_eq!(precios(&formulario), ["100", "50"]);
+        assert_eq!(formulario.detalles().iter().map(|d| d.precio_unitario).collect::<Vec<_>>(), [100.0, 50.0]);
+    }
 }

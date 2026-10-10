@@ -306,7 +306,7 @@ impl SelectorProducto {
         self.tarea = Some(pedir_json(cx, "/api/productos?limit=1000".into()));
     }
 
-    pub fn mostrar(&mut self, ctx: &Context, cx: &Contexto, excluidos: &[i64], lista: ListaActiva) -> Option<Value> {
+    pub fn mostrar(&mut self, ctx: &Context, cx: &Contexto, excluidos: &[i64], lista: ListaActiva, iva_en_precios: Option<bool>) -> Option<Value> {
         if !self.abierto {
             return None;
         }
@@ -324,7 +324,6 @@ impl SelectorProducto {
         let total_paginas = filtrados.len().div_ceil(PRODUCTOS_POR_PAGINA) as u32;
         let inicio = (self.pagina.saturating_sub(1)) * PRODUCTOS_POR_PAGINA;
         let pagina: Vec<Value> = filtrados.iter().skip(inicio).take(PRODUCTOS_POR_PAGINA).cloned().collect();
-        let iva_en_precios = super::iva_en_precios(cx);
         let mut elegido = None;
         let mut cerrar = false;
         let fijo = 277.0 + if self.error.is_some() { 64.0 } else { 0.0 } + if total_paginas > 1 && !self.cargando { 61.0 } else { 0.0 };

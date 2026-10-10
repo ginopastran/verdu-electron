@@ -134,6 +134,10 @@ impl Detalle {
     }
 }
 
+pub fn iva_visible(tipo_factura: &str, iva_incluido_en_precios: Option<bool>) -> Option<bool> {
+    iva_incluido_en_precios.filter(|_| tipo_factura != "remito")
+}
+
 pub fn precio_con_iva(producto: Option<&Value>, precio: f64, iva_incluido_en_precios: Option<bool>) -> f64 {
     match iva_incluido_en_precios {
         Some(en_precios) => precio_visual_con_iva(
@@ -631,6 +635,37 @@ mod tests {
         editado.recalcular();
         assert!((precio_con_iva(editado.producto.as_ref(), editado.subtotal, Some(false)) - 2652.0 * 1.245).abs() < 1e-6);
         assert!((editado.precio_unitario - 2400.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn remito_muestra_sin_iva_y_las_filas_suman_su_total() {
+        let sin_incluir = json!({ "ivaIncluido": false, "ivaPorcentaje": 10.5 });
+        let detalles = vec![
+            Detalle::nuevo(1, Some(sin_incluir.clone()), "Tomate".into(), 1.245, 2400.0),
+            Detalle::nuevo(2, Some(sin_incluir.clone()), "Pimiento".into(), 0.415, 4500.0),
+            Detalle::nuevo(3, None, "Varios".into(), 3.0, 333.33),
+        ];
+        let iva = iva_visible("remito", Some(false));
+        assert_eq!(iva, None);
+        assert_eq!(precio_con_iva(Some(&sin_incluir), 100.0, iva), 100.0);
+        assert_eq!(precio_con_iva(None, 100.0, iva), 100.0);
+        assert_eq!(precio_sin_iva(Some(&sin_incluir), 100.0, iva), 100.0);
+        assert_eq!(texto_precio_con_iva(Some(&sin_incluir), 2400.0, iva), "2400");
+        let totales = calcular_totales(&detalles, "remito", false);
+        let visibles: f64 = detalles.iter().map(|d| redondear2(precio_con_iva(d.producto.as_ref(), d.subtotal, iva))).sum();
+        assert!((visibles - totales.total).abs() <= 0.01 * detalles.len() as f64, "{visibles} vs {}", totales.total);
+    }
+
+    #[test]
+    fn facturas_siguen_mostrando_con_iva() {
+        let sin_incluir = json!({ "ivaIncluido": false, "ivaPorcentaje": 21.0 });
+        for tipo in ["A", "B", "C"] {
+            assert_eq!(iva_visible(tipo, Some(false)), Some(false));
+            assert_eq!(iva_visible(tipo, Some(true)), Some(true));
+            assert_eq!(precio_con_iva(Some(&sin_incluir), 100.0, iva_visible(tipo, Some(false))), 121.0);
+        }
+        assert_eq!(iva_visible("B", None), None);
+        assert_eq!(iva_visible("remito", Some(true)), None);
     }
 
     #[test]

@@ -35,6 +35,7 @@ fn ejemplo(mock: &Value, metodo: &str, ruta: &str, indice: usize) -> Value {
 struct Opciones {
     facturas_vacias: bool,
     demora_facturas: u64,
+    precios_sin_iva: bool,
 }
 
 const PDF_FALSO: &str = "%PDF-1.4 factura de prueba";
@@ -42,7 +43,13 @@ const PDF_FALSO: &str = "%PDF-1.4 factura de prueba";
 fn responder(mock: &Value, opciones: Opciones, metodo: &str, ruta: &str, enviado: &Value) -> (u16, Value, u64) {
     let (camino, consulta) = ruta.split_once('?').unwrap_or((ruta, ""));
     let partes: Vec<&str> = camino.trim_start_matches('/').split('/').collect();
-    let datos = &mock["datos"];
+    let mut datos = mock["datos"].clone();
+    if opciones.precios_sin_iva {
+        for producto in datos["productos"].as_array_mut().unwrap() {
+            producto["ivaIncluido"] = json!(false);
+        }
+    }
+    let datos = &datos;
     let buscar = |lista: &Value, id: &str| {
         lista.as_array().unwrap().iter().find(|x| x["id"].as_str().map(str::to_string).unwrap_or(x["id"].to_string()) == id).cloned()
     };
@@ -295,10 +302,18 @@ fn productos_carrito() -> Vec<ProductoInicial> {
 }
 
 fn formulario(nombre: &str, pasos: impl FnOnce(&mut Harness<'_, Formulario>)) {
-    let url = servidor(Opciones::default());
+    formulario_con(nombre, Opciones::default(), pasos);
+}
+
+fn formulario_con(nombre: &str, opciones: Opciones, pasos: impl FnOnce(&mut Harness<'_, Formulario>)) {
+    let url = servidor(opciones);
     let mut formulario = FormularioFactura::default();
     formulario.abrir(productos_carrito());
-    let estado = Formulario { instalado: false, global: global(Ruta::Carrito), servicios: servicios(&url), formulario };
+    let mut global = global(Ruta::Carrito);
+    if opciones.precios_sin_iva {
+        global.negocio.as_mut().unwrap()["ivaIncluidoEnPrecios"] = json!(false);
+    }
+    let estado = Formulario { instalado: false, global, servicios: servicios(&url), formulario };
     let mut harness = Harness::builder().with_size([1200.0, 800.0]).wgpu().build_ui_state(
         |ui, e: &mut Formulario| {
             if !e.instalado {
@@ -385,6 +400,48 @@ fn cantidad_producto() {
         clic(h, 590.0, 302.0);
         esperar(h, 300);
         h.remove_cursor();
+    });
+}
+
+#[test]
+fn factura_form_remito_sin_iva() {
+    formulario_con("56e-factura-form-remito-sin-iva", Opciones { precios_sin_iva: true, ..Default::default() }, |h| h.remove_cursor());
+}
+
+#[test]
+fn factura_form_a_con_iva() {
+    formulario_con("56f-factura-form-a-con-iva", Opciones { precios_sin_iva: true, ..Default::default() }, |h| {
+        clic(h, 880.0, 184.0);
+        esperar(h, 300);
+        clic(h, 880.0, 230.0);
+        esperar(h, 300);
+        h.remove_cursor();
+    });
+}
+
+fn bajar_formulario(h: &mut Harness<'_, Formulario>) {
+    h.event(Event::PointerMoved(Pos2::new(600.0, 400.0)));
+    for _ in 0..20 {
+        h.event(Event::MouseWheel { unit: egui::MouseWheelUnit::Point, delta: egui::vec2(0.0, -200.0), phase: egui::TouchPhase::Move, modifiers: Default::default() });
+        h.step();
+    }
+    esperar(h, 300);
+    h.remove_cursor();
+}
+
+#[test]
+fn factura_form_remito_sin_iva_totales() {
+    formulario_con("56g-factura-form-remito-sin-iva-totales", Opciones { precios_sin_iva: true, ..Default::default() }, bajar_formulario);
+}
+
+#[test]
+fn factura_form_a_con_iva_totales() {
+    formulario_con("56h-factura-form-a-con-iva-totales", Opciones { precios_sin_iva: true, ..Default::default() }, |h| {
+        clic(h, 880.0, 184.0);
+        esperar(h, 300);
+        clic(h, 880.0, 230.0);
+        esperar(h, 300);
+        bajar_formulario(h);
     });
 }
 
