@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use actualizador::Publicacion;
-use eframe::egui::{self, Align, Align2, Context, Id, Layout, Order, Pos2, Rect, Sense, Stroke, StrokeKind, Ui, UiBuilder, Vec2};
+use eframe::egui::{self, Align, Align2, Context, Id, Layout, Order, Pos2, Rect, Sense, Stroke, StrokeKind, Ui, UiBuilder, Vec2, WidgetInfo, WidgetType};
 
 use crate::app::Contexto;
 use crate::tareas::{esperar, Tarea};
@@ -281,6 +281,7 @@ impl Actualizacion {
             pintor.galley_with_override_text_color(Pos2::new(x, y_texto + alto_titulo + 1.0), detalle, color::TEXTO_DESHABILITADO.gamma_multiply(opacidad));
             let boton = Rect::from_min_size(Pos2::new(caja.right() - 10.0 - ancho_boton, caja.center().y - 15.0), Vec2::new(ancho_boton, 30.0));
             let respuesta = ui.interact(boton, Id::new("aviso-actualizacion-accion"), Sense::click());
+            respuesta.widget_info(|| WidgetInfo::labeled(WidgetType::Button, true, accion.texto_aviso()));
             let fondo = if respuesta.hovered() { color::DORADO_BORDE } else { color::DORADO };
             pintor.rect_filled(boton, radio::ICONO, fondo.gamma_multiply(opacidad));
             pintor.galley_with_override_text_color(boton.center() - texto_boton.size() / 2.0, texto_boton, color::VERDE_PROFUNDO.gamma_multiply(opacidad));

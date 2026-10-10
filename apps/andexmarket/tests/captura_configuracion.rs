@@ -8,6 +8,7 @@ use andexmarket::pantallas::configuracion::actualizacion::Estado;
 use andexmarket::pantallas::configuracion::balanza::DialogoBalanza;
 use andexmarket::pantallas::configuracion::impresion::DialogoImpresion;
 use eframe::egui;
+use egui_kittest::kittest::Queryable;
 use egui_kittest::Harness;
 use serde_json::json;
 
@@ -155,14 +156,9 @@ fn actualizacion_descargada() {
     });
 }
 
-fn clic_en_el_aviso(harness: &mut Harness<'_, Escena>) {
-    let pos = egui::Pos2::new(723.0, 77.0);
-    harness.event(egui::Event::PointerMoved(pos));
-    harness.step();
-    harness.event(egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed: true, modifiers: Default::default() });
-    harness.step();
-    harness.event(egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed: false, modifiers: Default::default() });
-    harness.step();
+fn clic_en_el_aviso(harness: &mut Harness<'_, Escena>, texto: &str) {
+    harness.get_by_label(texto).click();
+    harness.run_steps(2);
 }
 
 fn harness_con_aviso(publicacion: Publicacion, descargada: bool) -> Harness<'static, Escena> {
@@ -185,7 +181,7 @@ fn harness_con_aviso(publicacion: Publicacion, descargada: bool) -> Harness<'sta
 fn el_aviso_descargar_inicia_la_descarga() {
     let local = Publicacion { url: "http://127.0.0.1:9/AndexMarket_4.1.0_x64-setup.exe".into(), ..publicacion() };
     let mut harness = harness_con_aviso(local, false);
-    clic_en_el_aviso(&mut harness);
+    clic_en_el_aviso(&mut harness, "Descargar");
     assert_eq!(harness.state_mut().app.pantallas().actualizacion.estado, Estado::Descargando);
 }
 
@@ -193,6 +189,6 @@ fn el_aviso_descargar_inicia_la_descarga() {
 fn el_aviso_reiniciar_ahora_inicia_la_instalacion() {
     let mut harness = harness_con_aviso(publicacion(), true);
     assert!(!harness.state_mut().app.pantallas().actualizacion.reiniciando());
-    clic_en_el_aviso(&mut harness);
+    clic_en_el_aviso(&mut harness, "Reiniciar ahora");
     assert!(harness.state_mut().app.pantallas().actualizacion.reiniciando());
 }
