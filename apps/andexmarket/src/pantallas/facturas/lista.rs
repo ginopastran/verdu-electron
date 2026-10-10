@@ -1,12 +1,14 @@
 use eframe::egui::{self, Align2, Color32, Id, Rect, ScrollArea, Sense, Ui, Vec2};
-use serde_json::Value;
+use nucleo::facturas as logica;
+use nucleo::formato;
+use serde_json::{json, Value};
 
 use super::comun::{self, Boton, Opcion, Relleno};
 use super::formulario::{FormularioFactura, ResultadoFactura};
 use super::modal::{ModalFactura, ResultadoModal};
 use super::pagos::{AgregarPago, ResultadoPago};
 use super::tarjeta::{self, Accion};
-use super::{id_texto, pagos, recien_montada};
+use super::{id_texto, pagos, recien_montada, texto};
 use crate::app::{Contexto, Ruta};
 use crate::tareas::{esperar, Tarea};
 use crate::ui::{self, color, paleta, Entrada, Peso, Tam};
@@ -66,7 +68,8 @@ pub struct Lista {
     historial: Option<Value>,
     formulario: FormularioFactura,
     modal: Option<ModalFactura>,
-    eliminar: bool,
+    eliminar: Option<Value>,
+    anulacion: Option<Tarea<Result<String, String>>>,
 }
 
 impl Default for Lista {
@@ -86,7 +89,8 @@ impl Default for Lista {
             historial: None,
             formulario: FormularioFactura::default(),
             modal: None,
-            eliminar: false,
+            eliminar: None,
+            anulacion: None,
         }
     }
 }
@@ -216,12 +220,12 @@ impl Lista {
                 ui,
                 egui::pos2(rect.left(), rect.center().y),
                 Align2::LEFT_CENTER,
-                &format!("Mostrando {desde} a {hasta} de {} facturas", p.total),
+                &format!("Mostrando {desde} a {hasta} de {} facturas", formato::numero(p.total as f64)),
                 Tam::Sm,
                 Peso::Normal,
                 paleta::GRAY_500,
             );
-            let paginas: Vec<u32> = (1..=p.total_pages.min(5)).collect();
+            let paginas = logica::paginas_visibles(p.page, p.total_pages);
             if let Some(destino) = comun::paginacion_compacta(ui, rect, "facturas", p.page, &paginas, p.page > 1, p.page < p.total_pages) {
                 self.paginacion.page = destino;
             }
@@ -288,6 +292,7 @@ impl Lista {
         let caja = Rect::from_center_size(egui::pos2(centro, rect.center().y), Vec2::new(ancho, 40.0));
         if boton.en(ui, caja, "vacio").clicked() {
             if con_filtros {
+                self.busqueda.clear();
                 self.actualizar_filtros(|f| {
                     f.search.clear();
                     f.estado.clear();
@@ -337,8 +342,8 @@ impl Lista {
         match accion {
             Accion::Ver => cx.global.ir(Ruta::FacturaDetalle(id_texto(&factura["id"]))),
             Accion::Editar => self.modal = Some(ModalFactura::new(factura)),
-            Accion::Descargar => pagos::descargar_pdf(cx, &factura["id"], true),
-            Accion::Eliminar => self.eliminar = true,
+            Accion::Descargar => pagos::descargar_pdf(cx, &factura),
+            Accion::Eliminar => self.eliminar = Some(factura),
             Accion::VerPagos => self.historial = Some(factura),
             Accion::AgregarPago => self.pago = Some(AgregarPago::new(factura)),
         }
@@ -368,23 +373,65 @@ impl Lista {
             }
         }
         if let Some(modal) = &mut self.modal {
-            if let ResultadoModal::Cerrar = modal.mostrar(ui.ctx(), cx) {
-                self.modal = None;
+            match modal.mostrar(ui.ctx(), cx) {
+                ResultadoModal::Nada => {}
+                ResultadoModal::Cerrar => self.modal = None,
+                ResultadoModal::Actualizada => self.forzar = true,
             }
         }
-        if self.eliminar {
-            let r = ui::Dialogo::new("facturas-eliminar").ancho(448.0).mostrar(ui.ctx(), |ui| {
-                ui.label(ui::texto("¿Estás seguro de que quieres eliminar esta factura?", Tam::Sm, Peso::Normal, color::TEXTO));
-                ui.add_space(24.0);
-                ui::pie_dialogo(ui, |ui| {
-                    let aceptar = Boton::primario("Aceptar").ui(ui).clicked();
-                    let cancelar = Boton::contorno("Cancelar").ui(ui).clicked();
-                    aceptar || cancelar
-                })
-            });
-            if r.cerrar || r.interior {
-                self.eliminar = false;
+        self.dialogo_eliminar(ui, cx);
+    }
+
+    fn anular(&mut self, cx: &Contexto, factura: &Value) {
+        let api = cx.servicios.api.clone();
+        let ruta = format!("/api/facturas/{}", nucleo::api::codificar(&id_texto(&factura["id"])));
+        self.anulacion = Some(Tarea::lanzar(&cx.egui, move || {
+            let respuesta = api.pedir("DELETE", &ruta, Some(&json!({ "forceDelete": false })), &[]).map_err(|e| e.mensaje)?;
+            if respuesta.ok() {
+                Ok(respuesta.cuerpo["message"].as_str().unwrap_or("Factura anulada correctamente").to_string())
+            } else {
+                Err(respuesta.error())
             }
+        }));
+    }
+
+    fn dialogo_eliminar(&mut self, ui: &mut Ui, cx: &mut Contexto) {
+        if let Some(resultado) = esperar(&mut self.anulacion) {
+            match resultado {
+                Ok(mensaje) => {
+                    ui::toast::exito(&cx.egui, mensaje);
+                    self.eliminar = None;
+                    self.forzar = true;
+                }
+                Err(error) => ui::toast::error(&cx.egui, format!("No se pudo eliminar la factura: {error}")),
+            }
+        }
+        let Some(factura) = self.eliminar.clone() else { return };
+        let anulando = self.anulacion.is_some();
+        let mut confirmar = false;
+        let mut cancelar = false;
+        let descripcion = format!(
+            "La factura {} no se borra: queda anulada y se repone el stock de sus productos. Esta acción no se puede deshacer.",
+            texto(&factura, "numero")
+        );
+        let r = ui::Dialogo::new("facturas-eliminar").ancho(448.0).mostrar(ui.ctx(), |ui| {
+            comun::encabezado_dialogo(ui, "trash-2", "¿Eliminar esta factura?", &descripcion, 8.0);
+            ui.add_space(24.0);
+            ui::pie_dialogo(ui, |ui| {
+                let texto_boton = if anulando { "Anulando..." } else { "Anular factura" };
+                confirmar = Boton::primario(texto_boton)
+                    .relleno(Relleno::Liso(color::DESTRUCTIVO))
+                    .encima(Relleno::Liso(paleta::RED_600))
+                    .habilitado(!anulando)
+                    .ui(ui)
+                    .clicked();
+                cancelar = Boton::contorno("Cancelar").habilitado(!anulando).ui(ui).clicked();
+            });
+        });
+        if confirmar {
+            self.anular(cx, &factura);
+        } else if (cancelar || r.cerrar) && !anulando {
+            self.eliminar = None;
         }
     }
 }

@@ -1,5 +1,6 @@
 use eframe::egui::{self, Align2, Color32, Context, Id, Key, Rect, Sense, Ui, Vec2};
 use nucleo::facturas::{self as logica, EstadoHistorial};
+use nucleo::formato;
 use serde_json::Value;
 
 use super::comun::{self, Boton, Insignia, Opcion};
@@ -11,19 +12,14 @@ use crate::ui::{self, color, paleta, Entrada, Peso, Tam};
 const METODOS: [(&str, &str, &str); 3] =
     [("efectivo", "wallet", "EFECTIVO"), ("tarjeta", "credit-card", "TARJETA"), ("transferencia", "arrow-right", "TRANSFERENCIA")];
 
-pub fn descargar_pdf(cx: &Contexto, id: &Value, con_avisos: bool) {
+pub fn descargar_pdf(cx: &Contexto, factura: &Value) {
     let api = cx.servicios.api.clone();
     let ctx = cx.egui.clone();
-    let ruta = format!("/api/facturas/{}/pdf", super::id_texto(id));
-    let _ = Tarea::lanzar(&cx.egui, move || {
-        let ok = api.bytes(&ruta).is_ok_and(|(estado, _)| (200..300).contains(&estado));
-        if con_avisos {
-            if ok {
-                ui::toast::exito(&ctx, "PDF descargado exitosamente");
-            } else {
-                ui::toast::error(&ctx, "Error al descargar el PDF");
-            }
-        }
+    let carpeta = super::carpeta_descargas(cx);
+    let factura = factura.clone();
+    let _ = Tarea::lanzar(&cx.egui, move || match logica::descargar_pdf(&api, &factura, &carpeta) {
+        Ok(ruta) => ui::toast::con_detalle(&ctx, ui::toast::Tipo::Exito, "PDF descargado", format!("Guardado en {}", ruta.display()), 5.0),
+        Err(error) => ui::toast::error(&ctx, format!("Error al descargar el PDF: {error}")),
     });
 }
 
@@ -44,7 +40,7 @@ pub struct AgregarPago {
 }
 
 fn fecha_hoy() -> String {
-    logica::hoy_utc().format("%d/%m/%Y").to_string()
+    logica::hoy_argentina().format("%d/%m/%Y").to_string()
 }
 
 impl AgregarPago {
@@ -61,7 +57,7 @@ impl AgregarPago {
                 return;
             }
         };
-        let fecha = match logica::fecha_dia_mes_anio(&self.fecha).filter(|f| *f <= logica::hoy_utc()) {
+        let fecha = match logica::fecha_dia_mes_anio(&self.fecha).filter(|f| *f <= logica::hoy_argentina()) {
             Some(fecha) => fecha.format("%Y-%m-%d").to_string(),
             None => {
                 ui::toast::error(&cx.egui, "Ingresá una fecha válida (dd/mm/aaaa) que no sea futura");
@@ -77,8 +73,8 @@ impl AgregarPago {
                 ui::toast::exito(&ctx, "Pago agregado exitosamente");
                 true
             }
-            Err(_) => {
-                ui::toast::error(&ctx, "Error al agregar el pago");
+            Err(error) => {
+                ui::toast::error(&ctx, format!("Error al agregar el pago: {error}"));
                 false
             }
         }));
@@ -92,7 +88,7 @@ impl AgregarPago {
             }
         }
         let maximo = logica::saldo_para_pago(&self.factura);
-        let habilitado = !self.cargando && logica::parsear_float(&self.monto).is_some_and(|m| m > 0.0) && !self.monto.is_empty();
+        let habilitado = !self.cargando && logica::parsear_numero(&self.monto).is_some_and(|m| m > 0.0);
         let mut cancelar = false;
         let mut enviar = false;
         let r = ui::Dialogo::new("facturas-agregar-pago").ancho(448.0).mostrar(ctx, |ui| {
@@ -100,13 +96,13 @@ impl AgregarPago {
                 ui,
                 "dollar-sign",
                 "Agregar Pago",
-                &format!("Agregar un pago a la factura. Saldo pendiente: ${}", logica::es_ar_min2(maximo)),
+                &format!("Agregar un pago a la factura. Saldo pendiente: {}", formato::pesos(maximo)),
                 8.0,
             );
             ui.add_space(16.0);
             comun::etiqueta(ui, "Monto *");
             ui.add_space(8.0);
-            Entrada::new(&mut self.monto).tam(Tam::Sm).icono("dollar-sign").sugerencia("0.00").id(Id::new("pago-monto")).ui(ui);
+            Entrada::new(&mut self.monto).tam(Tam::Sm).icono("dollar-sign").sugerencia("0,00").id(Id::new("pago-monto")).ui(ui);
             ui.add_space(16.0);
             comun::etiqueta(ui, "Método de Pago *");
             ui.add_space(8.0);
@@ -179,7 +175,7 @@ pub fn historial(ctx: &Context, factura: &Value) -> bool {
                 resumen(ui, total, pagado, saldo, porcentaje);
                 ui.add_space(24.0);
                 let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 20.0), Sense::hover());
-                let pct = format!("{}%", logica::decimal_fijo(porcentaje, 1));
+                let pct = format!("{}%", formato::numero_con(porcentaje, 1, 1));
                 comun::texto_en(ui, egui::pos2(rect.left(), rect.center().y), Align2::LEFT_CENTER, "Progreso de pago", Tam::Sm, Peso::Normal, color::TEXTO);
                 comun::texto_en(ui, egui::pos2(rect.right(), rect.center().y), Align2::RIGHT_CENTER, &pct, Tam::Sm, Peso::Normal, color::TEXTO);
                 ui.add_space(8.0);
@@ -231,10 +227,10 @@ fn resumen(ui: &mut Ui, total: f64, pagado: f64, saldo: f64, porcentaje: f64) {
     let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 80.0), Sense::hover());
     ui.painter().rect_filled(rect, 8, paleta::GRAY_50);
     let columnas = [
-        ("Total Factura", format!("${}", logica::es_ar_min2(total)), Color32::BLACK),
-        ("Total Pagado", format!("${}", logica::es_ar_min2(pagado)), paleta::GREEN_600),
-        ("Saldo Pendiente", format!("${}", logica::es_ar_min2(saldo)), paleta::RED_600),
-        ("% Pagado", format!("{}%", logica::decimal_fijo(porcentaje, 1)), paleta::BLUE_600),
+        ("Total Factura", formato::pesos(total), Color32::BLACK),
+        ("Total Pagado", formato::pesos(pagado), paleta::GREEN_600),
+        ("Saldo Pendiente", formato::pesos(saldo), if saldo > 0.0 { paleta::RED_600 } else { paleta::GREEN_600 }),
+        ("% Pagado", format!("{}%", formato::numero_con(porcentaje, 1, 1)), paleta::BLUE_600),
     ];
     let ancho = (rect.width() - 32.0 - 48.0) / 4.0;
     for (indice, (etiqueta, valor, color_valor)) in columnas.iter().enumerate() {
@@ -253,7 +249,7 @@ fn fila_pago(ui: &mut Ui, pago: &Value) {
     let metodo = texto(pago, "metodoPago");
     ui::pintar_icono_en(ui, Rect::from_center_size(circulo.center(), Vec2::splat(16.0)), icono_metodo(metodo), Color32::WHITE);
     let tx = circulo.right() + 12.0;
-    comun::texto_en(ui, egui::pos2(tx, rect.center().y - 10.0), Align2::LEFT_CENTER, &format!("${}", logica::es_ar_min2(numero(pago, "monto"))), Tam::Base, Peso::Semi, color::TEXTO);
+    comun::texto_en(ui, egui::pos2(tx, rect.center().y - 10.0), Align2::LEFT_CENTER, &formato::pesos(numero(pago, "monto")), Tam::Base, Peso::Semi, color::TEXTO);
     comun::texto_en(ui, egui::pos2(tx, rect.center().y + 12.0), Align2::LEFT_CENTER, &etiqueta_metodo(metodo), Tam::Sm, Peso::Normal, paleta::GRAY_600);
     let insignia = Insignia::new("PAGADO", paleta::GREEN_100, paleta::GREEN_800, paleta::GREEN_200).icono("check-circle");
     let ancho = insignia.ancho_natural(ui);

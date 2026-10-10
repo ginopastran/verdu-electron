@@ -1,16 +1,20 @@
 use eframe::egui::{self, Align2, Color32, Context, Id, Rect, Sense, Stroke, StrokeKind, Ui, Vec2};
 use nucleo::facturas as logica;
+use nucleo::formato;
 use serde_json::Value;
 
 use super::comun::{self, bloque, bloque_alto, Boton, Insignia, Opcion};
 use super::detalle::anchos_tabla;
-use super::{mostrar_valor, numero, texto};
+use super::pagos::descargar_pdf;
+use super::{id_texto, mostrar_valor, numero, texto};
 use crate::app::Contexto;
+use crate::tareas::{esperar, Tarea};
 use crate::ui::{self, color, paleta, Entrada, Peso, Tam};
 
 pub enum ResultadoModal {
     Nada,
     Cerrar,
+    Actualizada,
 }
 
 pub struct ModalFactura {
@@ -18,6 +22,7 @@ pub struct ModalFactura {
     edicion: bool,
     estado: String,
     observaciones: String,
+    guardado: Option<Tarea<Result<Value, String>>>,
 }
 
 fn insignia_tipo(tipo: &str) -> (Color32, Color32) {
@@ -36,7 +41,7 @@ fn insignia_estado(estado: &str) -> (Color32, Color32) {
     }
 }
 
-fn condicion_fiscal(condicion: &str) -> String {
+pub fn condicion_fiscal(condicion: &str) -> String {
     match condicion {
         "consumidor_final" => "Consumidor Final".into(),
         "responsable_inscripto" => "Responsable Inscripto".into(),
@@ -60,7 +65,40 @@ impl ModalFactura {
     pub fn new(factura: Value) -> Self {
         let estado = texto(&factura, "estado").to_string();
         let observaciones = texto(&factura, "observaciones").to_string();
-        ModalFactura { factura, edicion: true, estado, observaciones }
+        let edicion = estado != "anulada";
+        ModalFactura { factura, edicion, estado, observaciones, guardado: None }
+    }
+
+    fn guardar(&mut self, cx: &Contexto) {
+        let Some(cuerpo) = logica::cuerpo_edicion(&self.factura, &self.estado, &self.observaciones) else {
+            self.edicion = false;
+            return;
+        };
+        let api = cx.servicios.api.clone();
+        let ruta = format!("/facturas/{}", nucleo::api::codificar(&id_texto(&self.factura["id"])));
+        self.guardado = Some(Tarea::lanzar(&cx.egui, move || api.put(&ruta, &cuerpo).map_err(|e| e.mensaje)));
+    }
+
+    fn recibir(&mut self, cx: &Contexto) -> bool {
+        let Some(resultado) = esperar(&mut self.guardado) else { return false };
+        match resultado {
+            Ok(actualizada) => {
+                for clave in ["estado", "observaciones"] {
+                    if let Some(valor) = actualizada.get(clave) {
+                        self.factura[clave] = valor.clone();
+                    }
+                }
+                self.estado = texto(&self.factura, "estado").to_string();
+                self.observaciones = texto(&self.factura, "observaciones").to_string();
+                self.edicion = false;
+                ui::toast::exito(&cx.egui, "Factura actualizada correctamente");
+                true
+            }
+            Err(error) => {
+                ui::toast::error(&cx.egui, format!("Error al actualizar factura: {error}"));
+                false
+            }
+        }
     }
 
     fn opciones_estado(&self) -> Vec<(&'static str, &'static str)> {
@@ -72,6 +110,7 @@ impl ModalFactura {
     }
 
     pub fn mostrar(&mut self, ctx: &Context, cx: &Contexto) -> ResultadoModal {
+        let actualizada = self.recibir(cx);
         let alto_max = ctx.content_rect().height() * 0.9;
         let mut accion = None;
         let r = ui::Dialogo::new("facturas-modal").ancho(896.0).relleno(0.0).mostrar(ctx, |ui| {
@@ -90,18 +129,20 @@ impl ModalFactura {
             });
         });
         match accion {
-            Some("pdf") => ui::toast::error(&cx.egui, "Error al descargar PDF"),
+            Some("pdf") => descargar_pdf(cx, &self.factura),
             Some("editar") => self.edicion = true,
             Some("cancelar") => {
                 self.edicion = false;
                 self.estado = texto(&self.factura, "estado").to_string();
                 self.observaciones = texto(&self.factura, "observaciones").to_string();
             }
-            Some("guardar") => ui::toast::error(&cx.egui, "Error al actualizar factura"),
+            Some("guardar") if self.guardado.is_none() => self.guardar(cx),
             _ => {}
         }
         if r.cerrar {
             ResultadoModal::Cerrar
+        } else if actualizada {
+            ResultadoModal::Actualizada
         } else {
             ResultadoModal::Nada
         }
@@ -123,8 +164,10 @@ impl ModalFactura {
             botones.push((Boton::contorno("Editar").chico().icono("edit").separacion(16.0), "editar"));
         }
         if self.edicion {
-            botones.push((Boton::contorno("Cancelar").chico().icono("x").separacion(16.0), "cancelar"));
-            botones.push((Boton::primario("Guardar").chico().icono("save").separacion(16.0), "guardar"));
+            let guardando = self.guardado.is_some();
+            let texto_guardar = if guardando { "Guardando..." } else { "Guardar" };
+            botones.push((Boton::contorno("Cancelar").chico().icono("x").separacion(16.0).habilitado(!guardando), "cancelar"));
+            botones.push((Boton::primario(texto_guardar).chico().icono("save").separacion(16.0).habilitado(!guardando), "guardar"));
         }
         let ancho = ui.available_width();
         let anchos_botones: Vec<f32> = botones.iter().map(|(b, _)| b.ancho_natural(ui)).collect();
@@ -285,9 +328,9 @@ fn tabla(ui: &mut Ui, f: &Value) {
                 texto(&d["producto"], "nombre").to_string(),
                 texto(&d["producto"], "tipoMedida").to_string(),
                 texto(d, "descripcion").to_string(),
-                mostrar_valor(&d["cantidad"]),
-                logica::moneda(numero(d, "precioUnitario")),
-                logica::moneda(numero(d, "subtotal")),
+                formato::numero(numero(d, "cantidad")),
+                formato::pesos(numero(d, "precioUnitario")),
+                formato::pesos(numero(d, "subtotal")),
             ]
         })
         .collect();
@@ -343,15 +386,15 @@ fn totales(ui: &mut Ui, f: &Value) {
     let mut y = rect.top();
     let mut fila = |etiqueta: &str, valor: f64| {
         comun::texto_en(ui, egui::pos2(x0, y + 12.0), Align2::LEFT_CENTER, etiqueta, Tam::Base, Peso::Normal, color::TEXTO);
-        comun::texto_en(ui, egui::pos2(x1, y + 12.0), Align2::RIGHT_CENTER, &logica::moneda(valor), Tam::Base, Peso::Normal, color::TEXTO);
+        comun::texto_en(ui, egui::pos2(x1, y + 12.0), Align2::RIGHT_CENTER, &formato::pesos(valor), Tam::Base, Peso::Normal, color::TEXTO);
         y += 32.0;
     };
     fila("Subtotal:", numero(f, "subtotal"));
     if impuestos > 0.0 {
-        fila("IVA (21%):", impuestos);
+        fila("IVA:", impuestos);
     }
     ui.painter().hline(x0..=x1, y + 0.5, Stroke::new(1.0, color::BORDE));
     y += 9.0;
     comun::texto_en(ui, egui::pos2(x0, y + 14.0), Align2::LEFT_CENTER, "Total:", Tam::Lg, Peso::Negrita, color::TEXTO);
-    comun::texto_en(ui, egui::pos2(x1, y + 14.0), Align2::RIGHT_CENTER, &logica::moneda(numero(f, "total")), Tam::Lg, Peso::Negrita, color::TEXTO);
+    comun::texto_en(ui, egui::pos2(x1, y + 14.0), Align2::RIGHT_CENTER, &formato::pesos(numero(f, "total")), Tam::Lg, Peso::Negrita, color::TEXTO);
 }

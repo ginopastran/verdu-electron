@@ -37,8 +37,10 @@ struct Opciones {
     demora_facturas: u64,
 }
 
-fn responder(mock: &Value, opciones: Opciones, metodo: &str, ruta: &str) -> (u16, Value, u64) {
-    let (camino, _consulta) = ruta.split_once('?').unwrap_or((ruta, ""));
+const PDF_FALSO: &str = "%PDF-1.4 factura de prueba";
+
+fn responder(mock: &Value, opciones: Opciones, metodo: &str, ruta: &str, enviado: &Value) -> (u16, Value, u64) {
+    let (camino, consulta) = ruta.split_once('?').unwrap_or((ruta, ""));
     let partes: Vec<&str> = camino.trim_start_matches('/').split('/').collect();
     let datos = &mock["datos"];
     let buscar = |lista: &Value, id: &str| {
@@ -46,9 +48,21 @@ fn responder(mock: &Value, opciones: Opciones, metodo: &str, ruta: &str) -> (u16
     };
     match (metodo, partes.as_slice()) {
         ("GET", ["api", "facturas"]) => {
-            let respuesta = ejemplo(mock, "GET", "/api/facturas", usize::from(opciones.facturas_vacias));
+            let vacias = opciones.facturas_vacias || consulta.contains("search=");
+            let respuesta = ejemplo(mock, "GET", "/api/facturas", usize::from(vacias));
             (200, respuesta, opciones.demora_facturas)
         }
+        ("GET", ["api", "facturas", "generar-pdf"]) => (200, json!(PDF_FALSO), 0),
+        ("PUT", ["api", "facturas", id]) => match buscar(&datos["facturas"], id) {
+            Some(mut f) => {
+                for (clave, valor) in enviado.as_object().unwrap() {
+                    f[clave] = valor.clone();
+                }
+                (200, f, 0)
+            }
+            None => (404, json!({ "error": "Factura no encontrada" }), 0),
+        },
+        ("DELETE", ["api", "facturas", _]) => (200, json!({ "message": "Factura anulada correctamente" }), 0),
         ("GET", ["api", "facturas", id]) => match buscar(&datos["facturas"], id) {
             Some(f) => (200, f, 0),
             None => (404, json!({ "error": "Factura no encontrada" }), 0),
@@ -114,15 +128,18 @@ fn servidor_con_registro(opciones: Opciones) -> (String, Registro) {
                 let mut partes = primera.split_whitespace();
                 let metodo = partes.next().unwrap_or_default().to_string();
                 let ruta = partes.next().unwrap_or_default().to_string();
-                let enviado = serde_json::from_slice(&cuerpo).unwrap_or(Value::Null);
+                let enviado: Value = serde_json::from_slice(&cuerpo).unwrap_or(Value::Null);
+                let (estado, respuesta, demora) = responder(&mock, opciones, &metodo, &ruta, &enviado);
                 anotar.lock().unwrap().push((metodo.clone(), ruta.clone(), enviado));
-                let (estado, respuesta, demora) = responder(&mock, opciones, &metodo, &ruta);
                 std::thread::sleep(Duration::from_millis(demora));
-                let texto = respuesta.to_string();
+                let (tipo, texto) = match respuesta.as_str() {
+                    Some(pdf) if pdf.starts_with("%PDF") => ("application/pdf", pdf.to_string()),
+                    _ => ("application/json", respuesta.to_string()),
+                };
                 let mut salida = conexion;
                 let _ = write!(
                     salida,
-                    "HTTP/1.1 {estado} OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{texto}",
+                    "HTTP/1.1 {estado} OK\r\nContent-Type: {tipo}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{texto}",
                     texto.len()
                 );
             });
@@ -485,8 +502,160 @@ fn agregar_pago_envia_el_pago_y_recarga() {
     assert_eq!(pagos[0]["facturaId"], "f101");
     assert_eq!(pagos[0]["monto"], 1000.0);
     assert_eq!(pagos[0]["metodoPago"], "efectivo");
-    assert_eq!(pagos[0]["fecha"], nucleo::facturas::hoy_utc().format("%Y-%m-%d").to_string());
+    assert_eq!(pagos[0]["fecha"], nucleo::facturas::hoy_argentina().format("%Y-%m-%d").to_string());
     assert!(pagos[0].get("referencia").is_none());
     let listas = registro.lock().unwrap().iter().filter(|(m, r, _)| m == "GET" && r.starts_with("/api/facturas?")).count();
     assert!(listas >= 2, "la lista no se recargó");
+}
+
+fn lista_registrada(registro_url: (String, Registro)) -> (Harness<'static, App>, Registro) {
+    let (url, registro) = registro_url;
+    let app = App::de_prueba(global(Ruta::Facturas), servicios(&url));
+    let mut harness = Harness::builder().with_size([1200.0, 800.0]).wgpu().build_ui_state(|ui, app: &mut App| pleno(ui, |ui| app.mostrar(ui)), app);
+    esperar(&mut harness, 600);
+    (harness, registro)
+}
+
+fn pedidos_de_lista(registro: &Registro) -> Vec<String> {
+    registro.lock().unwrap().iter().filter(|(m, r, _)| m == "GET" && r.starts_with("/api/facturas?")).map(|(_, r, _)| r.clone()).collect()
+}
+
+#[test]
+fn guardar_en_el_modal_hace_put() {
+    let (mut h, registro) = lista_registrada(servidor_con_registro(Opciones::default()));
+    clic(&mut h, 230.0, 500.0);
+    esperar(&mut h, 200);
+    clic(&mut h, 806.0, 239.0);
+    esperar(&mut h, 200);
+    guardar(&mut h, "66b-factura-editar-estado");
+    clic(&mut h, 806.0, 311.0);
+    esperar(&mut h, 200);
+    clic(&mut h, 954.0, 87.0);
+    esperar(&mut h, 800);
+    let cuerpos = enviados(&registro, "PUT", "/api/facturas/f101");
+    assert_eq!(cuerpos, vec![json!({ "estado": "pagada" })], "{:?}", registro.lock().unwrap());
+    assert!(pedidos_de_lista(&registro).len() >= 2, "la lista no se recargó");
+    guardar(&mut h, "66c-factura-guardada");
+}
+
+const BOTON_ANULAR: (f32, f32) = (736.0, 455.0);
+
+#[test]
+fn eliminar_anula_con_confirmacion() {
+    let (mut h, registro) = lista_registrada(servidor_con_registro(Opciones::default()));
+    clic(&mut h, 346.0, 500.0);
+    esperar(&mut h, 200);
+    assert!(enviados(&registro, "DELETE", "/api/facturas/f101").is_empty());
+    guardar(&mut h, "71-facturas-eliminar");
+    h.key_press(egui::Key::Escape);
+    esperar(&mut h, 200);
+    clic(&mut h, 346.0, 500.0);
+    esperar(&mut h, 200);
+    clic(&mut h, BOTON_ANULAR.0, BOTON_ANULAR.1);
+    esperar(&mut h, 800);
+    let cuerpos = enviados(&registro, "DELETE", "/api/facturas/f101");
+    assert_eq!(cuerpos, vec![json!({ "forceDelete": false })], "{:?}", registro.lock().unwrap());
+    assert!(pedidos_de_lista(&registro).len() >= 2, "la lista no se recargó");
+}
+
+#[test]
+fn limpiar_filtros_borra_la_busqueda() {
+    let (mut h, registro) = lista_registrada(servidor_con_registro(Opciones::default()));
+    clic(&mut h, 250.0, 129.0);
+    h.event(Event::Text("zzz".into()));
+    esperar(&mut h, 800);
+    assert!(pedidos_de_lista(&registro).last().unwrap().contains("search=zzz"));
+    clic(&mut h, 600.0, 317.0);
+    esperar(&mut h, 800);
+    let ultimo = pedidos_de_lista(&registro).last().unwrap().clone();
+    assert!(!ultimo.contains("search="), "{ultimo}");
+    guardar(&mut h, "69b-facturas-filtros-limpios");
+}
+
+#[test]
+fn pdf_se_guarda_en_la_carpeta_indicada() {
+    let (url, registro) = servidor_con_registro(Opciones::default());
+    let carpeta = std::env::temp_dir().join(format!("andexmarket-pdf-{}", std::process::id()));
+    let factura = json!({ "id": "f102", "tipoFactura": "A", "numero": "A-0002-00000013" });
+    let ruta = nucleo::facturas::descargar_pdf(&Cliente::new(&url), &factura, &carpeta).unwrap();
+    assert_eq!(ruta, carpeta.join("factura-A-A-0002-00000013.pdf"));
+    assert_eq!(std::fs::read_to_string(&ruta).unwrap(), PDF_FALSO);
+    assert!(registro.lock().unwrap().iter().any(|(m, r, _)| m == "GET" && r == "/api/facturas/generar-pdf?id=f102"));
+    let _ = std::fs::remove_dir_all(carpeta);
+}
+
+fn productos_pedidos(registro: &Registro) -> usize {
+    registro.lock().unwrap().iter().filter(|(m, r, _)| m == "GET" && r.starts_with("/api/productos/")).count()
+}
+
+#[test]
+fn borrar_todas_las_filas_no_recarga_el_carrito() {
+    let (registro, abierto) = formulario_registrado(|h| {
+        for _ in 0..7 {
+            clic(h, 1102.0, 649.0);
+            esperar(h, 100);
+        }
+        esperar(h, 800);
+        guardar(h, "56c-factura-form-sin-filas");
+    });
+    assert_eq!(productos_pedidos(&registro), 7, "{:?}", registro.lock().unwrap());
+    assert!(abierto);
+}
+
+#[test]
+fn reabrir_con_lista_mantiene_desplegable_y_envio() {
+    let (registro, abierto) = formulario_registrado(|h| {
+        clic(h, 870.0, 309.0);
+        esperar(h, 200);
+        clic(h, 700.0, 385.0);
+        esperar(h, 800);
+        h.key_press(egui::Key::Escape);
+        esperar(h, 200);
+        assert!(!h.state().formulario.abierto());
+        h.state_mut().formulario.abrir(productos_carrito());
+        esperar(h, 1200);
+        guardar(h, "56d-factura-form-reabierto-con-lista");
+        clic(h, 300.0, 184.0);
+        esperar(h, 400);
+        clic(h, 590.0, 310.0);
+        esperar(h, 300);
+        bajar_y_crear(h);
+    });
+    let cuerpos = enviados(&registro, "POST", "/api/facturas");
+    assert_eq!(cuerpos.len(), 1, "{:?}", registro.lock().unwrap());
+    assert_eq!(cuerpos[0]["listaPrecioId"], 1);
+    let precios: Vec<(i64, f64)> = cuerpos[0]["detalles"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|d| (d["productoId"].as_i64().unwrap(), d["precioUnitario"].as_f64().unwrap()))
+        .collect();
+    assert_eq!(precios, vec![(1, 2100.0), (2, 780.0), (5, 2450.0), (21, 5900.0), (19, 1500.0), (12, 4500.0), (23, 800.0)]);
+    assert!(!abierto);
+}
+
+#[test]
+fn detalle_ver_cliente_y_agregar_pago() {
+    let (url, registro) = servidor_con_registro(Opciones::default());
+    let app = App::de_prueba(global(Ruta::FacturaDetalle("f101".into())), servicios(&url));
+    let mut h = Harness::builder().with_size([1200.0, 800.0]).wgpu().build_ui_state(|ui, app: &mut App| pleno(ui, |ui| app.mostrar(ui)), app);
+    esperar(&mut h, 600);
+    clic(&mut h, 980.0, 320.0);
+    esperar(&mut h, 200);
+    guardar(&mut h, "68b-factura-detalle-cliente");
+    h.key_press(egui::Key::Escape);
+    esperar(&mut h, 200);
+    clic(&mut h, 1086.0, 52.0);
+    esperar(&mut h, 200);
+    guardar(&mut h, "68c-factura-detalle-agregar-pago");
+    clic(&mut h, 600.0, 287.0);
+    h.event(Event::Text("1500,50".into()));
+    h.step();
+    h.key_press(egui::Key::Enter);
+    esperar(&mut h, 800);
+    let pagos = enviados(&registro, "POST", "/api/facturas/agregar-pago");
+    assert_eq!(pagos.len(), 1, "{:?}", registro.lock().unwrap());
+    assert_eq!(pagos[0]["facturaId"], "f101");
+    assert_eq!(pagos[0]["monto"], 1500.5);
+    assert_eq!(enviados(&registro, "GET", "/api/facturas/f101").len(), 2, "el detalle no se recargó");
 }

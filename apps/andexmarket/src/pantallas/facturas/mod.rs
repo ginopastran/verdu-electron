@@ -7,6 +7,8 @@ mod pagos;
 mod selectores;
 mod tarjeta;
 
+use std::path::PathBuf;
+
 use eframe::egui::Ui;
 use serde_json::Value;
 
@@ -51,7 +53,14 @@ fn mostrar_valor(valor: &Value) -> String {
     match valor {
         Value::Null => String::new(),
         Value::String(s) => s.clone(),
-        Value::Number(n) => n.as_f64().map(nucleo::facturas::texto_numero).unwrap_or_else(|| n.to_string()),
+        Value::Number(n) => n.to_string(),
         otro => otro.to_string(),
     }
+}
+
+fn carpeta_descargas(cx: &Contexto) -> PathBuf {
+    std::env::var_os("USERPROFILE")
+        .or_else(|| std::env::var_os("HOME"))
+        .map(|inicio| PathBuf::from(inicio).join("Downloads"))
+        .unwrap_or_else(|| cx.servicios.carpeta.clone())
 }
