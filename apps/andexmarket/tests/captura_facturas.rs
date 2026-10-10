@@ -358,7 +358,7 @@ fn factura_form_totales() {
 #[test]
 fn selector_cliente() {
     formulario("57-selector-cliente", |h| {
-        clic(h, 300.0, 184.0);
+        clic(h, 440.0, 155.0);
         esperar(h, 400);
         h.remove_cursor();
     });
@@ -367,7 +367,7 @@ fn selector_cliente() {
 #[test]
 fn factura_form_con_cliente() {
     formulario("58-factura-form-con-cliente", |h| {
-        clic(h, 300.0, 184.0);
+        clic(h, 440.0, 155.0);
         esperar(h, 400);
         clic(h, 590.0, 310.0);
         esperar(h, 300);
@@ -378,11 +378,11 @@ fn factura_form_con_cliente() {
 #[test]
 fn selector_producto() {
     formulario("59-selector-producto", |h| {
-        clic(h, 300.0, 184.0);
+        clic(h, 440.0, 155.0);
         esperar(h, 400);
         clic(h, 590.0, 310.0);
         esperar(h, 300);
-        clic(h, 1048.0, 505.0);
+        clic(h, 892.0, 637.0);
         esperar(h, 400);
         h.remove_cursor();
     });
@@ -391,11 +391,11 @@ fn selector_producto() {
 #[test]
 fn cantidad_producto() {
     formulario("60-cantidad-producto", |h| {
-        clic(h, 300.0, 184.0);
+        clic(h, 440.0, 155.0);
         esperar(h, 400);
         clic(h, 590.0, 310.0);
         esperar(h, 300);
-        clic(h, 1048.0, 505.0);
+        clic(h, 892.0, 637.0);
         esperar(h, 400);
         clic(h, 590.0, 302.0);
         esperar(h, 300);
@@ -411,9 +411,7 @@ fn factura_form_remito_sin_iva() {
 #[test]
 fn factura_form_a_con_iva() {
     formulario_con("56f-factura-form-a-con-iva", Opciones { precios_sin_iva: true, ..Default::default() }, |h| {
-        clic(h, 880.0, 184.0);
-        esperar(h, 300);
-        clic(h, 880.0, 230.0);
+        clic(h, 803.0, 155.0);
         esperar(h, 300);
         h.remove_cursor();
     });
@@ -437,9 +435,7 @@ fn factura_form_remito_sin_iva_totales() {
 #[test]
 fn factura_form_a_con_iva_totales() {
     formulario_con("56h-factura-form-a-con-iva-totales", Opciones { precios_sin_iva: true, ..Default::default() }, |h| {
-        clic(h, 880.0, 184.0);
-        esperar(h, 300);
-        clic(h, 880.0, 230.0);
+        clic(h, 803.0, 155.0);
         esperar(h, 300);
         bajar_formulario(h);
     });
@@ -486,14 +482,14 @@ fn bajar_y_crear(h: &mut Harness<'_, Formulario>) {
         h.step();
     }
     esperar(h, 300);
-    clic(h, 1059.0, 715.0);
+    clic(h, 870.0, 735.0);
     esperar(h, 1500);
 }
 
 #[test]
 fn envio_de_remito_desde_carrito() {
     let (registro, abierto) = formulario_registrado(|h| {
-        clic(h, 300.0, 184.0);
+        clic(h, 440.0, 155.0);
         esperar(h, 400);
         clic(h, 590.0, 310.0);
         esperar(h, 300);
@@ -516,11 +512,11 @@ fn envio_de_remito_desde_carrito() {
 #[test]
 fn lista_de_precios_actualiza_los_precios() {
     let (registro, abierto) = formulario_registrado(|h| {
-        clic(h, 870.0, 309.0);
+        clic(h, 440.0, 237.0);
         esperar(h, 200);
-        clic(h, 700.0, 385.0);
+        clic(h, 440.0, 319.0);
         esperar(h, 800);
-        clic(h, 300.0, 184.0);
+        clic(h, 440.0, 155.0);
         esperar(h, 400);
         clic(h, 590.0, 310.0);
         esperar(h, 300);
@@ -649,7 +645,7 @@ fn productos_pedidos(registro: &Registro) -> usize {
 fn borrar_todas_las_filas_no_recarga_el_carrito() {
     let (registro, abierto) = formulario_registrado(|h| {
         for _ in 0..7 {
-            clic(h, 1102.0, 649.0);
+            clic(h, 925.0, 364.0);
             esperar(h, 100);
         }
         esperar(h, 800);
@@ -662,9 +658,9 @@ fn borrar_todas_las_filas_no_recarga_el_carrito() {
 #[test]
 fn reabrir_con_lista_mantiene_desplegable_y_envio() {
     let (registro, abierto) = formulario_registrado(|h| {
-        clic(h, 870.0, 309.0);
+        clic(h, 440.0, 237.0);
         esperar(h, 200);
-        clic(h, 700.0, 385.0);
+        clic(h, 440.0, 319.0);
         esperar(h, 800);
         h.key_press(egui::Key::Escape);
         esperar(h, 200);
@@ -672,7 +668,7 @@ fn reabrir_con_lista_mantiene_desplegable_y_envio() {
         h.state_mut().formulario.abrir(productos_carrito());
         esperar(h, 1200);
         guardar(h, "56d-factura-form-reabierto-con-lista");
-        clic(h, 300.0, 184.0);
+        clic(h, 440.0, 155.0);
         esperar(h, 400);
         clic(h, 590.0, 310.0);
         esperar(h, 300);
