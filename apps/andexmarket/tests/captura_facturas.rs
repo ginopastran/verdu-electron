@@ -158,6 +158,7 @@ fn servidor_con_registro(opciones: Opciones) -> (String, Registro) {
 fn servicios(url: &str) -> Servicios {
     let mut servicios = comun::servicios();
     servicios.api = Cliente::new(url);
+    servicios.config.set("impresoraWindows", json!("impresora-inexistente-de-prueba"));
     servicios
 }
 
