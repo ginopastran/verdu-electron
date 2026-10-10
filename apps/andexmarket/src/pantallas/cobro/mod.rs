@@ -64,8 +64,16 @@ struct Sondeo {
     orden: String,
     siguiente: f64,
     en_vuelo: bool,
-    conteo: u32,
+    inicio: f64,
+    errores: u32,
     generacion: u64,
+}
+
+impl Sondeo {
+    fn fallar(&mut self) -> bool {
+        self.errores += 1;
+        self.errores >= nucleo::cobros::SONDEO_MAXIMO_ERRORES
+    }
 }
 
 struct Procesador {
@@ -132,7 +140,7 @@ impl Procesador {
         }
         self.generacion += 1;
         let siguiente = if self.lado == Lado::Normal { ahora } else { ahora + 2.0 };
-        self.sondeo = Some(Sondeo { orden, siguiente, en_vuelo: false, conteo: 0, generacion: self.generacion });
+        self.sondeo = Some(Sondeo { orden, siguiente, en_vuelo: false, inicio: ahora, errores: 0, generacion: self.generacion });
     }
 
     fn enviando_manual(&self) -> bool {
@@ -282,14 +290,8 @@ impl Cobro {
         self.descuento_dialogo = Some(DialogoDescuento { enfocar: true, ..Default::default() });
     }
 
-    fn abrir_qr(&mut self, cx: &Contexto) {
+    fn abrir_qr(&mut self) {
         self.qr_abierto = true;
-        if self.normal.sondeo.is_none() {
-            let orden = self.normal.qr.as_ref().map(|qr| &qr["orderId"]).filter(|v| nucleo::cobros::verdad(v)).map(flujos::texto_js);
-            if let Some(orden) = orden {
-                self.normal.iniciar_sondeo(orden, cx.egui.input(|i| i.time));
-            }
-        }
     }
 
     fn vaciar(&mut self, cx: &mut Contexto) {
@@ -335,5 +337,87 @@ impl Cobro {
         for aplicar in listas {
             aplicar(self, cx);
         }
+    }
+}
+
+#[cfg(test)]
+mod pruebas {
+    use super::*;
+    use serde_json::json;
+
+    fn con_sondeo(lado: Lado) -> Procesador {
+        let mut p = Procesador::new(lado);
+        p.fijar_qr(json!({ "id": 9023, "orderId": 9023 }));
+        p.estado = Some("PENDIENTE".into());
+        p.iniciar_sondeo("9023".into(), 10.0);
+        p
+    }
+
+    #[test]
+    fn sondeo_se_corta_con_errores_seguidos() {
+        let mut p = con_sondeo(Lado::Normal);
+        let s = p.sondeo.as_mut().unwrap();
+        for _ in 1..nucleo::cobros::SONDEO_MAXIMO_ERRORES {
+            assert!(!s.fallar());
+        }
+        s.errores = 0;
+        for _ in 1..nucleo::cobros::SONDEO_MAXIMO_ERRORES {
+            assert!(!s.fallar());
+        }
+        assert!(s.fallar());
+        assert_eq!(s.inicio, 10.0);
+    }
+
+    #[test]
+    fn cancelar_o_cerrar_el_qr_corta_el_sondeo_afip() {
+        for cancelar in [true, false] {
+            let mut cobro = Cobro { flujo_afip: true, qr_abierto: true, afip: con_sondeo(Lado::Afip), normal: con_sondeo(Lado::Normal), ..Default::default() };
+            cobro.afip.procesando = true;
+            if cancelar {
+                cobro.cancelar_qr();
+            } else {
+                cobro.cerrar_qr_usuario();
+            }
+            assert!(!cobro.qr_abierto);
+            assert!(cobro.afip.sondeo.is_none());
+            assert!(cobro.normal.sondeo.is_none());
+            assert!(!cobro.afip.procesando);
+        }
+    }
+
+    #[test]
+    fn qr_afip_con_order_id_no_arranca_el_sondeo_normal() {
+        let mut cobro = Cobro { flujo_afip: true, afip: con_sondeo(Lado::Afip), ..Default::default() };
+        cobro.normal.fijar_qr(json!({ "id": 9023, "orderId": 9023, "monto": 22449.5 }));
+        cobro.abrir_qr();
+        assert!(cobro.qr_abierto);
+        assert!(cobro.normal.sondeo.is_none());
+        assert!(cobro.afip.sondeo.is_some());
+    }
+
+    #[test]
+    fn ticket_afip_con_la_respuesta_del_backend() {
+        let negocio = json!({ "nombre": "Verduleria La Huerta", "configuracionAfip": { "razonSocial": "La Huerta SRL", "cuit": "30712345678", "condicionIva": "Responsable Inscripto" } });
+        let usuario = json!({ "id": 11, "nombre": "Lucia", "sucursalId": 1 });
+        let factura = nucleo::cobros::Afip {
+            negocio: &negocio,
+            usuario: &usuario,
+            metodo: "efectivo",
+            items: vec![json!({ "productoId": 1, "cantidad": 1, "precio": 1000.0, "subtotal": 1000.0, "nombre": "Tomate" })],
+            total: 1000.0,
+            subtotal_iva: 1000.0,
+            descuento: None,
+            mixto: None,
+        };
+        let respuesta = json!({
+            "message": "Factura AFIP creada correctamente",
+            "factura": { "id": 88, "numero": "0003-00000045", "numeroFactura": "45", "puntoVenta": "0003", "pagos": [] },
+            "afip": { "cae": "75412369899123", "vencimientoCae": "20261020" },
+        });
+        let datos = factura.impresion(&respuesta, "10/10/2026 12:00:00");
+        let bytes = impresion::tickets::afip::afip(&datos, std::path::Path::new("sin-logo.png"), impresion::tickets::hora_argentina());
+        let texto = String::from_utf8_lossy(&bytes);
+        assert!(texto.contains("Nro: 0003-00000045\n"), "{texto}");
+        assert!(texto.contains("Fecha Vto CAE: 20/10/2026\n"), "{texto}");
     }
 }

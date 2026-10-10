@@ -2,8 +2,7 @@ mod comun;
 
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::TcpListener;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use andexmarket::app::{Contexto, Global, Ruta, Servicios};
@@ -14,6 +13,12 @@ use egui_kittest::Harness;
 use nucleo::api::Cliente;
 use nucleo::carrito::{Carritos, Producto};
 use serde_json::{json, Value};
+
+type Registro = Arc<Mutex<Vec<(String, Value)>>>;
+
+fn pedidos(registro: &Registro, ruta: &str) -> Vec<Value> {
+    registro.lock().unwrap().iter().filter(|(r, _)| r == ruta).map(|(_, cuerpo)| cuerpo.clone()).collect()
+}
 
 struct Estado {
     global: Global,
@@ -90,18 +95,18 @@ fn responder(metodo: &str, ruta: &str, cuerpo: &Value) -> (u16, Value) {
         ("GET", r) if r.starts_with("/api/mercadopago/check-status") => (200, json!({ "status": "PENDING" })),
         ("POST", "/api/ordenes") => (200, json!({ "id": 9022, "idReal": 9022, "estado": "COMPLETADA" })),
         ("POST", "/api/facturas/crear-afip") => (
-            200,
+            201,
             json!({
-                "success": true,
-                "factura": { "id": "fb89", "numero": "B-0002-00000213", "tipoFactura": "B", "puntoVenta": 2 },
-                "afip": { "cae": "75412369899123", "numeroComprobante": 213, "puntoVenta": 2, "tipoComprobante": 6 },
+                "message": "Factura AFIP creada correctamente",
+                "factura": { "id": 88, "numero": "0002-00000213", "numeroFactura": "213", "puntoVenta": "0002", "tipoFactura": "B" },
+                "afip": { "cae": "75412369899123", "vencimientoCae": "20261020" },
             }),
         ),
         _ => (404, json!({ "error": "No encontrado" })),
     }
 }
 
-fn servidor(afip_pedida: Arc<AtomicBool>) -> String {
+fn servidor(registro: Registro) -> String {
     let escucha = TcpListener::bind("127.0.0.1:0").expect("puerto");
     let puerto = escucha.local_addr().unwrap().port();
     std::thread::spawn(move || {
@@ -126,9 +131,7 @@ fn servidor(afip_pedida: Arc<AtomicBool>) -> String {
             let mut cuerpo = vec![0; largo];
             let _ = lector.read_exact(&mut cuerpo);
             let cuerpo: Value = serde_json::from_slice(&cuerpo).unwrap_or(Value::Null);
-            if ruta == "/api/facturas/crear-afip" {
-                afip_pedida.store(true, Ordering::SeqCst);
-            }
+            registro.lock().unwrap().push((ruta.to_string(), cuerpo.clone()));
             let (estado, respuesta) = responder(metodo, ruta, &cuerpo);
             let texto = respuesta.to_string();
             let mut conexion = conexion;
@@ -198,14 +201,14 @@ fn negocio(afip: bool) -> Value {
     })
 }
 
-fn harness(afip: bool, afip_pedida: Arc<AtomicBool>) -> Harness<'static, Estado> {
+fn harness(afip: bool, registro: Registro) -> Harness<'static, Estado> {
     let mut global = comun::global(Ruta::Carrito);
     global.negocio = Some(negocio(afip));
     global.admin = Some(json!({ "id": 1, "nombre": "Roberto Sánchez", "businessId": 7, "businessName": "Verdulería La Huerta" }));
     global.usuario = Some(json!({ "id": 11, "nombre": "Lucía Fernández", "email": "lucia@lahuerta.test", "sucursalId": 1, "role": "VENDEDOR" }));
     global.carritos = carrito();
     let mut servicios = comun::servicios();
-    servicios.api = Cliente::new(&servidor(afip_pedida));
+    servicios.api = Cliente::new(&servidor(registro));
     servicios.config.set("impresoraWindows", json!("Impresora inexistente de prueba"));
     let estado = Estado { global, servicios, cobro: Cobro::default(), instalado: false };
     let mut h = Harness::builder()
@@ -287,7 +290,8 @@ fn capturar(h: &mut Harness<'static, Estado>, nombre: &str) {
 
 #[test]
 fn pagos_negocio_simple() {
-    let mut h = harness(false, Arc::default());
+    let registro = Registro::default();
+    let mut h = harness(false, registro.clone());
     iniciar(&mut h, AccionCobro::Cancelar);
     capturar(&mut h, "24-cancelar-orden");
     tecla(&mut h, Key::Escape);
@@ -295,7 +299,7 @@ fn pagos_negocio_simple() {
     capturar(&mut h, "25-pago-metodos");
     tecla(&mut h, Key::Num3);
     capturar(&mut h, "26-pago-efectivo-redondeo");
-    clic(&mut h, 570.0, 497.0);
+    tecla(&mut h, Key::F5);
     capturar(&mut h, "27-pago-efectivo-con-descuento");
     tecla(&mut h, Key::Escape);
     iniciar(&mut h, AccionCobro::Pagar);
@@ -310,6 +314,30 @@ fn pagos_negocio_simple() {
     capturar(&mut h, "30-pago-qr-mercadopago");
     tecla(&mut h, Key::Enter);
     capturar(&mut h, "31-pago-qr-manual");
+    escribir(&mut h, "clave-que-no-es");
+    tecla(&mut h, Key::Enter);
+    pausa(&mut h, 300);
+    assert!(pedidos(&registro, "/api/mercadopago/manual-complete").is_empty());
+}
+
+#[test]
+fn pago_mixto_qr_con_descuento() {
+    let registro = Registro::default();
+    let mut h = harness(false, registro.clone());
+    iniciar(&mut h, AccionCobro::PagarConDescuento);
+    escribir(&mut h, "10");
+    tecla(&mut h, Key::Enter);
+    tecla(&mut h, Key::Num4);
+    escribir(&mut h, "5000");
+    clic(&mut h, 716.0, 524.0);
+    capturar(&mut h, "29b-pago-dividido-qr-con-descuento");
+    tecla(&mut h, Key::Enter);
+    esperar(&mut h, |_| !pedidos(&registro, "/api/mercadopago/generate-qr").is_empty());
+    let cuerpo = &pedidos(&registro, "/api/mercadopago/generate-qr")[0];
+    let total = cuerpo["subtotalSinDescuento"].as_f64().unwrap() * 0.9;
+    assert!((cuerpo["monto"].as_f64().unwrap() - total).abs() < 0.01, "{cuerpo}");
+    assert_eq!(cuerpo["cashAmount"], 5000.0);
+    assert_eq!(cuerpo["isSplitPayment"], true);
 }
 
 #[test]
@@ -336,8 +364,8 @@ fn descuentos_negocio_simple() {
 
 #[test]
 fn pagos_afip() {
-    let pedida = Arc::new(AtomicBool::new(false));
-    let mut h = harness(true, pedida.clone());
+    let registro = Registro::default();
+    let mut h = harness(true, registro.clone());
     iniciar(&mut h, AccionCobro::PagarAfip);
     capturar(&mut h, "45-pago-afip");
     tecla(&mut h, Key::Num3);
@@ -355,7 +383,7 @@ fn pagos_afip() {
     tecla(&mut h, Key::Num1);
     pausa(&mut h, 400);
     capturar(&mut h, "50-pago-afip-qr");
-    let mut h = harness(true, pedida.clone());
+    let mut h = harness(true, registro.clone());
     iniciar(&mut h, AccionCobro::Pagar);
     tecla(&mut h, Key::Num3);
     capturar(&mut h, "51-pago-efectivo-exacto");
@@ -365,12 +393,32 @@ fn pagos_afip() {
     tecla(&mut h, Key::Enter);
     capturar(&mut h, "52-pago-afip-con-descuento");
     h.key_press(Key::Num2);
-    esperar(&mut h, |_| pedida.load(Ordering::SeqCst));
+    esperar(&mut h, |_| !pedidos(&registro, "/api/facturas/crear-afip").is_empty());
     pausa(&mut h, 300);
     capturar(&mut h, "53-pago-afip-procesando");
     esperar(&mut h, |h| !h.state().cobro.ocupado());
     capturar(&mut h, "53b-pago-afip-terminado");
     assert!(h.state().global.carritos.items().is_empty());
+}
+
+#[test]
+fn afip_efectivo_manda_el_descuento_sin_aplicar_d() {
+    let registro = Registro::default();
+    let mut h = harness(true, registro.clone());
+    h.state_mut().global.negocio.as_mut().unwrap()["sistemaPago"] = json!("redondeo");
+    iniciar(&mut h, AccionCobro::PagarAfipConDescuento);
+    escribir(&mut h, "5");
+    tecla(&mut h, Key::Enter);
+    tecla(&mut h, Key::Num3);
+    capturar(&mut h, "52b-pago-afip-efectivo-con-descuento");
+    tecla(&mut h, Key::Enter);
+    esperar(&mut h, |_| !pedidos(&registro, "/api/facturas/crear-afip").is_empty());
+    let cuerpo = &pedidos(&registro, "/api/facturas/crear-afip")[0];
+    assert_eq!(cuerpo["tieneDescuento"], true, "{cuerpo}");
+    assert_eq!(cuerpo["tipoDescuento"], "porcentual");
+    assert_eq!(cuerpo["valorDescuento"], 5.0);
+    assert!(cuerpo["montoDescuento"].as_f64().unwrap() > 0.0);
+    esperar(&mut h, |h| !h.state().cobro.ocupado());
 }
 
 #[test]
