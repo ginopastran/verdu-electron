@@ -1,10 +1,15 @@
-use eframe::egui::{self, Align2, Sense, Ui, Vec2};
+use eframe::egui::{self, Align2, Frame, Rect, ScrollArea, Sense, Stroke, Ui, Vec2};
 use nucleo::cierre::{self as logica, numero, texto_valor};
 use nucleo::formato;
 use serde_json::Value;
 
+use super::dibujo::{dinero, hora_corta, metodo_pago};
 use crate::app::Contexto;
-use crate::ui::{self, color, paleta, Boton, Dialogo, Peso, Tam, RADIO};
+use crate::ui::marca::{color, fuente, radio, tam};
+use crate::ui::v2::{self, tarjetas::celda_texto, Boton, Columna, Tabla};
+use crate::ui::{pintar_icono_solar_en, Peso};
+
+const COLORES_BARRA: [eframe::egui::Color32; 4] = [color::VERDE, color::VERDE_PROFUNDO, color::DORADO, color::SOBRE_OSCURO_TENUE];
 
 #[derive(Default)]
 pub struct DialogoResultadoCierre {
@@ -28,54 +33,110 @@ fn importe(valor: Option<&Value>) -> f64 {
 }
 
 fn monto(valor: Option<&Value>) -> String {
-    formato::pesos(importe(valor))
+    dinero(importe(valor))
 }
 
-fn periodo(valor: &Value) -> String {
-    if valor == "custom" {
-        "MANUAL".into()
-    } else {
-        texto_valor(valor).to_uppercase()
-    }
-}
-
-fn cantidad(valor: Option<&Value>) -> String {
+fn conteo(valor: Option<&Value>) -> Option<f64> {
     let valor = match valor {
         Some(Value::Object(objeto)) => objeto.get("cantidad"),
         otro => otro,
     };
-    Some(numero(valor)).filter(|n| n.is_finite()).map(formato::numero).unwrap_or_else(|| "0".into())
+    Some(numero(valor)).filter(|n| n.is_finite())
 }
 
-fn tarjeta_tabla(ui: &mut Ui, titulo: &str, columnas: &[(f32, &str, bool)], filas: Vec<Vec<(String, Peso)>>) {
-    ui::marco().stroke(ui::borde(color::BORDE)).corner_radius(RADIO).inner_margin(egui::Margin::same(16)).show(ui, |ui| {
+fn cantidad(valor: Option<&Value>) -> String {
+    conteo(valor).map(formato::numero).unwrap_or_else(|| "0".into())
+}
+
+fn periodo(valor: &Value) -> String {
+    match valor.as_str() {
+        Some("custom") => "Manual".into(),
+        Some("todo") => "Todo el día".into(),
+        Some("mañana") => "Turno mañana".into(),
+        Some("tarde") => "Turno tarde".into(),
+        _ => texto_valor(valor),
+    }
+}
+
+fn momento(valor: &Value) -> String {
+    logica::fecha_literal(valor.as_str().unwrap_or_default())
+        .map(|fecha| format!("{} {}", fecha.format("%d/%m/%Y"), hora_corta(fecha)))
+        .unwrap_or_else(|| "Fecha inválida".into())
+}
+
+fn subtitulo(resultado: &Value) -> String {
+    format!("{} · {} a {}", periodo(&resultado["periodo"]), momento(&resultado["fechaInicio"]), momento(&resultado["fechaCierre"]))
+}
+
+fn ticket_promedio(resultado: &Value) -> String {
+    match conteo(resultado.get("cantidadVentas")).filter(|n| *n > 0.0) {
+        Some(ventas) => dinero(importe(resultado.get("totalVentas")) / ventas),
+        None => "—".into(),
+    }
+}
+
+fn estadisticas(ui: &mut Ui, resultado: &Value) {
+    let datos = [
+        ("Total ventas", monto(resultado.get("totalVentas")), color::VERDE),
+        ("Cantidad de ventas", cantidad(resultado.get("cantidadVentas")), color::TEXTO),
+        ("Ticket promedio", ticket_promedio(resultado), color::TEXTO),
+    ];
+    Frame::NONE.stroke(Stroke::new(1.0, color::BORDE_SUAVE)).corner_radius(radio::POPOVER).show(ui, |ui| {
+        let ancho = (ui.available_width() - 2.0) / 3.0;
+        ui.horizontal(|ui| {
+            for (indice, (etiqueta, valor, tinta)) in datos.into_iter().enumerate() {
+                let (rect, _) = ui.allocate_exact_size(Vec2::new(ancho, 76.0), Sense::hover());
+                if indice > 0 {
+                    ui.painter().vline(rect.left(), rect.y_range(), Stroke::new(1.0, color::BORDE_SUAVE));
+                }
+                v2::pintar_texto(ui, rect.min + Vec2::new(16.0, 14.0), Align2::LEFT_TOP, etiqueta, tam::CHICO, Peso::Normal, color::TEXTO_APAGADO);
+                let g = v2::galeria_espaciada(ui, valor, fuente(tam::MONTO_CHICO, Peso::Semi), tinta, -0.01 * tam::MONTO_CHICO);
+                ui.painter().galley(rect.min + Vec2::new(16.0, 33.0), g, tinta);
+            }
+        });
+    });
+}
+
+fn metodos_de_pago(ui: &mut Ui, metodos: &serde_json::Map<String, Value>) {
+    v2::texto(ui, "Por método de pago", tam::CUERPO, Peso::Semi, color::TEXTO);
+    ui.add_space(6.0);
+    let maximo = metodos.values().map(|v| importe(Some(v))).fold(1.0, f64::max);
+    let ancho = ui.available_width();
+    for (indice, (clave, valor)) in metodos.iter().enumerate() {
+        ui.add_space(4.0);
+        let (fila, _) = ui.allocate_exact_size(Vec2::new(ancho, 30.0), Sense::hover());
+        let (etiqueta, icono, _) = metodo_pago(clave);
+        pintar_icono_solar_en(ui, Rect::from_center_size(egui::pos2(fila.left() + 8.0, fila.center().y), Vec2::splat(16.0)), icono, color::VERDE);
+        v2::pintar_texto(ui, egui::pos2(fila.left() + 24.0, fila.center().y), Align2::LEFT_CENTER, etiqueta, tam::CONTROL, Peso::Normal, color::TEXTO);
+        let barra = Rect::from_min_max(egui::pos2(fila.left() + 142.0, fila.center().y - 4.0), egui::pos2(fila.right() - 132.0, fila.center().y + 4.0));
+        ui.painter().rect_filled(barra, radio::PASTILLA, color::VERDE_CHIP);
+        let proporcion = (importe(Some(valor)) / maximo).clamp(0.0, 1.0) as f32;
+        if proporcion > 0.0 {
+            let lleno = Rect::from_min_size(barra.min, Vec2::new(barra.width() * proporcion, barra.height()));
+            ui.painter().rect_filled(lleno, radio::PASTILLA, COLORES_BARRA[indice % COLORES_BARRA.len()]);
+        }
+        v2::pintar_texto(ui, fila.right_center(), Align2::RIGHT_CENTER, monto(Some(valor)), tam::CONTROL, Peso::Semi, color::TEXTO);
+    }
+}
+
+fn vendedores(ui: &mut Ui, lista: &[Value]) {
+    let columnas = [Columna::fraccion(1.0, 0.0), Columna::fija(80.0).derecha(), Columna::fija(130.0).derecha()];
+    let tabla = Tabla::new(&columnas).relleno(16.0).radio_superior(radio::POPOVER - 1);
+    Frame::NONE.stroke(Stroke::new(1.0, color::BORDE_SUAVE)).corner_radius(radio::POPOVER).show(ui, |ui| {
         ui.set_width(ui.available_width());
-        ui.label(ui::texto(titulo, Tam::Lg, Peso::Semi, color::TEXTO));
-        ui.add_space(8.0);
-        let ancho = ui.available_width();
-        let celdas = |ui: &mut Ui, alto: f32, textos: Vec<(String, Peso, egui::Color32)>| {
-            let (rect, _) = ui.allocate_exact_size(Vec2::new(ancho, alto), Sense::hover());
-            let mut x = rect.left();
-            for ((fraccion, _, derecha), (texto, peso, tinta)) in columnas.iter().zip(textos) {
-                let w = ancho * fraccion;
-                let (pos, ancla) = if *derecha {
-                    (egui::pos2(x + w - 16.0, rect.center().y), Align2::RIGHT_CENTER)
-                } else {
-                    (egui::pos2(x + 16.0, rect.center().y), Align2::LEFT_CENTER)
-                };
-                ui::texto_en(ui, pos, ancla, &texto, Tam::Sm, peso, tinta);
-                x += w;
-            }
-            rect
-        };
-        let cabecera = celdas(ui, 48.0, columnas.iter().map(|(_, t, _)| (t.to_string(), Peso::Medio, color::APAGADO_TEXTO)).collect());
-        ui.painter().hline(cabecera.x_range(), cabecera.bottom() - 0.5, ui::borde(color::BORDE));
-        let total = filas.len();
-        for (indice, fila) in filas.into_iter().enumerate() {
-            let rect = celdas(ui, 53.0, fila.into_iter().map(|(t, p)| (t, p, color::TEXTO)).collect());
-            if indice + 1 < total {
-                ui.painter().hline(rect.x_range(), rect.bottom() - 0.5, ui::borde(color::BORDE));
-            }
+        tabla.encabezado(ui, &["Vendedor", "Ventas", "Total"], 38.0);
+        for vendedor in lista {
+            tabla.fila(ui, 48.0, None, |ui, celdas| {
+                let pintor = ui.painter();
+                let nombre = v2::galeria(ui, texto(vendedor.get("nombre")), fuente(tam::CONTROL, Peso::Medio), color::TEXTO);
+                let correo = v2::galeria(ui, texto(vendedor.get("email")), fuente(tam::XS, Peso::Normal), color::TEXTO_TENUE);
+                let y = celdas[0].center().y - (nombre.size().y + correo.size().y) / 2.0;
+                let alto_nombre = nombre.size().y;
+                pintor.with_clip_rect(celdas[0]).galley(egui::pos2(celdas[0].left(), y), nombre, color::TEXTO);
+                pintor.with_clip_rect(celdas[0]).galley(egui::pos2(celdas[0].left(), y + alto_nombre), correo, color::TEXTO_TENUE);
+                celda_texto(pintor, celdas[1], &cantidad(vendedor.get("cantidadVentas")), tam::CONTROL, Peso::Normal, color::TEXTO, true);
+                celda_texto(pintor, celdas[2], &monto(vendedor.get("totalVentas")), tam::CONTROL, Peso::Semi, color::TEXTO, true);
+            });
         }
     });
 }
@@ -94,83 +155,24 @@ impl DialogoResultadoCierre {
         let Some(resultado) = self.resultado.as_ref().filter(|_| self.abierto) else {
             return;
         };
-        let alto_maximo = cx.egui.content_rect().height() * 0.8 - 48.0;
+        let alto_maximo = (cx.egui.content_rect().height() - 48.0 - 86.0 - 82.0).max(160.0);
+        let subtitulo = subtitulo(resultado);
         let mut cerrar = false;
-        let respuesta = Dialogo::new("cierre-resultado").ancho(700.0).mostrar(&cx.egui, |ui| {
-            egui::ScrollArea::vertical().max_height(alto_maximo).min_scrolled_height(alto_maximo).show(ui, |ui| {
-                ui::encabezado_dialogo(ui, "Resultado del Cierre de Caja", Some("Resumen de ventas del período seleccionado"));
-                ui.add_space(16.0);
-                let ancho = (ui.available_width() - 16.0) / 2.0;
-                ui.horizontal_top(|ui| {
-                    ui.spacing_mut().item_spacing.x = 16.0;
-                    ui.vertical(|ui| {
-                        ui.set_width(ancho);
-                        ui.label(ui::texto("Período", Tam::Sm, Peso::Medio, color::TEXTO));
-                        ui.label(ui::texto(periodo(&resultado["periodo"]), Tam::Xl, Peso::Negrita, color::TEXTO));
-                    });
-                    ui.vertical(|ui| {
-                        ui.set_width(ancho);
-                        ui.label(ui::texto("Fecha", Tam::Sm, Peso::Medio, color::TEXTO));
-                        let fechas = format!(
-                            "{} - {}",
-                            logica::fecha_argentina(resultado["fechaInicio"].as_str().unwrap_or_default()),
-                            logica::fecha_argentina(resultado["fechaCierre"].as_str().unwrap_or_default())
-                        );
-                        ui.label(ui::texto(fechas, Tam::Base, Peso::Normal, color::TEXTO));
-                    });
+        let respuesta = v2::Modal::new("cierre-resultado", "Resultado del cierre").subtitulo(&subtitulo).icono("bill-check").ancho(640.0).mostrar(&cx.egui, |ui| {
+            ScrollArea::vertical().max_height(alto_maximo).auto_shrink([false, true]).show(ui, |ui| {
+                v2::cuerpo_modal(ui, 18, |ui| {
+                    estadisticas(ui, resultado);
+                    if let Some(metodos) = resultado["ventasPorMetodo"].as_object().filter(|_| logica::verdadero(resultado.get("ventasPorMetodo"))) {
+                        ui.add_space(14.0);
+                        metodos_de_pago(ui, metodos);
+                    }
+                    if let Some(lista) = resultado["ventasPorVendedor"].as_array().filter(|v| !v.is_empty()) {
+                        ui.add_space(14.0);
+                        vendedores(ui, lista);
+                    }
                 });
-                ui.add_space(16.0);
-                ui::marco().stroke(ui::borde(color::BORDE)).corner_radius(RADIO).inner_margin(egui::Margin::same(16)).show(ui, |ui| {
-                    ui.set_width(ui.available_width());
-                    ui.label(ui::texto("Resumen General", Tam::Lg, Peso::Semi, color::TEXTO));
-                    ui.add_space(8.0);
-                    let ancho = (ui.available_width() - 16.0) / 2.0;
-                    ui.horizontal_top(|ui| {
-                        ui.spacing_mut().item_spacing.x = 16.0;
-                        let datos = [
-                            ("Total Ventas", monto(resultado.get("totalVentas")), paleta::EMERALD_600),
-                            ("Cantidad de Ventas", cantidad(resultado.get("cantidadVentas")), color::TEXTO),
-                        ];
-                        for (titulo, valor, tinta) in datos {
-                            ui.vertical(|ui| {
-                                ui.set_width(ancho);
-                                ui.label(ui::texto(titulo, Tam::Sm, Peso::Normal, color::APAGADO_TEXTO));
-                                ui.label(ui::texto(valor, Tam::X2, Peso::Negrita, tinta));
-                            });
-                        }
-                    });
-                });
-                if let Some(metodos) = resultado["ventasPorMetodo"].as_object().filter(|_| logica::verdadero(resultado.get("ventasPorMetodo"))) {
-                    ui.add_space(16.0);
-                    let filas = metodos
-                        .iter()
-                        .map(|(metodo, valor)| vec![(nucleo::pedidos::capitalizar(metodo), Peso::Medio), (monto(Some(valor)), Peso::Normal)])
-                        .collect();
-                    tarjeta_tabla(ui, "Ventas por Método de Pago", &[(0.5, "Método", false), (0.5, "Monto", true)], filas);
-                }
-                if let Some(vendedores) = resultado["ventasPorVendedor"].as_array().filter(|v| !v.is_empty()) {
-                    ui.add_space(16.0);
-                    let filas = vendedores
-                        .iter()
-                        .map(|v| {
-                            vec![
-                                (texto(v.get("nombre")), Peso::Medio),
-                                (texto(v.get("email")), Peso::Normal),
-                                (monto(v.get("totalVentas")), Peso::Normal),
-                                (cantidad(v.get("cantidadVentas")), Peso::Normal),
-                            ]
-                        })
-                        .collect();
-                    tarjeta_tabla(
-                        ui,
-                        "Desglose por Vendedor",
-                        &[(0.3, "Vendedor", false), (0.36, "Email", false), (0.2, "Total", true), (0.14, "Ventas", true)],
-                        filas,
-                    );
-                }
-                ui.add_space(16.0);
-                ui::pie_dialogo(ui, |ui| cerrar = Boton::new("Cerrar").ui(ui).clicked());
             });
+            v2::pie_modal(ui, |ui| cerrar = Boton::primario("Listo").modal().ui(ui).clicked());
         });
         if cerrar || respuesta.cerrar {
             self.abierto = false;
@@ -186,15 +188,24 @@ mod pruebas {
 
     #[test]
     fn montos_y_cantidades_sin_nan() {
-        assert_eq!(monto(Some(&json!(186450))), "$186.450,00");
-        assert_eq!(monto(Some(&json!({ "total": 8500.5, "cantidad": 3 }))), "$8.500,50");
+        assert_eq!(monto(Some(&json!(186450))), "$186.450");
+        assert_eq!(monto(Some(&json!({ "total": 8500.5, "cantidad": 3 }))), "$8.500,5");
         assert_eq!(cantidad(Some(&json!({ "total": 8500.5, "cantidad": 3 }))), "3");
-        assert_eq!(monto(None), "$0,00");
-        assert_eq!(monto(Some(&json!("abc"))), "$0,00");
-        assert_eq!(monto(Some(&json!({}))), "$0,00");
+        assert_eq!(monto(None), "$0");
+        assert_eq!(monto(Some(&json!("abc"))), "$0");
+        assert_eq!(monto(Some(&json!({}))), "$0");
         assert_eq!(cantidad(Some(&json!(1234))), "1.234");
         assert_eq!(cantidad(None), "0");
-        assert_eq!(periodo(&json!("custom")), "MANUAL");
-        assert_eq!(periodo(&json!("mañana")), "MAÑANA");
+        assert_eq!(periodo(&json!("custom")), "Manual");
+        assert_eq!(periodo(&json!("mañana")), "Turno mañana");
+        assert_eq!(periodo(&json!("todo")), "Todo el día");
+    }
+
+    #[test]
+    fn subtitulo_y_promedio_como_el_diseno() {
+        let cierre = json!({ "periodo": "todo", "fechaInicio": "2026-10-10T00:00:00.000Z", "fechaCierre": "2026-10-10T23:59:59.999Z", "totalVentas": 80750, "cantidadVentas": 11 });
+        assert_eq!(subtitulo(&cierre), "Todo el día · 10/10/2026 12:00 a. m. a 10/10/2026 11:59 p. m.");
+        assert_eq!(ticket_promedio(&cierre), "$7.340,91");
+        assert_eq!(ticket_promedio(&json!({ "totalVentas": 0, "cantidadVentas": 0 })), "—");
     }
 }

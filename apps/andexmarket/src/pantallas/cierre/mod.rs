@@ -3,7 +3,7 @@ pub mod manual;
 pub mod resultado;
 
 use chrono::Utc;
-use eframe::egui::{self, Color32, CursorIcon, Key, Modifiers, Rect, Response, Sense, StrokeKind, Ui, Vec2};
+use eframe::egui::{self, Color32, CursorIcon, Key, Modifiers, Rect, Response, Sense, Stroke, StrokeKind, Ui, Vec2};
 use nucleo::cierre::{self as logica, AvisoImpresion, FalloCierre};
 use nucleo::entorno;
 use serde_json::Value;
@@ -11,7 +11,10 @@ use serde_json::Value;
 use crate::app::{Contexto, Servicios};
 use crate::impresion::{imprimir, Comprobante};
 use crate::tareas::{esperar, Tarea};
-use crate::ui::{self, color, paleta, toast, Dialogo, Direccion, Peso, Tam, RADIO};
+use crate::ui::degradado::mezclar;
+use crate::ui::marca::{color, fuente, radio, tam};
+use crate::ui::v2::{self, pintar_tecla, toast, EstiloTecla};
+use crate::ui::{pintar_icono_solar_en, Peso};
 
 pub enum ResultadoCierre {
     Cancelado,
@@ -28,6 +31,7 @@ pub enum RespuestaCierre {
 pub struct DialogoCierre {
     abierto: bool,
     tarea: Option<Tarea<RespuestaCierre>>,
+    periodo_en_curso: Option<&'static str>,
     manual: manual::CierreManual,
     resultado: resultado::DialogoResultadoCierre,
 }
@@ -39,11 +43,11 @@ pub fn encabezados_app() -> Vec<(&'static str, &'static str)> {
 pub fn avisar_impresion(ctx: &egui::Context, resultado: &Value) {
     match logica::aviso_impresion(resultado) {
         AvisoImpresion::Exito => toast::exito(ctx, "Ticket de cierre impreso correctamente"),
-        AvisoImpresion::ErrorImpresora(error) => toast::con_detalle(
+        AvisoImpresion::ErrorImpresora(error) => toast::mostrar_aviso(
             ctx,
             toast::Tipo::Error,
             format!("Error de impresión: {error}"),
-            "El cierre se completó correctamente pero no se pudo imprimir el ticket",
+            Some("El cierre se completó correctamente pero no se pudo imprimir el ticket".into()),
             2.0,
         ),
         AvisoImpresion::ErrorGeneral(mensaje) => toast::error(ctx, format!("Error al imprimir el ticket de cierre: {mensaje}")),
@@ -101,47 +105,38 @@ impl DialogoCierre {
 
     pub fn mostrar(&mut self, ui: &mut Ui, cx: &mut Contexto) -> Option<ResultadoCierre> {
         let mut resultado = self.recibir(cx);
-        if self.abierto {
+        if self.abierto && !self.manual.abierto() {
             let ocupado = self.cerrando();
-            let con_atajos = !ocupado && !self.manual.abierto();
-            let respuesta = Dialogo::new("cierre-periodo").ancho(448.0).mostrar(&cx.egui, |ui| {
-                let (titulo, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 18.0), Sense::hover());
-                ui::texto_en(ui, titulo.left_center(), egui::Align2::LEFT_CENTER, "Seleccionar período de cierre", Tam::Lg, Peso::Semi, color::TEXTO);
-                ui.add_space(6.0);
-                dibujo::parrafo(
-                    ui,
-                    "Presiona el número correspondiente al período o haz clic en el botón",
-                    Tam::Sm,
-                    Peso::Normal,
-                    color::APAGADO_TEXTO,
-                    20.0,
-                );
-                ui.add_space(16.0);
-                let ancho = (ui.available_width() - 16.0) / 2.0;
-                let mut accion = None;
-                let botones: [[(&str, &str, Option<&'static str>); 2]; 2] = [
-                    [("sun", "Mañana (1)", Some("mañana")), ("moon", "Tarde (2)", Some("tarde"))],
-                    [("calendar", "Todo el día (3)", Some("todo")), ("clock", "Cierre Manual (4)", None)],
-                ];
-                for (fila, opciones) in botones.iter().enumerate() {
-                    if fila > 0 {
-                        ui.add_space(16.0);
-                    }
-                    ui.horizontal(|ui| {
-                        ui.spacing_mut().item_spacing.x = 16.0;
-                        for (icono, texto, periodo) in opciones {
-                            let girando = ocupado && periodo.is_some();
-                            if boton_periodo(ui, ancho, icono, texto, girando, !ocupado, periodo.is_none()).clicked() {
-                                accion = Some(periodo.map_or(Accion::Manual, Accion::Periodo));
+            let en_curso = self.periodo_en_curso.filter(|_| ocupado);
+            let respuesta = v2::Modal::new("cierre-periodo", "Cierre de caja")
+                .subtitulo("Elegí el período. Presioná 1 a 4.")
+                .icono("store")
+                .ancho(520.0)
+                .mostrar(&cx.egui, |ui| {
+                    let mut accion = None;
+                    v2::cuerpo_modal(ui, 20, |ui| {
+                        let ancho = (ui.available_width() - 10.0) / 2.0;
+                        for fila in 0..2 {
+                            if fila > 0 {
+                                ui.add_space(10.0);
                             }
+                            ui.horizontal(|ui| {
+                                ui.spacing_mut().item_spacing.x = 10.0;
+                                for indice in fila * 2..fila * 2 + 2 {
+                                    let opcion = &OPCIONES[indice];
+                                    if opcion_periodo(ui, ancho, indice + 1, opcion, ocupado, en_curso).clicked() {
+                                        accion = Some(opcion.periodo.map_or(Accion::Manual, Accion::Periodo));
+                                    }
+                                }
+                            });
                         }
+                        ui.add_space(24.0);
                     });
-                }
-                if con_atajos {
-                    accion = accion.or_else(|| atajo(ui.ctx()));
-                }
-                accion
-            });
+                    if !ocupado {
+                        accion = accion.or_else(|| atajo(ui.ctx()));
+                    }
+                    accion
+                });
             match respuesta.interior {
                 Some(Accion::Periodo(periodo)) => resultado = self.cerrar_caja(periodo, cx).or(resultado),
                 Some(Accion::Manual) => self.manual.abrir(cx),
@@ -171,11 +166,11 @@ impl DialogoCierre {
                 Some(ResultadoCierre::Completado)
             }
             RespuestaCierre::MananaRequerida => {
-                toast::con_detalle(
+                toast::mostrar_aviso(
                     &cx.egui,
                     toast::Tipo::Error,
                     "No puedes realizar un cierre de tarde sin haber realizado el cierre de mañana del día actual.",
-                    "Primero debes realizar el cierre de mañana",
+                    Some("Primero debes realizar el cierre de mañana".into()),
                     5.0,
                 );
                 None
@@ -200,51 +195,64 @@ impl DialogoCierre {
         let (inicio, fin) = logica::rango_periodo(periodo, &Utc::now());
         let cuerpo = logica::cuerpo_cierre(&usuario, periodo, &inicio, &fin);
         let servicios = cx.servicios.clone();
+        self.periodo_en_curso = Some(periodo);
         self.tarea = Some(Tarea::lanzar(&cx.egui, move || registrar_cierre(&servicios, &cuerpo, periodo.to_string())));
         None
     }
 }
 
-fn boton_periodo(ui: &mut Ui, ancho: f32, icono: &str, texto: &str, girando: bool, habilitado: bool, esmeralda: bool) -> Response {
-    let sentido = if habilitado { Sense::click() } else { Sense::hover() };
-    let (rect, respuesta) = ui.allocate_exact_size(Vec2::new(ancho, 128.0), sentido);
-    let opacidad = if habilitado { 1.0 } else { 0.5 };
-    let encima = habilitado && respuesta.hovered();
-    let pintor = ui.painter();
-    if esmeralda {
-        ui::pintar_degradado(
-            pintor,
-            rect,
-            RADIO,
-            color::ESMERALDA_DESDE.gamma_multiply(opacidad),
-            color::ESMERALDA_HASTA.gamma_multiply(opacidad),
-            Direccion::AbajoDerecha,
-        );
-        pintor.rect_stroke(rect, RADIO, ui::borde(color::BORDE.gamma_multiply(opacidad)), StrokeKind::Inside);
+struct OpcionPeriodo {
+    periodo: Option<&'static str>,
+    titulo: &'static str,
+    detalle: &'static str,
+    icono: &'static str,
+}
+
+const OPCIONES: [OpcionPeriodo; 4] = [
+    OpcionPeriodo { periodo: Some("mañana"), titulo: "Mañana", detalle: "Hasta las 13:59", icono: "sun" },
+    OpcionPeriodo { periodo: Some("tarde"), titulo: "Tarde", detalle: "Desde las 14:00", icono: "moon" },
+    OpcionPeriodo { periodo: Some("todo"), titulo: "Todo el día", detalle: "00:00 a 23:59", icono: "calendar" },
+    OpcionPeriodo { periodo: None, titulo: "Cierre manual", detalle: "Fechas y horas a elección", icono: "clock-time" },
+];
+
+fn opcion_periodo(ui: &mut Ui, ancho: f32, numero: usize, opcion: &OpcionPeriodo, ocupado: bool, en_curso: Option<&str>) -> Response {
+    let (rect, respuesta) = ui.allocate_exact_size(Vec2::new(ancho, 128.0), if ocupado { Sense::hover() } else { Sense::click() });
+    let manual = opcion.periodo.is_none();
+    let girando = en_curso.is_some() && en_curso == opcion.periodo;
+    let alfa = if ocupado && !girando { 0.45 } else { 1.0 };
+    let (fondo, borde, texto, detalle, icono, tecla) = if manual {
+        (color::VERDE_PROFUNDO, color::VERDE_PROFUNDO, color::BLANCO, color::SOBRE_OSCURO_APAGADO, color::DORADO, EstiloTecla::CUADRADA_OSCURA)
+    } else if girando {
+        (color::VERDE_ELEGIDO, color::VERDE, color::TEXTO, color::TEXTO_APAGADO, color::VERDE, EstiloTecla::CUADRADA)
     } else {
-        let fondo = if encima { color::ACENTO } else { color::FONDO };
-        pintor.rect(rect, RADIO, fondo.gamma_multiply(opacidad), ui::borde(color::BORDE.gamma_multiply(opacidad)), StrokeKind::Inside);
-    }
-    let contenido = if esmeralda { Color32::WHITE } else { color::TEXTO };
-    let arriba = rect.center().y - 36.0;
-    let caja_icono = Rect::from_center_size(egui::pos2(rect.center().x, arriba + 16.0), Vec2::splat(32.0));
+        (color::BLANCO, color::BORDE, color::TEXTO, color::TEXTO_APAGADO, color::VERDE, EstiloTecla::CUADRADA)
+    };
+    let avance = ui.ctx().animate_bool_with_time(respuesta.id.with("hover"), !ocupado && respuesta.hovered(), 0.15);
+    let tinta = |c: Color32| c.gamma_multiply(alfa);
+    let borde = mezclar(borde, color::VERDE, avance);
+    ui.painter().rect(rect, radio::TARJETA, tinta(fondo), Stroke::new(1.5, tinta(borde)), StrokeKind::Inside);
+    let tecla = EstiloTecla { fondo: tinta(tecla.fondo), borde: tecla.borde.map(tinta), texto: tecla.texto.map(tinta), ..tecla };
+    pintar_tecla(ui, Rect::from_min_size(rect.min + Vec2::splat(10.0), Vec2::splat(24.0)), &numero.to_string(), &tecla, tinta(texto));
+    let titulo = v2::galeria(ui, opcion.titulo, fuente(15.0, Peso::Semi), tinta(texto));
+    let subtitulo = v2::galeria(ui, opcion.detalle, fuente(tam::XS, Peso::Normal), tinta(detalle));
+    let lado_icono = if girando { 32.0 } else { 34.0 };
+    let alto = lado_icono + 8.0 + titulo.size().y + 8.0 + subtitulo.size().y;
+    let mut y = rect.center().y - alto / 2.0;
+    let caja_icono = Rect::from_min_size(egui::pos2(rect.center().x - lado_icono / 2.0, y), Vec2::splat(lado_icono));
     if girando {
-        dibujo::media_luna_girando(ui, caja_icono, 2.0, paleta::GRAY_900.gamma_multiply(opacidad));
+        v2::girando(ui, caja_icono, tinta(icono));
     } else {
-        ui::pintar_icono_en(ui, caja_icono, icono, contenido.gamma_multiply(opacidad));
+        pintar_icono_solar_en(ui, caja_icono, opcion.icono, tinta(icono));
     }
-    ui::texto_en(
-        ui,
-        egui::pos2(rect.center().x, arriba + 48.0 + 12.0),
-        egui::Align2::CENTER_CENTER,
-        texto,
-        Tam::Base,
-        Peso::Medio,
-        contenido.gamma_multiply(opacidad),
-    );
-    if habilitado {
-        respuesta.on_hover_cursor(CursorIcon::PointingHand)
-    } else {
+    y += lado_icono + 8.0;
+    let alto_titulo = titulo.size().y;
+    ui.painter().galley(egui::pos2(rect.center().x - titulo.size().x / 2.0, y), titulo, tinta(texto));
+    y += alto_titulo + 8.0;
+    ui.painter().galley(egui::pos2(rect.center().x - subtitulo.size().x / 2.0, y), subtitulo, tinta(detalle));
+    if ocupado {
         respuesta
+    } else {
+        respuesta.on_hover_cursor(CursorIcon::PointingHand)
     }
 }
+

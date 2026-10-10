@@ -1,17 +1,26 @@
 use std::time::Duration;
 
-use eframe::egui::{self, Align2, Color32, CursorIcon, Rect, Response, Sense, StrokeKind, Ui, Vec2};
-use nucleo::cierre::{ahora_argentina, fecha_argentina, id_texto, verdadero};
+use eframe::egui::{self, Align, Align2, Color32, CursorIcon, Frame, Layout, Rect, Response, Sense, Stroke, StrokeKind, Ui, UiBuilder, Vec2};
+use nucleo::cierre::{ahora_argentina, fecha_literal, id_texto, numero, verdadero};
 use nucleo::pedidos as logica;
 use serde_json::Value;
 
-use super::cierre::dibujo::{self, color_degradado_texto};
+use super::cierre::dibujo::{dinero, hora_corta, metodo_pago};
 use crate::app::{Contexto, Servicios};
 use crate::impresion::{imprimir, Comprobante};
 use crate::tareas::{esperar, Tarea};
-use crate::ui::{self, color, fuente, paleta, toast, Dialogo, Direccion, Peso, Tam, RADIO};
+use crate::ui::marca::{color, fuente, radio, tam};
+use crate::ui::v2::{self, chip_metodo, dato_compacto, tarjetas::celda_texto, toast, Boton, Columna, Tabla};
+use crate::ui::{pintar_icono_solar_en, Peso};
 
-const PROPORCIONES: [f32; 6] = [74.0, 154.0, 142.0, 136.0, 158.0, 164.0];
+const COLUMNAS: [Columna; 6] = [
+    Columna::fija(110.0),
+    Columna::fija(80.0),
+    Columna::fija(130.0),
+    Columna::fraccion(1.0, 0.0),
+    Columna::fija(130.0).derecha(),
+    Columna::fija(130.0),
+];
 
 #[derive(Default)]
 pub struct DialogoPedidos {
@@ -20,6 +29,7 @@ pub struct DialogoPedidos {
     transacciones: Vec<Value>,
     pagina: usize,
     usuario_id: Option<String>,
+    imprimiendo: Option<usize>,
     carga: Option<Tarea<Result<Vec<Value>, String>>>,
     impresion: Option<Tarea<Vec<Value>>>,
 }
@@ -28,7 +38,6 @@ enum Accion {
     Reimprimir(usize),
     Pagina(usize),
     Actualizar,
-    Cerrar,
 }
 
 pub fn traer_transacciones(servicios: &Servicios, vendedor_id: &str, incluir_facturas: bool) -> Result<Vec<Value>, String> {
@@ -59,14 +68,14 @@ fn avisar_reimpresion(ctx: &egui::Context, resultados: &[Value]) {
     match resultados {
         [primera, segunda] => {
             if exito(primera) && exito(segunda) {
-                toast::con_detalle(ctx, toast::Tipo::Exito, "Doble ticket impreso correctamente", "Se mandaron 2 impresiones al script PHP", 2.0);
+                toast::mostrar_aviso(ctx, toast::Tipo::Exito, "Doble ticket impreso correctamente", Some("Se mandaron 2 impresiones al script PHP".into()), 2.0);
             } else {
                 let estado = |r: &Value| if exito(r) { "OK" } else { "Error" };
-                toast::con_detalle(
+                toast::mostrar_aviso(
                     ctx,
                     toast::Tipo::Aviso,
                     "Problemas con la doble impresión",
-                    format!("Primera: {}, Segunda: {}", estado(primera), estado(segunda)),
+                    Some(format!("Primera: {}, Segunda: {}", estado(primera), estado(segunda))),
                     2.0,
                 );
             }
@@ -77,6 +86,29 @@ fn avisar_reimpresion(ctx: &egui::Context, resultados: &[Value]) {
         }
         _ => toast::error(ctx, "Error al imprimir el ticket"),
     }
+}
+
+pub fn texto_descuento(transaccion: &Value) -> Option<String> {
+    let (insignia, _) = logica::insignia_descuento(transaccion)?;
+    Some(if verdadero(transaccion.get("montoDescuento")) {
+        format!("{insignia} · −{}", dinero(numero(transaccion.get("montoDescuento"))))
+    } else {
+        insignia
+    })
+}
+
+pub fn texto_total(transaccion: &Value) -> String {
+    let total = logica::total_mostrado(transaccion);
+    total.strip_suffix(",00").map(str::to_string).unwrap_or(total)
+}
+
+pub fn rango_visible(pagina: usize, cantidad: usize) -> String {
+    let desde = (pagina - 1) * logica::POR_PAGINA;
+    format!("Mostrando {}–{} de {cantidad}", desde + 1, (desde + logica::POR_PAGINA).min(cantidad))
+}
+
+fn hora(transaccion: &Value) -> String {
+    transaccion["fecha"].as_str().and_then(fecha_literal).map(hora_corta).unwrap_or_else(|| "—".into())
 }
 
 impl DialogoPedidos {
@@ -129,6 +161,7 @@ impl DialogoPedidos {
         let orden = logica::para_reimprimir(orden, &logica::nombre_negocio(cx.global.admin.as_ref()));
         let doble = cx.global.negocio.as_ref().is_some_and(|n| n["dobleImpresionEnabled"] == true);
         let servicios = cx.servicios.clone();
+        self.imprimiendo = Some(indice);
         self.impresion = Some(Tarea::lanzar(&cx.egui, move || reimprimir(&servicios, &orden, doble)));
     }
 
@@ -159,12 +192,16 @@ impl DialogoPedidos {
             self.cargar(cx);
         }
         let nombre = cx.global.usuario.as_ref().and_then(|u| u["nombre"].as_str()).unwrap_or_default().to_string();
-        let respuesta = Dialogo::new("pedidos").ancho(896.0).mostrar(&cx.egui, |ui| self.contenido(ui, &nombre));
+        let subtitulo = format!("Órdenes y facturas B de {nombre} · hoy");
+        let respuesta = v2::Modal::new("pedidos", "Transacciones del día")
+            .subtitulo(&subtitulo)
+            .icono("history")
+            .ancho(960.0)
+            .mostrar(&cx.egui, |ui| self.contenido(ui));
         match respuesta.interior {
             Some(Accion::Reimprimir(indice)) => self.reimprimir(indice, cx),
             Some(Accion::Pagina(pagina)) => self.pagina = pagina,
             Some(Accion::Actualizar) => self.cargar(cx),
-            Some(Accion::Cerrar) => self.abierto = false,
             None => {}
         }
         if respuesta.cerrar {
@@ -172,220 +209,134 @@ impl DialogoPedidos {
         }
     }
 
-    fn contenido(&self, ui: &mut Ui, nombre: &str) -> Option<Accion> {
+    fn contenido(&self, ui: &mut Ui) -> Option<Accion> {
         let mut accion = None;
         let cantidad = self.transacciones.len();
         let cargando = self.carga.is_some();
         let pagina = self.pagina.max(1);
         let paginas = logica::total_paginas(cantidad);
-        let (titulo, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 32.0), Sense::hover());
-        ui::texto_en(ui, titulo.left_center(), Align2::LEFT_CENTER, "Transacciones del día", Tam::X2, Peso::Negrita, color_degradado_texto());
-        ui.add_space(6.0);
-        descripcion(ui, nombre, cantidad);
-        ui.add_space(16.0);
-        linea_esmeralda(ui);
-        ui.add_space(16.0);
-        let fijo = 83.0 + 16.0 + 57.0 + if cantidad > 0 { 69.0 + 16.0 } else { 0.0 } + 16.0;
-        let alto_maximo = (ui.ctx().content_rect().height() * 0.9 - 48.0 - fijo).max(80.0);
-        egui::ScrollArea::vertical().max_height(alto_maximo).min_scrolled_height(alto_maximo).auto_shrink([false, true]).show(ui, |ui| {
-            ui.add_space(16.0);
+        v2::cuerpo_modal(ui, 18, |ui| {
+            self.estadisticas(ui);
+            ui.add_space(12.0);
             if cargando {
-                cargando_ordenes(ui);
+                cargando_transacciones(ui);
             } else if cantidad == 0 {
                 vacio(ui);
             } else if let Some(indice) = self.tabla(ui, pagina) {
                 accion = Some(Accion::Reimprimir(indice));
             }
-            ui.add_space(16.0);
         });
-        ui.add_space(16.0);
-        if cantidad > 0 {
-            linea_esmeralda(ui);
-            ui.add_space(16.0);
-            if let Some(destino) = paginacion(ui, pagina, paginas, cantidad) {
-                accion = Some(Accion::Pagina(destino));
+        Frame::NONE.inner_margin(egui::Margin { left: 24, right: 24, top: 14, bottom: 22 }).show(ui, |ui| {
+            let (fila, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 36.0), Sense::hover());
+            if cantidad > 0 {
+                v2::pintar_texto(ui, fila.left_center(), Align2::LEFT_CENTER, rango_visible(pagina, cantidad), tam::ETIQUETA, Peso::Normal, color::TEXTO_APAGADO);
             }
-            ui.add_space(16.0);
-        }
-        linea_esmeralda(ui);
-        ui.add_space(16.0);
-        ui::pie_dialogo(ui, |ui| {
-            if boton_actualizar(ui, cargando).clicked() {
+            let mut derecha = ui.new_child(UiBuilder::new().max_rect(fila).layout(Layout::right_to_left(Align::Center)));
+            derecha.spacing_mut().item_spacing.x = 6.0;
+            let actualizar = Boton::primario("Actualizar")
+                .icono("loader")
+                .alto(36.0)
+                .radio(radio::CONTROL)
+                .relleno(14.0)
+                .tam_texto(tam::CONTROL)
+                .tam_icono(16.0)
+                .sin_sombra()
+                .cargando(cargando)
+                .ui(&mut derecha);
+            if actualizar.clicked() {
                 accion = Some(Accion::Actualizar);
             }
-            if boton_cerrar(ui).clicked() {
-                accion = Some(Accion::Cerrar);
+            if paginas > 1 {
+                derecha.add_space(8.0);
+                if let Some(destino) = paginacion(&mut derecha, pagina, paginas) {
+                    accion = Some(Accion::Pagina(destino));
+                }
             }
         });
         accion
     }
 
+    fn estadisticas(&self, ui: &mut Ui) {
+        let cantidad = self.transacciones.len();
+        let total: f64 = self.transacciones.iter().map(|t| numero(t.get("total"))).filter(|n| n.is_finite()).sum();
+        let promedio = if cantidad > 0 { dinero(total / cantidad as f64) } else { "—".into() };
+        let datos = [("Transacciones", cantidad.to_string()), ("Total vendido", dinero(total)), ("Ticket promedio", promedio)];
+        let ancho = (ui.available_width() - 20.0) / 3.0;
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = 10.0;
+            for (etiqueta, valor) in datos {
+                dato_compacto(ui, etiqueta, &valor, ancho);
+            }
+        });
+    }
+
     fn tabla(&self, ui: &mut Ui, pagina: usize) -> Option<usize> {
-        let ancho = ui.available_width();
-        let interior = ancho - 2.0;
-        let total: f32 = PROPORCIONES.iter().sum();
-        let anchos: Vec<f32> = PROPORCIONES.iter().map(|p| p / total * interior).collect();
+        let tabla = Tabla::new(&COLUMNAS).relleno(16.0).radio_superior(radio::POPOVER - 1);
         let desde = (pagina - 1) * logica::POR_PAGINA;
-        let visibles: Vec<(usize, &Value)> = self.transacciones.iter().enumerate().skip(desde).take(logica::POR_PAGINA).collect();
-        let altos: Vec<f32> = visibles.iter().map(|(_, t)| if verdadero(t.get("tieneDescuento")) { 81.0 } else { 69.0 }).collect();
-        let alto = 2.0 + 49.0 + altos.iter().sum::<f32>();
-        let (caja, _) = ui.allocate_exact_size(Vec2::new(ancho, alto), Sense::hover());
-        let pintor = ui.painter().with_clip_rect(ui.clip_rect().intersect(caja));
-        let cabecera = Rect::from_min_size(caja.min + Vec2::splat(1.0), Vec2::new(interior, 48.0));
-        pintor.rect_filled(cabecera, egui::CornerRadius { nw: 7, ne: 7, sw: 0, se: 0 }, paleta::EMERALD_50);
-        pintor.hline(cabecera.x_range(), cabecera.bottom() + 0.5, ui::borde(color::BORDE));
-        let titulos = ["Tipo", "Fecha", "Método de pago", "Descuento", "Total", "Acciones"];
-        let alineaciones = [Align2::LEFT_CENTER, Align2::LEFT_CENTER, Align2::LEFT_CENTER, Align2::CENTER_CENTER, Align2::RIGHT_CENTER, Align2::CENTER_CENTER];
-        let columnas = |fila: Rect| -> Vec<Rect> {
-            let mut x = fila.left();
-            anchos
-                .iter()
-                .map(|w| {
-                    let r = Rect::from_min_max(egui::pos2(x, fila.top()), egui::pos2(x + w, fila.bottom()));
-                    x += w;
-                    r
-                })
-                .collect()
-        };
-        for ((celda, titulo), ancla) in columnas(cabecera).iter().zip(titulos).zip(alineaciones) {
-            pintor.text(punto(*celda, ancla), ancla, titulo, fuente(Tam::Sm, Peso::Semi), paleta::EMERALD_800);
-        }
         let imprimiendo = self.impresion.is_some();
         let mut elegido = None;
-        let mut y = cabecera.bottom() + 1.0;
-        for (posicion, ((indice, transaccion), alto)) in visibles.iter().zip(&altos).enumerate() {
-            let fila = Rect::from_min_size(egui::pos2(cabecera.left(), y), Vec2::new(interior, *alto));
-            let contenido = Rect::from_min_max(fila.min, egui::pos2(fila.right(), fila.bottom() - 1.0));
-            if ui.rect_contains_pointer(contenido) {
-                pintor.rect_filled(contenido, 0, ui::mezclar(Color32::WHITE, paleta::EMERALD_50, 0.5));
-            } else if posicion % 2 == 1 {
-                pintor.rect_filled(contenido, 0, paleta::GRAY_50.gamma_multiply(0.5));
-            }
-            if posicion + 1 < visibles.len() {
-                pintor.hline(fila.x_range(), fila.bottom() - 0.5, ui::borde(color::BORDE));
-            }
-            let celdas = columnas(contenido);
-            let centro = contenido.center().y;
-            pintor.text(punto(celdas[0], Align2::LEFT_CENTER), Align2::LEFT_CENTER, logica::texto_tipo(transaccion), fuente(Tam::Sm, Peso::Normal), color::TEXTO);
-            let fecha = fecha_argentina(transaccion["fecha"].as_str().unwrap_or_default());
-            pintor.text(punto(celdas[1], Align2::LEFT_CENTER), Align2::LEFT_CENTER, fecha, fuente(Tam::Sm, Peso::Medio), paleta::GRAY_900);
-            pildora_metodo(ui, &pintor, celdas[2], transaccion);
-            match logica::insignia_descuento(transaccion) {
-                Some((insignia, subtotal)) => {
-                    let alto_bloque = if subtotal.is_some() { 44.0 } else { 24.0 };
-                    let arriba = centro - alto_bloque / 2.0;
-                    let galeria = ui.painter().layout_no_wrap(insignia, fuente(Tam::Xs, Peso::Medio), paleta::ORANGE_800);
-                    let pastilla = Rect::from_center_size(egui::pos2(celdas[3].center().x, arriba + 12.0), Vec2::new(galeria.size().x + 16.0, 24.0));
-                    pintor.rect_filled(pastilla, 12, paleta::ORANGE_100);
-                    pintor.galley(pastilla.center() - galeria.size() / 2.0, galeria, paleta::ORANGE_800);
-                    if let Some(subtotal) = subtotal {
-                        pintor.text(egui::pos2(celdas[3].center().x, arriba + 36.0), Align2::CENTER_CENTER, subtotal, fuente(Tam::Xs, Peso::Normal), paleta::GRAY_500);
+        let marco = Frame::NONE.corner_radius(radio::POPOVER).show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            tabla.encabezado(ui, &["Tipo", "Hora", "Método", "Descuento", "Total", ""], 40.0);
+            for (posicion, (indice, transaccion)) in self.transacciones.iter().enumerate().skip(desde).take(logica::POR_PAGINA).enumerate() {
+                let fondo = (posicion % 2 == 1).then_some(color::FONDO_ENCABEZADO_TABLA);
+                tabla.fila(ui, 54.0, fondo, |ui, celdas| {
+                    let pintor = ui.painter().clone();
+                    celda_texto(&pintor, celdas[0], logica::texto_tipo(transaccion), tam::CUERPO, Peso::Medio, color::TEXTO, false);
+                    celda_texto(&pintor, celdas[1], &hora(transaccion), tam::CUERPO, Peso::Normal, color::TEXTO_SECUNDARIO, false);
+                    let clave = transaccion["metodoPago"].as_str().map(str::to_string).unwrap_or_else(|| logica::texto_metodo(transaccion));
+                    let (etiqueta, icono, tono) = metodo_pago(&clave);
+                    let mut chip = ui.new_child(UiBuilder::new().max_rect(celdas[2]).layout(Layout::left_to_right(Align::Center)));
+                    chip_metodo(&mut chip, icono, &etiqueta, tono);
+                    match texto_descuento(transaccion) {
+                        Some(descuento) => celda_texto(&pintor, celdas[3], &descuento, tam::ETIQUETA, Peso::Normal, color::DORADO_TEXTO, false),
+                        None => celda_texto(&pintor, celdas[3], "Sin descuento", tam::ETIQUETA, Peso::Normal, color::TEXTO_DESHABILITADO, false),
                     }
-                }
-                None => {
-                    pintor.text(celdas[3].center(), Align2::CENTER_CENTER, "Sin descuento", fuente(Tam::Sm, Peso::Normal), paleta::GRAY_400);
-                }
+                    celda_texto(&pintor, celdas[4], &texto_total(transaccion), tam::CUERPO, Peso::Semi, color::TEXTO, true);
+                    let girando = imprimiendo && self.imprimiendo == Some(indice);
+                    if boton_reimprimir(ui, celdas[5], indice, imprimiendo, girando).clicked() {
+                        elegido = Some(indice);
+                    }
+                });
             }
-            let derecha = celdas[4].right() - 16.0;
-            match logica::linea_descuento(transaccion) {
-                Some(linea) => {
-                    pintor.text(egui::pos2(derecha, centro - 10.0), Align2::RIGHT_CENTER, logica::total_mostrado(transaccion), fuente(Tam::Lg, Peso::Semi), paleta::EMERALD_700);
-                    pintor.text(egui::pos2(derecha, centro + 16.0), Align2::RIGHT_CENTER, linea, fuente(Tam::Xs, Peso::Semi), paleta::GRAY_500);
-                }
-                None => {
-                    pintor.text(egui::pos2(derecha, centro), Align2::RIGHT_CENTER, logica::total_mostrado(transaccion), fuente(Tam::Lg, Peso::Semi), paleta::EMERALD_700);
-                }
-            }
-            if boton_reimprimir(ui, celdas[5], *indice, imprimiendo).clicked() {
-                elegido = Some(*indice);
-            }
-            y += alto;
-        }
-        pintor.rect_stroke(caja, RADIO, ui::borde(paleta::EMERALD_100), StrokeKind::Inside);
+        });
+        ui.painter().rect_stroke(marco.response.rect, radio::POPOVER, Stroke::new(1.0, color::BORDE_SUAVE), StrokeKind::Inside);
         elegido
     }
 }
 
-fn punto(celda: Rect, ancla: Align2) -> egui::Pos2 {
-    match ancla {
-        Align2::RIGHT_CENTER => egui::pos2(celda.right() - 16.0, celda.center().y),
-        Align2::CENTER_CENTER => celda.center(),
-        _ => egui::pos2(celda.left() + 16.0, celda.center().y),
-    }
-}
-
-fn descripcion(ui: &mut Ui, nombre: &str, cantidad: usize) {
-    let mut trabajo = egui::text::LayoutJob::default();
-    let formato = |tam: Tam, peso: Peso, tinta: Color32| egui::TextFormat { font_id: fuente(tam, peso), color: tinta, ..Default::default() };
-    trabajo.append("Todas las órdenes realizadas hoy por ", 0.0, formato(Tam::Lg, Peso::Normal, color::APAGADO_TEXTO));
-    trabajo.append(nombre, 0.0, formato(Tam::Lg, Peso::Semi, paleta::EMERALD_700));
-    if cantidad > 0 {
-        trabajo.append(&format!("({cantidad} transacciones en total)"), 8.0, formato(Tam::Sm, Peso::Normal, paleta::GRAY_600));
-    }
-    let galeria = ui.ctx().fonts_mut(|f| f.layout_job(trabajo));
-    let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 28.0), Sense::hover());
-    ui.painter().galley(egui::pos2(rect.left(), rect.center().y - galeria.size().y / 2.0), galeria, color::APAGADO_TEXTO);
-}
-
-fn linea_esmeralda(ui: &mut Ui) {
-    let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 1.0), Sense::hover());
-    ui.painter().rect_filled(rect, 0, paleta::EMERALD_100);
-}
-
-fn cargando_ordenes(ui: &mut Ui) {
-    let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 160.0), Sense::hover());
-    let galeria = ui.painter().layout_no_wrap("Cargando órdenes del día...".into(), fuente(Tam::Base, Peso::Medio), paleta::EMERALD_700);
-    let total = 48.0 + 16.0 + galeria.size().x;
-    let izquierda = rect.center().x - total / 2.0;
-    let rueda = Rect::from_min_size(egui::pos2(izquierda, rect.center().y - 24.0), Vec2::splat(48.0));
-    dibujo::aro_girando(ui, rueda, 4.0, paleta::EMERALD_200, paleta::EMERALD_600);
-    ui.painter().galley(egui::pos2(rueda.right() + 16.0, rect.center().y - galeria.size().y / 2.0), galeria, paleta::EMERALD_700);
+fn cargando_transacciones(ui: &mut Ui) {
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 280.0), Sense::hover());
+    let g = v2::galeria(ui, "Cargando transacciones…", fuente(tam::CUERPO, Peso::Normal), color::VERDE);
+    let izquierda = rect.center().x - (24.0 + 12.0 + g.size().x) / 2.0;
+    v2::girando(ui, Rect::from_min_size(egui::pos2(izquierda, rect.center().y - 12.0), Vec2::splat(24.0)), color::VERDE);
+    ui.painter().galley(egui::pos2(izquierda + 36.0, rect.center().y - g.size().y / 2.0), g, color::VERDE);
 }
 
 fn vacio(ui: &mut Ui) {
-    ui.add_space(48.0);
-    let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 64.0), Sense::hover());
-    ui::pintar_icono_en(ui, Rect::from_center_size(rect.center(), Vec2::splat(64.0)), "receipt", paleta::EMERALD_300);
-    ui.add_space(16.0);
-    let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 28.0), Sense::hover());
-    ui::texto_en(ui, rect.center(), Align2::CENTER_CENTER, "No se encontraron órdenes ni facturas B para el día de hoy", Tam::Lg, Peso::Normal, paleta::GRAY_500);
-    ui.add_space(48.0);
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 240.0), Sense::hover());
+    let g = v2::galeria(ui, "No hay órdenes ni facturas B registradas hoy", fuente(tam::CUERPO_MAS, Peso::Normal), color::TEXTO_APAGADO);
+    let arriba = rect.center().y - (38.0 + 10.0 + g.size().y) / 2.0;
+    pintar_icono_solar_en(ui, Rect::from_min_size(egui::pos2(rect.center().x - 19.0, arriba), Vec2::splat(38.0)), "receipt", color::SOBRE_OSCURO_APAGADO);
+    ui.painter().galley(egui::pos2(rect.center().x - g.size().x / 2.0, arriba + 48.0), g, color::TEXTO_APAGADO);
 }
 
-fn pildora_metodo(ui: &Ui, pintor: &egui::Painter, celda: Rect, transaccion: &Value) {
-    let (fondo, tinta) = match transaccion["metodoPago"].as_str() {
-        Some("efectivo") => (paleta::GREEN_100, paleta::GREEN_800),
-        Some("tarjeta") => (paleta::BLUE_100, paleta::BLUE_800),
-        Some("qr") => (paleta::PURPLE_100, paleta::PURPLE_800),
-        Some("split") => (paleta::ORANGE_100, paleta::ORANGE_800),
-        _ => (paleta::GRAY_100, paleta::GRAY_800),
-    };
-    let galeria = ui.painter().layout_no_wrap(logica::texto_metodo(transaccion), fuente(Tam::Sm, Peso::Medio), tinta);
-    let pastilla = Rect::from_min_size(egui::pos2(celda.left() + 16.0, celda.center().y - 14.0), Vec2::new(galeria.size().x + 24.0, 28.0));
-    pintor.rect_filled(pastilla, 14, fondo);
-    pintor.galley(pastilla.center() - galeria.size() / 2.0, galeria, tinta);
-}
-
-fn boton_reimprimir(ui: &mut Ui, celda: Rect, indice: usize, imprimiendo: bool) -> Response {
-    let texto = if imprimiendo { "Reimprimiendo..." } else { "Reimprimir" };
-    let galeria = ui.painter().layout_no_wrap(texto.into(), fuente(Tam::Sm, Peso::Medio), paleta::EMERALD_700);
-    let ancho = 12.0 + 16.0 + 16.0 + galeria.size().x + 12.0;
-    let rect = Rect::from_center_size(celda.center(), Vec2::new(ancho, 36.0));
-    let sentido = if imprimiendo { Sense::hover() } else { Sense::click() };
-    let respuesta = ui.interact(rect, ui.id().with(("reimprimir", indice)), sentido);
-    let opacidad = if imprimiendo { 0.5 } else { 1.0 };
-    let fondo = if respuesta.hovered() && !imprimiendo { paleta::EMERALD_100 } else { paleta::EMERALD_50 };
-    let tinta = if respuesta.hovered() && !imprimiendo { paleta::EMERALD_800 } else { paleta::EMERALD_700 };
-    ui.painter().rect(rect, RADIO, fondo.gamma_multiply(opacidad), ui::borde(paleta::EMERALD_200.gamma_multiply(opacidad)), StrokeKind::Inside);
-    let icono = Rect::from_min_size(egui::pos2(rect.left() + 12.0, rect.center().y - 8.0), Vec2::splat(16.0));
-    let x_texto = if imprimiendo {
-        dibujo::aro_girando(ui, icono, 2.0, paleta::EMERALD_200.gamma_multiply(opacidad), paleta::EMERALD_600.gamma_multiply(opacidad));
-        icono.right() + 8.0
+fn boton_reimprimir(ui: &mut Ui, celda: Rect, indice: usize, imprimiendo: bool, girando: bool) -> Response {
+    let texto = if girando { "Imprimiendo…" } else { "Reimprimir" };
+    let g = v2::galeria(ui, texto, fuente(tam::CHICO, Peso::Medio), color::VERDE);
+    let ancho = 10.0 + 15.0 + 6.0 + g.size().x + 10.0;
+    let rect = Rect::from_min_size(egui::pos2(celda.right() - ancho, celda.center().y - 16.0), Vec2::new(ancho, 32.0));
+    let respuesta = ui.interact(rect, ui.id().with(("reimprimir", indice)), if imprimiendo { Sense::hover() } else { Sense::click() });
+    let encima = !imprimiendo && respuesta.hovered();
+    let (fondo, borde) = if encima { (color::VERDE_ELEGIDO, color::VERDE) } else { (color::BLANCO, color::BORDE) };
+    ui.painter().rect(rect, radio::ICONO, fondo, Stroke::new(1.0, borde), StrokeKind::Inside);
+    let icono = Rect::from_min_size(egui::pos2(rect.left() + 10.0, rect.center().y - 7.5), Vec2::splat(15.0));
+    if girando {
+        v2::girando(ui, icono, color::VERDE);
     } else {
-        ui::pintar_icono_en(ui, icono, "receipt", tinta);
-        icono.right() + 16.0
-    };
-    ui.painter().galley(egui::pos2(x_texto, rect.center().y - galeria.size().y / 2.0), galeria, tinta.gamma_multiply(opacidad));
+        pintar_icono_solar_en(ui, icono, "printer", color::VERDE);
+    }
+    ui.painter().galley(egui::pos2(icono.right() + 6.0, rect.center().y - g.size().y / 2.0), g, color::VERDE);
     if imprimiendo {
         respuesta
     } else {
@@ -394,21 +345,25 @@ fn boton_reimprimir(ui: &mut Ui, celda: Rect, indice: usize, imprimiendo: bool) 
 }
 
 fn boton_pagina(ui: &mut Ui, contenido: Result<&str, usize>, activo: bool, habilitado: bool) -> Response {
-    let (rect, respuesta) = ui.allocate_exact_size(Vec2::splat(32.0), if habilitado { Sense::click() } else { Sense::hover() });
-    let opacidad = if habilitado { 1.0 } else { 0.5 };
+    let (rect, respuesta) = ui.allocate_exact_size(Vec2::splat(34.0), if habilitado { Sense::click() } else { Sense::hover() });
+    let alfa = if habilitado { 1.0 } else { 0.4 };
     let encima = habilitado && respuesta.hovered();
-    if activo {
-        let fondo = if encima { paleta::EMERALD_700 } else { paleta::EMERALD_600 };
-        ui.painter().rect_filled(rect, RADIO, fondo.gamma_multiply(opacidad));
-    } else {
-        let fondo = if encima { color::ACENTO } else { color::FONDO };
-        ui.painter().rect(rect, RADIO, fondo.gamma_multiply(opacidad), ui::borde(color::BORDE.gamma_multiply(opacidad)), StrokeKind::Inside);
-    }
-    let tinta = if activo { Color32::WHITE } else if encima { paleta::EMERALD_600 } else { paleta::GRAY_600 };
     match contenido {
-        Ok(icono) => ui::pintar_icono_en(ui, Rect::from_center_size(rect.center(), Vec2::splat(16.0)), icono, color::TEXTO.gamma_multiply(opacidad)),
+        Ok(icono) => {
+            let borde = if encima { color::VERDE } else { color::BORDE };
+            ui.painter().rect(rect, radio::ICONO, Color32::TRANSPARENT, Stroke::new(1.0, borde.gamma_multiply(alfa)), StrokeKind::Inside);
+            pintar_icono_solar_en(ui, Rect::from_center_size(rect.center(), Vec2::splat(16.0)), icono, color::TEXTO.gamma_multiply(alfa));
+        }
         Err(numero) => {
-            ui::texto_en(ui, rect.center(), Align2::CENTER_CENTER, &numero.to_string(), Tam::Sm, Peso::Medio, tinta.gamma_multiply(opacidad));
+            let (fondo, tinta, peso) = if activo {
+                (color::VERDE, color::BLANCO, Peso::Semi)
+            } else if encima {
+                (color::FONDO_APP, color::VERDE, Peso::Normal)
+            } else {
+                (Color32::TRANSPARENT, color::TEXTO_SECUNDARIO, Peso::Normal)
+            };
+            ui.painter().rect_filled(rect, radio::ICONO, fondo);
+            v2::pintar_texto(ui, rect.center(), Align2::CENTER_CENTER, numero.to_string(), tam::CONTROL, peso, tinta);
         }
     }
     if habilitado {
@@ -418,74 +373,37 @@ fn boton_pagina(ui: &mut Ui, contenido: Result<&str, usize>, activo: bool, habil
     }
 }
 
-fn paginacion(ui: &mut Ui, pagina: usize, paginas: usize, cantidad: usize) -> Option<usize> {
-    let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 52.0), Sense::hover());
-    ui.painter().rect_filled(rect, RADIO, paleta::GRAY_50);
-    let interior = rect.shrink(16.0);
-    ui::texto_en(ui, interior.left_center(), Align2::LEFT_CENTER, &logica::rango_mostrado(pagina, cantidad), Tam::Sm, Peso::Normal, paleta::GRAY_600);
-    let derecha = if paginas > 1 { format!("Página {pagina} de {paginas}") } else { "Todas las órdenes".into() };
-    let fin = ui::texto_en(ui, interior.right_center(), Align2::RIGHT_CENTER, &derecha, Tam::Sm, Peso::Normal, paleta::GRAY_600);
-    if paginas <= 1 {
-        return None;
-    }
-    let inicio_texto = ui.painter().layout_no_wrap(logica::rango_mostrado(pagina, cantidad), fuente(Tam::Sm, Peso::Normal), paleta::GRAY_600).size().x;
-    let numeros = logica::numeros_pagina(pagina, paginas);
-    let ancho_nav = (numeros.len() + 2) as f32 * 32.0 + (numeros.len() + 1) as f32 * 8.0;
-    let hueco_izq = interior.left() + inicio_texto;
-    let centro = hueco_izq + (fin.left() - hueco_izq) / 2.0;
-    let nav = Rect::from_center_size(egui::pos2(centro, interior.center().y), Vec2::new(ancho_nav, 32.0));
+fn paginacion(ui: &mut Ui, pagina: usize, paginas: usize) -> Option<usize> {
     let mut destino = None;
-    ui.scope_builder(egui::UiBuilder::new().max_rect(nav).layout(egui::Layout::left_to_right(egui::Align::Center)), |ui| {
-        ui.spacing_mut().item_spacing.x = 8.0;
-        if boton_pagina(ui, Ok("chevron-left"), false, pagina > 1).clicked() {
-            destino = Some(pagina - 1);
+    if boton_pagina(ui, Ok("chevron-right"), false, pagina < paginas).clicked() {
+        destino = Some(pagina + 1);
+    }
+    for numero in logica::numeros_pagina(pagina, paginas).into_iter().rev() {
+        if boton_pagina(ui, Err(numero), numero == pagina, true).clicked() {
+            destino = Some(numero);
         }
-        for numero in numeros {
-            if boton_pagina(ui, Err(numero), numero == pagina, true).clicked() {
-                destino = Some(numero);
-            }
-        }
-        if boton_pagina(ui, Ok("chevron-right"), false, pagina < paginas).clicked() {
-            destino = Some(pagina + 1);
-        }
-    });
+    }
+    if boton_pagina(ui, Ok("chevron-left"), false, pagina > 1).clicked() {
+        destino = Some(pagina - 1);
+    }
     destino
 }
 
-fn boton_cerrar(ui: &mut Ui) -> Response {
-    ui::Boton::new("Cerrar")
-        .variante(ui::Variante::Contorno)
-        .colores(color::FONDO, paleta::EMERALD_700)
-        .color_borde(paleta::EMERALD_200)
-        .ui(ui)
-}
+#[cfg(test)]
+mod pruebas {
+    use serde_json::json;
 
-fn boton_actualizar(ui: &mut Ui, cargando: bool) -> Response {
-    let texto = if cargando { "Cargando..." } else { "Actualizar" };
-    let galeria = ui.painter().layout_no_wrap(texto.into(), fuente(Tam::Sm, Peso::Medio), Color32::WHITE);
-    let separacion = if cargando { 8.0 } else { 16.0 };
-    let ancho = 16.0 + 16.0 + separacion + galeria.size().x + 16.0;
-    let (rect, respuesta) = ui.allocate_exact_size(Vec2::new(ancho, 40.0), if cargando { Sense::hover() } else { Sense::click() });
-    let opacidad = if cargando { 0.5 } else if respuesta.hovered() { 0.9 } else { 1.0 };
-    ui::pintar_degradado(
-        ui.painter(),
-        rect,
-        RADIO,
-        color::ESMERALDA_DESDE.gamma_multiply(opacidad),
-        color::ESMERALDA_HASTA.gamma_multiply(opacidad),
-        Direccion::AbajoDerecha,
-    );
-    let icono = Rect::from_min_size(egui::pos2(rect.left() + 16.0, rect.center().y - 8.0), Vec2::splat(16.0));
-    let blanco = Color32::WHITE.gamma_multiply(if cargando { 0.5 } else { 1.0 });
-    if cargando {
-        dibujo::aro_con_hueco(ui, icono, 2.0, blanco);
-    } else {
-        ui::pintar_icono_en(ui, icono, "receipt", blanco);
-    }
-    ui.painter().galley(egui::pos2(icono.right() + separacion, rect.center().y - galeria.size().y / 2.0), galeria, blanco);
-    if cargando {
-        respuesta
-    } else {
-        respuesta.on_hover_cursor(CursorIcon::PointingHand)
+    use super::*;
+
+    #[test]
+    fn textos_de_la_tabla_como_el_diseno() {
+        let con_descuento = json!({ "total": 2150, "tieneDescuento": true, "tipoDescuento": "porcentual", "valorDescuento": 10, "montoDescuento": 239, "subtotalSinDescuento": 2389 });
+        assert_eq!(texto_descuento(&con_descuento).as_deref(), Some("10% · −$239"));
+        assert_eq!(texto_total(&con_descuento), "$2.150");
+        assert_eq!(texto_descuento(&json!({ "total": 4380 })), None);
+        assert_eq!(texto_total(&json!({ "total": 4380.5 })), "$4.380,50");
+        assert_eq!(rango_visible(1, 7), "Mostrando 1–6 de 7");
+        assert_eq!(rango_visible(2, 7), "Mostrando 7–7 de 7");
+        assert_eq!(hora(&json!({ "fecha": "2026-10-10T08:14:00.000Z" })), "08:14 a. m.");
     }
 }
