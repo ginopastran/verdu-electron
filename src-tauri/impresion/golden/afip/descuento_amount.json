@@ -1,0 +1,22 @@
+{
+  "businessName": "Kiosco",
+  "logoPath": "golden/logos/no-es-imagen.png",
+  "total": 1500,
+  "subtotalSinDescuento": 0,
+  "subtotal": 2000,
+  "discountData": {
+    "type": "amount",
+    "value": 500,
+    "amount": 500
+  },
+  "metodoPago": "tarjeta",
+  "fechaVtoCae": "05/01/2026",
+  "items": [
+    {
+      "productoId": 4,
+      "cantidad": 0,
+      "subtotal": 0,
+      "nombre": "Café €°"
+    }
+  ]
+}

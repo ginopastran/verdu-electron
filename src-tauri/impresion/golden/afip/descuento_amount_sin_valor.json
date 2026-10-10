@@ -1,0 +1,11 @@
+{
+  "logoPath": "golden/logos/no-es-imagen.png",
+  "total": 800,
+  "discountData": {
+    "type": "amount",
+    "value": "0",
+    "amount": "200"
+  },
+  "metodoPago": "efectivo",
+  "items": []
+}

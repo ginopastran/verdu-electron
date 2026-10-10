@@ -1,0 +1,19 @@
+{
+  "logoPath": "golden/logos/no-es-imagen.png",
+  "total": 900,
+  "subtotal": 1000,
+  "discountData": {
+    "type": "fixed",
+    "value": 0,
+    "amount": 0
+  },
+  "items": [
+    {
+      "productoId": 1,
+      "cantidad": 1.5,
+      "precio": 1200,
+      "subtotal": 1800,
+      "nombre": "Tomate perita x kg"
+    }
+  ]
+}

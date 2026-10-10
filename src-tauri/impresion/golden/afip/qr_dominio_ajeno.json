@@ -1,0 +1,17 @@
+{
+  "logoPath": "",
+  "anchoPapel": 58,
+  "cae": "75123456789012",
+  "afipQrUrl": "https://www.example.com/fe/qr/?p=abc",
+  "fechaVtoCae": "2025-12-31T23:30:00-05:00",
+  "total": 10,
+  "items": [
+    {
+      "productoId": 1,
+      "cantidad": 1.5,
+      "precio": 1200,
+      "subtotal": 1800,
+      "nombre": "Tomate perita x kg"
+    }
+  ]
+}

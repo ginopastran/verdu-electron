@@ -1,0 +1,11 @@
+[package]
+name = "impresion"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+jpeg-decoder = { version = "0.3", default-features = false }
+png = "0.17"
+serde_json = { version = "1", features = ["preserve_order"] }
+unicode-normalization = "0.1"

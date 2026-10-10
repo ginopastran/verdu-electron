@@ -1,0 +1,88 @@
+{
+  "businessName": "Verdulería Los Hermanos Rodríguez e Hijos",
+  "anchoPapel": 58,
+  "impresora": "TP806L",
+  "logoPath": "golden/logos/paleta.png",
+  "configuracionAfip": {
+    "condicionIva": "MONOTRIBUTO",
+    "razonSocial": "Rodríguez Hnos. S.R.L.",
+    "cuit": "20123456789",
+    "tipoFactura": "C"
+  },
+  "condicionIva": "Responsable Inscripto",
+  "cuit": "30-99999999-9",
+  "razonSocial": "Ignorada",
+  "direccion": "Av. San Martín 1234, Godoy Cruz",
+  "puntoVenta": "0003",
+  "numeroFactura": 123,
+  "fechaHora": "15/3/2025, 18:22:41",
+  "vendedor": "José Pérez",
+  "usuario": "otro",
+  "idReal": 4567,
+  "cae": "75123456789012",
+  "fechaVtoCae": "20250325",
+  "afipQrUrl": "https://www.arca.gob.ar/fe/qr/?p=eyJ2ZXIiOjEsImZlY2hhIjoiMjAyNi0wMS0xNSIsImN1aXQiOjIwMTIzNDU2Nzg5fQ==",
+  "metodoPago": "split",
+  "total": 19744740.5,
+  "items": [
+    {
+      "productoId": 1,
+      "cantidad": 1.5,
+      "precio": 1200,
+      "subtotal": 1800,
+      "nombre": "Tomate perita x kg"
+    },
+    {
+      "productoId": 2,
+      "cantidad": 2,
+      "precioHistorico": 850.5,
+      "subtotal": 1701,
+      "nombre": "Limón Tahití"
+    },
+    {
+      "productoId": 3,
+      "cantidad": 3,
+      "subtotal": 1000,
+      "nombre": "Ñandú ½ kg"
+    },
+    {
+      "productoId": 4,
+      "cantidad": 0,
+      "subtotal": 0,
+      "nombre": "Café €°"
+    },
+    {
+      "productoId": 5,
+      "cantidad": 1234.5,
+      "precio": 12345.678,
+      "subtotal": 15240740.5,
+      "nombre": "Papa"
+    }
+  ],
+  "pagos": [
+    {
+      "metodoPago": "efectivo",
+      "monto": 5000
+    },
+    {
+      "metodoPago": "Tarjeta",
+      "monto": 3000.5
+    },
+    {
+      "metodoPago": "transferencia",
+      "monto": 100
+    },
+    {
+      "metodoPago": "qr",
+      "monto": 1
+    },
+    {
+      "metodoPago": "Débito",
+      "monto": 2
+    },
+    {
+      "monto": 3
+    },
+    "suelto"
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "total": 1000,
+  "items": [
+    {
+      "productoId": 1,
+      "cantidad": 1.5,
+      "precio": 1200,
+      "subtotal": 1800,
+      "nombre": "Tomate perita x kg"
+    }
+  ]
+}

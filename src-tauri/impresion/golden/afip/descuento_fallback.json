@@ -1,0 +1,16 @@
+{
+  "logoPath": "golden/logos/no-es-imagen.png",
+  "total": 850,
+  "subtotal": 1000,
+  "metodoPago": "qr",
+  "fechaVtoCae": "",
+  "items": [
+    {
+      "productoId": 2,
+      "cantidad": 2,
+      "precioHistorico": 850.5,
+      "subtotal": 1701,
+      "nombre": "Limón Tahití"
+    }
+  ]
+}

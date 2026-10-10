@@ -1,0 +1,20 @@
+{
+  "logoPath": "golden/logos/no-es-imagen.png",
+  "total": 950,
+  "subtotal": 1000,
+  "discountData": {
+    "type": "otro",
+    "value": 5,
+    "amount": 50
+  },
+  "metodoPago": "Débito",
+  "items": [
+    {
+      "productoId": 5,
+      "cantidad": 1234.5,
+      "precio": 12345.678,
+      "subtotal": 15240740.5,
+      "nombre": "Papa"
+    }
+  ]
+}

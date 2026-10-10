@@ -1,0 +1,1 @@
+{"periodo":"todo","fechaInicio":"2025-12-31","fechaCierre":"2025-12-31T23:59:59.999Z","totalVentas":0,"cantidadVentas":0,"ventasPorVendedor":[{"nombre":"Cajero","email":"caja@x.com","totalVentas":0,"cantidadVentas":0,"metodosPago":{}}],"cuentaCorriente":{"total":0,"cantidad":5},"anchoPapel":58,"logoPath":"golden/logos/no-es-imagen.png"}

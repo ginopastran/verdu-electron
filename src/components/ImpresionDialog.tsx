@@ -60,7 +60,7 @@ export function ImpresionDialog({
     setGuardandoImpresora(true);
     try {
       const resultado = await ipc()?.invoke("impresora-elegir", valor === POR_DEFECTO ? null : valor);
-      if (!resultado?.ok) throw new Error(resultado?.error ?? "No se pudo compartir la impresora");
+      if (!resultado?.ok) throw new Error(resultado?.error ?? "No se pudo elegir la impresora");
       setImpresora(valor);
       setRecurso(resultado.recurso);
       toast.success("Impresora guardada");
@@ -126,7 +126,7 @@ export function ImpresionDialog({
                 )}
               </SelectContent>
             </Select>
-            <p className="text-xs text-muted-foreground">Se imprime en el recurso compartido «{recurso}».</p>
+            <p className="text-xs text-muted-foreground">Se imprime en «{recurso}».</p>
           </div>
           <div className="space-y-1">
             <Label>Ancho del papel</Label>

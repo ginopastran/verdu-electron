@@ -1,0 +1,33 @@
+{
+  "logoPath": "golden/logos/no-es-imagen.png",
+  "businessName": 12345,
+  "razonSocial": true,
+  "condicionIva": "ÉXENTO",
+  "direccion": null,
+  "vendedor": {
+    "nombre": "Objeto"
+  },
+  "fechaHora": false,
+  "numeroFactura": false,
+  "factura": "texto",
+  "cae": 0,
+  "fechaVtoCae": "abc",
+  "metodoPago": 42,
+  "total": "1210",
+  "pagos": [],
+  "items": {
+    "a": {
+      "nombre": "Item objeto",
+      "cantidad": "2",
+      "subtotal": "50"
+    },
+    "b": {
+      "cantidad": null
+    },
+    "c": {
+      "nombre": 987654321012345,
+      "cantidad": true,
+      "subtotal": 7
+    }
+  }
+}

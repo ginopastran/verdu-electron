@@ -12,7 +12,7 @@ dist
 dist-ssr
 *.local
 release
-dist-electron/*
+
 
 # Editor directories and files
 .vscode/*
@@ -26,3 +26,5 @@ dist-electron/*
 *.sw?
 
 code-reference
+/src-tauri/target
+/src-tauri/gen

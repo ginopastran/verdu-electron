@@ -1,0 +1,20 @@
+{
+  "logoPath": "golden/logos/no-es-imagen.png",
+  "businessName": "Verdulería El Sol 12",
+  "configuracionAfip": [
+    "no",
+    "es",
+    "objeto"
+  ],
+  "cuit": "123",
+  "total": 100,
+  "items": [
+    {
+      "productoId": 1,
+      "cantidad": 1.5,
+      "precio": 1200,
+      "subtotal": 1800,
+      "nombre": "Tomate perita x kg"
+    }
+  ]
+}

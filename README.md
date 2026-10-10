@@ -1,20 +1,18 @@
-# VerduSoft POS - Guía de Instalación
+# AndexMarket POS - Guía de Instalación
 
 Esta guía te ayudará a instalar y configurar todos los componentes necesarios para ejecutar el sistema de punto de venta.
 
 ## Requisitos Previos
 
-El instalador trae todo lo necesario: PHP 8.3 con sus extensiones (`gd`, `mbstring`, `intl`) en `resources/php`, las librerías de impresión y el driver CH340 para balanzas con adaptador USB-serie. No hace falta instalar PHP, Composer ni tocar el PATH.
+Desde la versión 4 el POS es una app Tauri: la interfaz React corre en el WebView2 de Windows y todo el lado de hardware (impresión ESC/POS, balanza, configuración y actualizaciones) está en Rust. El instalador pesa unos pocos MB y no trae Electron, Node ni PHP.
 
-Para actualizar el PHP incluido: bajar el zip NTS x64 de windows.php.net y reemplazar en `resources/php` los archivos `php.exe`, `php8.dll`, `icu*.dll`, `ext/php_gd.dll`, `ext/php_mbstring.dll` y `ext/php_intl.dll`.
-
-Otros drivers USB-serie (FTDI, PL2303) los instala Windows Update. Para incluirlos en el instalador, copiar la carpeta con el `.inf` firmado dentro de `resources/drivers/`: el instalador carga con `pnputil` todos los `.inf` que encuentre ahí.
+El instalador trae el driver CH340 para balanzas con adaptador USB-serie (en `src-tauri/drivers/`). Si no está cargado, al terminar la instalación Windows pide permiso de administrador una sola vez para instalarlo con `pnputil`. Otros drivers USB-serie (FTDI, PL2303) los instala Windows Update; para incluirlos, copiar la carpeta con el `.inf` firmado dentro de `src-tauri/drivers/`.
 
 ### 1. Impresora Térmica
 
 1. Instala los drivers de tu impresora térmica (dependen de la marca).
-2. En el POS, menú de usuario → Impresión, elegí la impresora. El programa la comparte sola en Windows.
-   - Si no se elige ninguna, imprime en la impresora compartida como `TP806L`, como en las versiones anteriores.
+2. En el POS, menú de usuario → Impresión, elegí la impresora. Se imprime directo en la cola de Windows, sin compartirla en red.
+   - Si no se elige ninguna, usa la impresora compartida como `TP806L` (o la que se llame así), como en las versiones anteriores.
 
 ### 2. Balanza Electrónica (si aplica)
 
@@ -24,23 +22,30 @@ Otros drivers USB-serie (FTDI, PL2303) los instala Windows Update. Para incluirl
 
 ## Instalación del Programa
 
-1. Ejecuta el instalador `Verdulería Setup 1.0.0.exe`
-2. Sigue el asistente de instalación
+1. Ejecuta el instalador `AndexMarket_<versión>_x64-setup.exe`
+2. Sigue el asistente de instalación (se instala para el usuario actual, sin pedir administrador)
 3. Al finalizar, se creará un acceso directo en el escritorio
 
-## Configuración Inicial
+Si la PC tenía la versión Electron (3.x), el instalador la desinstala y la app nueva toma su configuración (impresora, balanza, ancho de papel, logo del negocio) de `%APPDATA%\andex-market`. Lo que la versión vieja guardaba en el `localStorage` (credenciales recordadas y offline) no se migra: hay que iniciar sesión una vez.
 
-1. La primera vez que ejecutes el programa, te pedirá:
-   - Configurar la impresora térmica
-   - El puerto COM de la balanza (si aplica)
-   - Las credenciales de acceso proporcionadas por el administrador
+## Desarrollo
+
+Requisitos: Node 22, Rust (toolchain MSVC) y los Build Tools de C++ con el SDK de Windows.
+
+```bash
+npm install
+npm run dev
+```
+
+- `npm test` corre los tests de Rust. Los tickets se comparan byte a byte contra lo que imprimía la versión PHP (`src-tauri/impresion/golden/`).
+- `npm run release` arma el instalador firmado, genera `latest.json` (actualizador de Tauri) y `latest.yml` (para que las PCs con la versión Electron se actualicen a esta) y crea el release como borrador en GitHub. Ver `README-AUTOUPDATE.md`.
 
 ## Solución de Problemas Comunes
 
 ### Error de Impresión
 
 - Verifica que la impresora esté encendida y conectada
-- Comprueba que sea la impresora predeterminada
+- Comprueba en menú de usuario → Impresión que esté elegida la impresora correcta
 - Reinicia la impresora y el programa
 
 ### Error de Balanza
@@ -48,10 +53,6 @@ Otros drivers USB-serie (FTDI, PL2303) los instala Windows Update. Para incluirl
 - Verifica que la balanza esté encendida y conectada
 - Comprueba que el puerto COM configurado sea el correcto
 - Reinicia la balanza y el programa
-
-### Aviso "La impresión de tickets no va a funcionar" al abrir
-
-- El PHP incluido no pudo arrancar. Reinstalá AndexMarket.
 
 ## Soporte
 

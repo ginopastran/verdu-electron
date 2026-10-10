@@ -1,160 +1,39 @@
-# 🚀 Sistema de Auto-Actualizaciones
+# Actualizaciones automáticas
 
-Tu aplicación VerduSoft ahora cuenta con un sistema de auto-actualizaciones similar a Discord. Los usuarios instalan la app una vez y reciben actualizaciones automáticas.
+El POS usa el actualizador de Tauri. Cada instalador va firmado con una clave privada y la app solo acepta instaladores firmados con esa clave (la pública está en `src-tauri/tauri.conf.json`).
 
-## 🔧 ¿Cómo Funciona?
+## Cómo lo ve el usuario
 
-### Para los Usuarios
+- A los 3 segundos de abrir y después cada 10 minutos, la app consulta `latest.json` del último release publicado en `ginopastran/verdu-electron`.
+- Si hay una versión nueva, pregunta "Descargar / Más tarde". Al aceptar baja el instalador, lo verifica con la firma y lo corre en modo pasivo: solo se ve la barra de progreso y la app se vuelve a abrir.
+- La UI (`useAutoUpdater`) puede hacer lo mismo a mano con buscar → descargar.
 
-1. **Instalación única**: El usuario instala la app normalmente
-2. **Verificación automática**: La app verifica actualizaciones cada vez que se abre
-3. **Notificación**: Si hay una nueva versión, aparece una notificación elegante
-4. **Descarga opcional**: El usuario puede descargar la actualización cuando quiera
-5. **Instalación automática**: Al reiniciar, la nueva versión se instala automáticamente
+## Clave de firma
 
-### Para el Desarrollador
+- Privada: `D:\dev\claves\andex-market.key` (sin contraseña). Se puede usar otra ruta con la variable `ANDEX_CLAVE_ACTUALIZACIONES`.
+- **Guardá una copia fuera de esta PC.** Si se pierde, las PCs instaladas no van a aceptar ninguna actualización nueva y habrá que reinstalar a mano en cada una.
 
-#### 1. **Configurar Repositorio en GitHub**
+## Publicar una versión
 
-```bash
-# Tu repositorio debe estar en GitHub para usar el auto-updater
-# Ejemplo: https://github.com/tu-usuario/verdu-electron
-```
+1. Subir `version` en `package.json`.
+2. `npm run release`. Compila, firma y deja en `<CARGO_TARGET_DIR>\release\bundle\nsis\`:
+   - `AndexMarket_<versión>_x64-setup.exe` y su `.sig`
+   - `latest.json`, que lo lee el actualizador de Tauri
+   - `latest.yml`, que lo lee el `electron-updater` de las PCs que siguen con la versión Electron 3.x
+   
+   Después crea el release `v<versión>` como **borrador** con esos tres archivos.
+3. Probar el instalador y recién entonces publicar el borrador desde GitHub.
 
-#### 2. **Configurar Token de GitHub**
+`npm run release -- --local` hace todo menos subir el release.
 
-- Ve a: https://github.com/settings/tokens
-- Crea un nuevo token con permisos de `repo` (para repos privados) o `public_repo`
-- Configura la variable de entorno: `GH_TOKEN=tu-token-aqui`
+Una vez publicada una 4.x, no publiques más releases de la rama Electron (3.x): GitHub toma el último release publicado como `latest`, las PCs con Tauri dejarían de encontrar su `latest.json` y las que siguen en Electron bajarían esa 3.x en lugar de pasar a Tauri.
 
-#### 3. **Publicar Nueva Versión**
+## Paso de Electron (3.x) a Tauri (4.x)
 
-```bash
-# Actualizar version en package.json
-npm version patch  # o minor, major
+Las PCs con la versión Electron ven el release 4.x por su `latest.yml`, descargan el instalador nuevo y lo ejecutan al aceptar. El instalador (`src-tauri/instalador.nsh`):
 
-# Publicar release
-npm run release
+1. cierra la app vieja y la desinstala en silencio, conservando sus datos;
+2. instala la versión nueva para el usuario actual;
+3. carga el driver CH340 si todavía no está.
 
-# O crear un draft para revisar antes
-npm run release:draft
-```
-
-## 📋 Flujo de Actualización
-
-### 1. **Detección Automática**
-
-- La app verifica actualizaciones 5 segundos después de cargar
-- También verifica al hacer clic en "Verificar actualizaciones" (si agregas botón)
-
-### 2. **Notificación al Usuario**
-
-- Aparece una tarjeta elegante en la esquina inferior derecha
-- Muestra la nueva versión y notas de la release
-- Botones: "Más tarde" y "Descargar"
-
-### 3. **Descarga**
-
-- Se descarga en segundo plano
-- Indicador de progreso visual
-- No interfiere con el uso de la app
-
-### 4. **Instalación**
-
-- Se ofrece botón "Reiniciar e instalar"
-- Al reiniciar, se aplica la actualización automáticamente
-- La app se abre con la nueva versión
-
-## 🛠️ Componentes Implementados
-
-### Hook: `useAutoUpdater`
-
-```typescript
-const {
-  updateAvailable, // boolean: hay actualización disponible
-  updateInfo, // objeto con version, fecha, notas
-  downloading, // boolean: descargando actualización
-  downloaded, // boolean: actualización descargada
-  checking, // boolean: verificando actualizaciones
-  checkForUpdates, // función: verificar manualmente
-  downloadUpdate, // función: descargar actualización
-  installUpdate, // función: instalar y reiniciar
-} = useAutoUpdater();
-```
-
-### Componente: `UpdateNotification`
-
-- Interfaz visual para el sistema de actualizaciones
-- Se muestra automáticamente cuando hay actualizaciones
-- Diseño consistente con la app (colores emerald)
-
-## 🔒 Configuración de Seguridad
-
-### Code Signing (Recomendado para Producción)
-
-```json
-// En package.json -> build
-"win": {
-  "certificateFile": "path/to/certificate.p12",
-  "certificatePassword": "password",
-  "signtoolOptions": {
-    "signingHashAlgorithms": ["sha256"]
-  }
-}
-```
-
-### Verificación de Actualizaciones
-
-- Todas las actualizaciones se descargan desde GitHub Releases
-- electron-updater verifica checksums automáticamente
-- Solo se instalan releases oficiales del repositorio configurado
-
-## 📦 Providers Alternativos
-
-### Amazon S3
-
-```json
-"publish": {
-  "provider": "s3",
-  "bucket": "tu-bucket",
-  "region": "us-east-1"
-}
-```
-
-### Servidor Propio
-
-```json
-"publish": {
-  "provider": "generic",
-  "url": "https://tu-servidor.com/updates/"
-}
-```
-
-## 🚨 Troubleshooting
-
-### "No se pueden verificar actualizaciones"
-
-- Verificar conexión a internet
-- Revisar configuración de `publish` en package.json
-- Verificar que el repositorio y releases existan
-
-### "Error al descargar"
-
-- Verificar permisos de escritura
-- Revisar espacio en disco
-- Comprobar que el release tenga los archivos correctos
-
-### En Desarrollo
-
-- El auto-updater solo funciona en builds de producción
-- En desarrollo se muestran logs pero no verifica actualizaciones reales
-
-## 🎯 Próximos Pasos
-
-1. **Configurar tu repositorio en GitHub**
-2. **Actualizar la configuración `publish` con tu usuario/repo real**
-3. **Configurar tu `GH_TOKEN`**
-4. **Hacer tu primer release: `npm run release:draft`**
-5. **Probar el sistema con usuarios beta**
-
-¡Tu app ahora se actualiza como las aplicaciones profesionales! 🎉
+Al abrir por primera vez, la app copia `config.json` y `logo-negocio.png` desde `%APPDATA%\andex-market`.

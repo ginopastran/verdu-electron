@@ -1,0 +1,15 @@
+{
+  "logoPath": "golden/logos/no-es-imagen.png",
+  "cae": "1",
+  "afipQrUrl": "http://www.arca.gob.ar/fe/qr/?p=abc",
+  "total": 10,
+  "items": [
+    {
+      "productoId": 1,
+      "cantidad": 1.5,
+      "precio": 1200,
+      "subtotal": 1800,
+      "nombre": "Tomate perita x kg"
+    }
+  ]
+}

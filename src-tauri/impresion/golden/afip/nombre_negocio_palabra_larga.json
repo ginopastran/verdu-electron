@@ -1,0 +1,21 @@
+{
+  "logoPath": "golden/logos/no-es-imagen.png",
+  "businessName": "Supercalifragilistico distribuidora",
+  "cuit": 20123456789,
+  "numero": 5,
+  "factura": {
+    "idReal": "F-99",
+    "numero": 7
+  },
+  "idReal": 0,
+  "total": 100,
+  "items": [
+    {
+      "productoId": 1,
+      "cantidad": 1.5,
+      "precio": 1200,
+      "subtotal": 1800,
+      "nombre": "Tomate perita x kg"
+    }
+  ]
+}

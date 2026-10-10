@@ -1,0 +1,19 @@
+{
+  "logoPath": "golden/logos/no-es-imagen.png",
+  "nombre": "Despensa",
+  "total": 700,
+  "discountData": {
+    "amount": 300
+  },
+  "metodoPago": "transferencia",
+  "fechaVtoCae": "15/01/2026 10:00:00",
+  "items": [
+    {
+      "productoId": 1,
+      "cantidad": 1.5,
+      "precio": 1200,
+      "subtotal": 1800,
+      "nombre": "Tomate perita x kg"
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "businessName": "Frutería",
+  "logoPath": "golden/logos/foto.jpg",
+  "condicionIva": "Monotributo",
+  "cae": "123",
+  "fechaVtoCae": 20250401,
+  "total": 1040,
+  "subtotal": 2040,
+  "discountData": {
+    "type": "fixed",
+    "value": 1000,
+    "amount": 1000
+  },
+  "metodoPago": "SPLIT",
+  "items": [
+    {
+      "productoId": 3,
+      "cantidad": 3,
+      "subtotal": 1000,
+      "nombre": "Ñandú ½ kg"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "logoPath": "golden/logos/no-es-imagen.png",
+  "businessName": "0 Super  Mercado Los Hermanos SUPERCALIFRAGILISTICOS de la Esquina 0",
+  "configuracionAfip": {
+    "condicionIva": "",
+    "razonSocial": "0",
+    "cuit": "0"
+  },
+  "condicionIva": "Exento",
+  "razonSocial": "Razón Directa",
+  "cuit": "20123456789\n",
+  "numeroFactura": "0001-00000123",
+  "puntoVenta": 1,
+  "total": 100,
+  "items": [
+    {
+      "productoId": 1,
+      "cantidad": 1.5,
+      "precio": 1200,
+      "subtotal": 1800,
+      "nombre": "Tomate perita x kg"
+    }
+  ]
+}

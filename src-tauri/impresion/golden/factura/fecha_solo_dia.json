@@ -1,0 +1,1 @@
+{"tipoFactura":false,"fechaEmision":"2025-11-03","cliente":{"razonSocial":"","apellido":"Solo Apellido"},"detalles":[{"descripcion":"Ajo","cantidad":3,"precioUnitario":0.5}],"total":1.5,"afip":null,"afipQrUrl":"https://www.arca.gob.ar/fe/qr/?p=1","nombre":"Nombre del negocio","logoPath":"golden/logos/no-es-imagen.png"}

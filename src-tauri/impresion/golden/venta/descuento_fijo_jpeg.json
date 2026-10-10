@@ -1,0 +1,1 @@
+{"businessName":"Frutas & Verduras","vendedor":"Juan","idReal":0,"id":"99","items":[{"nombre":"Banana","cantidad":12,"precio":100}],"discountData":{"amount":100,"type":"fixed","value":100},"subtotal":1100,"total":1000,"metodoPago":"Split","pagos":[{"metodoPago":"efectivo","monto":1000}],"anchoPapel":80,"logoPath":"golden/logos/foto.jpg"}

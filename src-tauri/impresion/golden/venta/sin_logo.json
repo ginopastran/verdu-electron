@@ -1,0 +1,1 @@
+{"vendedor":null,"items":{"a":{"nombre":"Zanahoria","cantidad":1,"precio":300},"b":{"nombre":"Cebolla","cantidad":2,"precio":"150.5","subtotal":"301"}},"discountData":{"amount":0,"type":"percentage","value":5},"subtotal":2000,"total":"1234.5","anchoPapel":80,"logoPath":"golden/logos/no-es-imagen.png"}
