@@ -521,7 +521,7 @@ fn fila(ui: &mut Ui, tabla: &Tabla, factura: &Value) -> Option<Accion> {
         vista::pintar_chip(ui, egui::pos2(celdas[6].left(), celdas[6].center().y - tam_estado.y / 2.0), &estado, tam::XS, RELLENO_CHIP_ESTADO, colores_estado.0, colores_estado.1);
 
         let mut acciones = ui.new_child(UiBuilder::new().id_salt(("acciones", &id)).max_rect(celdas[7]).layout(Layout::right_to_left(Align::Center)));
-        acciones.spacing_mut().item_spacing.x = 4.0;
+        acciones.spacing_mut().item_spacing.x = 0.0;
         if BotonIcono::quitar().ui(&mut acciones).on_hover_text("Eliminar").clicked() {
             accion = Some(Accion::Eliminar);
         }
