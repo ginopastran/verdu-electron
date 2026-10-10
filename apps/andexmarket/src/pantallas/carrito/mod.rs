@@ -5,13 +5,13 @@ mod vista;
 
 use std::time::Duration;
 
-use eframe::egui::{self, Event, Id, Key, Modifiers, Pos2, Rect, ScrollArea, Sense, Ui, Vec2};
+use eframe::egui::{self, Event, Id, Key, Modifiers, Pos2, Rect, Ui, Vec2};
 use nucleo::carrito::Producto;
 use serde_json::Value;
 
 use self::dialogos::{DialogoAgregar, DialogoEscanear, Salida};
 use self::productos::{FilaLista, ProductoDisponible};
-use self::vista::{AccionCabecera, AccionPestana, Cabecera, Resumen, NIVEL_CABECERA_MAXIMO};
+use self::vista::{AccionCabecera, AccionIndicador, AccionPanel, AccionPestana, Cabecera, Indicadores, Panel};
 use super::cierre::DialogoCierre;
 use super::cobro::{AccionCobro, Cobro};
 use super::configuracion::balanza::DialogoBalanza;
@@ -21,10 +21,13 @@ use super::pedidos::DialogoPedidos;
 use super::sesion;
 use crate::app::{Contexto, Ruta};
 use crate::tareas::{self, Tarea};
-use crate::ui::{self, fuente, paleta, Entrada, Peso, Tam};
+use crate::ui::marca::{color, fuente, tam};
+use crate::ui::v2::{self, toast};
+use crate::ui::Peso;
 
 pub const ID_BUSCADOR: &str = "buscador-productos";
 const CUADROS_ENFOQUE: u8 = 2;
+const DURACION_DESTELLO: f64 = 1.6;
 
 pub fn id_buscador() -> Id {
     Id::new(ID_BUSCADOR)
@@ -60,6 +63,12 @@ struct Lector {
 
 type ResultadoEscaneo = (ProductoDisponible, f64, Option<Vec<FilaLista>>);
 
+struct Nuevo {
+    cart_id: String,
+    desde: f64,
+    desplazar: bool,
+}
+
 #[derive(Default)]
 pub struct Carrito {
     pub cobro: Cobro,
@@ -84,6 +93,7 @@ pub struct Carrito {
     habia_dialogo: bool,
     enfocar: u8,
     buscador_enfocado: bool,
+    nuevo: Option<Nuevo>,
 }
 
 impl Carrito {
@@ -116,9 +126,19 @@ impl Carrito {
     fn agregar_directo(&mut self, producto: &ProductoDisponible, cantidad: f64, cx: &mut Contexto) {
         let etiqueta = dialogos::etiqueta_base(cx.global.negocio.as_ref());
         let item = producto.item(cantidad, producto.unidad_o_defecto(), producto.precio, None, &etiqueta);
-        cx.global.carritos.agregar(item);
+        self.agregar_item(item, cx);
         self.busqueda.limpiar();
         self.enfocar = CUADROS_ENFOQUE;
+    }
+
+    fn agregar_item(&mut self, item: Producto, cx: &mut Contexto) {
+        self.nuevo = Some(Nuevo { cart_id: item.cart_id.clone(), desde: cx.egui.input(|i| i.time), desplazar: true });
+        cx.global.carritos.agregar(item);
+    }
+
+    fn anunciar_cierre_sesion(&mut self, ui: &Ui, cx: &Contexto) {
+        toast::exito(&cx.egui, "Cerrando sesión...");
+        self.cerrar_sesion_en = Some(ui.input(|i| i.time) + 1.0);
     }
 
     fn montar(&mut self, cx: &mut Contexto) {
@@ -149,7 +169,7 @@ impl Carrito {
                         self.busqueda.filtrar(&self.productos);
                     }
                 }
-                Err(mensaje) => ui::toast::error(&cx.egui, mensaje),
+                Err(mensaje) => toast::error(&cx.egui, mensaje),
             }
         }
         let _ = tareas::esperar(&mut self.tarea_logo);
@@ -167,7 +187,7 @@ impl Carrito {
 
     fn sin_productos(cx: &Contexto, detalle: &str) -> bool {
         if Self::items_actuales(cx) == 0 {
-            ui::toast::con_detalle(&cx.egui, ui::toast::Tipo::Error, "No hay productos en el carrito", detalle, 2.0);
+            toast::con_detalle(&cx.egui, toast::Tipo::Error, "No hay productos en el carrito", detalle);
             return true;
         }
         false
@@ -201,7 +221,7 @@ impl Carrito {
 
     fn cuenta_corriente(&mut self, cx: &mut Contexto) {
         if !cx.global.negocio_bool("facturacionHabilitada") {
-            ui::toast::con_detalle(&cx.egui, ui::toast::Tipo::Error, "Funcionalidad no disponible", "La facturación no está habilitada para este negocio", 2.0);
+            toast::con_detalle(&cx.egui, toast::Tipo::Error, "Funcionalidad no disponible", "La facturación no está habilitada para este negocio");
             return;
         }
         if Self::sin_productos(cx, "Agrega al menos un producto antes de crear la factura") {
@@ -222,10 +242,7 @@ impl Carrito {
         let pulsadas: Vec<Key> = ui.input_mut(|i| teclas.into_iter().filter(|k| i.consume_key(Modifiers::NONE, *k)).collect());
         for tecla in pulsadas {
             match tecla {
-                Key::F4 => {
-                    ui::toast::exito(&cx.egui, "Cerrando sesión...");
-                    self.cerrar_sesion_en = Some(ui.input(|i| i.time) + 1.0);
-                }
+                Key::F4 => self.anunciar_cierre_sesion(ui, cx),
                 Key::F1 => self.cancelar(cx),
                 Key::F2 => self.pagar(cx, true),
                 Key::F3 => self.pagar(cx, false),
@@ -368,9 +385,22 @@ impl Carrito {
         }
 
         let pantalla = ui.max_rect();
-        let barra = Rect::from_min_size(pantalla.min, Vec2::new(vista::ancho_barra(pantalla.width()), pantalla.height()));
-        let atajos = vista::atajos(cx.global.negocio.as_ref());
-        let caja_buscador = vista::barra_lateral(ui, barra, &atajos);
+        ui.painter().rect_filled(pantalla, 0, color::FONDO_APP);
+        let usuario = cx.global.usuario.clone();
+        let nombre = usuario.as_ref().and_then(|u| u["nombre"].as_str()).unwrap_or_default().to_string();
+        let email = usuario.as_ref().and_then(|u| u["email"].as_str()).unwrap_or_default().to_string();
+        let reloj = diseno::reloj(chrono::Local::now().naive_local());
+        ui.ctx().request_repaint_after(Duration::from_secs(30));
+        let cabecera = Cabecera {
+            facturacion: cx.global.negocio_bool("facturacionHabilitada"),
+            cierre: usuario.as_ref().is_some_and(|u| u["permisos"]["cierreDeCajaEnabled"].as_bool().unwrap_or(false)),
+            nombre: &nombre,
+            email: &email,
+            reloj: &reloj,
+        };
+        let disposicion = cabecera.disponer(ui, pantalla);
+        Cabecera::pintar_fondo(ui, &disposicion);
+
         let eligio = if self.hay_dialogo() { false } else { self.teclas_busqueda(ui, cx) };
         let pegados: Vec<String> = if ui.memory(|m| m.has_focus(id_buscador())) {
             ui.input(|i| i.events.iter().filter_map(|e| if let Event::Paste(t) = e { Some(t.clone()) } else { None }).collect())
@@ -378,15 +408,12 @@ impl Carrito {
             Vec::new()
         };
         let antes = self.busqueda.consulta.clone();
-        let respuesta_buscador = vista::en_rect(ui, caja_buscador, |ui| {
-            Entrada::new(&mut self.busqueda.consulta)
-                .id(id_buscador())
-                .radio(ui::RADIO)
-                .tam(Tam::Sm)
-                .sugerencia("Buscar productos (nombre o PLU)...")
-                .ui(ui)
-        });
-        self.buscador_enfocado = respuesta_buscador.has_focus();
+        let buscador = vista::buscador(ui, disposicion.buscador, &mut self.busqueda.consulta, id_buscador());
+        if buscador.limpiar {
+            self.busqueda.limpiar();
+            ui.memory_mut(|m| m.request_focus(id_buscador()));
+        }
+        self.buscador_enfocado = buscador.campo.has_focus();
         let cambio = !eligio && self.busqueda.consulta != antes;
         if cambio {
             self.cambio_busqueda(cx);
@@ -394,19 +421,41 @@ impl Carrito {
         if !self.cobro.ocupado() {
             self.lector(ui, cx, cambio, pegados);
         }
-        if !self.busqueda.resultados.is_empty() && !self.hay_dialogo() {
-            let origen = Pos2::new(caja_buscador.left(), caja_buscador.bottom() + 4.0);
-            let negocio = cx.global.negocio.clone();
-            if let Some(posicion) = vista::resultados(ui.ctx(), origen, caja_buscador.width(), &self.productos, &self.busqueda.resultados, self.busqueda.seleccion, self.busqueda.mostrar_seleccion, negocio.as_ref()) {
-                let indice = self.busqueda.resultados[posicion];
-                self.elegir_producto(indice, cx);
-            }
+        let consulta = self.busqueda.consulta.trim();
+        let hay_consulta = !consulta.is_empty() && !(consulta.len() >= 8 && consulta.bytes().all(|b| b.is_ascii_digit()));
+        let visible = (hay_consulta || !self.busqueda.resultados.is_empty()) && !self.hay_dialogo();
+        let negocio = cx.global.negocio.clone();
+        let datos = vista::Resultados {
+            productos: &self.productos,
+            indices: &self.busqueda.resultados,
+            seleccion: self.busqueda.seleccion,
+            mostrar_seleccion: self.busqueda.mostrar_seleccion,
+            consulta,
+            negocio: negocio.as_ref(),
+        };
+        if let Some(posicion) = vista::resultados(ui.ctx(), &buscador.caja, visible, &datos) {
+            let indice = self.busqueda.resultados[posicion];
+            self.elegir_producto(indice, cx);
+        }
+        if visible {
             self.busqueda.mostrar_seleccion = false;
         }
 
-        let principal = Rect::from_min_max(Pos2::new(barra.right(), pantalla.top()), pantalla.max);
-        ui.painter().rect_filled(principal, 0, paleta::GRAY_50);
-        vista::en_rect(ui, principal, |ui| self.principal(ui, cx));
+        match cabecera.acciones(ui, &disposicion) {
+            Some(AccionCabecera::Ordenes) => self.pedidos.abrir(),
+            Some(AccionCabecera::CuentaCorriente) => cx.global.ir(Ruta::Facturas),
+            Some(AccionCabecera::Cierre) => self.cierre.abrir(),
+            Some(AccionCabecera::Impresion) => self.impresion.abrir(),
+            Some(AccionCabecera::Balanza) => self.balanza.abrir(),
+            Some(AccionCabecera::CerrarSesion) => {
+                sesion::cerrar_sesion(cx);
+                toast::exito(&cx.egui, "Sesión cerrada exitosamente");
+            }
+            None => {}
+        }
+
+        let cuerpo = Rect::from_min_max(Pos2::new(pantalla.left(), disposicion.barra.bottom()), pantalla.max);
+        self.cuerpo(ui, cx, cuerpo);
 
         self.dialogos(ui, cx);
 
@@ -425,69 +474,24 @@ impl Carrito {
         }
     }
 
-    fn principal(&mut self, ui: &mut Ui, cx: &mut Contexto) {
+    fn cuerpo(&mut self, ui: &mut Ui, cx: &mut Contexto, rect: Rect) {
         if cx.global.negocio_cargando {
-            let centro = ui.max_rect().center();
-            let caja = Rect::from_center_size(centro - Vec2::new(0.0, 22.0), Vec2::splat(48.0));
-            ui::girando(ui, caja, paleta::EMERALD_600);
-            ui.painter().text(centro + Vec2::new(0.0, 26.0), egui::Align2::CENTER_CENTER, "Cargando configuración del negocio...", fuente(Tam::Base, Peso::Normal), paleta::GRAY_600);
+            let centro = rect.center();
+            v2::girando(ui, Rect::from_center_size(centro - Vec2::new(0.0, 22.0), Vec2::splat(48.0)), color::VERDE);
+            ui.painter().text(centro + Vec2::new(0.0, 26.0), egui::Align2::CENTER_CENTER, "Cargando configuración del negocio...", fuente(tam::CUERPO, Peso::Normal), color::TEXTO_APAGADO);
             return;
         }
-        let usuario = cx.global.usuario.clone();
-        let nombre = usuario.as_ref().and_then(|u| u["nombre"].as_str()).unwrap_or_default().to_string();
-        let email = usuario.as_ref().and_then(|u| u["email"].as_str()).unwrap_or_default().to_string();
-        let mut cabecera = Cabecera {
-            facturacion: cx.global.negocio_bool("facturacionHabilitada"),
-            cierre: usuario.as_ref().is_some_and(|u| u["permisos"]["cierreDeCajaEnabled"].as_bool().unwrap_or(false)),
-            usuario: (nombre.as_str(), email.as_str()),
-            nivel: 0,
-        };
-        let ancho_columna = ui.max_rect().width() - 48.0;
-        let necesario_con = |cabecera: &Cabecera| vista::ancho_pestanas(ui, &cx.global.carritos, cabecera.pestanas_compactas()) + 8.0 + cabecera.ancho(ui);
-        while cabecera.nivel < NIVEL_CABECERA_MAXIMO && necesario_con(&cabecera) > ancho_columna + 0.5 {
-            cabecera.nivel += 1;
-        }
-        let ancho_pestanas = vista::ancho_pestanas(ui, &cx.global.carritos, cabecera.pestanas_compactas());
-        let necesario = ancho_pestanas + 8.0 + cabecera.ancho(ui);
-        let desborda = necesario > ancho_columna + 0.5;
-        let mut estilo_scroll = ui.spacing().scroll;
-        estilo_scroll.floating = false;
-        estilo_scroll.bar_width = 8.0;
-        estilo_scroll.bar_inner_margin = 4.0;
-        estilo_scroll.bar_outer_margin = 4.0;
-        estilo_scroll.foreground_color = false;
-        estilo_scroll.fade.strength = 0.0;
-        ui.spacing_mut().scroll = estilo_scroll;
-        let visuales = ui.visuals_mut();
-        visuales.extreme_bg_color = egui::Color32::from_gray(241);
-        visuales.widgets.inactive.bg_fill = egui::Color32::from_gray(160);
-        visuales.widgets.hovered.bg_fill = egui::Color32::from_gray(130);
-        visuales.widgets.active.bg_fill = egui::Color32::from_gray(100);
-        let alto_total = ui.max_rect().height() - if desborda { 16.0 } else { 0.0 };
-        let ancho_total = if desborda { necesario + 48.0 } else { ui.max_rect().width() };
-        ScrollArea::horizontal().id_salt("carrito-horizontal").auto_shrink(false).show(ui, |ui| {
-            let (lienzo, _) = ui.allocate_exact_size(Vec2::new(ancho_total, alto_total), Sense::hover());
-            let columna = Rect::from_min_size(lienzo.min + Vec2::new(24.0, 24.0), Vec2::new(ancho_columna, alto_total - 48.0));
-            self.cabecera(ui, cx, &cabecera, columna, ancho_pestanas, desborda);
-            let total = cx.global.carritos.total_con_iva(cx.global.negocio.as_ref().map(|n| n["ivaIncluidoEnPrecios"].as_bool().unwrap_or(false)));
-            let total = productos::redondear(total, 2);
-            let resumen = Resumen::medir(ui, total, columna.width());
-            let caja_resumen = Rect::from_min_max(Pos2::new(columna.left(), columna.bottom() - resumen.alto), columna.max);
-            let caja_lista = Rect::from_min_max(Pos2::new(columna.left(), columna.top() + 56.0), Pos2::new(columna.right(), caja_resumen.top() - 16.0));
-            vista::en_rect(ui, caja_lista, |ui| self.lista(ui, cx));
-            let (cancelar, pagar) = resumen.mostrar(ui, caja_resumen);
-            if cancelar {
-                self.cancelar(cx);
-            }
-            if pagar {
-                self.pagar(cx, true);
-            }
-        });
-    }
+        let interior = Rect::from_min_max(Pos2::new(rect.left() + 20.0, rect.top() + 18.0), Pos2::new(rect.right() - 20.0, rect.bottom() - 20.0));
+        let izquierda = Rect::from_min_max(interior.min, Pos2::new(interior.right() - vista::ANCHO_PANEL - 20.0, interior.bottom()));
+        let derecha = Rect::from_min_max(Pos2::new(interior.right() - vista::ANCHO_PANEL, interior.top()), interior.max);
 
-    fn cabecera(&mut self, ui: &mut Ui, cx: &mut Contexto, cabecera: &Cabecera, columna: Rect, ancho_pestanas: f32, desborda: bool) {
-        let centro_y = columna.top() + 20.0;
-        match vista::pestanas(ui, &cx.global.carritos, Pos2::new(columna.left(), centro_y), cabecera.pestanas_compactas()) {
+        let indicadores = Indicadores {
+            peso: vista::kilos(productos::gramos_de_peso(&cx.global.peso) / 1000.0),
+            balanza_conectada: cx.global.estado_balanza["conectada"] == Value::Bool(true),
+            impresora: cx.servicios.config.get("impresoraWindows").as_str().map_or_else(|| "Impresora predeterminada".to_string(), |n| format!("Impresora {n}")),
+        };
+        let fila = vista::fila_pestanas(ui, izquierda, &cx.global.carritos, &indicadores);
+        match fila.pestana {
             Some(AccionPestana::Elegir(indice)) => {
                 cx.global.carritos.elegir(indice);
                 self.enfocar = CUADROS_ENFOQUE;
@@ -496,51 +500,65 @@ impl Carrito {
                 if cx.global.carritos.agregar_pantalla() {
                     self.enfocar = CUADROS_ENFOQUE;
                 } else {
-                    ui::toast::error(&cx.egui, "No se pueden crear más de 4 pantallas");
+                    toast::error(&cx.egui, "No se pueden crear más de 4 pantallas");
                 }
             }
             Some(AccionPestana::Borrar(indice)) => {
                 if cx.global.carritos.screens.len() <= 1 {
-                    ui::toast::error(&cx.egui, "No se puede eliminar la última pantalla");
+                    toast::error(&cx.egui, "No se puede eliminar la última pantalla");
                 } else {
                     self.borrar_pantalla = Some(indice);
                 }
             }
             None => {}
         }
-        let derecha = if desborda { columna.left() + ancho_pestanas + 8.0 + cabecera.ancho(ui) } else { columna.right() };
-        match cabecera.mostrar(ui, derecha, centro_y) {
-            Some(AccionCabecera::Ordenes) => self.pedidos.abrir(),
-            Some(AccionCabecera::CuentaCorriente) => cx.global.ir(Ruta::Facturas),
-            Some(AccionCabecera::Cierre) => self.cierre.abrir(),
-            Some(AccionCabecera::Impresion) => self.impresion.abrir(),
-            Some(AccionCabecera::Balanza) => self.balanza.abrir(),
-            Some(AccionCabecera::CerrarSesion) => {
-                sesion::cerrar_sesion(cx);
-                ui::toast::exito(&cx.egui, "Sesión cerrada exitosamente");
-            }
+        match fila.indicador {
+            Some(AccionIndicador::Balanza) => self.balanza.abrir(),
+            Some(AccionIndicador::Impresora) => self.impresion.abrir(),
+            None => {}
+        }
+
+        let caja_tabla = Rect::from_min_max(Pos2::new(izquierda.left(), izquierda.top() + fila.alto + 12.0), izquierda.max);
+        self.lista(ui, cx, caja_tabla);
+
+        let total = cx.global.carritos.total_con_iva(cx.global.negocio.as_ref().map(|n| n["ivaIncluidoEnPrecios"].as_bool().unwrap_or(false)));
+        let datos = Panel {
+            total: productos::redondear(total, 2),
+            productos: Self::items_actuales(cx),
+            orden: cx.global.carritos.active_screen + 1,
+            afip: Self::con_afip(cx),
+            facturacion: cx.global.negocio_bool("facturacionHabilitada"),
+        };
+        match vista::panel(ui, derecha, &datos) {
+            Some(AccionPanel::Cobrar) => self.pagar(cx, true),
+            Some(AccionPanel::CobrarSinFactura) => self.pagar(cx, false),
+            Some(AccionPanel::Descuento) => self.pagar_con_descuento(cx, true),
+            Some(AccionPanel::DescuentoSinFactura) => self.pagar_con_descuento(cx, false),
+            Some(AccionPanel::CuentaCorriente) => self.cuenta_corriente(cx),
+            Some(AccionPanel::Cancelar) => self.cancelar(cx),
+            Some(AccionPanel::CerrarSesion) => self.anunciar_cierre_sesion(ui, cx),
             None => {}
         }
     }
 
-    fn lista(&mut self, ui: &mut Ui, cx: &mut Contexto) {
+    fn lista(&mut self, ui: &mut Ui, cx: &mut Contexto, caja: Rect) {
         let negocio = cx.global.negocio.clone();
-        let items: Vec<Producto> = cx.global.carritos.items().iter().rev().cloned().collect();
-        let permite_borrar = !cancelacion_controlada(cx);
-        let mut quitar = None;
-        ScrollArea::vertical().id_salt(("carrito-items", cx.global.carritos.active_screen)).auto_shrink(false).show(ui, |ui| {
-            ui.set_width(ui.available_width());
-            ui.with_layout(egui::Layout::top_down(egui::Align::Min), |ui| {
-            for (i, item) in items.iter().enumerate() {
-                if i > 0 {
-                    ui.add_space(8.0);
-                }
-                if vista::item_carrito(ui, item, negocio.as_ref(), permite_borrar) {
-                    quitar = Some(item.cart_id.clone());
-                }
+        let activa = cx.global.carritos.active_screen;
+        let filas: Vec<vista::Fila> = cx.global.carritos.items().iter().map(|item| vista::fila_de_item(item, negocio.as_ref())).collect();
+        if filas.is_empty() {
+            vista::orden_vacia(ui, caja, activa + 1);
+            return;
+        }
+        let ahora = ui.input(|i| i.time);
+        let desplazar = self.nuevo.as_mut().is_some_and(|n| std::mem::take(&mut n.desplazar));
+        let destello = self.nuevo.as_ref().map(|n| {
+            let avance = ((ahora - n.desde) / DURACION_DESTELLO) as f32;
+            if avance < 1.0 {
+                ui.ctx().request_repaint();
             }
-            });
+            vista::Destello { cart_id: &n.cart_id, avance: avance.clamp(0.0, 1.0), desplazar }
         });
+        let quitar = vista::tabla(ui, caja, &filas, !cancelacion_controlada(cx), destello.as_ref(), Id::new(("carrito-items", activa)));
         if let Some(cart_id) = quitar {
             cx.global.carritos.quitar(&cart_id);
         }
@@ -552,14 +570,14 @@ impl Carrito {
         }
         match self.agregar.mostrar(ui, cx) {
             Salida::Agregar(item) => {
-                cx.global.carritos.agregar(item);
+                self.agregar_item(item, cx);
                 self.enfocar = CUADROS_ENFOQUE;
             }
             Salida::Cerrar | Salida::Nada => {}
         }
         match self.escanear.mostrar(ui, cx) {
             Salida::Agregar(item) => {
-                cx.global.carritos.agregar(item);
+                self.agregar_item(item, cx);
                 self.busqueda.limpiar();
                 self.enfocar = CUADROS_ENFOQUE;
             }
@@ -570,11 +588,12 @@ impl Carrito {
             Salida::Nada => {}
         }
         if let Some(indice) = self.borrar_pantalla {
-            match dialogos::confirmar_borrado(ui) {
+            let productos = cx.global.carritos.screens.get(indice).map_or(0, |p| p.items.len());
+            match dialogos::confirmar_borrado(ui, indice + 1, productos) {
                 Some(true) => {
                     self.borrar_pantalla = None;
                     if cx.global.carritos.borrar_pantalla(indice) {
-                        ui::toast::exito(&cx.egui, "Pantalla eliminada correctamente");
+                        toast::exito(&cx.egui, "Pantalla eliminada correctamente");
                         self.enfocar = CUADROS_ENFOQUE;
                     }
                 }
