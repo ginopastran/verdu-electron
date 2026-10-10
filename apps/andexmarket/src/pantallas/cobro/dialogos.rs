@@ -644,9 +644,8 @@ impl Cobro {
     fn dialogo_efectivo(&mut self, cx: &mut Contexto, lado: Lado, tope: bool) {
         let ctx = cx.egui.clone();
         let teclado = self.teclado;
-        let bloquea = self.bloqueado();
         let p = self.proc_mut(lado);
-        let cargando = p.procesando && bloquea;
+        let cargando = p.procesando;
         let Some(e) = p.efectivo.as_ref() else { return };
         let (original, cobrar, aplicando) = (e.original, e.cobrar, e.aplicando);
         let con_descuento = cobrar < original;
@@ -710,9 +709,8 @@ impl Cobro {
         let ctx = cx.egui.clone();
         let subtotal = cx.global.carritos.total();
         let descuento = self.descuento;
-        let bloquea = self.bloqueado();
         let p = self.proc_mut(lado);
-        let cargando = p.procesando && bloquea;
+        let cargando = p.procesando;
         let Some(e) = p.efectivo.as_mut() else { return };
         let total = e.cobrar;
         let mut confirmar = false;

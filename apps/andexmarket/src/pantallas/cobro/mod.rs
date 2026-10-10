@@ -78,6 +78,7 @@ struct Procesador {
     segundo: &'static str,
     enfocar_mixto: bool,
     qr: Option<Value>,
+    ultimo_qr: Value,
     estado: Option<String>,
     manual: Option<Manual>,
     sondeo: Option<Sondeo>,
@@ -96,6 +97,7 @@ impl Procesador {
             segundo: "tarjeta",
             enfocar_mixto: false,
             qr: None,
+            ultimo_qr: Value::Null,
             estado: None,
             manual: None,
             sondeo: None,
@@ -112,6 +114,11 @@ impl Procesador {
         self.efectivo_mixto.clear();
         self.segundo = "tarjeta";
         self.sondeo = None;
+    }
+
+    fn fijar_qr(&mut self, qr: Value) {
+        self.ultimo_qr = qr.clone();
+        self.qr = Some(qr);
     }
 
     fn liberar(&mut self) {

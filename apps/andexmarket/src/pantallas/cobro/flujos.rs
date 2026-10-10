@@ -113,13 +113,16 @@ impl Datos {
         resultado["success"] == false || verdad(&resultado["error"]) || verdad(&resultado["printerError"])
     }
 
-    fn crear_orden(&self, orden: &Value) -> Result<Option<Value>, String> {
+    fn crear_orden(&self, orden: &mut Value) -> Result<Option<Value>, String> {
         let duplicada = |mensaje: &str| mensaje.contains("No valid items to create order payload");
         let payload = match cobros::payload_valido(orden) {
             Ok(payload) => payload,
             Err(mensaje) if duplicada(&mensaje) => return Ok(None),
             Err(mensaje) => return Err(mensaje),
         };
+        if orden["pagos"].is_array() {
+            orden["pagos"] = payload["pagos"].clone();
+        }
         let respuesta = self.pedir("POST", "/api/ordenes", Some(&payload))?;
         if !respuesta.ok() {
             let mensaje = cobros::primero([&respuesta.cuerpo["message"], &respuesta.cuerpo["error"]])
@@ -149,6 +152,13 @@ pub(super) fn texto_js(valor: &Value) -> String {
         Value::Number(n) => cobros::numero_js(n.as_f64().unwrap_or(0.0)),
         otro => otro.to_string(),
     }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum InicioAfip {
+    Lanzado,
+    SinUsuario,
+    SinMonto,
 }
 
 fn mensaje(cuerpo: &Value, clave: &str, defecto: &str) -> String {
@@ -227,13 +237,19 @@ impl Cobro {
                 self.abrir_efectivo(Lado::Afip, &d, false, descuento);
                 self.pago = None;
             }
-            "qr" if d.mp_deshabilitado() => self.procesar_afip(cx, d, "qr", None, descuento, None),
+            "qr" if d.mp_deshabilitado() => {
+                if self.procesar_afip(cx, d, "qr", None, descuento, None) != InicioAfip::Lanzado {
+                    self.pago = None;
+                }
+            }
             "qr" => self.generar_qr_afip(cx, d),
             "split" => {
                 self.abrir_mixto(Lado::Afip, &d);
                 self.pago = None;
             }
-            _ => self.procesar_afip(cx, d, metodo, None, descuento, None),
+            _ => {
+                self.procesar_afip(cx, d, metodo, None, descuento, None);
+            }
         }
     }
 
@@ -327,7 +343,11 @@ impl Cobro {
                     (None, true, Some(p)) => Some(Descuento::porcentaje(p, 0.0)),
                     _ => None,
                 };
-                self.procesar_afip(cx, d, "efectivo", Some(cobrar), descuento, None);
+                let aviso = d.ctx.clone();
+                if self.procesar_afip(cx, d, "efectivo", Some(cobrar), descuento, None) == InicioAfip::SinMonto {
+                    toast::error(&aviso, "Error en factura AFIP: Use handleAfipCashPayment para pagos en efectivo");
+                    self.afip.reiniciar();
+                }
             }
         }
     }
@@ -348,7 +368,7 @@ impl Cobro {
             redondear(base, 2),
             Some(redondear(base, 2)),
         );
-        let orden = cobros::orden(&d.venta(&creado), Some(metodo), total, cobros::items_orden(&d.items, true), None, None, campos);
+        let mut orden = cobros::orden(&d.venta(&creado), Some(metodo), total, cobros::items_orden(&d.items, true), None, None, campos);
         self.lanzar(cx, true, move || {
             let cerrar = |c: &mut Cobro| {
                 c.normal.efectivo = None;
@@ -357,7 +377,7 @@ impl Cobro {
                 }
                 c.normal.liberar();
             };
-            match d.crear_orden(&orden) {
+            match d.crear_orden(&mut orden) {
                 Ok(None) => {
                     d.exito("Orden completada exitosamente");
                     aplicar(|c, cx| {
@@ -453,7 +473,7 @@ impl Cobro {
             match resultado {
                 Ok(r) => aplicar(move |c, cx| {
                     let orden = texto_js(&r["id"]);
-                    c.normal.qr = Some(con_qr(r, monto, items));
+                    c.normal.fijar_qr(con_qr(r, monto, items));
                     c.normal.estado = Some("PENDIENTE".into());
                     c.normal.iniciar_sondeo(orden, cx.egui.input(|i| i.time));
                     c.abrir_qr(cx);
@@ -500,11 +520,11 @@ impl Cobro {
                     let qr = con_qr(r, monto, items);
                     let mut normal = qr.clone();
                     normal["monto"] = json!(subtotal_carrito);
-                    c.afip.qr = Some(qr);
+                    c.afip.fijar_qr(qr);
                     c.afip.estado = Some("PENDIENTE".into());
                     c.afip.iniciar_sondeo(orden, cx.egui.input(|i| i.time));
                     c.pago = None;
-                    c.normal.qr = Some(normal);
+                    c.normal.fijar_qr(normal);
                     c.normal.estado = Some("PENDIENTE".into());
                     c.abrir_qr(cx);
                 }),
@@ -524,14 +544,18 @@ impl Cobro {
         total: Option<f64>,
         descuento: Option<Descuento>,
         mixto: Option<(f64, &'static str, f64)>,
-    ) {
+    ) -> InicioAfip {
         if d.usuario.is_null() {
             d.error("Debes iniciar sesión para realizar una factura");
-            return;
+            return InicioAfip::SinUsuario;
         }
-        let total = total.filter(|t| *t != 0.0).unwrap_or(d.total_iva);
+        let monto = total.filter(|t| *t != 0.0);
+        let total = monto.unwrap_or(d.total_iva);
         self.afip.procesando = true;
         self.afip.metodo = Some(metodo);
+        if metodo == "efectivo" && monto.is_none() {
+            return InicioAfip::SinMonto;
+        }
         let fecha = cobros::fecha_es_ar(chrono::Local::now());
         self.lanzar(cx, true, move || {
             let factura = cobros::Afip {
@@ -589,6 +613,7 @@ impl Cobro {
                 }
             }
         });
+        InicioAfip::Lanzado
     }
 
     fn abrir_mixto(&mut self, lado: Lado, d: &Datos) {
@@ -637,8 +662,10 @@ impl Cobro {
             let descuento = self.descuento;
             if segundo == "qr" && !d.mp_deshabilitado() {
                 self.generar_qr_mixto_afip(cx, d, efectivo, total - efectivo);
-            } else {
-                self.procesar_afip(cx, d, "split", Some(total), descuento, Some((efectivo, segundo, total - efectivo)));
+            } else if self.procesar_afip(cx, d, "split", Some(total), descuento, Some((efectivo, segundo, total - efectivo)))
+                != InicioAfip::Lanzado
+            {
+                self.afip.procesando = false;
             }
             return;
         }
@@ -676,7 +703,7 @@ impl Cobro {
         let base = if descuento.is_some() { d.total_iva } else { total };
         let creado = ahora_iso();
         let campos = cobros::campos_descuento(descuento.as_ref(), redondear(base - total, 2), redondear(d.total_iva, 2), None);
-        let orden = cobros::orden(
+        let mut orden = cobros::orden(
             &d.venta(&creado),
             None,
             redondear(total, 2),
@@ -685,7 +712,7 @@ impl Cobro {
             Some(cobros::pagos_mixtos(efectivo, segundo, segundo_monto)),
             campos,
         );
-        self.lanzar(cx, true, move || match d.crear_orden(&orden) {
+        self.lanzar(cx, true, move || match d.crear_orden(&mut orden) {
             Ok(resultado) => {
                 if let Some(resultado) = resultado {
                     d.imprimir_venta(cobros::con_id(orden, &resultado));
@@ -709,7 +736,7 @@ impl Cobro {
         if d.mp_deshabilitado() {
             let creado = ahora_iso();
             let campos = cobros::campos_descuento(descuento.as_ref(), descuento.map_or(0.0, |x| x.monto), redondear(d.total_iva, 2), None);
-            let orden = cobros::orden(
+            let mut orden = cobros::orden(
                 &d.venta(&creado),
                 None,
                 redondear(efectivo + qr, 2),
@@ -718,7 +745,7 @@ impl Cobro {
                 Some(cobros::pagos_mixtos(efectivo, "qr", qr)),
                 campos,
             );
-            self.lanzar(cx, true, move || match d.crear_orden(&orden) {
+            self.lanzar(cx, true, move || match d.crear_orden(&mut orden) {
                 Ok(resultado) => {
                     let texto = match resultado {
                         Some(resultado) => {
@@ -765,7 +792,7 @@ impl Cobro {
             match resultado {
                 Ok(r) => aplicar(move |c, cx| {
                     let orden = texto_js(&r["id"]);
-                    c.normal.qr = Some(con_qr(r, qr, items));
+                    c.normal.fijar_qr(con_qr(r, qr, items));
                     c.normal.estado = Some("PENDIENTE".into());
                     c.normal.mixto_abierto = false;
                     c.normal.iniciar_sondeo(orden, cx.egui.input(|i| i.time));
@@ -809,7 +836,7 @@ impl Cobro {
             match resultado {
                 Ok(r) => aplicar(move |c, cx| {
                     let orden = texto_js(&r["id"]);
-                    c.afip.qr = Some(con_qr(r, qr, items));
+                    c.afip.fijar_qr(con_qr(r, qr, items));
                     c.afip.estado = Some("PENDIENTE".into());
                     c.afip.mixto_abierto = false;
                     c.afip.iniciar_sondeo(orden, cx.egui.input(|i| i.time));
@@ -849,7 +876,8 @@ impl Cobro {
             return;
         }
         let clave = if lado == Lado::Normal { "id" } else { "orderId" };
-        let Some(orden) = p.qr.as_ref().map(|qr| qr[clave].clone()).filter(verdad) else {
+        let fuente = if lado == Lado::Normal { Some(&p.ultimo_qr) } else { p.qr.as_ref() };
+        let Some(orden) = fuente.map(|qr| qr[clave].clone()).filter(verdad) else {
             d.error("No hay una orden QR pendiente para completar.");
             return;
         };
@@ -897,7 +925,7 @@ impl Cobro {
     }
 
     fn imprimir_manual(&mut self, cx: &Contexto, d: Datos) {
-        let qr = self.normal.qr.clone().unwrap_or(Value::Null);
+        let qr = self.normal.ultimo_qr.clone();
         let creado = ahora_iso();
         self.lanzar(cx, true, move || {
             let monto = cobros::numero(&qr["monto"]);
@@ -1012,7 +1040,7 @@ impl Cobro {
             self.normal.sondeo = None;
             if completado {
                 d.exito("¡Pago completado exitosamente!");
-                let qr = self.normal.qr.clone().unwrap_or(Value::Null);
+                let qr = self.normal.ultimo_qr.clone();
                 let imprimir = !self.normal.enviando_manual();
                 let creado = ahora_iso();
                 self.lanzar(cx, true, move || {
@@ -1179,6 +1207,10 @@ impl Cobro {
 
 impl Datos {
     fn finalizar_qr(&self, estado: &Value, qr: &Value, creado: &str) {
+        if self.usuario.is_null() {
+            self.error("Se perdió la sesión. Por favor inicia sesión nuevamente.");
+            return;
+        }
         self.exito("¡Pago completado! Procesando ticket...");
         if verdad(&estado["orderData"]) || verdad(&estado["orderId"]) {
             let datos = if verdad(&estado["orderData"]) {
