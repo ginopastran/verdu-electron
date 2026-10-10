@@ -71,6 +71,11 @@ impl DialogoImpresion {
         self.abierto
     }
 
+    pub fn fijar_impresoras(&mut self, impresoras: Vec<String>) {
+        self.listando = None;
+        self.impresoras = impresoras;
+    }
+
     fn cargar(&mut self, cx: &Contexto) {
         let config = &cx.servicios.config;
         self.ancho_papel = config.ancho_papel();

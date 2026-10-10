@@ -128,6 +128,32 @@ fn balanza_v2() {
     }
 }
 
+fn abrir_impresion(harness: &mut Harness<'_, Escena>) {
+    harness.state_mut().impresion.abrir();
+    harness.run_steps(1);
+    harness.state_mut().impresion.fijar_impresoras(vec!["EPSON TM-T20III".into(), "XPrinter XP-80C".into()]);
+}
+
+#[test]
+fn impresion_v2() {
+    for tam in TAMANOS {
+        let ancho = tam.0 as u32;
+        let escena_impresion = || {
+            let servicios = comun::servicios();
+            let _ = std::fs::write(servicios.config.ruta_logo_negocio(), b"logo");
+            escena(servicios, comun::global(Ruta::Carrito))
+        };
+        capturar_en(&format!("60-modal-impresion-{ancho}"), tam, escena_impresion(), abrir_impresion);
+        capturar_en(&format!("61-modal-impresion-dropdown-{ancho}"), tam, escena_impresion(), |harness| {
+            abrir_impresion(harness);
+            harness.run_steps(6);
+            clic(harness, egui::pos2(tam.0 / 2.0 + IMPRESORA.0, tam.1 / 2.0 + IMPRESORA.1));
+        });
+    }
+}
+
+const IMPRESORA: (f32, f32) = (0.0, -78.0);
+
 #[test]
 fn actualizacion_disponible() {
     capturar("41-actualizacion-disponible", escena(comun::servicios(), comun::global(Ruta::Carrito)), |harness| {
