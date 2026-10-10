@@ -1,7 +1,8 @@
-use chrono::{DateTime, NaiveDate, Utc};
+use chrono::{NaiveDate, NaiveDateTime};
 use serde_json::{json, Map, Value};
 
-use crate::cierre::{argentina, miles, numero, parsear_fecha, texto_valor, verdadero};
+use crate::cierre::{fecha_literal, numero, texto_valor, verdadero};
+use crate::formato;
 
 pub const POR_PAGINA: usize = 6;
 
@@ -27,8 +28,8 @@ fn con(objeto: &Value, campos: &[(&str, Value)]) -> Value {
     Value::Object(mapa)
 }
 
-fn fecha_de(transaccion: &Value) -> Option<DateTime<Utc>> {
-    transaccion.get("fecha").and_then(Value::as_str).and_then(parsear_fecha)
+fn fecha_de(transaccion: &Value) -> Option<NaiveDateTime> {
+    transaccion.get("fecha").and_then(Value::as_str).and_then(fecha_literal)
 }
 
 pub fn unir_transacciones(ordenes: &Value, facturas: Option<&Value>) -> Result<Vec<Value>, String> {
@@ -44,8 +45,7 @@ pub fn unir_transacciones(ordenes: &Value, facturas: Option<&Value>) -> Result<V
         }
     }
     todas.sort_by(|a, b| {
-        let clave = |t: &Value| fecha_de(t).map(|f| f.timestamp_millis());
-        match (clave(a), clave(b)) {
+        match (fecha_de(a), fecha_de(b)) {
             (Some(x), Some(y)) => y.cmp(&x),
             _ => std::cmp::Ordering::Equal,
         }
@@ -53,20 +53,8 @@ pub fn unir_transacciones(ordenes: &Value, facturas: Option<&Value>) -> Result<V
     Ok(todas)
 }
 
-pub fn dia_argentina(fecha: &DateTime<Utc>) -> NaiveDate {
-    fecha.with_timezone(&argentina()).date_naive()
-}
-
-pub fn del_dia(transacciones: Vec<Value>, ahora: &DateTime<Utc>) -> Result<Vec<Value>, String> {
-    let hoy = dia_argentina(ahora);
-    let mut filtradas = Vec::new();
-    for transaccion in transacciones {
-        let fecha = fecha_de(&transaccion).ok_or_else(|| "Invalid time value".to_string())?;
-        if dia_argentina(&fecha) == hoy {
-            filtradas.push(transaccion);
-        }
-    }
-    Ok(filtradas)
+pub fn del_dia(transacciones: Vec<Value>, hoy: NaiveDate) -> Vec<Value> {
+    transacciones.into_iter().filter(|t| fecha_de(t).is_some_and(|fecha| fecha.date() == hoy)).collect()
 }
 
 pub fn texto_tipo(transaccion: &Value) -> &'static str {
@@ -105,43 +93,20 @@ pub fn texto_metodo(transaccion: &Value) -> String {
     }
 }
 
-pub fn texto_js(valor: Option<&Value>) -> String {
-    match valor {
-        None => "undefined".into(),
-        Some(v) => texto_valor(v),
-    }
-}
-
 pub fn insignia_descuento(transaccion: &Value) -> Option<(String, Option<String>)> {
     if !verdadero(transaccion.get("tieneDescuento")) {
         return None;
     }
     let tipo = &transaccion["tipoDescuento"];
+    let valor = numero(transaccion.get("valorDescuento"));
     let insignia = if tipo == "percentage" || tipo == "porcentual" {
-        format!("{}%", texto_js(transaccion.get("valorDescuento")))
+        format!("{}%", formato::numero(valor))
     } else {
-        format!("${}", miles(numero(transaccion.get("valorDescuento"))))
+        formato::pesos_sin_ceros(valor)
     };
     let subtotal = verdadero(transaccion.get("subtotalSinDescuento"))
-        .then(|| format!("Subtotal: ${}", miles(numero(transaccion.get("subtotalSinDescuento")))));
+        .then(|| format!("Subtotal: {}", formato::pesos_sin_ceros(numero(transaccion.get("subtotalSinDescuento")))));
     Some((insignia, subtotal))
-}
-
-pub fn moneda(valor: f64) -> String {
-    if valor.is_nan() {
-        return "NaN".into();
-    }
-    let texto = format!("{:.2}", valor.abs());
-    let (entera, decimal) = texto.split_once('.').unwrap_or((&texto, "00"));
-    let mut agrupada = String::new();
-    for (indice, digito) in entera.chars().enumerate() {
-        if indice > 0 && (entera.len() - indice) % 3 == 0 {
-            agrupada.push('.');
-        }
-        agrupada.push(digito);
-    }
-    let signo = if valor < 0.0 && texto.trim_start_matches(['0', '.']).len() > 0 { "-" } else { "" };
-    format!("{signo}{agrupada},{decimal}")
 }
 
 pub fn total_mostrado(transaccion: &Value) -> String {
@@ -151,12 +116,12 @@ pub fn total_mostrado(transaccion: &Value) -> String {
     } else {
         numero(transaccion.get("total"))
     };
-    format!("${}", moneda(total))
+    formato::pesos(if total.is_finite() { total } else { 0.0 })
 }
 
 pub fn linea_descuento(transaccion: &Value) -> Option<String> {
     (verdadero(transaccion.get("tieneDescuento")) && verdadero(transaccion.get("montoDescuento")))
-        .then(|| format!("Descuento: -${}", moneda(numero(transaccion.get("montoDescuento")))))
+        .then(|| format!("Descuento: -{}", formato::pesos(numero(transaccion.get("montoDescuento")))))
 }
 
 pub fn numeros_pagina(actual: usize, total: usize) -> Vec<usize> {
@@ -278,19 +243,23 @@ mod pruebas {
     }
 
     #[test]
-    fn filtra_por_dia_argentino() {
-        let ahora = parsear_fecha("2026-10-10T15:36:00.000Z").unwrap();
-        let todas = vec![orden(1, "2026-10-10T02:59:00.000Z"), orden(2, "2026-10-10T03:00:00.000Z"), orden(3, "2026-10-11T02:59:00.000Z")];
-        let hoy = del_dia(todas, &ahora).unwrap();
-        let ids: Vec<i64> = hoy.iter().map(|t| t["id"].as_i64().unwrap()).collect();
+    fn filtra_por_dia_con_la_fecha_que_guarda_el_backend() {
+        let hoy = NaiveDate::from_ymd_opt(2026, 10, 10).unwrap();
+        let todas = vec![
+            orden(1, "2026-10-09T23:59:00.000Z"),
+            orden(2, "2026-10-10T00:30:00.000Z"),
+            orden(3, "2026-10-10T23:59:00.000Z"),
+            orden(4, "2026-10-11T00:00:00.000Z"),
+            json!({ "id": 5 }),
+        ];
+        let ids: Vec<i64> = del_dia(todas, hoy).iter().map(|t| t["id"].as_i64().unwrap()).collect();
         assert_eq!(ids, vec![2, 3]);
-        assert!(del_dia(vec![json!({ "id": 4 })], &ahora).is_err());
     }
 
     #[test]
     fn textos_de_la_tabla() {
         let con_descuento = json!({ "metodoPago": "efectivo", "total": 7650, "tieneDescuento": true, "tipoDescuento": "porcentual", "valorDescuento": 10, "montoDescuento": 850, "subtotalSinDescuento": 8500 });
-        assert_eq!(insignia_descuento(&con_descuento), Some(("10%".into(), Some("Subtotal: $8,500".into()))));
+        assert_eq!(insignia_descuento(&con_descuento), Some(("10%".into(), Some("Subtotal: $8.500".into()))));
         assert_eq!(total_mostrado(&con_descuento), "$7.650,00");
         assert_eq!(linea_descuento(&con_descuento).as_deref(), Some("Descuento: -$850,00"));
         let fijo = json!({ "tieneDescuento": true, "tipoDescuento": "cantidad", "valorDescuento": 500, "total": 23900 });
@@ -300,8 +269,10 @@ mod pruebas {
         assert_eq!(texto_metodo(&json!({ "metodoPago": "qr" })), "Qr");
         assert_eq!(texto_metodo(&json!({ "metodoPago": "mercado pago" })), "Mercado Pago");
         assert_eq!(texto_tipo(&json!({ "tipo": "facturaB" })), "Factura B");
-        assert_eq!(moneda(1234567.891), "1.234.567,89");
-        assert_eq!(moneda(0.0), "0,00");
+        let medio = json!({ "tieneDescuento": true, "tipoDescuento": "porcentual", "valorDescuento": 12.5, "total": 1234567.891 });
+        assert_eq!(insignia_descuento(&medio), Some(("12,5%".into(), None)));
+        assert_eq!(total_mostrado(&medio), "$1.234.567,89");
+        assert_eq!(total_mostrado(&json!({})), "$0,00");
     }
 
     #[test]

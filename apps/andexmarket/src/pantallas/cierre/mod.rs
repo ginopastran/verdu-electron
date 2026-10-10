@@ -2,8 +2,8 @@ pub mod dibujo;
 pub mod manual;
 pub mod resultado;
 
-use chrono::Local;
-use eframe::egui::{self, Color32, CursorIcon, Rect, Response, Sense, StrokeKind, Ui, Vec2};
+use chrono::Utc;
+use eframe::egui::{self, Color32, CursorIcon, Key, Modifiers, Rect, Response, Sense, StrokeKind, Ui, Vec2};
 use nucleo::cierre::{self as logica, AvisoImpresion, FalloCierre};
 use nucleo::entorno;
 use serde_json::Value;
@@ -19,7 +19,7 @@ pub enum ResultadoCierre {
 }
 
 pub enum RespuestaCierre {
-    Hecho { periodo: String, impresion: Value },
+    Hecho { periodo: String, cierre: Value, impresion: Value },
     MananaRequerida,
     Error(String),
 }
@@ -29,6 +29,7 @@ pub struct DialogoCierre {
     abierto: bool,
     tarea: Option<Tarea<RespuestaCierre>>,
     manual: manual::CierreManual,
+    resultado: resultado::DialogoResultadoCierre,
 }
 
 pub fn encabezados_app() -> Vec<(&'static str, &'static str)> {
@@ -57,13 +58,28 @@ pub fn registrar_cierre(servicios: &Servicios, cuerpo: &Value, periodo: String) 
     match logica::fallo_cierre(respuesta.ok(), &respuesta.cuerpo) {
         Some(FalloCierre::MananaRequerida) => RespuestaCierre::MananaRequerida,
         Some(FalloCierre::Mensaje(mensaje)) => RespuestaCierre::Error(mensaje),
-        None => RespuestaCierre::Hecho { periodo, impresion: imprimir(servicios, Comprobante::Cierre, respuesta.cuerpo) },
+        None => {
+            let impresion = imprimir(servicios, Comprobante::Cierre, respuesta.cuerpo.clone());
+            RespuestaCierre::Hecho { periodo, cierre: respuesta.cuerpo, impresion }
+        }
     }
 }
 
+#[derive(Clone, Copy)]
 enum Accion {
     Periodo(&'static str),
     Manual,
+}
+
+const ATAJOS: [(Key, Accion); 4] = [
+    (Key::Num1, Accion::Periodo("mañana")),
+    (Key::Num2, Accion::Periodo("tarde")),
+    (Key::Num3, Accion::Periodo("todo")),
+    (Key::Num4, Accion::Manual),
+];
+
+fn atajo(ctx: &egui::Context) -> Option<Accion> {
+    ctx.input_mut(|i| ATAJOS.iter().find(|(tecla, _)| i.consume_key(Modifiers::NONE, *tecla)).map(|(_, accion)| *accion))
 }
 
 impl DialogoCierre {
@@ -72,7 +88,7 @@ impl DialogoCierre {
     }
 
     pub fn abierto(&self) -> bool {
-        self.abierto
+        self.abierto || self.resultado.abierto()
     }
 
     pub fn cerrando(&self) -> bool {
@@ -87,6 +103,7 @@ impl DialogoCierre {
         let mut resultado = self.recibir(cx);
         if self.abierto {
             let ocupado = self.cerrando();
+            let con_atajos = !ocupado && !self.manual.abierto();
             let respuesta = Dialogo::new("cierre-periodo").ancho(448.0).mostrar(&cx.egui, |ui| {
                 let (titulo, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 18.0), Sense::hover());
                 ui::texto_en(ui, titulo.left_center(), egui::Align2::LEFT_CENTER, "Seleccionar período de cierre", Tam::Lg, Peso::Semi, color::TEXTO);
@@ -120,6 +137,9 @@ impl DialogoCierre {
                         }
                     });
                 }
+                if con_atajos {
+                    accion = accion.or_else(|| atajo(ui.ctx()));
+                }
                 accion
             });
             match respuesta.interior {
@@ -132,16 +152,22 @@ impl DialogoCierre {
                 resultado = Some(ResultadoCierre::Cancelado);
             }
         }
-        self.manual.mostrar(ui, cx);
+        if let Some(cierre) = self.manual.mostrar(ui, cx) {
+            self.abierto = false;
+            self.resultado.abrir(cierre);
+            resultado = Some(ResultadoCierre::Completado);
+        }
+        self.resultado.mostrar(ui, cx);
         resultado
     }
 
     fn recibir(&mut self, cx: &mut Contexto) -> Option<ResultadoCierre> {
         match esperar(&mut self.tarea)? {
-            RespuestaCierre::Hecho { periodo, impresion } => {
+            RespuestaCierre::Hecho { periodo, cierre, impresion } => {
                 avisar_impresion(&cx.egui, &impresion);
                 toast::exito(&cx.egui, format!("Cierre de {periodo} realizado correctamente"));
                 self.abierto = false;
+                self.resultado.abrir(cierre);
                 Some(ResultadoCierre::Completado)
             }
             RespuestaCierre::MananaRequerida => {
@@ -171,7 +197,7 @@ impl DialogoCierre {
             self.abierto = false;
             return Some(ResultadoCierre::Cancelado);
         }
-        let (inicio, fin) = logica::rango_periodo(periodo, &Local::now());
+        let (inicio, fin) = logica::rango_periodo(periodo, &Utc::now());
         let cuerpo = logica::cuerpo_cierre(&usuario, periodo, &inicio, &fin);
         let servicios = cx.servicios.clone();
         self.tarea = Some(Tarea::lanzar(&cx.egui, move || registrar_cierre(&servicios, &cuerpo, periodo.to_string())));

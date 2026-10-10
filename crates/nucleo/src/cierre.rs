@@ -9,33 +9,29 @@ pub fn argentina() -> FixedOffset {
     FixedOffset::west_opt(3 * 3600).expect("UTC-3")
 }
 
-fn tres_horas() -> Duration {
-    Duration::hours(3)
+pub fn hora_argentina<Tz: TimeZone>(instante: &DateTime<Tz>) -> NaiveDateTime {
+    instante.with_timezone(&argentina()).naive_local()
 }
 
-fn local_a_utc<Tz: TimeZone>(zona: &Tz, fecha: NaiveDateTime) -> DateTime<Utc> {
-    zona.from_local_datetime(&fecha)
-        .earliest()
-        .unwrap_or_else(|| zona.from_utc_datetime(&fecha))
-        .with_timezone(&Utc)
+pub fn ahora_argentina() -> NaiveDateTime {
+    hora_argentina(&Utc::now())
 }
 
-pub fn rango_periodo<Tz: TimeZone>(periodo: &str, ahora: &DateTime<Tz>) -> (DateTime<Utc>, DateTime<Utc>) {
-    let fin = ahora.with_timezone(&Utc) - tres_horas();
+pub fn rango_periodo<Tz: TimeZone>(periodo: &str, ahora: &DateTime<Tz>) -> (NaiveDateTime, NaiveDateTime) {
+    let fin = hora_argentina(ahora);
     let hora_inicio = if periodo == "tarde" { 12 } else { 0 };
-    let dia = ahora.date_naive().and_hms_opt(hora_inicio, 0, 0).expect("hora válida");
-    let mut inicio = local_a_utc(&ahora.timezone(), dia) - tres_horas();
+    let mut inicio = fin.date().and_hms_opt(hora_inicio, 0, 0).expect("hora válida");
     if inicio >= fin {
         inicio -= Duration::days(1);
     }
     (inicio, fin)
 }
 
-pub fn iso(fecha: &DateTime<Utc>) -> String {
+pub fn iso(fecha: &NaiveDateTime) -> String {
     fecha.format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string()
 }
 
-pub fn cuerpo_cierre(usuario: &Value, periodo: &str, inicio: &DateTime<Utc>, fin: &DateTime<Utc>) -> Value {
+pub fn cuerpo_cierre(usuario: &Value, periodo: &str, inicio: &NaiveDateTime, fin: &NaiveDateTime) -> Value {
     let mut cuerpo = Map::new();
     for (clave, origen) in [("vendedorId", "id"), ("sucursalId", "sucursalId")] {
         if let Some(valor) = usuario.get(origen) {
@@ -77,7 +73,7 @@ fn numero_js(texto: &str) -> Value {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Hora {
     pub hora: u32,
     pub minuto: u32,
@@ -90,41 +86,32 @@ impl Hora {
 }
 
 pub fn validar_manual(
-    inicio: Option<NaiveDateTime>,
-    fin: Option<NaiveDateTime>,
+    inicio: NaiveDate,
+    fin: NaiveDate,
     vendedor_id: &str,
     sucursal_id: &str,
     hora_inicio: Hora,
     hora_fin: Hora,
-) -> Result<(NaiveDate, NaiveDate), &'static str> {
-    let (Some(inicio), Some(fin)) = (inicio, fin) else {
-        return Err("Por favor, completa todos los campos.");
-    };
+) -> Result<(), &'static str> {
     if vendedor_id.is_empty() || sucursal_id.is_empty() {
         return Err("Por favor, completa todos los campos.");
     }
     if fin < inicio {
         return Err("La fecha de fin no puede ser anterior a la fecha de inicio.");
     }
-    if inicio == fin && (hora_inicio.hora, hora_inicio.minuto) >= (hora_fin.hora, hora_fin.minuto) {
+    if inicio == fin && hora_inicio >= hora_fin {
         return Err("La hora de fin debe ser posterior a la hora de inicio.");
     }
-    Ok((inicio.date(), fin.date()))
+    Ok(())
 }
 
-pub fn rango_manual<Tz: TimeZone>(
-    zona: &Tz,
-    inicio: NaiveDate,
-    hora_inicio: Hora,
-    fin: NaiveDate,
-    hora_fin: Hora,
-) -> (DateTime<Utc>, DateTime<Utc>) {
+pub fn rango_manual(inicio: NaiveDate, hora_inicio: Hora, fin: NaiveDate, hora_fin: Hora) -> (NaiveDateTime, NaiveDateTime) {
     let desde = inicio.and_hms_milli_opt(hora_inicio.hora, hora_inicio.minuto, 0, 0).expect("hora válida");
     let hasta = fin.and_hms_milli_opt(hora_fin.hora, hora_fin.minuto, 59, 999).expect("hora válida");
-    (local_a_utc(zona, desde) - tres_horas(), local_a_utc(zona, hasta) - tres_horas())
+    (desde, hasta)
 }
 
-pub fn cuerpo_manual(vendedor_id: &str, sucursal_id: &str, inicio: &DateTime<Utc>, fin: &DateTime<Utc>) -> Value {
+pub fn cuerpo_manual(vendedor_id: &str, sucursal_id: &str, inicio: &NaiveDateTime, fin: &NaiveDateTime) -> Value {
     json!({
         "vendedorId": numero_js(vendedor_id),
         "sucursalId": numero_js(sucursal_id),
@@ -154,55 +141,20 @@ pub fn fecha_larga(fecha: NaiveDate) -> String {
     format!("{} de {} de {}", fecha.day(), MESES[fecha.month0() as usize], fecha.year())
 }
 
-pub fn parsear_fecha(texto: &str) -> Option<DateTime<Utc>> {
+pub fn fecha_literal(texto: &str) -> Option<NaiveDateTime> {
     if let Ok(fecha) = DateTime::parse_from_rfc3339(texto) {
-        return Some(fecha.with_timezone(&Utc));
+        return Some(fecha.naive_local());
     }
     for formato in ["%Y-%m-%dT%H:%M:%S%.f", "%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M:%S%.f"] {
         if let Ok(fecha) = NaiveDateTime::parse_from_str(texto, formato) {
-            return Some(local_a_utc(&chrono::Local, fecha));
+            return Some(fecha);
         }
     }
-    NaiveDate::parse_from_str(texto, "%Y-%m-%d")
-        .ok()
-        .map(|dia| Utc.from_utc_datetime(&dia.and_hms_opt(0, 0, 0).expect("medianoche")))
-}
-
-pub fn fecha_argentina_en<Tz: TimeZone>(fecha: &DateTime<Utc>, zona: &Tz) -> String {
-    let corrida = (*fecha + tres_horas()).with_timezone(zona);
-    corrida.naive_local().format("%d/%m/%Y, %H:%M").to_string()
+    NaiveDate::parse_from_str(texto, "%Y-%m-%d").ok().and_then(|dia| dia.and_hms_opt(0, 0, 0))
 }
 
 pub fn fecha_argentina(texto: &str) -> String {
-    parsear_fecha(texto)
-        .map(|fecha| fecha_argentina_en(&fecha, &chrono::Local))
-        .unwrap_or_else(|| "Invalid Date".into())
-}
-
-pub fn miles(valor: f64) -> String {
-    if valor.is_nan() {
-        return "NaN".into();
-    }
-    if valor.is_infinite() {
-        return if valor > 0.0 { "∞".into() } else { "-∞".into() };
-    }
-    let redondeado = (valor.abs() * 1000.0).round() / 1000.0;
-    let texto = format!("{redondeado:.3}");
-    let (entera, decimal) = texto.split_once('.').unwrap_or((&texto, ""));
-    let decimal = decimal.trim_end_matches('0');
-    let mut agrupada = String::new();
-    for (indice, digito) in entera.chars().enumerate() {
-        if indice > 0 && (entera.len() - indice) % 3 == 0 {
-            agrupada.push(',');
-        }
-        agrupada.push(digito);
-    }
-    let signo = if valor < 0.0 && redondeado != 0.0 { "-" } else { "" };
-    if decimal.is_empty() {
-        format!("{signo}{agrupada}")
-    } else {
-        format!("{signo}{agrupada}.{decimal}")
-    }
+    fecha_literal(texto).map(|fecha| fecha.format("%d/%m/%Y %H:%M").to_string()).unwrap_or_else(|| "Fecha inválida".into())
 }
 
 pub fn numero(valor: Option<&Value>) -> f64 {
@@ -286,11 +238,26 @@ mod pruebas {
         argentina().from_local_datetime(&NaiveDateTime::parse_from_str(texto, "%Y-%m-%d %H:%M:%S%.f").unwrap()).unwrap()
     }
 
+    fn en_utc(texto: &str) -> DateTime<Utc> {
+        Utc.from_utc_datetime(&NaiveDateTime::parse_from_str(texto, "%Y-%m-%d %H:%M:%S%.f").unwrap())
+    }
+
     #[test]
-    fn periodo_manana_va_de_medianoche_a_ahora_corridos_tres_horas() {
+    fn periodo_manana_va_de_medianoche_a_ahora_en_hora_argentina() {
         let (inicio, fin) = rango_periodo("mañana", &en_argentina("2026-10-10 09:37:00.619"));
         assert_eq!(iso(&inicio), "2026-10-10T00:00:00.000Z");
         assert_eq!(iso(&fin), "2026-10-10T09:37:00.619Z");
+    }
+
+    #[test]
+    fn el_rango_no_depende_del_huso_de_la_pc() {
+        let argentina = rango_periodo("mañana", &en_argentina("2026-10-10 09:37:00.619"));
+        assert_eq!(rango_periodo("mañana", &en_utc("2026-10-10 12:37:00.619")), argentina);
+        let madrid = FixedOffset::east_opt(2 * 3600).unwrap();
+        assert_eq!(rango_periodo("mañana", &en_utc("2026-10-10 12:37:00.619").with_timezone(&madrid)), argentina);
+        let (inicio, fin) = rango_periodo("todo", &en_utc("2026-10-11 01:30:00.000"));
+        assert_eq!(iso(&inicio), "2026-10-10T00:00:00.000Z");
+        assert_eq!(iso(&fin), "2026-10-10T22:30:00.000Z");
     }
 
     #[test]
@@ -333,9 +300,9 @@ mod pruebas {
     }
 
     #[test]
-    fn rango_manual_resta_tres_horas_y_cierra_al_segundo_59() {
+    fn rango_manual_en_hora_argentina_y_cierra_al_segundo_59() {
         let dia = NaiveDate::from_ymd_opt(2026, 10, 10).unwrap();
-        let (inicio, fin) = rango_manual(&argentina(), dia, Hora { hora: 0, minuto: 0 }, dia, Hora { hora: 23, minuto: 59 });
+        let (inicio, fin) = rango_manual(dia, Hora { hora: 0, minuto: 0 }, dia, Hora { hora: 23, minuto: 59 });
         assert_eq!(iso(&inicio), "2026-10-10T00:00:00.000Z");
         assert_eq!(iso(&fin), "2026-10-10T23:59:59.999Z");
         let cuerpo = cuerpo_manual("11", "1", &inicio, &fin);
@@ -347,22 +314,18 @@ mod pruebas {
 
     #[test]
     fn validaciones_del_cierre_manual() {
-        let ahora = NaiveDate::from_ymd_opt(2026, 10, 10).unwrap().and_hms_opt(15, 0, 0).unwrap();
-        let ayer = ahora - Duration::days(1);
+        let hoy = NaiveDate::from_ymd_opt(2026, 10, 10).unwrap();
+        let ayer = hoy - Duration::days(1);
         let cero = Hora { hora: 0, minuto: 0 };
+        let ahora = Hora { hora: 15, minuto: 42 };
         let fin = Hora { hora: 23, minuto: 59 };
-        assert_eq!(validar_manual(None, Some(ahora), "11", "1", cero, fin), Err("Por favor, completa todos los campos."));
-        assert_eq!(validar_manual(Some(ahora), Some(ahora), "11", "", cero, fin), Err("Por favor, completa todos los campos."));
-        assert_eq!(
-            validar_manual(Some(ahora), Some(ayer), "11", "1", cero, fin),
-            Err("La fecha de fin no puede ser anterior a la fecha de inicio.")
-        );
-        assert_eq!(
-            validar_manual(Some(ahora), Some(ahora), "11", "1", fin, cero),
-            Err("La hora de fin debe ser posterior a la hora de inicio.")
-        );
-        assert_eq!(validar_manual(Some(ahora), Some(ahora), "11", "1", cero, cero), Err("La hora de fin debe ser posterior a la hora de inicio."));
-        assert!(validar_manual(Some(ayer), Some(ahora), "11", "1", fin, cero).is_ok());
+        assert_eq!(validar_manual(hoy, hoy, "11", "", cero, fin), Err("Por favor, completa todos los campos."));
+        assert_eq!(validar_manual(hoy, ayer, "11", "1", cero, fin), Err("La fecha de fin no puede ser anterior a la fecha de inicio."));
+        assert_eq!(validar_manual(hoy, hoy, "11", "1", fin, cero), Err("La hora de fin debe ser posterior a la hora de inicio."));
+        assert_eq!(validar_manual(hoy, hoy, "11", "1", cero, cero), Err("La hora de fin debe ser posterior a la hora de inicio."));
+        assert_eq!(validar_manual(hoy, hoy, "11", "1", Hora { hora: 15, minuto: 43 }, ahora), Err("La hora de fin debe ser posterior a la hora de inicio."));
+        assert_eq!(validar_manual(hoy, hoy, "11", "1", cero, ahora), Ok(()));
+        assert_eq!(validar_manual(ayer, hoy, "11", "1", fin, cero), Ok(()));
     }
 
     #[test]
@@ -380,18 +343,10 @@ mod pruebas {
     #[test]
     fn fechas_en_castellano_y_en_formato_argentino() {
         assert_eq!(fecha_larga(NaiveDate::from_ymd_opt(2026, 10, 10).unwrap()), "10 de octubre de 2026");
-        let fecha = parsear_fecha("2026-10-10T15:23:37.370Z").unwrap();
-        assert_eq!(fecha_argentina_en(&fecha, &argentina()), "10/10/2026, 15:23");
-    }
-
-    #[test]
-    fn miles_imita_to_locale_string() {
-        assert_eq!(miles(186450.0), "186,450");
-        assert_eq!(miles(8500.0), "8,500");
-        assert_eq!(miles(1234.5678), "1,234.568");
-        assert_eq!(miles(-500.0), "-500");
-        assert_eq!(miles(0.0), "0");
-        assert_eq!(miles(f64::NAN), "NaN");
+        assert_eq!(fecha_argentina("2026-10-10T15:23:37.370Z"), "10/10/2026 15:23");
+        assert_eq!(fecha_argentina("2026-10-10T01:05:00.000Z"), "10/10/2026 01:05");
+        assert_eq!(fecha_argentina("2026-10-10"), "10/10/2026 00:00");
+        assert_eq!(fecha_argentina("basura"), "Fecha inválida");
     }
 
     #[test]

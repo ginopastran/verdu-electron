@@ -1,8 +1,7 @@
 use std::time::Duration;
 
-use chrono::Utc;
 use eframe::egui::{self, Align2, Color32, CursorIcon, Rect, Response, Sense, StrokeKind, Ui, Vec2};
-use nucleo::cierre::{fecha_argentina, id_texto, verdadero};
+use nucleo::cierre::{ahora_argentina, fecha_argentina, id_texto, verdadero};
 use nucleo::pedidos as logica;
 use serde_json::Value;
 
@@ -43,7 +42,7 @@ pub fn traer_transacciones(servicios: &Servicios, vendedor_id: &str, incluir_fac
     let ordenes = traer(format!("/api/ordenes/vendedor/{vendedor_id}"))?;
     let facturas = if incluir_facturas { Some(traer(format!("/api/facturas/vendedor/{vendedor_id}"))?) } else { None };
     let todas = logica::unir_transacciones(&ordenes, facturas.as_ref())?;
-    logica::del_dia(todas, &Utc::now())
+    Ok(logica::del_dia(todas, ahora_argentina().date()))
 }
 
 pub fn reimprimir(servicios: &Servicios, orden: &Value, doble: bool) -> Vec<Value> {
@@ -257,7 +256,9 @@ impl DialogoPedidos {
         for (posicion, ((indice, transaccion), alto)) in visibles.iter().zip(&altos).enumerate() {
             let fila = Rect::from_min_size(egui::pos2(cabecera.left(), y), Vec2::new(interior, *alto));
             let contenido = Rect::from_min_max(fila.min, egui::pos2(fila.right(), fila.bottom() - 1.0));
-            if posicion % 2 == 1 {
+            if ui.rect_contains_pointer(contenido) {
+                pintor.rect_filled(contenido, 0, ui::mezclar(Color32::WHITE, paleta::EMERALD_50, 0.5));
+            } else if posicion % 2 == 1 {
                 pintor.rect_filled(contenido, 0, paleta::GRAY_50.gamma_multiply(0.5));
             }
             if posicion + 1 < visibles.len() {

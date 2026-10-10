@@ -379,7 +379,7 @@ fn imprimir(datos: &Value, logo_defecto: &Path, ahora: Ahora) -> Option<Vec<u8>>
         ticket.texto(&format!("Desde: {}\n", formatear_fecha(inicio)));
         ticket.texto(&format!("Hasta: {}\n", formatear_fecha(fin)));
     } else {
-        ticket.texto(&format!("Fecha inicio: {}\n", formatear_fecha(inicio.date().and_hms_opt(0, 0, 0)?)));
+        ticket.texto(&format!("Fecha inicio: {}\n", formatear_fecha(inicio)));
         ticket.texto(&format!("Fecha cierre: {}\n", formatear_fecha(fin)));
     }
     ticket.texto(SEPARADOR);
@@ -553,6 +553,14 @@ mod tests {
         for datos in casos {
             assert!(cierre(&datos, Path::new("no-existe.png"), ahora_fija()).is_empty(), "{datos}");
         }
+    }
+
+    #[test]
+    fn fecha_inicio_con_la_hora_real_del_cierre() {
+        let datos = json!({"periodo": "tarde", "fechaInicio": "2026-10-10T09:37:00.619Z", "fechaCierre": "2026-10-10T20:15:00.000Z", "totalVentas": 1, "cantidadVentas": 1});
+        let texto = String::from_utf8_lossy(&cierre(&datos, Path::new("no-existe.png"), ahora_fija())).into_owned();
+        assert!(texto.contains("Fecha inicio: 10/10/2026 09:37\n"), "{texto}");
+        assert!(texto.contains("Fecha cierre: 10/10/2026 20:15\n"), "{texto}");
     }
 
     #[test]
