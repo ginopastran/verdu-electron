@@ -1,4 +1,4 @@
-use eframe::egui::{self, Align, CursorIcon, Id, Key, Layout, Pos2, Rect, Response, Sense, Stroke, StrokeKind, Ui, Vec2};
+use eframe::egui::{self, Align, CursorIcon, Id, Key, Layout, Pos2, Rect, Response, Sense, Stroke, StrokeKind, Ui, Vec2, WidgetInfo, WidgetType};
 use nucleo::carrito::Producto;
 use serde_json::Value;
 
@@ -68,6 +68,7 @@ fn tarjetas_listas(ui: &mut Ui, opciones: &[(String, String)], elegida: usize) -
                     pintor.galley(Pos2::new(x, rect.top() + 11.5), nombre, tinta_nombre);
                     pintor.galley(Pos2::new(x, rect.top() + 11.5 + alto_nombre + 2.0), precio, color::TEXTO);
                 });
+                respuesta.widget_info(|| WidgetInfo::selected(WidgetType::RadioButton, true, activa, nombre));
                 if respuesta.clicked() {
                     elegido = Some(indice);
                 }
@@ -91,6 +92,7 @@ fn interruptor(ui: &mut Ui, activo: &mut bool, etiqueta: &str) {
     pintor.add(sombra::SEGMENTO.forma(perilla, radio::PASTILLA));
     pintor.rect_filled(perilla, radio::PASTILLA, color::BLANCO);
     pintor.galley(Pos2::new(pista.right() + 10.0, rect.center().y - texto.size().y / 2.0), texto, color::TEXTO_SECUNDARIO);
+    respuesta.widget_info(|| WidgetInfo::selected(WidgetType::Checkbox, true, *activo, etiqueta));
     respuesta.on_hover_cursor(CursorIcon::PointingHand);
 }
 

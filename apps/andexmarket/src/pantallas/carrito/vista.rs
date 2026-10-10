@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use eframe::egui::{
-    self, Align, Color32, Context, CornerRadius, CursorIcon, Galley, Id, Layout, Pos2, Rect, Response, ScrollArea, Sense, Stroke, StrokeKind, Ui,
+    Align, Color32, Context, CornerRadius, CursorIcon, Galley, Id, Layout, Pos2, Rect, Response, ScrollArea, Sense, Stroke, StrokeKind, Ui,
     UiBuilder, Vec2,
 };
 use nucleo::carrito::{Carritos, Producto};
@@ -461,6 +461,7 @@ pub fn tabla(ui: &mut Ui, caja: Rect, filas: &[Fila], permite_borrar: bool, dest
             let ancho_unidad = unidad.size().x;
             pintor.galley(Pos2::new(x, centro_detalle - unidad.size().y / 2.0), unidad, color::TEXTO_TENUE);
             if let Some(chip) = chip {
+                let pintor = pintor.with_clip_rect(c[0].intersect(pintor.clip_rect()));
                 let caja_chip = Rect::from_center_size(Pos2::new(x + ancho_unidad + 6.0 + (chip.size().x + 14.0) / 2.0, centro_detalle), chip.size() + Vec2::new(14.0, 2.0));
                 pintor.rect_filled(caja_chip, radio::CHIP, color::DORADO_FONDO);
                 pintor.galley(caja_chip.center() - chip.size() / 2.0, chip, color::DORADO_TEXTO);
@@ -581,23 +582,25 @@ pub fn panel(ui: &mut Ui, area: Rect, datos: &Panel) -> Option<AccionPanel> {
 fn boton_cobrar(ui: &mut Ui, rect: Rect, datos: &Panel) -> bool {
     let respuesta = clic(ui, rect, Id::new("accion-cobrar"));
     let avance = ui.ctx().animate_bool_with_time(respuesta.id.with("hover"), respuesta.hovered(), 0.15);
-    let mut hijo = ui.new_child(UiBuilder::new().max_rect(rect));
-    hijo.set_opacity(if datos.productos > 0 { 1.0 } else { 0.55 });
-    let pintor = hijo.painter().clone();
-    pintor.add(sombra::BOTON_COBRAR.forma(rect, radio::POPOVER));
-    pintor.rect_filled(rect, radio::POPOVER, mezclar(color::VERDE, color::VERDE_PROFUNDO, avance));
-    pintar_icono_solar_en(&hijo, Rect::from_min_size(Pos2::new(rect.left() + 18.0, rect.center().y - 13.0), Vec2::splat(26.0)), "wallet", color::DORADO);
+    let opacidad = if datos.productos > 0 { 1.0 } else { 0.55 };
+    let tinte = |c: Color32| mezclar(color::BLANCO, c, opacidad);
+    let mut sombra_apagada = ui.new_child(UiBuilder::new().max_rect(rect));
+    sombra_apagada.set_opacity(opacidad);
+    sombra_apagada.painter().add(sombra::BOTON_COBRAR.forma(rect, radio::POPOVER));
+    let pintor = ui.painter().clone();
+    pintor.rect_filled(rect, radio::POPOVER, tinte(mezclar(color::VERDE, color::VERDE_PROFUNDO, avance)));
+    pintar_icono_solar_en(ui, Rect::from_min_size(Pos2::new(rect.left() + 18.0, rect.center().y - 13.0), Vec2::splat(26.0)), "wallet", tinte(color::DORADO));
     let (titulo, detalle) = if datos.afip { ("Cobrar con factura", "Factura B en AFIP") } else { ("Cobrar", "Efectivo, tarjeta, QR o mixto") };
-    let titulo = galeria(&hijo, titulo, tam::FILA, Peso::Semi, color::BLANCO);
-    let detalle = galeria(&hijo, detalle, tam::XS, Peso::Normal, color::SOBRE_OSCURO_APAGADO);
+    let titulo = galeria(ui, titulo, tam::FILA, Peso::Semi, color::BLANCO);
+    let detalle = galeria(ui, detalle, tam::XS, Peso::Normal, tinte(color::SOBRE_OSCURO_APAGADO));
     let x = rect.left() + 18.0 + 26.0 + 14.0;
     let arriba = rect.center().y - (titulo.size().y + 1.0 + detalle.size().y) / 2.0;
     let alto_titulo = titulo.size().y;
     pintor.galley(Pos2::new(x, arriba), titulo, color::BLANCO);
-    pintor.galley(Pos2::new(x, arriba + alto_titulo + 1.0), detalle, color::SOBRE_OSCURO_APAGADO);
-    let tam_tecla = v2::medir_tecla(&hijo, "F2", &EstiloTecla::SOBRE_OSCURO);
+    pintor.galley(Pos2::new(x, arriba + alto_titulo + 1.0), detalle, tinte(color::SOBRE_OSCURO_APAGADO));
+    let tam_tecla = v2::medir_tecla(ui, "F2", &EstiloTecla::SOBRE_OSCURO);
     let tecla = Rect::from_min_size(Pos2::new(rect.right() - 18.0 - tam_tecla.x, rect.center().y - tam_tecla.y / 2.0), tam_tecla);
-    v2::pintar_tecla(&hijo, tecla, "F2", &EstiloTecla::SOBRE_OSCURO, color::BLANCO);
+    v2::pintar_tecla(ui, tecla, "F2", &EstiloTecla::SOBRE_OSCURO, color::BLANCO);
     respuesta.clicked()
 }
 
