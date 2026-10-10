@@ -2,8 +2,10 @@ pub mod contenedores;
 pub mod controles;
 pub mod degradado;
 pub mod iconos;
+pub mod marca;
 pub mod paleta;
 pub mod toast;
+pub mod v2;
 
 use std::sync::Arc;
 
@@ -169,6 +171,21 @@ pub fn instalar(ctx: &egui::Context) {
         cadena.extend(fuentes.families[&FontFamily::Proportional].iter().cloned());
         if nombre == "inter-400" {
             fuentes.families.insert(FontFamily::Proportional, cadena);
+        } else {
+            fuentes.families.insert(FontFamily::Name(nombre.into()), cadena);
+        }
+    }
+    let mono: [(&str, &'static [u8]); 3] = [
+        ("geist-mono-400", include_bytes!("../../../../assets/fuentes/GeistMono-Regular.ttf")),
+        ("geist-mono-500", include_bytes!("../../../../assets/fuentes/GeistMono-Medium.ttf")),
+        ("geist-mono-600", include_bytes!("../../../../assets/fuentes/GeistMono-SemiBold.ttf")),
+    ];
+    for (nombre, bytes) in mono {
+        fuentes.font_data.insert(nombre.into(), Arc::new(FontData::from_static(bytes)));
+        let mut cadena = vec![nombre.to_string()];
+        cadena.extend(fuentes.families[&FontFamily::Monospace].iter().cloned());
+        if nombre == "geist-mono-400" {
+            fuentes.families.insert(FontFamily::Monospace, cadena);
         } else {
             fuentes.families.insert(FontFamily::Name(nombre.into()), cadena);
         }
