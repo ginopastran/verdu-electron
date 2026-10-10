@@ -4,7 +4,6 @@ use eframe::egui::{self, Align, Align2, Area, Color32, Context, CursorIcon, Fram
 use nucleo::carrito::Producto;
 use nucleo::cobros::{self, Descuento, TipoDescuento};
 use nucleo::formato;
-use serde_json::Value;
 
 use super::{dinero, Cobro, Lado, ResultadoCobro};
 use crate::app::Contexto;
