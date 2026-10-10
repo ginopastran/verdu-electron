@@ -108,6 +108,12 @@ impl CierreManual {
         self.abierto
     }
 
+    pub fn fijar(&mut self, inicio: NaiveDate, fin: NaiveDate, horas: [usize; 4]) {
+        self.inicio = inicio;
+        self.fin = fin;
+        self.horas = horas;
+    }
+
     fn valores_por_defecto(&mut self, ahora: NaiveDateTime) {
         self.inicio = ahora.date();
         self.fin = ahora.date();

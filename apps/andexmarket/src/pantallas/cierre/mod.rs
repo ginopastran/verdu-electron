@@ -103,6 +103,10 @@ impl DialogoCierre {
         self.manual.abierto()
     }
 
+    pub fn fijar_manual(&mut self, inicio: chrono::NaiveDate, fin: chrono::NaiveDate, horas: [usize; 4]) {
+        self.manual.fijar(inicio, fin, horas);
+    }
+
     pub fn mostrar(&mut self, ui: &mut Ui, cx: &mut Contexto) -> Option<ResultadoCierre> {
         let mut resultado = self.recibir(cx);
         if self.abierto && !self.manual.abierto() {
