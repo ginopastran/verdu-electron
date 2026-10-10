@@ -1,637 +1,251 @@
-use std::hash::Hash;
-use std::sync::Arc;
+use eframe::egui::{self, Align, Align2, Color32, CursorIcon, Frame, Layout, Margin, Pos2, Rect, Response, ScrollArea, Sense, Stroke, StrokeKind, Ui, UiBuilder, Vec2};
+use nucleo::facturas::{self as logica, EstadoTarjeta};
+use nucleo::formato;
+use serde_json::Value;
 
-use eframe::egui::text::LayoutJob;
-use eframe::egui::{
-    self, Align2, Color32, CursorIcon, FontId, Galley, Id, Popup, PopupCloseBehavior, Rect, RectAlign, Response,
-    Sense, Stroke, StrokeKind, TextFormat, Ui, Vec2,
-};
+use super::{numero, pesos, texto};
+use crate::ui::marca::{alto, color, fuente, radio, tam};
+use crate::ui::v2::{self, tarjetas::celda_texto, Boton, Estilo};
+use crate::ui::{imagen, pintar_icono_solar_en, Peso};
 
-use crate::ui::{self, color, fuente, paleta, Direccion, Peso, Tam, RADIO, RADIO_SM, RADIO_XL};
+pub const RELLENO_CHIP_TIPO: Vec2 = Vec2::new(7.0, 1.0);
+pub const RELLENO_CHIP_ESTADO: Vec2 = Vec2::new(8.0, 2.0);
 
-pub struct Bloque {
-    pub galeria: Arc<Galley>,
-    pub alto_linea: f32,
-    desfase: f32,
+pub fn fondo(ui: &Ui) {
+    ui.painter().rect_filled(ui.max_rect(), 0, color::FONDO_APP);
 }
 
-impl Bloque {
-    pub fn ancho(&self) -> f32 {
-        self.galeria.size().x
-    }
-
-    pub fn alto(&self) -> f32 {
-        self.galeria.rows.len().max(1) as f32 * self.alto_linea
-    }
-
-    pub fn pintar(&self, ui: &Ui, pos: egui::Pos2, color: Color32) {
-        ui.painter().galley(pos + Vec2::new(0.0, self.desfase), self.galeria.clone(), color);
-    }
+pub fn encabezado(ui: &mut Ui, volver: &str, titulo: &str) -> bool {
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), alto::ENCABEZADO), Sense::hover());
+    ui.painter().rect_filled(rect, 0, color::VERDE_PROFUNDO);
+    let mut fila = ui.new_child(UiBuilder::new().max_rect(rect.shrink2(Vec2::new(20.0, 0.0))).layout(Layout::left_to_right(Align::Center)));
+    fila.spacing_mut().item_spacing.x = 16.0;
+    let clic = Boton::new(volver, Estilo::FantasmaOscuro)
+        .icono("arrow-left")
+        .tam_icono(19.0)
+        .color_icono(color::SOBRE_OSCURO)
+        .alto(alto::CONTROL)
+        .relleno(12.0)
+        .radio(radio::CONTROL)
+        .tam_texto(tam::CUERPO)
+        .peso(Peso::Medio)
+        .ui(&mut fila)
+        .clicked();
+    v2::separador_vertical(&mut fila, 28.0, color::VERDE);
+    v2::texto(&mut fila, titulo, tam::FILA, Peso::Semi, color::BLANCO);
+    fila.with_layout(Layout::right_to_left(Align::Center), |ui| {
+        ui.add(imagen("andex-market-text.png").fit_to_exact_size(Vec2::new(112.0, 112.0 * 28.0 / 230.0)).tint(Color32::from_white_alpha(230)));
+    });
+    clic
 }
 
-pub fn bloque(ui: &Ui, texto: &str, tam: Tam, peso: Peso, color: Color32, ancho_max: f32) -> Bloque {
-    bloque_alto(ui, texto, tam, peso, color, ancho_max, tam.alto_linea())
+pub fn tarjeta(relleno_x: i8, relleno_y: i8) -> Frame {
+    Frame::NONE
+        .fill(color::BLANCO)
+        .stroke(Stroke::new(1.0, color::BORDE))
+        .corner_radius(radio::TARJETA)
+        .inner_margin(Margin::symmetric(relleno_x, relleno_y))
 }
 
-pub fn bloque_alto(ui: &Ui, texto: &str, tam: Tam, peso: Peso, color: Color32, ancho_max: f32, alto_linea: f32) -> Bloque {
-    let fuente_id = fuente(tam, peso);
-    let alto_fila = ui.ctx().fonts_mut(|f| f.row_height(&fuente_id));
-    let envuelto = envolver(ui, texto, &fuente_id, ancho_max);
-    let mut formato = TextFormat::simple(fuente_id, color);
-    formato.line_height = Some(alto_linea.max(alto_fila));
-    let trabajo = LayoutJob::single_section(envuelto, formato);
-    let galeria = ui.painter().layout_job(trabajo);
-    Bloque { galeria, alto_linea: alto_linea.max(alto_fila), desfase: ((alto_linea - alto_fila) / 2.0).max(0.0) }
+pub fn medir_chip(ui: &Ui, contenido: &str, px: f32, relleno: Vec2) -> Vec2 {
+    v2::galeria(ui, contenido, fuente(px, Peso::Semi), color::TEXTO).size() + relleno * 2.0
 }
 
-fn trozos(texto: &str) -> Vec<&str> {
-    let mut trozos = Vec::new();
-    let mut inicio = 0;
-    for (indice, caracter) in texto.char_indices() {
-        if caracter == ' ' || caracter == '-' {
-            let fin = indice + caracter.len_utf8();
-            trozos.push(&texto[inicio..fin]);
-            inicio = fin;
-        }
-    }
-    if inicio < texto.len() {
-        trozos.push(&texto[inicio..]);
-    }
-    trozos
+pub fn pintar_chip(ui: &Ui, pos: Pos2, contenido: &str, px: f32, relleno: Vec2, fondo: Color32, tinta: Color32) -> Rect {
+    let g = v2::galeria(ui, contenido, fuente(px, Peso::Semi), tinta);
+    let rect = Rect::from_min_size(pos, g.size() + relleno * 2.0);
+    ui.painter().rect_filled(rect, radio::CHIP, fondo);
+    ui.painter().galley(rect.min + relleno, g, tinta);
+    rect
 }
 
-fn envolver(ui: &Ui, texto: &str, fuente_id: &FontId, ancho_max: f32) -> String {
-    if !ancho_max.is_finite() {
-        return texto.to_string();
-    }
-    let medir = |t: &str| ui.painter().layout_no_wrap(t.trim_end().to_string(), fuente_id.clone(), Color32::WHITE).size().x;
-    let mut lineas: Vec<String> = Vec::new();
-    let mut actual = String::new();
-    for trozo in trozos(texto) {
-        let candidata = format!("{actual}{trozo}");
-        if !actual.is_empty() && medir(&candidata) > ancho_max {
-            lineas.push(actual.trim_end().to_string());
-            actual = trozo.to_string();
-        } else {
-            actual = candidata;
-        }
-    }
-    lineas.push(actual.trim_end().to_string());
-    lineas.join("\n")
-}
-
-pub fn ancho_texto(ui: &Ui, texto: &str, tam: Tam, peso: Peso) -> f32 {
-    ui.painter().layout_no_wrap(texto.to_string(), fuente(tam, peso), Color32::WHITE).size().x
-}
-
-pub fn ancho_minimo(ui: &Ui, texto: &str, tam: Tam, peso: Peso) -> f32 {
-    trozos(texto).into_iter().map(|trozo| ancho_texto(ui, trozo.trim_end(), tam, peso)).fold(0.0, f32::max)
-}
-
-pub fn texto_en(ui: &Ui, pos: egui::Pos2, ancla: Align2, texto: &str, tam: Tam, peso: Peso, color: Color32) -> Rect {
-    ui.painter().text(pos, ancla, texto, fuente(tam, peso), color)
-}
-
-pub fn linea(ui: &mut Ui, texto: impl Into<String>, tam: Tam, peso: Peso, color: Color32) -> Response {
-    let texto = texto.into();
-    let ancho = ui.available_width();
-    let b = bloque(ui, &texto, tam, peso, color, ancho);
-    let (rect, respuesta) = ui.allocate_exact_size(Vec2::new(b.ancho(), b.alto()), Sense::hover());
-    b.pintar(ui, rect.min, color);
+pub fn chip(ui: &mut Ui, contenido: &str, px: f32, relleno: Vec2, colores: (Color32, Color32)) -> Response {
+    let (rect, respuesta) = ui.allocate_exact_size(medir_chip(ui, contenido, px, relleno), Sense::hover());
+    pintar_chip(ui, rect.min, contenido, px, relleno, colores.0, colores.1);
     respuesta
 }
 
-pub fn encoger(base: &[f32], minimos: &[f32], disponible: f32) -> Vec<f32> {
-    let mut tamanos = base.to_vec();
-    if base.iter().sum::<f32>() <= disponible {
-        return tamanos;
-    }
-    let mut congelado = vec![false; base.len()];
-    loop {
-        let fijo: f32 = (0..base.len()).filter(|&i| congelado[i]).map(|i| tamanos[i]).sum();
-        let libres: Vec<usize> = (0..base.len()).filter(|&i| !congelado[i]).collect();
-        if libres.is_empty() {
-            return tamanos;
-        }
-        let base_libre: f32 = libres.iter().map(|&i| base[i]).sum();
-        let sobra = disponible - fijo - base_libre;
-        let mut violados = false;
-        for &i in &libres {
-            let propuesto = base[i] + sobra * base[i] / base_libre.max(f32::EPSILON);
-            tamanos[i] = propuesto.max(minimos[i]);
-            if propuesto < minimos[i] {
-                congelado[i] = true;
-                violados = true;
-            }
-        }
-        if !violados {
-            return tamanos;
-        }
+pub fn tipo(tipo_factura: &str) -> (String, (Color32, Color32)) {
+    match tipo_factura.to_lowercase().as_str() {
+        "remito" => ("Remito".into(), (color::DORADO_FONDO, color::DORADO_TEXTO)),
+        "a" => ("Factura A".into(), (color::AZUL_FONDO, color::AZUL)),
+        "b" => ("Factura B".into(), (color::VERDE_EXITO_FONDO, color::VERDE_EXITO)),
+        "c" => ("Factura C".into(), (color::VIOLETA_FONDO, color::VIOLETA)),
+        "" => ("Sin tipo".into(), (color::FONDO_APP, color::TEXTO_APAGADO)),
+        _ => (tipo_factura.to_string(), (color::FONDO_APP, color::TEXTO_APAGADO)),
     }
 }
 
-#[derive(Clone, Copy)]
-pub enum Relleno {
-    Nada,
-    Liso(Color32),
-    Degradado(Color32, Color32, Direccion),
-}
-
-pub fn esmeralda() -> Relleno {
-    Relleno::Degradado(color::ESMERALDA_DESDE, color::ESMERALDA_HASTA, Direccion::AbajoDerecha)
-}
-
-pub fn pintar_relleno(ui: &Ui, rect: Rect, radio: f32, relleno: Relleno, opacidad: f32) {
-    match relleno {
-        Relleno::Nada => {}
-        Relleno::Liso(c) => {
-            ui.painter().rect_filled(rect, radio, c.gamma_multiply(opacidad));
-        }
-        Relleno::Degradado(desde, hasta, direccion) => ui::pintar_degradado(
-            ui.painter(),
-            rect,
-            radio as u8,
-            desde.gamma_multiply(opacidad),
-            hasta.gamma_multiply(opacidad),
-            direccion,
-        ),
+pub fn estado(factura: &Value) -> (String, (Color32, Color32)) {
+    let pagada = (color::VERDE_EXITO_FONDO, color::VERDE_EXITO);
+    let pendiente = (color::ROJO_FONDO, color::ROJO);
+    match logica::estado_tarjeta(factura) {
+        EstadoTarjeta::Pagada | EstadoTarjeta::SegunBackend { pagada: true, .. } => ("Pagada".into(), pagada),
+        EstadoTarjeta::Parcial => ("Parcial".into(), (color::DORADO_FONDO, color::DORADO_TEXTO)),
+        EstadoTarjeta::Impaga => ("Pendiente".into(), pendiente),
+        EstadoTarjeta::SegunBackend { texto, .. } => match texto.as_str() {
+            "anulada" => ("Anulada".into(), (color::FONDO_APP, color::TEXTO_APAGADO)),
+            "" => ("Pendiente".into(), pendiente),
+            otro => (capitalizar(otro), pendiente),
+        },
     }
 }
 
-const TAM_ICONO: f32 = 16.0;
-
-#[derive(Clone)]
-pub struct Boton<'a> {
-    texto: &'a str,
-    icono: Option<&'a str>,
-    icono_derecha: Option<&'a str>,
-    separacion: f32,
-    relleno: Relleno,
-    encima: Option<Relleno>,
-    color: Color32,
-    color_encima: Option<Color32>,
-    borde: Option<Color32>,
-    radio: f32,
-    tam: Tam,
-    alto: f32,
-    relleno_x: f32,
-    habilitado: bool,
-}
-
-impl<'a> Boton<'a> {
-    fn base(texto: &'a str, relleno: Relleno, color: Color32) -> Self {
-        Boton {
-            texto,
-            icono: None,
-            icono_derecha: None,
-            separacion: 8.0,
-            relleno,
-            encima: None,
-            color,
-            color_encima: None,
-            borde: None,
-            radio: RADIO as f32,
-            tam: Tam::Sm,
-            alto: 40.0,
-            relleno_x: 16.0,
-            habilitado: true,
-        }
-    }
-
-    pub fn contorno(texto: &'a str) -> Self {
-        let mut b = Self::base(texto, Relleno::Liso(color::FONDO), color::TEXTO);
-        b.borde = Some(color::BORDE);
-        b.encima = Some(Relleno::Liso(color::ACENTO));
-        b
-    }
-
-    pub fn primario(texto: &'a str) -> Self {
-        let mut b = Self::base(texto, Relleno::Liso(color::PRIMARIO), color::PRIMARIO_TEXTO);
-        b.encima = Some(Relleno::Liso(color::PRIMARIO.gamma_multiply(0.9)));
-        b
-    }
-
-    pub fn fantasma(texto: &'a str) -> Self {
-        let mut b = Self::base(texto, Relleno::Nada, color::TEXTO);
-        b.encima = Some(Relleno::Liso(color::ACENTO));
-        b
-    }
-
-    pub fn esmeralda(texto: &'a str) -> Self {
-        Self::base(texto, esmeralda(), color::PRIMARIO_TEXTO)
-    }
-
-    pub fn chico(mut self) -> Self {
-        self.alto = 36.0;
-        self.relleno_x = 12.0;
-        self
-    }
-
-    pub fn icono(mut self, icono: &'a str) -> Self {
-        self.icono = Some(icono);
-        self
-    }
-
-    pub fn icono_derecha(mut self, icono: &'a str) -> Self {
-        self.icono_derecha = Some(icono);
-        self
-    }
-
-    pub fn separacion(mut self, separacion: f32) -> Self {
-        self.separacion = separacion;
-        self
-    }
-
-    pub fn relleno(mut self, relleno: Relleno) -> Self {
-        self.relleno = relleno;
-        self.encima = None;
-        self
-    }
-
-    pub fn encima(mut self, relleno: Relleno) -> Self {
-        self.encima = Some(relleno);
-        self
-    }
-
-    pub fn color(mut self, color: Color32) -> Self {
-        self.color = color;
-        self
-    }
-
-    pub fn color_encima(mut self, color: Color32) -> Self {
-        self.color_encima = Some(color);
-        self
-    }
-
-    pub fn borde(mut self, borde: Option<Color32>) -> Self {
-        self.borde = borde;
-        self
-    }
-
-    pub fn radio(mut self, radio: f32) -> Self {
-        self.radio = radio;
-        self
-    }
-
-    pub fn texto_tam(mut self, tam: Tam) -> Self {
-        self.tam = tam;
-        self
-    }
-
-    pub fn relleno_x(mut self, relleno_x: f32) -> Self {
-        self.relleno_x = relleno_x;
-        self
-    }
-
-    pub fn habilitado(mut self, habilitado: bool) -> Self {
-        self.habilitado = habilitado;
-        self
-    }
-
-    fn contenido(&self, ui: &Ui) -> f32 {
-        let texto = if self.texto.is_empty() { 0.0 } else { ancho_texto(ui, self.texto, self.tam, Peso::Medio) };
-        let iconos = [self.icono, self.icono_derecha].iter().flatten().count();
-        let piezas = iconos + usize::from(!self.texto.is_empty());
-        texto + iconos as f32 * TAM_ICONO + piezas.saturating_sub(1) as f32 * self.separacion
-    }
-
-    pub fn ancho_natural(&self, ui: &Ui) -> f32 {
-        self.contenido(ui) + self.relleno_x * 2.0
-    }
-
-    pub fn ui(self, ui: &mut Ui) -> Response {
-        let tam = Vec2::new(self.ancho_natural(ui), self.alto);
-        let (rect, _) = ui.allocate_exact_size(tam, Sense::hover());
-        let id = ui.next_auto_id();
-        self.en(ui, rect, id)
-    }
-
-    pub fn en(self, ui: &Ui, rect: Rect, id: impl Hash + std::fmt::Debug) -> Response {
-        let activo = self.habilitado;
-        let sentido = if activo { Sense::click() } else { Sense::hover() };
-        let respuesta = ui.interact(rect, ui.id().with(("boton", id)), sentido);
-        let encima = activo && respuesta.hovered();
-        let opacidad = if activo { 1.0 } else { 0.5 };
-        let relleno = match (encima, self.encima) {
-            (true, Some(r)) => r,
-            _ => self.relleno,
-        };
-        pintar_relleno(ui, rect, self.radio, relleno, opacidad);
-        if let Some(borde) = self.borde {
-            ui.painter().rect_stroke(rect, self.radio, Stroke::new(1.0, borde.gamma_multiply(opacidad)), StrokeKind::Inside);
-        }
-        let color = if encima { self.color_encima.unwrap_or(self.color) } else { self.color }.gamma_multiply(opacidad);
-        let contenido = self.contenido(ui);
-        let mut x = rect.center().x - contenido / 2.0;
-        let [izquierdo, derecho] = [self.icono, self.icono_derecha];
-        if let Some(nombre) = izquierdo {
-            let caja = Rect::from_center_size(egui::pos2(x + TAM_ICONO / 2.0, rect.center().y), Vec2::splat(TAM_ICONO));
-            ui::pintar_icono_en(ui, caja, nombre, color);
-            x += TAM_ICONO + self.separacion;
-        }
-        if !self.texto.is_empty() {
-            let r = texto_en(ui, egui::pos2(x, rect.center().y), Align2::LEFT_CENTER, self.texto, self.tam, Peso::Medio, color);
-            x = r.right() + self.separacion;
-        }
-        if let Some(nombre) = derecho {
-            let caja = Rect::from_center_size(egui::pos2(x + TAM_ICONO / 2.0, rect.center().y), Vec2::splat(TAM_ICONO));
-            ui::pintar_icono_en(ui, caja, nombre, color);
-        }
-        if activo {
-            respuesta.on_hover_cursor(CursorIcon::PointingHand)
+pub fn capitalizar(texto: &str) -> String {
+    let mut salida = String::new();
+    let mut inicio = true;
+    for c in texto.chars() {
+        if inicio {
+            salida.extend(c.to_uppercase());
         } else {
-            respuesta
+            salida.push(c);
         }
+        inicio = c.is_whitespace() || c == '-' || c == '_';
+    }
+    salida
+}
+
+pub fn condicion_fiscal(condicion: &str) -> String {
+    match condicion {
+        "consumidor_final" => "Consumidor Final".into(),
+        "responsable_inscripto" => "Responsable Inscripto".into(),
+        "exento" => "Exento".into(),
+        "monotributo" => "Monotributo".into(),
+        otra => otra.to_string(),
     }
 }
 
-#[derive(Clone)]
-pub struct Insignia<'a> {
-    pub texto: &'a str,
-    pub icono: Option<&'a str>,
-    pub fondo: Color32,
-    pub color: Color32,
-    pub borde: Color32,
-    pub tam: Tam,
-    pub peso: Peso,
+pub fn nombre_cliente(factura: &Value) -> String {
+    logica::nombre_o_razon(&factura["cliente"]).unwrap_or_else(|| "Cliente no especificado".into())
 }
 
-impl<'a> Insignia<'a> {
-    pub fn new(texto: &'a str, fondo: Color32, color: Color32, borde: Color32) -> Self {
-        Insignia { texto, icono: None, fondo, color, borde, tam: Tam::Xs, peso: Peso::Semi }
-    }
+pub fn cantidad_con_medida(cantidad: f64, tipo_medida: &str) -> String {
+    let unidad = match tipo_medida.to_lowercase().as_str() {
+        "kg" | "kilo" | "kilos" | "kilogramo" => "kg".to_string(),
+        "" | "u" | "unidad" | "unidades" => "u".to_string(),
+        otra => otra.to_string(),
+    };
+    format!("{} {unidad}", formato::numero(cantidad))
+}
 
-    pub fn icono(mut self, icono: &'a str) -> Self {
-        self.icono = Some(icono);
-        self
-    }
+pub fn productos(cantidad: usize) -> String {
+    format!("{cantidad} producto{}", if cantidad == 1 { "" } else { "s" })
+}
 
-    fn extra(&self) -> f32 {
-        20.0 + if self.icono.is_some() { 16.0 } else { 0.0 }
+pub fn metodo(metodo: &str) -> (&'static str, String) {
+    match metodo.to_lowercase().as_str() {
+        "efectivo" => ("cash", "Efectivo".into()),
+        "tarjeta" => ("card", "Tarjeta".into()),
+        "transferencia" => ("transfer", "Transferencia".into()),
+        "qr" => ("qr", "QR".into()),
+        _ => ("wallet", capitalizar(&metodo.replacen('_', " ", 1))),
     }
+}
 
-    pub fn ancho_natural(&self, ui: &Ui) -> f32 {
-        ancho_texto(ui, self.texto, self.tam, self.peso) + self.extra()
+pub fn fila_pago(ui: &mut Ui, pago: &Value, relleno: f32, borde_arriba: bool) {
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 34.0 + relleno * 2.0), Sense::hover());
+    let linea = if borde_arriba { rect.top() + 0.5 } else { rect.bottom() - 0.5 };
+    ui.painter().hline(rect.x_range(), linea, Stroke::new(1.0, color::BORDE_SUAVE));
+    let (icono, etiqueta) = metodo(texto(pago, "metodoPago"));
+    let caja = Rect::from_min_size(egui::pos2(rect.left(), rect.center().y - 17.0), Vec2::splat(34.0));
+    ui.painter().rect_filled(caja, radio::CONTROL, color::VERDE_CHIP);
+    v2::pintar_icono(ui, caja.center(), icono, 18.0, color::VERDE);
+    let monto = v2::pintar_texto(
+        ui,
+        egui::pos2(rect.right(), rect.center().y),
+        Align2::RIGHT_CENTER,
+        pesos(numero(pago, "monto")),
+        tam::CUERPO_MAS,
+        Peso::Semi,
+        color::VERDE_EXITO,
+    );
+    let mut detalle = logica::fecha_es_ar(texto(pago, "fecha"));
+    let referencia = texto(pago, "referencia");
+    if !referencia.is_empty() {
+        detalle.push_str(" · ");
+        detalle.push_str(referencia);
     }
+    let x = caja.right() + 12.0;
+    let derecha = monto.left() - 12.0;
+    let arriba = rect.center().y - 16.5;
+    celda_texto(ui.painter(), Rect::from_x_y_ranges(x..=derecha, arriba..=arriba + 17.0), &etiqueta, tam::CUERPO, Peso::Medio, color::TEXTO, false);
+    celda_texto(ui.painter(), Rect::from_x_y_ranges(x..=derecha, arriba + 18.0..=arriba + 33.0), &detalle, tam::XS, Peso::Normal, color::TEXTO_TENUE, false);
+}
 
-    pub fn ancho_minimo(&self, ui: &Ui) -> f32 {
-        ancho_minimo(ui, self.texto, self.tam, self.peso) + self.extra()
-    }
+pub fn etiqueta(ui: &mut Ui, contenido: &str) -> Response {
+    v2::texto(ui, contenido, tam::ETIQUETA, Peso::Semi, color::TEXTO_SECUNDARIO)
+}
 
-    pub fn alto(&self, ui: &Ui, ancho: f32) -> f32 {
-        bloque(ui, self.texto, self.tam, self.peso, self.color, ancho - self.extra() + 0.5).alto() + 6.0
-    }
+pub fn cargando(ui: &mut Ui, alto: f32, mensaje: &str) {
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), alto), Sense::hover());
+    let g = v2::galeria(ui, mensaje, fuente(tam::CUERPO, Peso::Normal), color::TEXTO_APAGADO);
+    let x = rect.center().x - (30.0 + g.size().x) / 2.0;
+    v2::girando(ui, Rect::from_center_size(egui::pos2(x + 10.0, rect.center().y), Vec2::splat(20.0)), color::VERDE);
+    ui.painter().galley(egui::pos2(x + 30.0, rect.center().y - g.size().y / 2.0), g, color::TEXTO_APAGADO);
+}
 
-    pub fn pintar(&self, ui: &Ui, rect: Rect) {
-        ui.painter().rect(rect, rect.height() / 2.0, self.fondo, Stroke::new(1.0, self.borde), StrokeKind::Inside);
-        let b = bloque(ui, self.texto, self.tam, self.peso, self.color, rect.width() - self.extra() + 0.5);
-        let mut x = rect.left() + 10.0;
-        if let Some(icono) = self.icono {
-            let caja = Rect::from_center_size(egui::pos2(x + 6.0, rect.center().y), Vec2::splat(12.0));
-            ui::pintar_icono_en(ui, caja, icono, self.color);
-            x += 16.0;
-        }
-        b.pintar(ui, egui::pos2(x, rect.center().y - b.alto() / 2.0), self.color);
-    }
+pub fn vacio(ui: &mut Ui, icono: &str, mensaje: &str) {
+    ui.add_space(48.0);
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 34.0), Sense::hover());
+    v2::pintar_icono(ui, rect.center(), icono, 34.0, color::SOBRE_OSCURO_APAGADO);
+    ui.add_space(8.0);
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 18.0), Sense::hover());
+    v2::pintar_texto(ui, rect.center(), Align2::CENTER_CENTER, mensaje, tam::CUERPO_MAS, Peso::Normal, color::TEXTO_APAGADO);
+}
 
-    pub fn ui(&self, ui: &mut Ui) -> Response {
-        let ancho = self.ancho_natural(ui);
-        let alto = self.alto(ui, ancho);
-        let (rect, respuesta) = ui.allocate_exact_size(Vec2::new(ancho, alto), Sense::hover());
-        self.pintar(ui, rect);
+pub fn boton_centrado(ui: &mut Ui, boton: Boton) -> bool {
+    ui.allocate_ui_with_layout(Vec2::new(ui.available_width(), 36.0), Layout::top_down(Align::Center), |ui| boton.ui(ui).clicked()).inner
+}
+
+pub fn boton_pagina(ui: &mut Ui, etiqueta: &str, icono: &str, icono_a_la_derecha: bool, habilitado: bool) -> Response {
+    let g = v2::galeria(ui, etiqueta, fuente(tam::CONTROL, Peso::Normal), color::TEXTO_SECUNDARIO);
+    let ancho = 20.0 + 15.0 + 4.0 + g.size().x;
+    let (rect, respuesta) = ui.allocate_exact_size(Vec2::new(ancho, 32.0), if habilitado { Sense::click() } else { Sense::hover() });
+    let encima = habilitado && respuesta.hovered();
+    let alfa = if habilitado { 1.0 } else { 0.4 };
+    let tinta = if encima { color::VERDE } else { color::TEXTO_SECUNDARIO }.gamma_multiply(alfa);
+    let borde = if encima { color::VERDE } else { color::BORDE }.gamma_multiply(alfa);
+    ui.painter().rect(rect, radio::ICONO, color::BLANCO, Stroke::new(1.0, borde), StrokeKind::Inside);
+    let (x_icono, x_texto) = if icono_a_la_derecha {
+        (rect.right() - 10.0 - 7.5, rect.left() + 10.0)
+    } else {
+        (rect.left() + 10.0 + 7.5, rect.left() + 10.0 + 19.0)
+    };
+    pintar_icono_solar_en(ui, Rect::from_center_size(egui::pos2(x_icono, rect.center().y), Vec2::splat(15.0)), icono, tinta);
+    ui.painter().galley(egui::pos2(x_texto, rect.center().y - g.size().y / 2.0), g, tinta);
+    if habilitado {
+        respuesta.on_hover_cursor(CursorIcon::PointingHand)
+    } else {
         respuesta
     }
 }
 
-pub struct Opcion<'a> {
-    pub icono: Option<&'a str>,
-    pub texto: String,
+pub fn fila_dato(ui: &mut Ui, etiqueta: &str, valor: &str) {
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 42.0), Sense::hover());
+    ui.painter().hline(rect.x_range(), rect.bottom() - 0.5, Stroke::new(1.0, color::BORDE_SUAVE));
+    let izquierda = v2::pintar_texto(ui, rect.left_center(), Align2::LEFT_CENTER, etiqueta, tam::CONTROL, Peso::Normal, color::TEXTO_APAGADO);
+    let celda = Rect::from_x_y_ranges(izquierda.right() + 16.0..=rect.right(), rect.y_range());
+    celda_texto(ui.painter(), celda, valor, tam::CUERPO, Peso::Medio, color::TEXTO, true);
 }
 
-pub fn selector(
-    ui: &mut Ui,
-    id: impl Hash + std::fmt::Debug,
-    ancho: f32,
-    seleccion: &mut usize,
-    opciones: &[Opcion],
-    habilitado: bool,
-) -> bool {
-    let (rect, respuesta) =
-        ui.allocate_exact_size(Vec2::new(ancho, 40.0), if habilitado { Sense::click() } else { Sense::hover() });
-    let opacidad = if habilitado { 1.0 } else { 0.5 };
-    ui.painter().rect(
-        rect,
-        RADIO_XL,
-        color::FONDO,
-        Stroke::new(1.0, color::BORDE_ENTRADA.gamma_multiply(opacidad)),
-        StrokeKind::Inside,
-    );
-    if let Some(opcion) = opciones.get(*seleccion) {
-        let mut x = rect.left() + 12.0;
-        if let Some(icono) = opcion.icono {
-            let caja = Rect::from_center_size(egui::pos2(x + 8.0, rect.center().y), Vec2::splat(16.0));
-            ui::pintar_icono_en(ui, caja, icono, color::TEXTO.gamma_multiply(opacidad));
-            x += 24.0;
-        }
-        texto_en(ui, egui::pos2(x, rect.center().y), Align2::LEFT_CENTER, &opcion.texto, Tam::Sm, Peso::Normal, color::TEXTO.gamma_multiply(opacidad));
-    }
-    let flecha = Rect::from_center_size(egui::pos2(rect.right() - 20.0, rect.center().y), Vec2::splat(16.0));
-    ui::pintar_icono_en(ui, flecha, "chevron-down", color::TEXTO.gamma_multiply(0.5 * opacidad));
-    let popup_id = Id::new("selector-facturas").with(id);
-    if habilitado && respuesta.clicked() {
-        Popup::toggle_id(ui.ctx(), popup_id);
-    }
-    let mut elegido = None;
-    Popup::new(popup_id, ui.ctx().clone(), rect, ui.layer_id())
-        .open_memory(None)
-        .close_behavior(PopupCloseBehavior::CloseOnClick)
-        .align(RectAlign::BOTTOM_START)
-        .gap(4.0)
-        .width(ancho)
-        .frame(ui::marco_popup().shadow(ui::sombra_md()))
-        .show(|ui| {
-            ui.set_width(ancho - 8.0);
-            let alguno_encima = ui.rect_contains_pointer(ui.max_rect());
-            for (indice, opcion) in opciones.iter().enumerate() {
-                let (caja, r) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 32.0), Sense::click());
-                if r.hovered() || (!alguno_encima && indice == *seleccion) {
-                    ui.painter().rect_filled(caja, RADIO_SM, color::ACENTO);
-                }
-                if indice == *seleccion {
-                    let marca = Rect::from_center_size(egui::pos2(caja.left() + 15.0, caja.center().y), Vec2::splat(16.0));
-                    ui::pintar_icono_en(ui, marca, "check", color::TEXTO);
-                }
-                let mut x = caja.left() + 32.0;
-                if let Some(icono) = opcion.icono {
-                    let marca = Rect::from_center_size(egui::pos2(x + 8.0, caja.center().y), Vec2::splat(16.0));
-                    ui::pintar_icono_en(ui, marca, icono, color::TEXTO);
-                    x += 24.0;
-                }
-                texto_en(ui, egui::pos2(x, caja.center().y), Align2::LEFT_CENTER, &opcion.texto, Tam::Sm, Peso::Normal, color::TEXTO);
-                if r.on_hover_cursor(CursorIcon::PointingHand).clicked() {
-                    elegido = Some(indice);
-                }
-            }
-        });
-    match elegido {
-        Some(indice) if indice != *seleccion => {
-            *seleccion = indice;
-            true
-        }
-        _ => false,
-    }
-}
-
-pub fn encabezado_verde(ui: &mut Ui, alto: f32, contenido: impl FnOnce(&mut Ui)) {
-    let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), alto + 1.0), Sense::hover());
-    let fondo = Rect::from_min_size(rect.min, Vec2::new(rect.width(), alto));
-    ui::pintar_degradado(ui.painter(), fondo, 0, color::ESMERALDA_DESDE, color::ESMERALDA_HASTA, Direccion::AbajoDerecha);
-    ui.painter().hline(rect.x_range(), rect.bottom() - 0.5, Stroke::new(1.0, paleta::GRAY_200));
-    let interior = fondo.shrink(24.0);
-    let mut hijo = ui.new_child(egui::UiBuilder::new().max_rect(interior).layout(egui::Layout::left_to_right(egui::Align::Center)));
-    contenido(&mut hijo);
-}
-
-pub fn boton_volver(ui: &mut Ui) -> Response {
-    Boton::fantasma("Volver")
-        .chico()
-        .icono("arrow-left")
-        .separacion(16.0)
-        .color(Color32::WHITE)
-        .encima(Relleno::Liso(paleta::GRAY_100))
-        .color_encima(paleta::GRAY_900)
-        .ui(ui)
-}
-
-pub fn logo(ui: &mut Ui) {
-    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-        ui.add(ui::imagen("andexmarket-logo.png").fit_to_exact_size(Vec2::new(160.0, 160.0 * 26.0 / 228.0)));
-    });
-}
-
-pub fn titulo_dialogo(ui: &mut Ui, icono: &str, titulo: &str, color_titulo: Color32, color_icono: Color32, separacion: f32) {
-    let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 20.0), Sense::hover());
-    let caja = Rect::from_min_size(rect.min, Vec2::splat(20.0));
-    ui::pintar_icono_en(ui, caja, icono, color_icono);
-    texto_en(ui, egui::pos2(caja.right() + separacion, rect.center().y), Align2::LEFT_CENTER, titulo, Tam::Lg, Peso::Semi, color_titulo);
-}
-
-pub fn encabezado_dialogo(ui: &mut Ui, icono: &str, titulo: &str, descripcion: &str, separacion: f32) {
-    titulo_dialogo(ui, icono, titulo, color::TEXTO, color::TEXTO, separacion);
-    ui.add_space(6.0);
-    linea(ui, descripcion, Tam::Sm, Peso::Normal, color::APAGADO_TEXTO);
-}
-
-pub fn etiqueta(ui: &mut Ui, texto: &str) {
-    let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 24.0), Sense::hover());
-    texto_en(ui, egui::pos2(rect.left(), rect.top() + 13.0), Align2::LEFT_CENTER, texto, Tam::Sm, Peso::Medio, color::TEXTO);
-}
-
-pub fn desplazable<R>(ui: &mut Ui, id: Id, alto_max: f32, contenido: impl FnOnce(&mut Ui) -> R) -> R {
-    let previo: f32 = ui.ctx().data(|d| d.get_temp(id)).unwrap_or(alto_max);
-    let alto = previo.min(alto_max);
-    let salida = egui::ScrollArea::vertical()
-        .id_salt(id)
-        .max_height(alto)
-        .min_scrolled_height(alto)
-        .auto_shrink([false, true])
-        .show(ui, contenido);
-    let nuevo = salida.content_size.y;
-    if (nuevo.min(alto_max) - alto).abs() > 0.5 {
-        ui.ctx().request_repaint();
-    }
-    ui.ctx().data_mut(|d| d.insert_temp(id, nuevo));
-    salida.inner
-}
-
-pub fn borde_superior(ui: &mut Ui) {
-    let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 1.0), Sense::hover());
-    ui.painter().rect_filled(rect, 0, color::BORDE);
-}
-
-pub fn cargando_centro(ui: &mut Ui, alto: f32, texto: &str, color_giro: Color32, color_texto: Color32, tam: Tam) {
-    let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), alto), Sense::hover());
-    let ancho = 24.0 + 8.0 + ancho_texto(ui, texto, tam, Peso::Normal);
-    let x = rect.center().x - ancho / 2.0;
-    ui::girando(ui, Rect::from_center_size(egui::pos2(x + 12.0, rect.center().y), Vec2::splat(24.0)), color_giro);
-    texto_en(ui, egui::pos2(x + 32.0, rect.center().y), Align2::LEFT_CENTER, texto, tam, Peso::Normal, color_texto);
-}
-
-pub fn fila_paginacion(
-    ui: &mut Ui,
-    id: &str,
-    pagina: u32,
-    paginas: &[u32],
-    anterior: bool,
-    siguiente: bool,
-    separacion_numeros: f32,
-) -> Option<u32> {
-    let mut destino = None;
-    let ancho = ui.available_width();
-    let (rect, _) = ui.allocate_exact_size(Vec2::new(ancho, 36.0), Sense::hover());
-    let b_anterior = Boton::contorno("Anterior").chico().icono("chevron-left").separacion(12.0);
-    let r = rect.left_top();
-    let ancho_ant = b_anterior.ancho_natural(ui);
-    if b_anterior.habilitado(anterior).en(ui, Rect::from_min_size(r, Vec2::new(ancho_ant, 36.0)), (id, "ant")).clicked() {
-        destino = Some(pagina.saturating_sub(1));
-    }
-    let b_siguiente = Boton::contorno("Siguiente").chico().icono_derecha("chevron-right").separacion(12.0);
-    let ancho_sig = b_siguiente.ancho_natural(ui);
-    let caja_sig = Rect::from_min_size(egui::pos2(rect.right() - ancho_sig, rect.top()), Vec2::new(ancho_sig, 36.0));
-    if b_siguiente.habilitado(siguiente).en(ui, caja_sig, (id, "sig")).clicked() {
-        destino = Some(pagina + 1);
-    }
-    let total = paginas.len() as f32 * 32.0 + paginas.len().saturating_sub(1) as f32 * separacion_numeros;
-    let mut x = rect.center().x - total / 2.0;
-    for &numero in paginas {
-        let caja = Rect::from_min_size(egui::pos2(x, rect.center().y - 16.0), Vec2::splat(32.0));
-        let texto = numero.to_string();
-        let boton = if numero == pagina { Boton::primario(&texto) } else { Boton::contorno(&texto) };
-        if boton.chico().en(ui, caja, (id, numero)).clicked() {
-            destino = Some(numero);
-        }
-        x += 32.0 + separacion_numeros;
-    }
-    destino
-}
-
-pub fn paginacion_compacta(ui: &Ui, rect: Rect, id: &str, pagina: u32, paginas: &[u32], anterior: bool, siguiente: bool) -> Option<u32> {
-    let mut destino = None;
-    let b_anterior = Boton::contorno("Anterior").chico().icono("chevron-left").habilitado(anterior);
-    let b_siguiente = Boton::contorno("Siguiente").chico().icono_derecha("chevron-right").habilitado(siguiente);
-    let numeros = paginas.len() as f32 * 32.0 + paginas.len().saturating_sub(1) as f32 * 4.0;
-    let (ancho_ant, ancho_sig) = (b_anterior.ancho_natural(ui), b_siguiente.ancho_natural(ui));
-    let mut x = rect.right() - ancho_ant - 8.0 - numeros - 8.0 - ancho_sig;
-    if b_anterior.en(ui, Rect::from_min_size(egui::pos2(x, rect.top()), Vec2::new(ancho_ant, 36.0)), (id, "ant")).clicked() {
-        destino = Some(pagina.saturating_sub(1));
-    }
-    x += ancho_ant + 8.0;
-    for &numero in paginas {
-        let caja = Rect::from_min_size(egui::pos2(x, rect.center().y - 16.0), Vec2::splat(32.0));
-        let texto = numero.to_string();
-        let boton = if numero == pagina { Boton::primario(&texto) } else { Boton::contorno(&texto) };
-        if boton.chico().en(ui, caja, (id, numero)).clicked() {
-            destino = Some(numero);
-        }
-        x += 36.0;
-    }
-    x += 4.0;
-    if b_siguiente.en(ui, Rect::from_min_size(egui::pos2(x, rect.top()), Vec2::new(ancho_sig, 36.0)), (id, "sig")).clicked() {
-        destino = Some(pagina + 1);
-    }
-    destino
+pub fn cuerpo_desplazable<R>(ui: &mut Ui, id: &str, reservado: f32, contenido: impl FnOnce(&mut Ui) -> R) -> R {
+    let alto = (ui.ctx().content_rect().height() - 48.0 - reservado).max(160.0);
+    ScrollArea::vertical().id_salt(id).max_height(alto).auto_shrink([false, true]).show(ui, contenido).inner
 }
 
 #[cfg(test)]
 mod tests {
-    use super::encoger;
+    use super::{cantidad_con_medida, capitalizar, metodo, productos};
 
     #[test]
-    fn encoger_como_flex_shrink() {
-        assert_eq!(encoger(&[100.0, 50.0], &[0.0, 0.0], 200.0), vec![100.0, 50.0]);
-        let r = encoger(&[200.0, 100.0], &[0.0, 0.0], 240.0);
-        assert!((r[0] - 160.0).abs() < 0.01 && (r[1] - 80.0).abs() < 0.01);
-        let r = encoger(&[200.0, 100.0], &[0.0, 90.0], 240.0);
-        assert!((r[1] - 90.0).abs() < 0.01 && (r[0] - 150.0).abs() < 0.01);
+    fn textos_de_la_tabla() {
+        assert_eq!(capitalizar("remito"), "Remito");
+        assert_eq!(capitalizar("responsable inscripto"), "Responsable Inscripto");
+        assert_eq!(cantidad_con_medida(18.0, "Kg"), "18 kg");
+        assert_eq!(cantidad_con_medida(2.5, "Unidad"), "2,5 u");
+        assert_eq!(productos(1), "1 producto");
+        assert_eq!(productos(3), "3 productos");
+        assert_eq!(metodo("transferencia"), ("transfer", "Transferencia".to_string()));
+        assert_eq!(metodo("cuenta_corriente").1, "Cuenta Corriente");
     }
 }

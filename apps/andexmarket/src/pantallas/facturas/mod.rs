@@ -5,11 +5,11 @@ mod lista;
 mod modal;
 mod pagos;
 mod selectores;
-mod tarjeta;
 
 use std::path::PathBuf;
 
 use eframe::egui::Ui;
+use nucleo::formato;
 use serde_json::Value;
 
 use crate::app::Contexto;
@@ -49,6 +49,10 @@ fn numero(valor: &Value, clave: &str) -> f64 {
     valor[clave].as_f64().unwrap_or(0.0)
 }
 
+fn pesos(valor: f64) -> String {
+    format!("${}", formato::numero_con(valor, 0, 2))
+}
+
 fn iva_en_precios(cx: &Contexto) -> Option<bool> {
     cx.global.negocio.as_ref().map(|n| n["ivaIncluidoEnPrecios"].as_bool().unwrap_or(false))
 }
@@ -67,4 +71,16 @@ fn carpeta_descargas(cx: &Contexto) -> PathBuf {
         .or_else(|| std::env::var_os("HOME"))
         .map(|inicio| PathBuf::from(inicio).join("Downloads"))
         .unwrap_or_else(|| cx.servicios.carpeta.clone())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::pesos;
+
+    #[test]
+    fn pesos_sin_decimales_de_relleno() {
+        assert_eq!(pesos(407410.0), "$407.410");
+        assert_eq!(pesos(63925.62), "$63.925,62");
+        assert_eq!(pesos(0.0), "$0");
+    }
 }

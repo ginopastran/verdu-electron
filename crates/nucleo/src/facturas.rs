@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use chrono::{DateTime, NaiveDate, NaiveTime, Utc};
+use chrono::{DateTime, Datelike, NaiveDate, NaiveTime, Utc};
 use serde_json::{json, Map, Value};
 
 use crate::api::{codificar, Cliente};
@@ -78,6 +78,33 @@ pub fn estado_historial(factura: &Value) -> EstadoHistorial {
     } else {
         EstadoHistorial::Pendiente
     }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct ResumenCuenta {
+    pub saldo: f64,
+    pub con_saldo: usize,
+    pub cobrado_mes: f64,
+}
+
+pub fn resumen_cuenta(facturas: &[Value], hoy: NaiveDate) -> ResumenCuenta {
+    let mut resumen = ResumenCuenta::default();
+    for factura in facturas.iter().filter(|f| f["estado"] != "anulada") {
+        let saldo = saldo_pendiente(factura);
+        if saldo > 0.0 {
+            resumen.saldo += saldo;
+            resumen.con_saldo += 1;
+        }
+        for pago in factura["pagos"].as_array().into_iter().flatten() {
+            let dia = pago["fecha"].as_str().and_then(dia_argentino);
+            if dia.is_some_and(|d| d.year() == hoy.year() && d.month() == hoy.month()) {
+                resumen.cobrado_mes += pago["monto"].as_f64().unwrap_or(0.0);
+            }
+        }
+    }
+    resumen.saldo = redondear2(resumen.saldo);
+    resumen.cobrado_mes = redondear2(resumen.cobrado_mes);
+    resumen
 }
 
 pub fn nombre_cliente(cliente: &Value) -> String {
@@ -548,6 +575,20 @@ mod tests {
         let parcial = factura_con_pagos(86500.0, &[30000.0]);
         assert_eq!(saldo_pendiente(&parcial), 56500.0);
         assert_eq!(formato::numero_con(porcentaje_pagado(&parcial), 1, 1), "34,7");
+    }
+
+    #[test]
+    fn resumen_de_cuenta_suma_saldos_y_cobros_del_mes() {
+        let hoy = NaiveDate::from_ymd_opt(2026, 10, 10).unwrap();
+        let facturas = vec![
+            json!({ "total": 1000, "estado": "pendiente", "pagos": [{ "monto": 400, "fecha": "2026-10-02T15:00:00.000Z" }, { "monto": 100, "fecha": "2026-09-28T15:00:00.000Z" }] }),
+            json!({ "total": 500, "estado": "pagada", "pagos": [{ "monto": 500, "fecha": "2026-10-01T02:00:00.000Z" }] }),
+            json!({ "total": 300, "estado": "pendiente", "pagos": [] }),
+            json!({ "total": 900, "estado": "anulada", "pagos": [{ "monto": 50, "fecha": "2026-10-05T15:00:00.000Z" }] }),
+        ];
+        let resumen = resumen_cuenta(&facturas, hoy);
+        assert_eq!(resumen, ResumenCuenta { saldo: 800.0, con_saldo: 2, cobrado_mes: 400.0 });
+        assert_eq!(resumen_cuenta(&[], hoy), ResumenCuenta::default());
     }
 
     #[test]
