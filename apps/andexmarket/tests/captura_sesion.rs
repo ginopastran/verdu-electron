@@ -6,7 +6,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use andexmarket::app::{App, Contexto, Global, Ruta, Servicios};
-use andexmarket::pantallas::sesion;
+use andexmarket::pantallas::{admin_login, sesion};
 use eframe::egui::{self, Event, Key, PointerButton, Pos2};
 use egui_kittest::Harness;
 use hardware::balanza::Balanza;
@@ -84,13 +84,13 @@ fn servicios(nombre: &str, base: &str) -> Servicios {
 }
 
 fn admin() -> Value {
-    json!({ "id": 1, "nombre": "Roberto Sánchez", "email": "admin@lahuerta.test", "businessId": 7, "businessName": "Verdulería La Huerta" })
+    json!({ "id": 1, "nombre": "Martín Álvarez", "email": "martin@donjose.com.ar", "businessId": 7, "businessName": "Verdulería Don José" })
 }
 
 fn negocio() -> Value {
     json!({
         "id": 7,
-        "nombre": "Verdulería La Huerta",
+        "nombre": "Verdulería Don José",
         "sistemaPago": "redondeo",
         "sucursales": [{ "id": 1, "nombre": "Casa central", "direccion": "Av. San Martín 1450, Godoy Cruz", "telefono": "261 424-8890", "esPrincipal": true, "businessId": 7 }]
     })
@@ -98,11 +98,11 @@ fn negocio() -> Value {
 
 fn vendedores() -> Value {
     json!([
-        { "id": 11, "nombre": "Lucía Fernández", "email": "lucia@lahuerta.test" },
-        { "id": 12, "nombre": "Martín Gómez", "email": "martin@lahuerta.test" },
-        { "id": 13, "nombre": "Sofía Ramírez", "email": "sofia@lahuerta.test" },
-        { "id": 14, "nombre": "Diego Álvarez", "email": "diego@lahuerta.test" },
-        { "id": 15, "nombre": "Carla Benítez", "email": "carla@lahuerta.test" }
+        { "id": 11, "nombre": "Lucía Fernández", "email": "lucia@donjose.com.ar" },
+        { "id": 12, "nombre": "Diego Romero", "email": "diego@donjose.com.ar" },
+        { "id": 13, "nombre": "Sofía Medina", "email": "sofia@donjose.com.ar" },
+        { "id": 14, "nombre": "Tomás Quiroga", "email": "tomas@donjose.com.ar" },
+        { "id": 15, "nombre": "Martín Álvarez", "email": "martin@donjose.com.ar", "rol": { "nombre": "ADMIN" } }
     ])
 }
 
@@ -127,19 +127,32 @@ fn global(ruta: Ruta, con_admin: bool) -> Global {
     global
 }
 
-fn capturar(nombre: &str, global: Global, rutas: Rutas, pasos: impl FnOnce(&mut Harness<'_, App>)) {
+const TAMANOS: [[f32; 2]; 2] = [[1920.0, 1080.0], [1366.0, 768.0]];
+
+fn armar(nombre: &str, global: Global, rutas: Rutas, tam: [f32; 2]) -> Harness<'static, App> {
     let base = api_simulada(rutas);
     let app = App::de_prueba(global, servicios(nombre, &base));
-    let mut harness = Harness::builder()
-        .with_size([1200.0, 800.0])
-        .with_step_dt(0.05)
-        .wgpu()
-        .build_ui_state(|ui, app: &mut App| app.mostrar(ui), app);
+    Harness::builder().with_size(tam).with_step_dt(0.05).wgpu().build_ui_state(|ui, app: &mut App| app.mostrar(ui), app)
+}
+
+fn capturar(nombre: &str, global: impl Fn() -> Global, rutas: Rutas, pasos: impl Fn(&mut Harness<'_, App>)) {
+    for tam in TAMANOS {
+        let ancho = tam[0] as u32;
+        let mut harness = armar(&format!("{nombre}-{ancho}"), global(), rutas.clone(), tam);
+        harness.run_steps(2);
+        pasos(&mut harness);
+        harness.run_steps(8);
+        let imagen = harness.render().expect("render");
+        imagen.save(comun::carpeta_capturas().join(format!("{nombre}-{ancho}.png"))).expect("guardar captura");
+    }
+}
+
+fn correr(nombre: &str, global: Global, rutas: Rutas, pasos: impl FnOnce(&mut Harness<'_, App>)) {
+    let base = api_simulada(rutas);
+    let app = App::de_prueba(global, servicios(nombre, &base));
+    let mut harness = Harness::builder().with_size([1366.0, 768.0]).with_step_dt(0.05).build_ui_state(|ui, app: &mut App| app.mostrar(ui), app);
     harness.run_steps(2);
     pasos(&mut harness);
-    harness.run_steps(6);
-    let imagen = harness.render().expect("render");
-    imagen.save(comun::carpeta_capturas().join(format!("{nombre}.png"))).expect("guardar captura");
 }
 
 fn esperar(harness: &mut Harness<'_, App>, condicion: impl Fn(&mut App) -> bool) {
@@ -175,77 +188,78 @@ fn tecla(harness: &mut Harness<'_, App>, tecla: Key) {
     harness.step();
 }
 
+fn enfocar(harness: &mut Harness<'_, App>, id: egui::Id) {
+    harness.ctx.memory_mut(|m| m.request_focus(id));
+    harness.step();
+}
+
 fn vendedores_listos(app: &mut App) -> bool {
     !app.pantallas().usuario_login.cargando_vendedores
 }
 
 fn completar_admin(harness: &mut Harness<'_, App>, contrasena: &str) {
-    clic(harness, 600.0, 412.0);
-    escribir(harness, "admin@lahuerta.test");
-    clic(harness, 600.0, 500.0);
-    escribir(harness, contrasena);
+    enfocar(harness, admin_login::id_email());
+    escribir(harness, "martin@donjose.com.ar");
+    if !contrasena.is_empty() {
+        enfocar(harness, admin_login::id_contrasena());
+        escribir(harness, contrasena);
+    }
 }
 
 fn rutas(f: impl Fn(&str, &str) -> Option<Respuesta> + Send + Sync + 'static) -> Rutas {
     Arc::new(move |metodo, ruta| f(metodo, ruta).or_else(|| rutas_base(metodo, ruta)).unwrap_or(Respuesta::Json(404, json!({}))))
 }
 
-#[test]
-fn admin_login() {
-    capturar("01-admin-login", global(Ruta::AdminLogin, false), rutas(|_, _| None), |_| {});
+fn login_pendiente() -> Rutas {
+    rutas(|metodo, ruta| (metodo == "POST" && ruta == "/api/login").then_some(Respuesta::Pendiente))
 }
 
-#[test]
-fn admin_login_error() {
-    let api = rutas(|metodo, ruta| (metodo == "POST" && ruta == "/api/login").then(|| Respuesta::Json(401, json!({ "message": "Credenciales inválidas" }))));
-    capturar("02-admin-login-error", global(Ruta::AdminLogin, false), api, |h| {
-        completar_admin(h, "clave-incorrecta");
-        tecla(h, Key::Enter);
-        esperar(h, |app| app.pantallas().admin_login.tarea.is_none() && !app.pantallas().admin_login.error.is_empty());
-    });
-}
-
-#[test]
-fn admin_login_cargando() {
-    let api = rutas(|metodo, ruta| (metodo == "POST" && ruta == "/api/login").then_some(Respuesta::Pendiente));
-    capturar("03-admin-login-cargando", global(Ruta::AdminLogin, false), api, |h| {
-        completar_admin(h, "clave-incorrecta");
-        clic(h, 600.0, 592.0);
-    });
-}
-
-#[test]
-fn admin_login_exito() {
-    let api = rutas(|metodo, ruta| match (metodo, ruta) {
-        ("POST", "/api/login") => Some(Respuesta::Json(200, json!({ "token": "token-admin" }))),
-        ("GET", "/api/auth/session") => Some(Respuesta::Json(200, sesion_de("Roberto Sánchez", "admin@lahuerta.test", "ADMIN"))),
+fn login_como(rol: &'static str) -> Rutas {
+    rutas(move |metodo, ruta| match (metodo, ruta) {
+        ("POST", "/api/login") => Some(Respuesta::Json(200, json!({ "token": "token-vendedor" }))),
+        ("GET", "/api/auth/session") => Some(Respuesta::Json(200, sesion_de("Martín Álvarez", "martin@donjose.com.ar", rol))),
         _ => None,
+    })
+}
+
+#[test]
+fn config_inicial() {
+    capturar("01-config-inicial", || global(Ruta::AdminLogin, false), rutas(|_, _| None), |_| {});
+}
+
+#[test]
+fn config_inicial_error() {
+    capturar("02-config-inicial-error", || global(Ruta::AdminLogin, false), rutas(|_, _| None), |h| {
+        completar_admin(h, "");
+        tecla(h, Key::Enter);
+        assert_eq!(h.state_mut().pantallas().admin_login.error, "Por favor, ingresa email y contraseña");
+        assert!(h.state_mut().pantallas().admin_login.tarea.is_none());
     });
-    capturar("04-admin-login-exito", global(Ruta::AdminLogin, false), api, |h| {
+}
+
+#[test]
+fn config_inicial_cargando() {
+    capturar("03-config-inicial-cargando", || global(Ruta::AdminLogin, false), login_pendiente(), |h| {
         completar_admin(h, "clave-correcta");
         tecla(h, Key::Enter);
-        esperar(h, |app| app.global().ruta == Ruta::UsuarioLogin);
-        esperar(h, vendedores_listos);
-        let guardado = h.state_mut().global().admin.clone().unwrap();
-        assert_eq!((guardado["businessId"].clone(), guardado["businessName"].clone()), (json!(7), json!("Verdulería La Huerta")));
-        esperar(h, |app| app.global().negocio.as_ref().is_some_and(|n| n["sucursalActiva"]["id"] == 1));
+        assert!(h.state_mut().pantallas().admin_login.tarea.is_some());
     });
 }
 
 #[test]
-fn usuario_login_cargando() {
+fn quien_vende() {
+    capturar("04-quien-vende", || global(Ruta::UsuarioLogin, true), rutas(|_, _| None), |h| esperar(h, vendedores_listos));
+}
+
+#[test]
+fn quien_vende_cargando() {
     let api = rutas(|_, ruta| ruta.starts_with("/api/usuarios/vendedores").then_some(Respuesta::Pendiente));
-    capturar("05-user-login-cargando", global(Ruta::UsuarioLogin, true), api, |_| {});
+    capturar("05-quien-vende-cargando", || global(Ruta::UsuarioLogin, true), api, |_| {});
 }
 
 #[test]
-fn usuario_login() {
-    capturar("06-user-login", global(Ruta::UsuarioLogin, true), rutas(|_, _| None), |h| esperar(h, vendedores_listos));
-}
-
-#[test]
-fn usuario_login_contrasena() {
-    capturar("07-user-login-contrasena", global(Ruta::UsuarioLogin, true), rutas(|_, _| None), |h| {
+fn modal_contrasena_vendedor() {
+    capturar("06-modal-contrasena-vendedor", || global(Ruta::UsuarioLogin, true), rutas(|_, _| None), |h| {
         esperar(h, vendedores_listos);
         tecla(h, Key::Num1);
         assert!(h.state_mut().pantallas().usuario_login.contrasena.is_empty());
@@ -253,8 +267,8 @@ fn usuario_login_contrasena() {
 }
 
 #[test]
-fn usuario_login_contrasena_corta() {
-    capturar("08-user-login-contrasena-corta", global(Ruta::UsuarioLogin, true), rutas(|_, _| None), |h| {
+fn modal_contrasena_vendedor_error() {
+    capturar("07-modal-contrasena-vendedor-error", || global(Ruta::UsuarioLogin, true), rutas(|_, _| None), |h| {
         esperar(h, vendedores_listos);
         tecla(h, Key::Num1);
         escribir(h, "12");
@@ -264,52 +278,31 @@ fn usuario_login_contrasena_corta() {
 }
 
 #[test]
-fn usuario_login_error() {
-    let api = rutas(|metodo, ruta| (metodo == "POST" && ruta == "/api/login").then(|| Respuesta::Json(401, json!({ "message": "Credenciales inválidas" }))));
-    capturar("09-user-login-error", global(Ruta::UsuarioLogin, true), api, |h| {
+fn modal_contrasena_vendedor_cargando() {
+    capturar("08-modal-contrasena-vendedor-cargando", || global(Ruta::UsuarioLogin, true), login_pendiente(), |h| {
         esperar(h, vendedores_listos);
         tecla(h, Key::Num1);
         escribir(h, "1234");
         tecla(h, Key::Enter);
-        esperar(h, |app| app.pantallas().usuario_login.inicio.is_none());
+        assert!(h.state_mut().pantallas().usuario_login.inicio.is_some());
     });
 }
 
 #[test]
-fn usuario_login_iniciando() {
-    let api = rutas(|metodo, ruta| (metodo == "POST" && ruta == "/api/login").then_some(Respuesta::Pendiente));
-    capturar("10-user-login-iniciando", global(Ruta::UsuarioLogin, true), api, |h| {
+fn modal_confirmar_reconfigurar() {
+    capturar("09-modal-confirmar-reconfigurar", || global(Ruta::UsuarioLogin, true), rutas(|_, _| None), |h| {
         esperar(h, vendedores_listos);
-        tecla(h, Key::Num1);
-        escribir(h, "1234");
-        tecla(h, Key::Enter);
+        let ancho = h.ctx.content_rect().width();
+        clic(h, ancho - 28.0 - 60.0, 32.0);
+        assert!(h.state_mut().pantallas().usuario_login.dialogo_reconfigurar);
     });
 }
 
 #[test]
-fn usuario_login_reconfigurar() {
-    capturar("11-user-login-reconfigurar", global(Ruta::UsuarioLogin, true), rutas(|_, _| None), |h| {
+fn cuenta_administrador() {
+    capturar("10-cuenta-administrador", || global(Ruta::UsuarioLogin, true), login_como("ADMIN"), |h| {
         esperar(h, vendedores_listos);
-        clic(h, 1019.0, 80.0);
-    });
-}
-
-#[test]
-fn usuario_login_error_vendedores() {
-    let api = rutas(|_, ruta| ruta.starts_with("/api/usuarios/vendedores").then(|| Respuesta::Json(500, json!({ "error": "Error interno" }))));
-    capturar("12-user-login-error-vendedores", global(Ruta::UsuarioLogin, true), api, |h| esperar(h, vendedores_listos));
-}
-
-#[test]
-fn mensaje_admin() {
-    let api = rutas(|metodo, ruta| match (metodo, ruta) {
-        ("POST", "/api/login") => Some(Respuesta::Json(200, json!({ "token": "token-lucia" }))),
-        ("GET", "/api/auth/session") => Some(Respuesta::Json(200, sesion_de("Lucía Fernández", "lucia@lahuerta.test", "ADMIN"))),
-        _ => None,
-    });
-    capturar("13-admin-message", global(Ruta::UsuarioLogin, true), api, |h| {
-        esperar(h, vendedores_listos);
-        tecla(h, Key::Num1);
+        tecla(h, Key::Num5);
         escribir(h, "1234");
         tecla(h, Key::Enter);
         esperar(h, |app| app.global().ruta == Ruta::MensajeAdmin);
@@ -319,10 +312,75 @@ fn mensaje_admin() {
 }
 
 #[test]
+fn cuenta_administrador_vuelve_a_elegir_usuario() {
+    let mut global = global(Ruta::MensajeAdmin, true);
+    global.usuario = Some(json!({ "id": 1, "nombre": "Martín Álvarez", "rol": { "nombre": "ADMIN" } }));
+    correr("volver-desde-admin", global, rutas(|_, _| None), |h| {
+        h.run_steps(4);
+        let alto = sesion::alto_medido(&h.ctx, egui::Id::new("mensaje-admin-tarjeta")).unwrap();
+        let arriba = (384.0 - alto / 2.0).round();
+        clic(h, 683.0, arriba + alto - 33.0 - 21.0);
+        h.run_steps(2);
+        assert!(h.state_mut().global().usuario.is_none());
+        assert_eq!(h.state_mut().global().ruta, Ruta::UsuarioLogin);
+    });
+}
+
+#[test]
+fn config_inicial_rechazada_por_la_api() {
+    let api = rutas(|metodo, ruta| (metodo == "POST" && ruta == "/api/login").then(|| Respuesta::Json(401, json!({ "message": "Credenciales inválidas" }))));
+    correr("config-rechazada", global(Ruta::AdminLogin, false), api, |h| {
+        completar_admin(h, "clave-incorrecta");
+        tecla(h, Key::Enter);
+        esperar(h, |app| app.pantallas().admin_login.tarea.is_none() && !app.pantallas().admin_login.error.is_empty());
+    });
+}
+
+#[test]
+fn config_inicial_guarda_el_negocio() {
+    let api = rutas(|metodo, ruta| match (metodo, ruta) {
+        ("POST", "/api/login") => Some(Respuesta::Json(200, json!({ "token": "token-admin" }))),
+        ("GET", "/api/auth/session") => Some(Respuesta::Json(200, sesion_de("Martín Álvarez", "martin@donjose.com.ar", "ADMIN"))),
+        _ => None,
+    });
+    correr("config-exito", global(Ruta::AdminLogin, false), api, |h| {
+        completar_admin(h, "clave-correcta");
+        tecla(h, Key::Enter);
+        esperar(h, |app| app.global().ruta == Ruta::UsuarioLogin);
+        esperar(h, vendedores_listos);
+        let guardado = h.state_mut().global().admin.clone().unwrap();
+        assert_eq!((guardado["businessId"].clone(), guardado["businessName"].clone()), (json!(7), json!("Verdulería Don José")));
+        esperar(h, |app| app.global().negocio.as_ref().is_some_and(|n| n["sucursalActiva"]["id"] == 1));
+    });
+}
+
+#[test]
+fn vendedor_con_contrasena_invalida_ve_el_error() {
+    let api = rutas(|metodo, ruta| (metodo == "POST" && ruta == "/api/login").then(|| Respuesta::Json(401, json!({ "message": "Credenciales inválidas" }))));
+    correr("vendedor-rechazado", global(Ruta::UsuarioLogin, true), api, |h| {
+        esperar(h, vendedores_listos);
+        tecla(h, Key::Num1);
+        escribir(h, "1234");
+        tecla(h, Key::Enter);
+        esperar(h, |app| app.pantallas().usuario_login.inicio.is_none());
+        assert_eq!(h.state_mut().global().ruta, Ruta::UsuarioLogin);
+    });
+}
+
+#[test]
+fn error_al_cargar_vendedores() {
+    let api = rutas(|_, ruta| ruta.starts_with("/api/usuarios/vendedores").then(|| Respuesta::Json(500, json!({ "error": "Error interno" }))));
+    correr("error-vendedores", global(Ruta::UsuarioLogin, true), api, |h| {
+        esperar(h, vendedores_listos);
+        assert!(h.state_mut().pantallas().usuario_login.vendedores.is_empty());
+    });
+}
+
+#[test]
 fn vendedor_entra_al_carrito_y_cierra_sesion() {
     let api = rutas(|metodo, ruta| match (metodo, ruta) {
         ("POST", "/api/login") => Some(Respuesta::Json(200, json!({ "token": "token-lucia" }))),
-        ("GET", "/api/auth/session") => Some(Respuesta::Json(200, sesion_de("Lucía Fernández", "lucia@lahuerta.test", "VENDEDOR"))),
+        ("GET", "/api/auth/session") => Some(Respuesta::Json(200, sesion_de("Lucía Fernández", "lucia@donjose.com.ar", "VENDEDOR"))),
         _ => None,
     });
     let base = api_simulada(api);
@@ -337,7 +395,7 @@ fn vendedor_entra_al_carrito_y_cierra_sesion() {
     escribir(&mut h, "1234");
     tecla(&mut h, Key::Enter);
     esperar(&mut h, |app| app.global().ruta == Ruta::Carrito);
-    assert_eq!(copia.config.get("offlineCredentials")["email"], "lucia@lahuerta.test");
+    assert_eq!(copia.config.get("offlineCredentials")["email"], "lucia@donjose.com.ar");
     let mut cx = Contexto { global: h.state_mut().global(), servicios: &copia, egui: egui::Context::default() };
     sesion::cerrar_sesion(&mut cx);
     assert!(copia.config.get("offlineCredentials").is_null());
@@ -359,7 +417,7 @@ fn ruta_protegida_sin_usuario_vuelve_al_selector() {
 fn contrasena_admin_en_texto_plano_se_migra_cifrada() {
     let base = api_simulada(rutas(|_, _| None));
     let servicios = servicios("migrar-contrasena", &base);
-    servicios.config.set("adminEmail", json!("admin@lahuerta.test"));
+    servicios.config.set("adminEmail", json!("martin@donjose.com.ar"));
     servicios.config.set("adminPassword", json!("clave-correcta"));
     servicios.config.set("rememberAdminCredentials", json!("true"));
     let copia = servicios.clone();
@@ -371,7 +429,7 @@ fn contrasena_admin_en_texto_plano_se_migra_cifrada() {
     assert!(!cifrada.contains("clave"));
     assert_eq!(nucleo::sesion::descifrar(&cifrada).unwrap(), "clave-correcta");
     let pantalla = &h.state_mut().pantallas().admin_login;
-    assert_eq!((pantalla.email.as_str(), pantalla.contrasena.as_str(), pantalla.recordar), ("admin@lahuerta.test", "clave-correcta", true));
+    assert_eq!((pantalla.email.as_str(), pantalla.contrasena.as_str(), pantalla.recordar), ("martin@donjose.com.ar", "clave-correcta", true));
     let texto = std::fs::read_to_string(copia.carpeta.join("config.json")).unwrap();
     assert!(!texto.contains("clave-correcta"));
 }

@@ -1,19 +1,18 @@
 use std::sync::Arc;
 
 use eframe::egui::text::LayoutJob;
-use eframe::egui::{self, Align, Align2, Color32, Context, Galley, Id, Rect, Ui, UiBuilder};
+use eframe::egui::{self, Align, Color32, Context, Galley, Id, Layout, Rect, Ui, UiBuilder, Vec2};
 use hardware::config::Config;
 use nucleo::sesion as logica;
 use serde_json::{json, Value};
 
 use crate::app::{Contexto, Ruta};
 use crate::tareas::{self, Tarea};
-use crate::ui::{fuente, Peso, Tam};
+use crate::ui::marca::fuente;
+use crate::ui::Peso;
 
 const CONTRASENA_ADMIN_PLANA: &str = "adminPassword";
 const CONTRASENA_ADMIN: &str = "adminPasswordCifrada";
-
-pub const DEGRADADO_TEXTO: Color32 = Color32::from_rgb(0x15, 0x47, 0x38);
 
 #[derive(Default)]
 pub struct Sesion {
@@ -179,57 +178,76 @@ pub fn en<R>(ui: &mut Ui, rect: Rect, contenido: impl FnOnce(&mut Ui) -> R) -> R
     ui.scope_builder(UiBuilder::new().max_rect(rect), contenido).inner
 }
 
-pub fn linea(ui: &Ui, caja: Rect, contenido: &str, tam: Tam, peso: Peso, color: Color32, horizontal: Align) -> Rect {
-    let x = match horizontal {
-        Align::Min => caja.left(),
-        Align::Center => caja.center().x,
-        Align::Max => caja.right(),
-    };
-    ui.painter().text(egui::pos2(x, caja.center().y), Align2([horizontal, Align::Center]), contenido, fuente(tam, peso), color)
+pub fn alto_medido(ctx: &Context, id: Id) -> Option<f32> {
+    ctx.data(|d| d.get_temp::<f32>(id))
+}
+
+pub fn centrado<R>(ui: &mut Ui, id: Id, zona: Rect, ancho: f32, alineacion: Align, contenido: impl FnOnce(&mut Ui) -> R) -> R {
+    let previo = alto_medido(ui.ctx(), id);
+    let alto = previo.unwrap_or(0.0);
+    let arriba = (zona.center().y - alto / 2.0).max(zona.top()).round();
+    let izquierda = (zona.center().x - ancho / 2.0).round();
+    let marco = Rect::from_min_max(egui::pos2(izquierda, arriba), egui::pos2(izquierda + ancho, zona.bottom().max(arriba + alto)));
+    let mut hijo = ui.new_child(UiBuilder::new().max_rect(marco).layout(Layout::top_down(alineacion)));
+    hijo.spacing_mut().item_spacing = Vec2::ZERO;
+    let resultado = contenido(&mut hijo);
+    let medido = hijo.min_rect().height();
+    if previo.is_none_or(|p| (p - medido).abs() > 0.5) {
+        ui.ctx().data_mut(|d| d.insert_temp(id, medido));
+        ui.ctx().request_repaint();
+    }
+    resultado
 }
 
 pub struct Parrafo {
     galeria: Arc<Galley>,
     ajuste: f32,
-    alineacion: Align,
 }
 
 impl Parrafo {
-    pub fn new(ui: &Ui, contenido: &str, tam: Tam, peso: Peso, color: Color32, ancho: f32, alto_linea: f32, alineacion: Align) -> Self {
-        Self::con_espaciado(ui, contenido, tam, peso, color, ancho, alto_linea, alineacion, 0.0)
+    pub fn new(ui: &Ui, contenido: &str, px: f32, peso: Peso, color: Color32, ancho: f32, interlineado: f32) -> Self {
+        Self::con(ui, contenido, px, peso, color, ancho, interlineado, Align::Min, 0.0)
     }
 
-    pub fn ajustado(ui: &Ui, contenido: &str, tam: Tam, color: Color32, ancho: f32, alto_linea: f32, alineacion: Align) -> Self {
-        Self::con_espaciado(ui, contenido, tam, Peso::Negrita, color, ancho, alto_linea, alineacion, -0.025 * tam.px())
+    pub fn centrado(ui: &Ui, contenido: &str, px: f32, peso: Peso, color: Color32, ancho: f32, interlineado: f32) -> Self {
+        Self::con(ui, contenido, px, peso, color, ancho, interlineado, Align::Center, 0.0)
     }
 
-    pub fn con_espaciado(
+    pub fn con(
         ui: &Ui,
         contenido: &str,
-        tam: Tam,
+        px: f32,
         peso: Peso,
         color: Color32,
         ancho: f32,
-        alto_linea: f32,
+        interlineado: f32,
         alineacion: Align,
-        espaciado: f32,
+        espaciado_em: f32,
     ) -> Self {
-        let fuente_texto = fuente(tam, peso);
+        let fuente_texto = fuente(px, peso);
         let fila = ui.ctx().fonts_mut(|f| f.row_height(&fuente_texto));
-        let mut trabajo = LayoutJob::simple(contenido.to_string(), fuente_texto, color, ancho);
+        let alto_linea = px * interlineado;
+        let espacio = ui.ctx().fonts_mut(|f| f.glyph_width(&fuente_texto, ' ')) + px * espaciado_em;
+        let mut trabajo = LayoutJob::simple(contenido.to_string(), fuente_texto, color, ancho + espacio);
         trabajo.halign = alineacion;
         trabajo.sections[0].format.line_height = Some(alto_linea);
-        trabajo.sections[0].format.extra_letter_spacing = espaciado;
+        trabajo.sections[0].format.extra_letter_spacing = px * espaciado_em;
         let galeria = ui.ctx().fonts_mut(|f| f.layout_job(trabajo));
-        Parrafo { galeria, ajuste: ((alto_linea - fila) / 2.0).max(0.0), alineacion }
+        Parrafo { galeria, ajuste: (alto_linea - fila) / 2.0 }
     }
 
     pub fn alto(&self) -> f32 {
         self.galeria.size().y
     }
 
+    pub fn ui(self, ui: &mut Ui, ancho: f32) -> egui::Response {
+        let (rect, respuesta) = ui.allocate_exact_size(Vec2::new(ancho, self.alto()), egui::Sense::hover());
+        self.pintar(ui, rect);
+        respuesta
+    }
+
     pub fn pintar(&self, ui: &Ui, caja: Rect) {
-        let x = match self.alineacion {
+        let x = match self.galeria.job.halign {
             Align::Min => caja.left(),
             Align::Center => caja.center().x,
             Align::Max => caja.right(),

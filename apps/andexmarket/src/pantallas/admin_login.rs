@@ -1,13 +1,27 @@
-use eframe::egui::{self, Align, Key, Rect, StrokeKind, Ui, Vec2};
+use eframe::egui::{self, Align, Align2, CursorIcon, Frame, Id, Key, Margin, Rect, Sense, Stroke, StrokeKind, Ui, Vec2};
 use serde_json::{json, Value};
 
-use super::sesion::{self, en, linea, Parrafo};
+use super::sesion::{self, Parrafo};
 use crate::app::{Contexto, Ruta};
 use crate::tareas::{self, Tarea};
-use crate::ui::{self, color, paleta, toast, Boton, Direccion, Entrada, Peso, Tam, Variante};
+use crate::ui::marca::{color, fuente, radio};
+use crate::ui::v2::{self, Boton, CampoTexto, EstiloTecla};
+use crate::ui::{self, toast, Peso};
 
-const ANCHO_TARJETA: f32 = 448.0;
-const RELLENO: f32 = 24.0;
+const ANCHO_FORMULARIO: f32 = 400.0;
+const PASOS: [&str; 3] = [
+    "Vinculá la caja con tu cuenta de administrador",
+    "Cada vendedor elige su usuario e ingresa",
+    "Configurá la impresora y la balanza desde el menú",
+];
+
+pub fn id_email() -> Id {
+    Id::new("admin-login-email")
+}
+
+pub fn id_contrasena() -> Id {
+    Id::new("admin-login-contrasena")
+}
 
 #[derive(Default)]
 pub struct AdminLogin {
@@ -15,6 +29,7 @@ pub struct AdminLogin {
     pub email: String,
     pub contrasena: String,
     pub recordar: bool,
+    pub ver_contrasena: bool,
     pub error: String,
     pub tarea: Option<Tarea<Result<Value, String>>>,
 }
@@ -24,6 +39,7 @@ impl AdminLogin {
         self.email.clear();
         self.contrasena.clear();
         self.recordar = false;
+        self.ver_contrasena = false;
         self.error.clear();
         let config = &cx.servicios.config;
         let contrasena = sesion::contrasena_admin(config);
@@ -84,91 +100,199 @@ impl AdminLogin {
             self.montar(cx);
         }
         self.recibir(cx);
-        let cargando = self.tarea.is_some();
         let pantalla = ui.ctx().content_rect();
-        ui::pintar_degradado(&ui.painter().with_clip_rect(pantalla), pantalla, 0, paleta::EMERALD_50, paleta::BLUE_50, Direccion::AbajoDerecha);
-
-        let interior = ANCHO_TARJETA - RELLENO * 2.0;
-        let descripcion = Parrafo::new(
-            ui,
-            "Ingresa con una cuenta de administrador para configurar el negocio",
-            Tam::Sm,
-            Peso::Normal,
-            paleta::GRAY_600,
-            interior,
-            20.0,
-            Align::Center,
-        );
-        let alerta = (!self.error.is_empty())
-            .then(|| Parrafo::new(ui, &self.error, Tam::Sm, Peso::Normal, color::DESTRUCTIVO, interior - 34.0, 20.0, Align::Min));
-        let alto_alerta = alerta.as_ref().map_or(0.0, |a| a.alto() + 34.0 + 16.0);
-        let alto = 1.0 + RELLENO + 48.0 + 16.0 + 6.0 + 32.0 + 6.0 + descripcion.alto() + RELLENO
-            + alto_alerta + (24.0 + 8.0 + 40.0) * 2.0 + 16.0 + 16.0 + 20.0 + 16.0 + 40.0 + RELLENO + 1.0;
-        let centro = pantalla.center().round();
-        let tarjeta = Rect::from_center_size(centro, Vec2::new(ANCHO_TARJETA, alto.round()));
-        ui.painter().add(ui::sombra_sm().as_shape(tarjeta, ui::RADIO));
-        ui.painter().rect(tarjeta, ui::RADIO, color::FONDO, ui::borde(color::BORDE), StrokeKind::Inside);
-
-        let x = tarjeta.left() + RELLENO;
-        let fila = |y: f32, alto: f32| Rect::from_min_size(egui::pos2(x, y), Vec2::new(interior, alto));
-        let mut y = tarjeta.top() + 1.0 + RELLENO;
-        let circulo = egui::pos2(tarjeta.center().x, y + 24.0);
-        ui.painter().circle_filled(circulo, 24.0, paleta::EMERALD_100);
-        ui::pintar_icono_en(ui, Rect::from_center_size(circulo, Vec2::splat(24.0)), "user-cog", paleta::EMERALD_600);
-        y += 48.0 + 16.0 + 6.0;
-        Parrafo::ajustado(ui, "Configuración Inicial", Tam::X2, sesion::DEGRADADO_TEXTO, interior, 32.0, Align::Center).pintar(ui, fila(y, 32.0));
-        y += 32.0 + 6.0;
-        descripcion.pintar(ui, fila(y, descripcion.alto()));
-        y += descripcion.alto() + RELLENO;
-
-        if let Some(alerta) = &alerta {
-            let caja = fila(y, alerta.alto() + 34.0);
-            ui.painter().rect_stroke(caja, ui::RADIO, ui::borde(color::DESTRUCTIVO.gamma_multiply(0.5)), StrokeKind::Inside);
-            alerta.pintar(ui, caja.shrink(17.0));
-            y += caja.height() + 16.0;
-        }
-
-        let mut enviar = false;
-        let mut campo = |ui: &mut Ui, y: &mut f32, etiqueta: &str, texto: &mut String, sugerencia: &str, contrasena: bool| {
-            linea(ui, fila(*y, 24.0), etiqueta, Tam::Sm, Peso::Medio, color::TEXTO, Align::Min);
-            *y += 24.0 + 8.0;
-            let r = en(ui, fila(*y, 40.0), |ui| {
-                Entrada::new(texto).sugerencia(sugerencia).contrasena(contrasena).habilitado(!cargando).tam(Tam::Sm).ui(ui)
-            });
-            if r.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter)) {
-                enviar = true;
-            }
-            *y += 40.0 + 16.0;
-        };
-        campo(ui, &mut y, "Email del Administrador", &mut self.email, "admin@empresa.com", false);
-        campo(ui, &mut y, "Contraseña", &mut self.contrasena, "••••••••", true);
-
-        en(ui, fila(y, 20.0), |ui| {
-            ui.add_enabled_ui(!cargando, |ui| {
-                ui.horizontal_centered(|ui| {
-                    ui::casilla(ui, &mut self.recordar, "");
-                    ui.add_space(8.0);
-                    let texto = ui.add(
-                        egui::Label::new(ui::texto("Recordar credenciales para próximas configuraciones", Tam::Sm, Peso::Normal, color::TEXTO))
-                            .sense(egui::Sense::click()),
-                    );
-                    if texto.on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
-                        self.recordar = !self.recordar;
-                    }
-                });
-            });
-        });
-        y += 20.0 + 16.0;
-
-        let boton = en(ui, fila(y, 40.0), |ui| {
-            let boton = Boton::new(if cargando { "Configurando..." } else { "Configurar Negocio" })
-                .variante(Variante::Esmeralda)
-                .ancho(interior)
-                .cargando(cargando);
-            if cargando { boton } else { boton.icono("building-2") }.ui(ui)
-        });
-        if (boton.clicked() || enviar) && !cargando {
+        let mitad = (pantalla.left() + pantalla.width() / 2.0).round();
+        let izquierda = Rect::from_min_max(pantalla.min, egui::pos2(mitad, pantalla.bottom()));
+        let derecha = Rect::from_min_max(egui::pos2(mitad, pantalla.top()), pantalla.max);
+        let pintor = ui.painter().with_clip_rect(pantalla);
+        pintor.rect_filled(izquierda, 0, color::VERDE_PROFUNDO);
+        pintor.rect_filled(derecha, 0, color::FONDO_APP);
+        panel_marca(ui, izquierda);
+        let zona = derecha.shrink(40.0);
+        let ancho = ANCHO_FORMULARIO.min(zona.width());
+        let enviar = sesion::centrado(ui, Id::new("admin-login-formulario"), zona, ancho, Align::Min, |ui| self.formulario(ui, ancho));
+        if enviar && self.tarea.is_none() {
             self.enviar(cx);
         }
     }
+
+    fn formulario(&mut self, ui: &mut Ui, ancho: f32) -> bool {
+        let cargando = self.tarea.is_some();
+        let mut enviar = false;
+        let (caja, _) = ui.allocate_exact_size(Vec2::splat(48.0), Sense::hover());
+        ui.painter().rect_filled(caja, radio::POPOVER, color::VERDE_CHIP);
+        v2::pintar_icono(ui, caja.center(), "shield", 26.0, color::VERDE);
+        ui.add_space(22.0);
+        v2::titulo(ui, "Configuración inicial", 26.0, -0.02, color::TEXTO);
+        ui.add_space(6.0);
+        Parrafo::new(
+            ui,
+            "Ingresá con una cuenta de administrador para vincular esta caja al negocio.",
+            14.5,
+            Peso::Normal,
+            color::TEXTO_APAGADO,
+            ancho,
+            1.5,
+        )
+        .ui(ui, ancho);
+        ui.add_space(22.0);
+
+        if !self.error.is_empty() {
+            caja_error(ui, &self.error, ancho);
+            ui.add_space(22.0);
+        }
+
+        v2::etiqueta(ui, "Email del administrador");
+        ui.add_space(6.0);
+        let email = CampoTexto::new(&mut self.email)
+            .icono("mail")
+            .sugerencia("admin@negocio.com")
+            .id(id_email())
+            .habilitado(!cargando)
+            .ancho(ancho)
+            .ui(ui);
+        enviar |= email.respuesta.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter));
+        ui.add_space(22.0);
+
+        v2::etiqueta(ui, "Contraseña");
+        ui.add_space(6.0);
+        let contrasena = CampoTexto::new(&mut self.contrasena)
+            .icono("lock")
+            .sugerencia("••••••••")
+            .contrasena(!self.ver_contrasena)
+            .accion("eye")
+            .id(id_contrasena())
+            .habilitado(!cargando)
+            .ancho(ancho)
+            .ui(ui);
+        enviar |= contrasena.respuesta.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter));
+        if contrasena.accion {
+            self.ver_contrasena = !self.ver_contrasena;
+        }
+        ui.add_space(22.0);
+
+        if casilla(ui, self.recordar, "Recordar credenciales para próximas configuraciones", !cargando).clicked() {
+            self.recordar = !self.recordar;
+        }
+        ui.add_space(22.0);
+
+        let boton = Boton::primario(if cargando { "Configurando…" } else { "Configurar negocio" })
+            .icono("store")
+            .alto(48.0)
+            .ancho(ancho)
+            .tam_texto(15.0)
+            .tam_icono(19.0)
+            .separacion(10.0)
+            .cargando(cargando);
+        let boton = ui
+            .scope(|ui| {
+                if cargando {
+                    ui.set_opacity(0.75);
+                    boton.sin_sombra().ui(ui)
+                } else {
+                    boton.ui(ui)
+                }
+            })
+            .inner;
+        ui.add_space(22.0);
+        presiona_enter(ui, ancho);
+        enviar || boton.clicked()
+    }
+}
+
+fn panel_marca(ui: &mut Ui, panel: Rect) {
+    let interior = Rect::from_min_max(panel.min + Vec2::new(56.0, 48.0), panel.max - Vec2::new(56.0, 48.0));
+    let logo = Rect::from_min_size(interior.min, Vec2::splat(32.0));
+    ui::imagen("andex-market-logo.png").paint_at(ui, logo);
+    let alto_texto = 150.0 * 28.0 / 230.0;
+    let texto_logo = Rect::from_min_size(egui::pos2(logo.right() + 12.0, logo.center().y - alto_texto / 2.0), Vec2::new(150.0, alto_texto));
+    ui::imagen("andex-market-text.png").paint_at(ui, texto_logo);
+
+    let ancho = interior.width().min(440.0);
+    let etiqueta = v2::galeria_espaciada(ui, "PUNTO DE VENTA", fuente(13.0, Peso::Semi), color::DORADO, 13.0 * 0.08);
+    let titulo = Parrafo::con(ui, "Configurá esta caja una sola vez.", 40.0, Peso::Semi, color::BLANCO, ancho, 1.1, Align::Min, -0.025);
+    let bajada = Parrafo::new(
+        ui,
+        "Ingresá con la cuenta de administrador del negocio. Después, cada vendedor entra con su propio usuario.",
+        16.0,
+        Peso::Normal,
+        color::SOBRE_OSCURO_PARRAFO,
+        ancho,
+        1.55,
+    );
+    let version = v2::galeria(ui, format!("Andex Market POS · v{}", env!("CARGO_PKG_VERSION")), fuente(12.5, Peso::Normal), color::SOBRE_OSCURO_TENUE);
+    let alto_medio = etiqueta.size().y + 18.0 + titulo.alto() + 18.0 + bajada.alto();
+    let alto_pie = 28.0 * PASOS.len() as f32 + 12.0 * (PASOS.len() - 1) as f32 + 12.0 + 12.0 + version.size().y;
+    let libre = (interior.height() - 32.0 - alto_medio - alto_pie).max(0.0);
+    let x = interior.left();
+    let mut y = (interior.top() + 32.0 + libre / 2.0).round();
+    let alto_etiqueta = etiqueta.size().y;
+    ui.painter().galley(egui::pos2(x, y), etiqueta, color::DORADO);
+    y += alto_etiqueta + 18.0;
+    titulo.pintar(ui, Rect::from_min_size(egui::pos2(x, y), Vec2::new(ancho, titulo.alto())));
+    y += titulo.alto() + 18.0;
+    bajada.pintar(ui, Rect::from_min_size(egui::pos2(x, y), Vec2::new(ancho, bajada.alto())));
+
+    let mut y = (interior.bottom() - alto_pie).round();
+    for (indice, paso) in PASOS.iter().enumerate() {
+        let circulo = egui::pos2(x + 14.0, y + 14.0);
+        ui.painter().circle_filled(circulo, 14.0, color::VERDE_HOVER_OSCURO);
+        v2::pintar_texto(ui, circulo, Align2::CENTER_CENTER, (indice + 1).to_string(), 13.0, Peso::Semi, color::DORADO);
+        v2::pintar_texto(ui, egui::pos2(x + 40.0, circulo.y), Align2::LEFT_CENTER, *paso, 14.0, Peso::Normal, color::SOBRE_OSCURO_LISTA);
+        y += 28.0 + 12.0;
+    }
+    ui.painter().galley(egui::pos2(x, y + 12.0), version, color::SOBRE_OSCURO_TENUE);
+}
+
+fn caja_error(ui: &mut Ui, mensaje: &str, ancho: f32) {
+    let interior = ancho - 28.0 - 2.0;
+    Frame::NONE
+        .fill(color::ROJO_FONDO)
+        .stroke(Stroke::new(1.0, color::ROJO_BORDE))
+        .corner_radius(radio::CAMPO)
+        .inner_margin(Margin { left: 14, right: 14, top: 12, bottom: 12 })
+        .show(ui, |ui| {
+            ui.set_width(interior);
+            ui.horizontal_top(|ui| {
+                let (icono, _) = ui.allocate_exact_size(Vec2::new(18.0 + 10.0, 18.0), Sense::hover());
+                ui::pintar_icono_solar_en(ui, Rect::from_min_size(icono.min, Vec2::splat(18.0)), "alert", color::ROJO);
+                Parrafo::new(ui, mensaje, 13.5, Peso::Normal, color::ROJO, interior - 28.0, 1.45).ui(ui, interior - 28.0);
+            });
+        });
+}
+
+fn casilla(ui: &mut Ui, marcada: bool, texto: &str, habilitada: bool) -> egui::Response {
+    let galeria = v2::galeria(ui, texto, fuente(14.0, Peso::Normal), color::TEXTO_SECUNDARIO);
+    let tam = Vec2::new(18.0 + 10.0 + galeria.size().x, galeria.size().y.max(18.0));
+    let (rect, respuesta) = ui.allocate_exact_size(tam, if habilitada { Sense::click() } else { Sense::hover() });
+    let caja = Rect::from_min_size(egui::pos2(rect.left(), rect.center().y - 9.0), Vec2::splat(18.0));
+    let (borde, fondo) = if marcada { (color::VERDE, color::VERDE) } else { (color::BORDE_HOVER, color::BLANCO) };
+    ui.painter().rect(caja, radio::TECLA, fondo, Stroke::new(1.5, borde), StrokeKind::Inside);
+    if marcada {
+        v2::pintar_icono(ui, caja.center(), "check", 14.0, color::BLANCO);
+    }
+    let alto_texto = galeria.size().y;
+    ui.painter().galley(egui::pos2(caja.right() + 10.0, rect.center().y - alto_texto / 2.0), galeria, color::TEXTO_SECUNDARIO);
+    if habilitada {
+        respuesta.on_hover_cursor(CursorIcon::PointingHand)
+    } else {
+        respuesta
+    }
+}
+
+fn presiona_enter(ui: &mut Ui, ancho: f32) {
+    let antes = v2::galeria(ui, "Presioná", fuente(13.0, Peso::Normal), color::TEXTO_TENUE);
+    let despues = v2::galeria(ui, "para continuar", fuente(13.0, Peso::Normal), color::TEXTO_TENUE);
+    let tecla = v2::medir_tecla(ui, "Enter", &EstiloTecla::EN_LINEA);
+    let espacio = v2::ancho_texto(ui, "a b", 13.0, Peso::Normal) - v2::ancho_texto(ui, "ab", 13.0, Peso::Normal);
+    let (ancho_antes, ancho_despues, alto_texto) = (antes.size().x, despues.size().x, antes.size().y);
+    let total = ancho_antes + espacio + tecla.x + espacio + ancho_despues;
+    let (fila, _) = ui.allocate_exact_size(Vec2::new(ancho, alto_texto), Sense::hover());
+    let y = fila.center().y;
+    let mut x = (fila.center().x - total / 2.0).round();
+    ui.painter().galley(egui::pos2(x, y - alto_texto / 2.0), antes, color::TEXTO_TENUE);
+    x += ancho_antes + espacio;
+    v2::pintar_tecla(ui, Rect::from_min_size(egui::pos2(x, (y - tecla.y / 2.0).round()), tecla), "Enter", &EstiloTecla::EN_LINEA, color::TEXTO_SECUNDARIO);
+    x += tecla.x + espacio;
+    ui.painter().galley(egui::pos2(x, y - alto_texto / 2.0), despues, color::TEXTO_TENUE);
 }

@@ -1,37 +1,45 @@
-use eframe::egui::{self, Align, Rect, Sense, Ui, Vec2};
+use eframe::egui::{self, Align, Id, Rect, Sense, Shape, Stroke, StrokeKind, Ui, Vec2};
 
-use super::sesion::{linea, Parrafo};
+use super::sesion::{self, Parrafo};
 use crate::app::{Contexto, Ruta};
-use crate::ui::{fuente, paleta, Peso, Tam};
+use crate::ui::marca::{color, radio};
+use crate::ui::v2::{self, Boton};
+use crate::ui::Peso;
 
 pub fn mostrar(ui: &mut Ui, cx: &mut Contexto) {
     let pantalla = ui.ctx().content_rect();
-    ui.painter().with_clip_rect(pantalla).rect_filled(pantalla, 0, crate::ui::color::FONDO);
-    let ancho = 448.0 - 64.0;
-    let cuerpo = Parrafo::new(
-        ui,
-        "Esta aplicación está diseñada exclusivamente para vendedores. Los administradores deben utilizar la aplicación web.",
-        Tam::Base,
-        Peso::Normal,
-        paleta::GRAY_600,
-        ancho + 8.0,
-        24.0,
-        Align::Center,
-    );
-    let alto = 32.0 + 16.0 + cuerpo.alto() + 16.0 + 20.0;
-    let mut y = (pantalla.center().y - alto / 2.0).round();
-    let fila = |y: f32, alto: f32| Rect::from_min_size(egui::pos2(pantalla.center().x - ancho / 2.0, y), Vec2::new(ancho, alto));
-    linea(ui, fila(y, 32.0), "Acceso no permitido", Tam::X2, Peso::Negrita, paleta::GRAY_900, Align::Center);
-    y += 32.0 + 16.0;
-    cuerpo.pintar(ui, fila(y, cuerpo.alto()));
-    y += cuerpo.alto() + 16.0;
-    let texto = "Volver al inicio";
-    let ancho_enlace = ui.painter().layout_no_wrap(texto.into(), fuente(Tam::Sm, Peso::Normal), paleta::EMERALD_600).size().x;
-    let enlace = Rect::from_center_size(egui::pos2(pantalla.center().x, y + 10.0), Vec2::new(ancho_enlace, 20.0));
-    let respuesta = ui.interact(enlace, ui.id().with("volver-al-inicio"), Sense::click());
-    let color = if respuesta.hovered() { paleta::EMERALD_700 } else { paleta::EMERALD_600 };
-    linea(ui, enlace, texto, Tam::Sm, Peso::Normal, color, Align::Center);
-    if respuesta.on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
+    ui.painter().with_clip_rect(pantalla).rect_filled(pantalla, 0, color::FONDO_APP);
+    let zona = pantalla.shrink(32.0);
+    let ancho = 460.0_f32.min(zona.width());
+    let volver = sesion::centrado(ui, Id::new("mensaje-admin-tarjeta"), zona, ancho, Align::Center, |ui| {
+        let fondo = ui.painter().add(Shape::Noop);
+        let arriba = ui.cursor().top();
+        let interior = ancho - 64.0 - 2.0;
+        ui.add_space(33.0);
+        let (caja, _) = ui.allocate_exact_size(Vec2::splat(56.0), Sense::hover());
+        ui.painter().rect_filled(caja, radio::TARJETA, color::DORADO_FONDO);
+        v2::pintar_icono(ui, caja.center(), "shield", 30.0, color::DORADO_OSCURO);
+        ui.add_space(16.0);
+        v2::titulo(ui, "Esta es una cuenta de administrador", 22.0, -0.015, color::TEXTO);
+        ui.add_space(16.0);
+        Parrafo::centrado(
+            ui,
+            "El punto de venta es para vendedores. Para administrar productos, stock y reportes, entrá desde el panel web.",
+            14.5,
+            Peso::Normal,
+            color::TEXTO_APAGADO,
+            interior,
+            1.55,
+        )
+        .ui(ui, interior);
+        ui.add_space(16.0 + 6.0);
+        let boton = Boton::primario("Elegir otro usuario").icono("arrow-left").modal().tam_texto(14.0).ui(ui);
+        ui.add_space(33.0);
+        let tarjeta = Rect::from_min_max(egui::pos2(ui.max_rect().left(), arriba), egui::pos2(ui.max_rect().left() + ancho, ui.cursor().top()));
+        ui.painter().set(fondo, Shape::Rect(egui::epaint::RectShape::new(tarjeta, radio::MODAL, color::BLANCO, Stroke::new(1.0, color::BORDE), StrokeKind::Inside)));
+        boton.clicked()
+    });
+    if volver {
         cx.global.usuario = None;
         cx.global.ir(Ruta::Inicio);
     }
