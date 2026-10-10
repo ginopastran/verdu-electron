@@ -232,7 +232,7 @@ fn opcion_periodo(ui: &mut Ui, ancho: f32, numero: usize, opcion: &OpcionPeriodo
         (color::BLANCO, color::BORDE, color::TEXTO, color::TEXTO_APAGADO, color::VERDE, EstiloTecla::CUADRADA)
     };
     let avance = ui.ctx().animate_bool_with_time(respuesta.id.with("hover"), !ocupado && respuesta.hovered(), 0.15);
-    let tinta = |c: Color32| c.gamma_multiply(alfa);
+    let tinta = |c: Color32| if c.is_opaque() { mezclar(color::BLANCO, c, alfa) } else { c.gamma_multiply(alfa) };
     let borde = mezclar(borde, color::VERDE, avance);
     ui.painter().rect(rect, radio::TARJETA, tinta(fondo), Stroke::new(1.5, tinta(borde)), StrokeKind::Inside);
     let tecla = EstiloTecla { fondo: tinta(tecla.fondo), borde: tecla.borde.map(tinta), texto: tecla.texto.map(tinta), ..tecla };

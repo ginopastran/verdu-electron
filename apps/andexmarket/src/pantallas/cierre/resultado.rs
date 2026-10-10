@@ -82,7 +82,7 @@ fn estadisticas(ui: &mut Ui, resultado: &Value) {
         ("Ticket promedio", ticket_promedio(resultado), color::TEXTO),
     ];
     Frame::NONE.stroke(Stroke::new(1.0, color::BORDE_SUAVE)).corner_radius(radio::POPOVER).show(ui, |ui| {
-        let ancho = (ui.available_width() - 2.0) / 3.0;
+        let ancho = ui.available_width() / 3.0;
         ui.horizontal(|ui| {
             for (indice, (etiqueta, valor, tinta)) in datos.into_iter().enumerate() {
                 let (rect, _) = ui.allocate_exact_size(Vec2::new(ancho, 76.0), Sense::hover());
