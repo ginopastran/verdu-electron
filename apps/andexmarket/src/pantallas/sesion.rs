@@ -2,12 +2,16 @@ use std::sync::Arc;
 
 use eframe::egui::text::LayoutJob;
 use eframe::egui::{self, Align, Align2, Color32, Context, Galley, Id, Rect, Ui, UiBuilder};
+use hardware::config::Config;
 use nucleo::sesion as logica;
 use serde_json::{json, Value};
 
 use crate::app::{Contexto, Ruta};
 use crate::tareas::{self, Tarea};
 use crate::ui::{fuente, Peso, Tam};
+
+const CONTRASENA_ADMIN_PLANA: &str = "adminPassword";
+const CONTRASENA_ADMIN: &str = "adminPasswordCifrada";
 
 pub const DEGRADADO_TEXTO: Color32 = Color32::from_rgb(0x15, 0x47, 0x38);
 
@@ -25,6 +29,7 @@ impl Sesion {
             if cx.global.admin.is_none() && cx.servicios.config.has("adminData") {
                 cx.servicios.config.delete("adminData");
             }
+            migrar_contrasena_admin(&cx.servicios.config);
         }
         self.proteger_rutas(cx);
         self.seguir_negocio(cx);
@@ -125,6 +130,30 @@ pub fn borrar_admin(cx: &mut Contexto) {
     cx.global.admin = None;
     cx.global.negocio = None;
     cx.servicios.config.delete("adminData");
+}
+
+pub fn migrar_contrasena_admin(config: &Config) {
+    if !config.has(CONTRASENA_ADMIN_PLANA) {
+        return;
+    }
+    let plana = config.get(CONTRASENA_ADMIN_PLANA);
+    config.delete(CONTRASENA_ADMIN_PLANA);
+    if let Some(cifrada) = plana.as_str().filter(|p| !p.is_empty()).and_then(|p| logica::cifrar(p).ok()) {
+        config.set(CONTRASENA_ADMIN, json!(cifrada));
+    }
+}
+
+pub fn contrasena_admin(config: &Config) -> String {
+    migrar_contrasena_admin(config);
+    config.get(CONTRASENA_ADMIN).as_str().and_then(|c| logica::descifrar(c).ok()).unwrap_or_default()
+}
+
+pub fn recordar_contrasena_admin(config: &Config, contrasena: Option<&str>) {
+    match contrasena.map(logica::cifrar) {
+        Some(Ok(cifrada)) => config.set(CONTRASENA_ADMIN, json!(cifrada)),
+        _ => config.delete(CONTRASENA_ADMIN),
+    }
+    config.delete(CONTRASENA_ADMIN_PLANA);
 }
 
 pub fn iniciar_sesion(cx: &mut Contexto, usuario: Value, email: &str) {

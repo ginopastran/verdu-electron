@@ -27,12 +27,21 @@ pub fn datos_prueba(nombre_negocio: Value, ahora: &str) -> Value {
     })
 }
 
+pub fn nombre_del_negocio(negocio: Option<&Value>, admin: Option<&Value>) -> Value {
+    [negocio.map(|n| &n["nombre"]), negocio.map(|n| &n["name"]), admin.map(|a| &a["businessName"])]
+        .into_iter()
+        .flatten()
+        .find(|valor| nucleo::sesion::es_verdadero(valor))
+        .cloned()
+        .unwrap_or(Value::Null)
+}
+
 pub fn mensaje_prueba(resultado: &Value) -> Result<(), String> {
-    if resultado["success"] == false {
-        Err(resultado["error"].as_str().filter(|e| !e.is_empty()).unwrap_or("No se pudo imprimir").to_string())
-    } else {
-        Ok(())
+    if resultado["success"] != false {
+        return Ok(());
     }
+    let mensaje = ["message", "printerError", "error"].iter().find_map(|clave| resultado[*clave].as_str().filter(|m| !m.is_empty()));
+    Err(mensaje.unwrap_or("No se pudo imprimir").to_string())
 }
 
 #[derive(Default)]
@@ -103,7 +112,7 @@ impl DialogoImpresion {
 
     fn imprimir_prueba(&mut self, cx: &Contexto) {
         let servicios = cx.servicios.clone();
-        let nombre = cx.global.usuario.as_ref().map(|u| u["nombre"].clone()).unwrap_or(Value::Null);
+        let nombre = nombre_del_negocio(cx.global.negocio.as_ref(), cx.global.admin.as_ref());
         let datos = datos_prueba(nombre, &Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true));
         self.imprimiendo = Some(Tarea::lanzar(&cx.egui, move || imprimir(&servicios, Comprobante::Venta, datos)));
     }
@@ -188,12 +197,22 @@ mod pruebas {
     }
 
     #[test]
-    fn el_error_de_impresion_se_informa_como_en_el_original() {
+    fn el_ticket_de_prueba_lleva_el_nombre_del_negocio() {
+        let negocio = json!({ "nombre": "Verdulería La Huerta" });
+        let admin = json!({ "nombre": "Roberto", "businessName": "La Huerta SRL" });
+        assert_eq!(nombre_del_negocio(Some(&negocio), Some(&admin)), "Verdulería La Huerta");
+        assert_eq!(nombre_del_negocio(Some(&json!({ "sistemaPago": "redondeo" })), Some(&admin)), "La Huerta SRL");
+        assert_eq!(nombre_del_negocio(None, None), Value::Null);
+    }
+
+    #[test]
+    fn el_error_de_impresion_muestra_el_motivo() {
         assert_eq!(mensaje_prueba(&json!({ "success": true, "printerError": null })), Ok(()));
         assert_eq!(
             mensaje_prueba(&json!({ "success": false, "printerError": "sin papel", "message": "Error de impresión: sin papel" })),
-            Err("No se pudo imprimir".to_string())
+            Err("Error de impresión: sin papel".to_string())
         );
-        assert_eq!(mensaje_prueba(&json!({ "success": false, "error": "Impresora apagada" })), Err("Impresora apagada".to_string()));
+        assert_eq!(mensaje_prueba(&json!({ "success": false, "printerError": "sin papel" })), Err("sin papel".to_string()));
+        assert_eq!(mensaje_prueba(&json!({ "success": false })), Err("No se pudo imprimir".to_string()));
     }
 }

@@ -26,11 +26,11 @@ impl AdminLogin {
         self.recordar = false;
         self.error.clear();
         let config = &cx.servicios.config;
-        let (email, contrasena) = (config.get("adminEmail"), config.get("adminPassword"));
-        if let (Some(email), Some(contrasena)) = (email.as_str(), contrasena.as_str()) {
+        let contrasena = sesion::contrasena_admin(config);
+        if let Some(email) = config.get("adminEmail").as_str() {
             if !email.is_empty() && !contrasena.is_empty() && config.get("rememberAdminCredentials") == "true" {
                 self.email = email.to_string();
-                self.contrasena = contrasena.to_string();
+                self.contrasena = contrasena;
                 self.recordar = true;
             }
         }
@@ -70,11 +70,11 @@ impl AdminLogin {
         let config = &cx.servicios.config;
         if self.recordar {
             config.set("adminEmail", json!(self.email));
-            config.set("adminPassword", json!(self.contrasena));
+            sesion::recordar_contrasena_admin(config, Some(&self.contrasena));
             config.set("rememberAdminCredentials", json!("true"));
         } else {
             config.delete("adminEmail");
-            config.delete("adminPassword");
+            sesion::recordar_contrasena_admin(config, None);
             config.delete("rememberAdminCredentials");
         }
     }

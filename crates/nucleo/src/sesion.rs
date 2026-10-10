@@ -1,11 +1,14 @@
 use serde_json::{json, Map, Value};
+use windows::core::PCWSTR;
+use windows::Win32::Foundation::{LocalFree, HLOCAL};
+use windows::Win32::Security::Cryptography::{CryptProtectData, CryptUnprotectData, CRYPTPROTECT_UI_FORBIDDEN, CRYPT_INTEGER_BLOB};
 
 use crate::api::{Cliente, Respuesta};
 use crate::entorno;
 
 pub const LARGO_MINIMO_CONTRASENA: usize = 4;
 pub const ERROR_CONTRASENA_CORTA: &str = "La contraseña debe tener al menos 4 caracteres.";
-pub const ERROR_RED: &str = "Failed to fetch";
+pub const ERROR_RED: &str = "No se pudo conectar con el servidor";
 
 pub fn clave_negocio(business_id: i64) -> String {
     format!("businessInfo_{business_id}")
@@ -34,7 +37,36 @@ pub fn es_admin(usuario: &Value) -> bool {
 }
 
 pub fn ruta_protegida_rechaza_admin(usuario: &Value) -> bool {
-    usuario["role"] == "ADMIN"
+    usuario["role"] == "ADMIN" || es_admin(usuario)
+}
+
+fn dpapi(datos: &[u8], cifrar: bool) -> Result<Vec<u8>, String> {
+    let entrada = CRYPT_INTEGER_BLOB { cbData: datos.len() as u32, pbData: datos.as_ptr() as *mut u8 };
+    let mut salida = CRYPT_INTEGER_BLOB::default();
+    unsafe {
+        if cifrar {
+            CryptProtectData(&entrada, PCWSTR::null(), None, None, None, CRYPTPROTECT_UI_FORBIDDEN, &mut salida)
+        } else {
+            CryptUnprotectData(&entrada, None, None, None, None, CRYPTPROTECT_UI_FORBIDDEN, &mut salida)
+        }
+        .map_err(|e| e.to_string())?;
+        let bytes = std::slice::from_raw_parts(salida.pbData, salida.cbData as usize).to_vec();
+        LocalFree(Some(HLOCAL(salida.pbData.cast())));
+        Ok(bytes)
+    }
+}
+
+pub fn cifrar(texto: &str) -> Result<String, String> {
+    Ok(dpapi(texto.as_bytes(), true)?.iter().map(|b| format!("{b:02x}")).collect())
+}
+
+pub fn descifrar(cifrado: &str) -> Result<String, String> {
+    let bytes = (0..cifrado.len())
+        .step_by(2)
+        .map(|i| cifrado.get(i..i + 2).and_then(|par| u8::from_str_radix(par, 16).ok()))
+        .collect::<Option<Vec<u8>>>()
+        .ok_or("Contraseña cifrada inválida")?;
+    String::from_utf8(dpapi(&bytes, false)?).map_err(|e| e.to_string())
 }
 
 pub fn normalizar_usuario(mut usuario: Value) -> Value {
@@ -193,6 +225,22 @@ mod pruebas {
         assert_eq!(validar_contrasena("12"), Err(ERROR_CONTRASENA_CORTA));
         assert_eq!(validar_contrasena("ñañ"), Err(ERROR_CONTRASENA_CORTA));
         assert_eq!(validar_contrasena("1234"), Ok(()));
+    }
+
+    #[test]
+    fn admin_rechazado_por_role_o_por_rol_nombre() {
+        assert!(ruta_protegida_rechaza_admin(&json!({ "role": "ADMIN" })));
+        assert!(ruta_protegida_rechaza_admin(&json!({ "rol": { "nombre": "ADMIN" } })));
+        assert!(!ruta_protegida_rechaza_admin(&json!({ "rol": { "nombre": "VENDEDOR" } })));
+    }
+
+    #[test]
+    fn la_contrasena_se_cifra_con_dpapi_y_vuelve() {
+        let cifrada = cifrar("clave-ñandú").unwrap();
+        assert!(!cifrada.contains("clave"));
+        assert_eq!(descifrar(&cifrada).unwrap(), "clave-ñandú");
+        assert!(descifrar("zz").is_err());
+        assert!(descifrar("abc").is_err());
     }
 
     #[test]

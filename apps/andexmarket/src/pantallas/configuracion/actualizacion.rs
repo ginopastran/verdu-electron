@@ -26,7 +26,7 @@ pub enum Estado {
 struct AvisoConAccion {
     titulo: String,
     detalle: String,
-    accion: &'static str,
+    accion: Accion,
     desde: f64,
 }
 
@@ -64,7 +64,7 @@ impl Actualizacion {
         self.aviso = Some(AvisoConAccion {
             titulo: "¡Nueva versión disponible!".into(),
             detalle: format!("Versión {} está lista para descargar", publicacion.version),
-            accion: "Descargar",
+            accion: Accion::Descargar,
             desde: ahora,
         });
         self.publicacion = Some(publicacion);
@@ -79,7 +79,7 @@ impl Actualizacion {
                 self.aviso = Some(AvisoConAccion {
                     titulo: "Actualización descargada".into(),
                     detalle: "La actualización se instalará al reiniciar la aplicación".into(),
-                    accion: "Reiniciar ahora",
+                    accion: Accion::Instalar,
                     desde: ctx.input(|i| i.time),
                 });
             }
@@ -105,6 +105,10 @@ impl Actualizacion {
         }
         toast::con_detalle(ctx, toast::Tipo::Info, "Reiniciando aplicación...", "La aplicación se cerrará y se aplicará la actualización", DURACION_AVISO);
         self.reiniciar_en = Some(ctx.input(|i| i.time) + ESPERA_REINICIO);
+    }
+
+    pub fn reiniciando(&self) -> bool {
+        self.reiniciar_en.is_some() || self.instalando.is_some()
     }
 
     fn cancelar(&mut self, ctx: &Context) {
@@ -296,7 +300,7 @@ impl Actualizacion {
         let ancho = 356.0;
         let pantalla = ctx.content_rect();
         let izquierda = pantalla.center().x - ancho / 2.0;
-        let galeria_boton = galeria(ctx, aviso.accion, 12.0, Peso::Medio, 16.0, 0.0, Color32::WHITE, f32::INFINITY);
+        let galeria_boton = galeria(ctx, aviso.accion.texto_aviso(), 12.0, Peso::Medio, 16.0, 0.0, Color32::WHITE, f32::INFINITY);
         let ancho_boton = galeria_boton.size().x + 16.0;
         let x_boton = izquierda + ancho - 17.0 - ancho_boton;
         let ancho_texto = x_boton - 6.0 - (izquierda + 40.0);
@@ -304,6 +308,7 @@ impl Actualizacion {
         let detalle = galeria(ctx, &aviso.detalle, 13.0, Peso::Normal, 18.5, 0.0, texto_color, ancho_texto);
         let alto = 34.0 + titulo.size().y + detalle.size().y;
         let caja = Rect::from_min_size(Pos2::new(izquierda, pantalla.top() + 32.0), Vec2::new(ancho, alto));
+        let accion = aviso.accion;
         let mut cerrar = false;
         egui::Area::new(Id::new("aviso-actualizacion"))
             .order(Order::Tooltip)
@@ -329,6 +334,11 @@ impl Actualizacion {
             });
         if cerrar {
             self.aviso = None;
+            match accion {
+                Accion::Descargar => self.descargar(ctx),
+                Accion::Instalar => self.instalar(ctx),
+                Accion::MasTarde => {}
+            }
         }
     }
 
@@ -346,10 +356,20 @@ impl Actualizacion {
     }
 }
 
+#[derive(Clone, Copy)]
 enum Accion {
     Descargar,
     MasTarde,
     Instalar,
+}
+
+impl Accion {
+    fn texto_aviso(self) -> &'static str {
+        match self {
+            Accion::Instalar => "Reiniciar ahora",
+            _ => "Descargar",
+        }
+    }
 }
 
 #[cfg(test)]

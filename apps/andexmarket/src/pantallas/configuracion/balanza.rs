@@ -22,11 +22,7 @@ pub fn peso_en_kilos(peso: &Value) -> String {
         Value::Bool(verdadero) => f64::from(u8::from(*verdadero)),
         _ => 0.0,
     };
-    if gramos.is_nan() {
-        "NaN kg".to_string()
-    } else {
-        format!("{:.3} kg", gramos / 1000.0)
-    }
+    format!("{} kg", nucleo::formato::numero_con(gramos / 1000.0, 3, 3))
 }
 
 pub fn texto_puerto((ruta, fabricante): &(String, Option<String>)) -> String {
@@ -206,10 +202,11 @@ mod pruebas {
 
     #[test]
     fn muestra_el_peso_en_kilos_con_tres_decimales() {
-        assert_eq!(peso_en_kilos(&json!(1245)), "1.245 kg");
-        assert_eq!(peso_en_kilos(&json!(0)), "0.000 kg");
-        assert_eq!(peso_en_kilos(&json!("750")), "0.750 kg");
-        assert_eq!(peso_en_kilos(&json!(12.5)), "0.013 kg");
+        assert_eq!(peso_en_kilos(&json!(1245)), "1,245 kg");
+        assert_eq!(peso_en_kilos(&json!(1234567)), "1.234,567 kg");
+        assert_eq!(peso_en_kilos(&json!(0)), "0,000 kg");
+        assert_eq!(peso_en_kilos(&json!("750")), "0,750 kg");
+        assert_eq!(peso_en_kilos(&json!(12.5)), "0,013 kg");
         assert_eq!(peso_en_kilos(&json!("abc")), "NaN kg");
     }
 

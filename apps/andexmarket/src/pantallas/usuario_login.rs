@@ -138,7 +138,7 @@ impl UsuarioLogin {
     }
 
     fn atajos(&mut self, ui: &mut Ui) {
-        if ui.ctx().egui_wants_keyboard_input() {
+        if ui.ctx().egui_wants_keyboard_input() || self.dialogo_contrasena || self.dialogo_reconfigurar {
             return;
         }
         let Some(indice) = TECLAS.iter().position(|tecla| ui.input(|i| i.key_pressed(*tecla))) else {

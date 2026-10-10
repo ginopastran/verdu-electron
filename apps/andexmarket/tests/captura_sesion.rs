@@ -354,3 +354,35 @@ fn ruta_protegida_sin_usuario_vuelve_al_selector() {
     h.run_steps(3);
     assert_eq!(h.state_mut().global().ruta, Ruta::UsuarioLogin);
 }
+
+#[test]
+fn contrasena_admin_en_texto_plano_se_migra_cifrada() {
+    let base = api_simulada(rutas(|_, _| None));
+    let servicios = servicios("migrar-contrasena", &base);
+    servicios.config.set("adminEmail", json!("admin@lahuerta.test"));
+    servicios.config.set("adminPassword", json!("clave-correcta"));
+    servicios.config.set("rememberAdminCredentials", json!("true"));
+    let copia = servicios.clone();
+    let app = App::de_prueba(global(Ruta::AdminLogin, false), servicios);
+    let mut h = Harness::builder().with_size([1200.0, 800.0]).build_ui_state(|ui, app: &mut App| app.mostrar(ui), app);
+    h.run_steps(3);
+    assert!(!copia.config.has("adminPassword"));
+    let cifrada = copia.config.get("adminPasswordCifrada").as_str().unwrap().to_string();
+    assert!(!cifrada.contains("clave"));
+    assert_eq!(nucleo::sesion::descifrar(&cifrada).unwrap(), "clave-correcta");
+    let pantalla = &h.state_mut().pantallas().admin_login;
+    assert_eq!((pantalla.email.as_str(), pantalla.contrasena.as_str(), pantalla.recordar), ("admin@lahuerta.test", "clave-correcta", true));
+    let texto = std::fs::read_to_string(copia.carpeta.join("config.json")).unwrap();
+    assert!(!texto.contains("clave-correcta"));
+}
+
+#[test]
+fn admin_con_rol_nombre_no_entra_al_carrito() {
+    let base = api_simulada(rutas(|_, _| None));
+    let mut global = global(Ruta::Carrito, true);
+    global.usuario = Some(json!({ "id": 1, "nombre": "Roberto", "rol": { "nombre": "ADMIN" }, "permisos": {} }));
+    let app = App::de_prueba(global, servicios("protegida-admin", &base));
+    let mut h = Harness::builder().with_size([1200.0, 800.0]).build_ui_state(|ui, app: &mut App| app.mostrar(ui), app);
+    h.run_steps(3);
+    assert_eq!(h.state_mut().global().ruta, Ruta::MensajeAdmin);
+}
