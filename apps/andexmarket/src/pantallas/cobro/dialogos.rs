@@ -2,7 +2,8 @@ use eframe::egui::{
     self, Align, Align2, Color32, Context, CursorIcon, Id, Key, Modifiers, Pos2, Rect, Response, Sense, Shape, Stroke, StrokeKind,
     TextEdit, Ui, Vec2,
 };
-use nucleo::cobros::{self, fijo, local, numero_js, Descuento};
+use nucleo::cobros::{self, Descuento};
+use nucleo::formato::{self, pesos};
 use serde_json::Value;
 
 use super::{Cobro, Lado};
@@ -264,6 +265,9 @@ impl<'a> Campo<'a> {
 }
 
 fn filtrar_numero(texto: &mut String) {
+    if texto.contains(',') {
+        *texto = texto.replace(',', ".");
+    }
     texto.retain(|c| c.is_ascii_digit() || c == '.' || c == '-');
 }
 
@@ -575,7 +579,7 @@ impl Cobro {
             let rect = caja(ui, 24.0);
             pintar(ui, rect.left_center(), Align2::LEFT_CENTER, etiqueta, Tam::Sm, Peso::Medio, color::TEXTO);
             ui.add_space(8.0);
-            let maximo = format!("Máximo: ${}", fijo(subtotal, 2));
+            let maximo = format!("Máximo: {}", pesos(subtotal));
             let (texto, sugerencia, id) = if dialogo.cantidad_fija {
                 (&mut dialogo.monto, maximo.as_str(), "monto")
             } else {
@@ -591,10 +595,10 @@ impl Cobro {
             let calculado = cobros::descuento_calculado(subtotal, !dialogo.cantidad_fija, valor);
             ui::marco().fill(paleta::GRAY_50).corner_radius(ui::RADIO).inner_margin(egui::Margin::same(24)).show(ui, |ui| {
                 ui.set_width(ui.available_width());
-                let sub = format!("${}", fijo(subtotal, 2));
+                let sub = pesos(subtotal);
                 fila(ui, 28.0, ("Subtotal original:", Tam::Lg, Peso::Medio, color::TEXTO), (&sub, Tam::Xl, Peso::Negrita, color::TEXTO));
                 ui.add_space(12.0);
-                let menos = format!("-${}", fijo(calculado, 2));
+                let menos = format!("-{}", pesos(calculado));
                 fila(
                     ui,
                     28.0,
@@ -605,7 +609,7 @@ impl Cobro {
                 let linea = caja(ui, 1.0);
                 ui.painter().rect_filled(linea, 0.0, paleta::GRAY_300);
                 ui.add_space(12.0);
-                let total = format!("${}", fijo(subtotal - calculado, 2));
+                let total = pesos(subtotal - calculado);
                 fila(ui, 36.0, ("Total final:", Tam::X2, Peso::Negrita, color::TEXTO), (&total, Tam::X3, Peso::Negrita, paleta::BLUE_600));
             });
             ui.add_space(16.0);
@@ -650,18 +654,18 @@ impl Cobro {
         let (original, cobrar, aplicando) = (e.original, e.cobrar, e.aplicando);
         let con_descuento = cobrar < original;
         let mut confirmar = tope && !cargando && enter(&ctx);
-        let mut aplicar_d = false;
+        let mut aplicar_d = tope && !cargando && !aplicando && ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::F5));
         let mut cancelar = false;
         let r = ui::Dialogo::new(("cobro-efectivo", lado == Lado::Afip)).ancho(512.0).mostrar(&ctx, |ui| {
             let descripcion = if con_descuento { "Se ha aplicado un descuento por pago en efectivo" } else { "Confirma el monto a cobrar" };
             encabezado(ui, "Confirmar pago en efectivo", Tam::Lg, 18.0, color::TEXTO, None, descripcion);
             ui.add_space(32.0);
             if con_descuento {
-                let tachado = format!("${}", local(original));
+                let tachado = pesos(original);
                 let (_, d) = fila(ui, 24.0, ("Monto original:", Tam::Base, Peso::Normal, color::TEXTO), (&tachado, Tam::Base, Peso::Normal, color::TEXTO));
                 tachar(ui, d, color::TEXTO);
                 ui.add_space(8.0);
-                let nuevo = format!("${}", local(cobrar));
+                let nuevo = pesos(cobrar);
                 fila(
                     ui,
                     28.0,
@@ -670,10 +674,10 @@ impl Cobro {
                 );
                 ui.add_space(8.0);
                 let rect = caja(ui, 20.0);
-                let texto = format!("Descuento aplicado: ${}", local(original - cobrar));
+                let texto = format!("Descuento aplicado: {}", pesos(original - cobrar));
                 pintar(ui, rect.left_center(), Align2::LEFT_CENTER, &texto, Tam::Sm, Peso::Normal, color::APAGADO_TEXTO);
             } else {
-                let monto = format!("${}", local(cobrar));
+                let monto = pesos(cobrar);
                 fila(ui, 36.0, ("Monto a cobrar:", Tam::Lg, Peso::Medio, color::TEXTO), (&monto, Tam::X3, Peso::Negrita, paleta::EMERALD_600));
             }
             ui.add_space(32.0);
@@ -684,7 +688,7 @@ impl Cobro {
                 }
                 confirmar |= b.clicked();
                 if !aplicando {
-                    aplicar_d = Boton::new("Aplicar D (F5)")
+                    aplicar_d |= Boton::new("Aplicar D (F5)")
                         .variante(Variante::Contorno)
                         .colores(paleta::BLUE_50, color::TEXTO)
                         .color_borde(paleta::BLUE_200)
@@ -727,11 +731,11 @@ impl Cobro {
             );
             ui.add_space(32.0);
             if let (Some(d), true) = (descuento, subtotal != 0.0) {
-                let sub = format!("${}", local(subtotal));
+                let sub = pesos(subtotal);
                 fila(ui, 20.0, ("Subtotal:", Tam::Sm, Peso::Normal, paleta::GRAY_600), (&sub, Tam::Sm, Peso::Normal, color::TEXTO));
                 ui.add_space(8.0);
                 let etiqueta = format!("Descuento ({}):", d.etiqueta());
-                let menos = format!("-${}", local(d.monto));
+                let menos = format!("-{}", pesos(d.monto));
                 fila(ui, 20.0, (&etiqueta, Tam::Sm, Peso::Normal, paleta::GRAY_600), (&menos, Tam::Sm, Peso::Normal, paleta::GREEN_600));
                 ui.add_space(8.0);
                 let linea = caja(ui, 1.0);
@@ -739,7 +743,7 @@ impl Cobro {
                 ui.add_space(24.0);
             }
             recuadro(ui, paleta::EMERALD_50, paleta::EMERALD_200, 16.0, |ui| {
-                let monto = format!("${}", local(total));
+                let monto = pesos(total);
                 fila(ui, 32.0, ("Total a pagar:", Tam::Lg, Peso::Medio, paleta::EMERALD_700), (&monto, Tam::X2, Peso::Negrita, paleta::EMERALD_600));
             });
             ui.add_space(24.0);
@@ -771,7 +775,7 @@ impl Cobro {
             if !e.pagado.is_empty() && error.is_none() && cambio >= 0.0 {
                 ui.add_space(24.0);
                 recuadro(ui, paleta::BLUE_50, paleta::BLUE_200, 16.0, |ui| {
-                    let monto = format!("${}", fijo(cambio, 2));
+                    let monto = pesos(cambio);
                     fila(ui, 32.0, ("Vuelto a entregar:", Tam::Lg, Peso::Medio, paleta::BLUE_700), (&monto, Tam::X2, Peso::Negrita, paleta::BLUE_600));
                     if cambio == 0.0 {
                         ui.add_space(8.0);
@@ -826,7 +830,7 @@ impl Cobro {
             if let Some(d) = descuento {
                 recuadro(ui, paleta::GREEN_50, paleta::GREEN_200, 16.0, |ui| {
                     let etiqueta = format!("Descuento ({})", d.etiqueta());
-                    let menos = format!("-${}", local(d.monto));
+                    let menos = format!("-{}", pesos(d.monto));
                     fila(ui, 20.0, (&etiqueta, Tam::Sm, Peso::Medio, paleta::GREEN_800), (&menos, Tam::Sm, Peso::Negrita, paleta::GREEN_800));
                     ui.add_space(8.0);
                 });
@@ -836,7 +840,7 @@ impl Cobro {
             pintar(ui, rect.center(), Align2::CENTER_CENTER, "Total a pagar", Tam::Lg, Peso::Normal, color::APAGADO_TEXTO);
             ui.add_space(4.0);
             let rect = caja(ui, 36.0);
-            pintar(ui, rect.center(), Align2::CENTER_CENTER, &format!("${}", local(total)), Tam::X3, Peso::Negrita, paleta::EMERALD_600);
+            pintar(ui, rect.center(), Align2::CENTER_CENTER, &pesos(total), Tam::X3, Peso::Negrita, paleta::EMERALD_600);
             ui.add_space(24.0);
             let fila_efectivo = caja(ui, 40.0);
             ui::pintar_icono_en(
@@ -876,7 +880,7 @@ impl Cobro {
             }
             ui.add_space(16.0);
             let (icono, texto) = if p.segundo == "tarjeta" { ("credit-card", "Tarjeta") } else { ("qr-code", "Transferencia") };
-            let restante = format!("${}", local(cobros::mixto_restante(total, &p.efectivo_mixto)));
+            let restante = pesos(cobros::mixto_restante(total, &p.efectivo_mixto));
             if afip {
                 let rect = caja(ui, 20.0);
                 ui::pintar_icono_en(ui, Rect::from_min_size(egui::pos2(rect.left(), rect.center().y - 8.0), Vec2::splat(16.0)), icono, color::TEXTO);
@@ -958,33 +962,33 @@ impl Cobro {
                             let rect = caja(ui, 20.0);
                             pintar(ui, rect.center(), Align2::CENTER_CENTER, "Pago mixto:", Tam::Sm, Peso::Medio, color::APAGADO_TEXTO);
                             ui.add_space(4.0);
-                            let efectivo = format!("${}", local(cobros::numero(&datos["cashAmount"])));
+                            let efectivo = pesos(cobros::numero(&datos["cashAmount"]));
                             let rect = caja(ui, 24.0);
                             ui::pintar_icono_en(ui, Rect::from_min_size(egui::pos2(rect.left(), rect.center().y - 8.0), Vec2::splat(16.0)), "wallet", color::TEXTO);
                             pintar(ui, egui::pos2(rect.left() + 20.0, rect.center().y), Align2::LEFT_CENTER, "Efectivo:", Tam::Base, Peso::Medio, color::TEXTO);
                             pintar(ui, rect.right_center(), Align2::RIGHT_CENTER, &efectivo, Tam::Base, Peso::Medio, color::TEXTO);
                             ui.add_space(4.0);
-                            let monto = format!("${}", local(cobros::numero(&datos["monto"])));
+                            let monto = pesos(cobros::numero(&datos["monto"]));
                             let rect = caja(ui, 28.0);
                             ui::pintar_icono_en(ui, Rect::from_min_size(egui::pos2(rect.left(), rect.center().y - 8.0), Vec2::splat(16.0)), "qr-code", color::TEXTO);
                             pintar(ui, egui::pos2(rect.left() + 20.0, rect.center().y), Align2::LEFT_CENTER, "QR:", Tam::Lg, Peso::Semi, color::TEXTO);
                             pintar(ui, rect.right_center(), Align2::RIGHT_CENTER, &monto, Tam::Lg, Peso::Semi, color::TEXTO);
                         } else if let Some(d) = descuento {
-                            let sub = format!("${}", local(subtotal));
+                            let sub = pesos(subtotal);
                             fila(ui, 24.0, ("Subtotal:", Tam::Base, Peso::Medio, color::TEXTO), (&sub, Tam::Base, Peso::Medio, color::TEXTO));
                             ui.add_space(8.0);
                             let etiqueta = format!("Descuento ({}):", d.etiqueta());
-                            let menos = format!("-${}", local(d.monto));
+                            let menos = format!("-{}", pesos(d.monto));
                             fila(ui, 24.0, (&etiqueta, Tam::Base, Peso::Medio, paleta::GREEN_600), (&menos, Tam::Base, Peso::Medio, paleta::GREEN_600));
                             ui.add_space(8.0);
                             let linea = caja(ui, 1.0);
                             ui.painter().rect_filled(linea, 0.0, color::BORDE);
                             ui.add_space(8.0);
-                            let total = format!("${}", local(subtotal - d.monto));
+                            let total = pesos(subtotal - d.monto);
                             fila(ui, 28.0, ("Total:", Tam::Lg, Peso::Semi, color::TEXTO), (&total, Tam::Lg, Peso::Semi, color::TEXTO));
                         } else {
                             let rect = caja(ui, 28.0);
-                            let texto = format!("Monto a pagar: ${}", local(cobros::numero(&datos["monto"])));
+                            let texto = format!("Monto a pagar: {}", pesos(cobros::numero(&datos["monto"])));
                             pintar(ui, rect.center(), Align2::CENTER_CENTER, &texto, Tam::Base, Peso::Medio, color::TEXTO);
                         }
                         ui.add_space(16.0);
@@ -1150,10 +1154,10 @@ impl Cobro {
                             ui.set_width(ui.available_width());
                             for producto in &p.productos {
                                 let derecha = format!(
-                                    "{} x ${} = ${}",
-                                    numero_js(cobros::numero(&producto["cantidad"])),
-                                    fijo(cobros::numero(&producto["precioUnitario"]), 2),
-                                    fijo(cobros::numero(&producto["subtotal"]), 2)
+                                    "{} x {} = {}",
+                                    formato::numero(cobros::numero(&producto["cantidad"])),
+                                    pesos(cobros::numero(&producto["precioUnitario"])),
+                                    pesos(cobros::numero(&producto["subtotal"]))
                                 );
                                 let nombre = producto["nombreProducto"].as_str().unwrap_or("");
                                 fila(ui, 28.0, (nombre, Tam::Sm, Peso::Medio, color::TEXTO), (&derecha, Tam::Sm, Peso::Normal, paleta::GRAY_600));
@@ -1162,7 +1166,7 @@ impl Cobro {
                             let linea = caja(ui, 1.0);
                             ui.painter().rect_filled(linea, 0.0, color::BORDE);
                             ui.add_space(8.0);
-                            let total = format!("${}", fijo(p.monto, 2));
+                            let total = pesos(p.monto);
                             fila(ui, 24.0, ("Total a cancelar:", Tam::Base, Peso::Semi, color::TEXTO), (&total, Tam::Base, Peso::Semi, paleta::RED_600));
                         });
                     });
@@ -1195,15 +1199,15 @@ fn caja_descuento(ui: &mut Ui, d: &Descuento, subtotal: f64) {
     recuadro(ui, paleta::GREEN_50, paleta::GREEN_200, 16.0, |ui| {
         let rect = caja(ui, 64.0);
         let texto_valor = match d.tipo {
-            cobros::TipoDescuento::Porcentaje => format!("{}% de descuento", numero_js(d.valor)),
-            cobros::TipoDescuento::Fijo => format!("${} de descuento", fijo(d.valor, 2)),
+            cobros::TipoDescuento::Porcentaje => format!("{}% de descuento", formato::numero(d.valor)),
+            cobros::TipoDescuento::Fijo => format!("{} de descuento", pesos(d.valor)),
         };
         pintar(ui, egui::pos2(rect.left(), rect.center().y - 10.0), Align2::LEFT_CENTER, "Descuento Aplicado", Tam::Base, Peso::Semi, paleta::GREEN_800);
         pintar(ui, egui::pos2(rect.left(), rect.center().y + 12.0), Align2::LEFT_CENTER, &texto_valor, Tam::Sm, Peso::Normal, paleta::GREEN_600);
         let x = rect.right();
-        pintar(ui, egui::pos2(x, rect.top() + 10.0), Align2::RIGHT_CENTER, &format!("Subtotal: ${}", fijo(subtotal, 2)), Tam::Sm, Peso::Normal, paleta::GRAY_600);
-        pintar(ui, egui::pos2(x, rect.top() + 30.0), Align2::RIGHT_CENTER, &format!("Descuento: -${}", fijo(d.monto, 2)), Tam::Sm, Peso::Semi, paleta::GREEN_600);
-        pintar(ui, egui::pos2(x, rect.top() + 52.0), Align2::RIGHT_CENTER, &format!("Total: ${}", fijo(subtotal - d.monto, 2)), Tam::Base, Peso::Negrita, paleta::GREEN_800);
+        pintar(ui, egui::pos2(x, rect.top() + 10.0), Align2::RIGHT_CENTER, &format!("Subtotal: {}", pesos(subtotal)), Tam::Sm, Peso::Normal, paleta::GRAY_600);
+        pintar(ui, egui::pos2(x, rect.top() + 30.0), Align2::RIGHT_CENTER, &format!("Descuento: -{}", pesos(d.monto)), Tam::Sm, Peso::Semi, paleta::GREEN_600);
+        pintar(ui, egui::pos2(x, rect.top() + 52.0), Align2::RIGHT_CENTER, &format!("Total: {}", pesos(subtotal - d.monto)), Tam::Base, Peso::Negrita, paleta::GREEN_800);
     });
 }
 
@@ -1256,5 +1260,20 @@ fn pastilla_estado(ui: &mut Ui, estado: Option<&str>) {
             ui.painter().circle_filled(centro, 4.0, paleta::YELLOW_500.gamma_multiply(alfa));
         }
         ui.ctx().request_repaint();
+    }
+}
+
+#[cfg(test)]
+mod pruebas {
+    use super::filtrar_numero;
+
+    #[test]
+    fn coma_decimal_del_teclado_numerico() {
+        let mut texto = "10,5".to_string();
+        filtrar_numero(&mut texto);
+        assert_eq!(texto, "10.5");
+        let mut texto = "$1a5".to_string();
+        filtrar_numero(&mut texto);
+        assert_eq!(texto, "15");
     }
 }

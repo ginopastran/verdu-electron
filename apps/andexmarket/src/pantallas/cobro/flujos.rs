@@ -6,6 +6,7 @@ use nucleo::api::Respuesta;
 use nucleo::carrito::Producto;
 use nucleo::cobros::{self, redondear, verdad, Descuento, Venta};
 use nucleo::entorno;
+use nucleo::formato;
 use serde_json::{json, Value};
 
 use super::{aplicar, CancelacionPendiente, Cobro, Efectivo, Lado};
@@ -304,12 +305,7 @@ impl Cobro {
                     return;
                 }
                 self.normal.procesando = true;
-                let monto = redondear(d.subtotal - cobrar, 2);
-                let descuento = match (self.descuento, aplicando, porcentaje) {
-                    (Some(desc), _, _) => Some(desc.con_monto(monto)),
-                    (None, true, Some(p)) => Some(Descuento::porcentaje(p, monto)),
-                    _ => None,
-                };
+                let descuento = cobros::descuento_pago_efectivo(self.descuento, aplicando, porcentaje, redondear(d.subtotal - cobrar, 2));
                 self.procesar_pago(cx, d, "efectivo", cobrar, descuento);
             }
             (Lado::Normal, true) => {
@@ -324,12 +320,7 @@ impl Cobro {
                 self.procesar_pago(cx, d, "efectivo", cobrar, descuento);
             }
             (Lado::Afip, false) => {
-                let monto = redondear(d.subtotal - cobrar, 2);
-                let descuento = match (self.descuento, aplicando, porcentaje) {
-                    (Some(desc), true, _) => Some(desc.con_monto(monto)),
-                    (_, true, Some(p)) => Some(Descuento::porcentaje(p, monto)),
-                    _ => None,
-                };
+                let descuento = cobros::descuento_pago_efectivo(self.descuento, aplicando, porcentaje, redondear(d.subtotal - cobrar, 2));
                 self.procesar_afip(cx, d, "efectivo", Some(cobrar), descuento, None);
             }
             (Lado::Afip, true) => {
@@ -476,7 +467,7 @@ impl Cobro {
                     c.normal.fijar_qr(con_qr(r, monto, items));
                     c.normal.estado = Some("PENDIENTE".into());
                     c.normal.iniciar_sondeo(orden, cx.egui.input(|i| i.time));
-                    c.abrir_qr(cx);
+                    c.abrir_qr();
                     c.pago = None;
                 }),
                 Err(mensaje) => {
@@ -526,7 +517,7 @@ impl Cobro {
                     c.pago = None;
                     c.normal.fijar_qr(normal);
                     c.normal.estado = Some("PENDIENTE".into());
-                    c.abrir_qr(cx);
+                    c.abrir_qr();
                 }),
                 Err(mensaje) => {
                     d.error(mensaje);
@@ -769,11 +760,11 @@ impl Cobro {
             return;
         }
         self.normal.metodo = Some("split");
-        let monto = descuento.map_or(efectivo + qr, |x| efectivo + qr - x.monto);
+        let monto = redondear(efectivo + qr, 2);
         let items = cobros::items_orden(&d.items, false);
         let payload = cobros::Qr {
             monto,
-            descripcion: format!("Pago mixto: QR ${} + Efectivo ${}", cobros::fijo(qr, 2), cobros::fijo(efectivo, 2)),
+            descripcion: format!("Pago mixto: QR {} + Efectivo {}", formato::pesos(qr), formato::pesos(efectivo)),
             usuario: &d.usuario,
             items: items.clone(),
             afip: false,
@@ -796,7 +787,7 @@ impl Cobro {
                     c.normal.estado = Some("PENDIENTE".into());
                     c.normal.mixto_abierto = false;
                     c.normal.iniciar_sondeo(orden, cx.egui.input(|i| i.time));
-                    c.abrir_qr(cx);
+                    c.abrir_qr();
                     c.normal.liberar();
                 }),
                 Err(mensaje) => {
@@ -816,8 +807,8 @@ impl Cobro {
         let subtotal = cobros::subtotal_mixto_afip(efectivo + qr, descuento.as_ref());
         let items = cobros::items_orden(&d.items, false);
         let payload = cobros::Qr {
-            monto: redondear(qr, 2),
-            descripcion: format!("Pago mixto AFIP: QR ${} + Efectivo ${}", cobros::fijo(qr, 2), cobros::fijo(efectivo, 2)),
+            monto: redondear(efectivo + qr, 2),
+            descripcion: format!("Pago mixto AFIP: QR {} + Efectivo {}", formato::pesos(qr), formato::pesos(efectivo)),
             usuario: &d.usuario,
             items: items.clone(),
             afip: true,
@@ -840,7 +831,7 @@ impl Cobro {
                     c.afip.estado = Some("PENDIENTE".into());
                     c.afip.mixto_abierto = false;
                     c.afip.iniciar_sondeo(orden, cx.egui.input(|i| i.time));
-                    c.abrir_qr(cx);
+                    c.abrir_qr();
                 }),
                 Err(mensaje) => {
                     d.error(mensaje);
@@ -853,6 +844,8 @@ impl Cobro {
     pub(super) fn cerrar_qr_usuario(&mut self) {
         self.qr_abierto = false;
         self.flujo_afip = false;
+        self.normal.sondeo = None;
+        self.afip.reiniciar();
     }
 
     pub(super) fn cancelar_qr(&mut self) {
@@ -860,6 +853,7 @@ impl Cobro {
         self.normal.qr = None;
         self.normal.estado = None;
         self.normal.liberar();
+        self.afip.reiniciar();
         self.qr_abierto = false;
     }
 
@@ -873,6 +867,17 @@ impl Cobro {
         let d = Datos::de(cx);
         let p = self.proc_mut(lado);
         if p.enviando_manual() {
+            return;
+        }
+        let Some(manual) = p.manual.as_mut() else { return };
+        if !cobros::clave_manual_valida(&manual.clave, entorno::MANUAL_QR_PASSWORD) {
+            d.error(if entorno::MANUAL_QR_PASSWORD.is_some_and(|c| !c.is_empty()) {
+                "Contraseña incorrecta"
+            } else {
+                "No hay una contraseña configurada para completar manualmente"
+            });
+            manual.clave.clear();
+            manual.enfocar = true;
             return;
         }
         let clave = if lado == Lado::Normal { "id" } else { "orderId" };
@@ -990,42 +995,40 @@ impl Cobro {
                 cx.egui.request_repaint_after(Duration::from_secs_f64(sondeo.siguiente - ahora));
                 continue;
             }
-            sondeo.conteo += 1;
-            if lado == Lado::Afip && sondeo.conteo > 150 {
+            if cobros::sondeo_vencido(sondeo.inicio, ahora, lado == Lado::Afip) {
                 p.sondeo = None;
                 toast::error(&cx.egui, "Tiempo de espera agotado. Verifique manualmente el estado del pago.");
-                p.reiniciar();
                 continue;
             }
             sondeo.en_vuelo = true;
             sondeo.siguiente = ahora + if lado == Lado::Normal { 3.0 } else { 2.0 };
-            let (generacion, conteo) = (sondeo.generacion, sondeo.conteo);
+            let generacion = sondeo.generacion;
             let ruta = format!("/api/mercadopago/check-status/{}", sondeo.orden);
             let d = Datos::de(cx);
             self.lanzar(cx, false, move || {
                 let respuesta = d.pedir("GET", &ruta, None);
-                aplicar(move |c, cx| c.respuesta_sondeo(cx, lado, generacion, conteo, respuesta))
+                aplicar(move |c, cx| c.respuesta_sondeo(cx, lado, generacion, respuesta))
             });
         }
     }
 
-    fn respuesta_sondeo(&mut self, cx: &mut Contexto, lado: Lado, generacion: u64, conteo: u32, respuesta: Result<Respuesta, String>) {
+    fn respuesta_sondeo(&mut self, cx: &mut Contexto, lado: Lado, generacion: u64, respuesta: Result<Respuesta, String>) {
         let p = self.proc_mut(lado);
-        match p.sondeo.as_mut() {
-            Some(s) if s.generacion == generacion => s.en_vuelo = false,
-            _ => return,
-        }
+        let Some(sondeo) = p.sondeo.as_mut().filter(|s| s.generacion == generacion) else { return };
+        sondeo.en_vuelo = false;
         let datos = match respuesta {
             Ok(r) if r.estado == 404 => {
                 p.sondeo = None;
                 return;
             }
-            Ok(r) if r.ok() => r.cuerpo,
+            Ok(r) if r.ok() => {
+                sondeo.errores = 0;
+                r.cuerpo
+            }
             _ => {
-                if lado == Lado::Afip && conteo > 10 {
+                if sondeo.fallar() {
                     p.sondeo = None;
                     toast::error(&cx.egui, "Error al verificar el estado del pago. Verifique manualmente.");
-                    p.reiniciar();
                 }
                 return;
             }

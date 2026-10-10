@@ -1,7 +1,8 @@
-use chrono::{DateTime, Datelike, Local, Timelike, Utc};
+use chrono::{DateTime, Local, Utc};
 use serde_json::{json, Map, Value};
 
 use crate::carrito::Producto;
+use crate::formato;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum TipoDescuento {
@@ -49,8 +50,8 @@ impl Descuento {
 
     pub fn etiqueta(&self) -> String {
         match self.tipo {
-            TipoDescuento::Porcentaje => format!("{}%", numero_js(self.valor)),
-            TipoDescuento::Fijo => format!("${}", numero_js(self.valor)),
+            TipoDescuento::Porcentaje => format!("{}%", formato::numero(self.valor)),
+            TipoDescuento::Fijo => formato::pesos(self.valor),
         }
     }
 }
@@ -122,27 +123,6 @@ pub fn redondear(x: f64, decimales: usize) -> f64 {
     fijo(x, decimales).parse().unwrap_or(x)
 }
 
-pub fn local(x: f64) -> String {
-    if !x.is_finite() {
-        return if x.is_nan() { "NaN".into() } else if x > 0.0 { "∞".into() } else { "-∞".into() };
-    }
-    let (negativo, entero, fraccion) = redondear_digitos(x, 3);
-    let fraccion = fraccion.trim_end_matches('0');
-    let mut agrupado = String::new();
-    for (i, c) in entero.chars().enumerate() {
-        if i > 0 && (entero.len() - i) % 3 == 0 {
-            agrupado.push(',');
-        }
-        agrupado.push(c);
-    }
-    let signo = if negativo { "-" } else { "" };
-    if fraccion.is_empty() {
-        format!("{signo}{agrupado}")
-    } else {
-        format!("{signo}{agrupado}.{fraccion}")
-    }
-}
-
 pub fn numero_js(x: f64) -> String {
     if x.is_nan() {
         "NaN".into()
@@ -204,6 +184,14 @@ pub fn montos_efectivo(total: f64, descuento: Option<&Descuento>, descuento_efec
     }
 }
 
+pub fn descuento_pago_efectivo(descuento: Option<Descuento>, aplicando: bool, porcentaje: Option<f64>, monto: f64) -> Option<Descuento> {
+    match (descuento, aplicando, porcentaje) {
+        (Some(d), _, _) => Some(d.con_monto(monto)),
+        (None, true, Some(p)) => Some(Descuento::porcentaje(p, monto)),
+        _ => None,
+    }
+}
+
 pub fn descuento_efectivo(negocio: &Value) -> Option<f64> {
     verdad(&negocio["descuentoEfectivo"]).then(|| numero(&negocio["descuentoEfectivo"]))
 }
@@ -242,6 +230,16 @@ pub fn mixto_habilitado(total: f64, efectivo: &str, procesando: bool) -> bool {
     !procesando && !efectivo.is_empty() && parse_float(efectivo).is_some_and(|m| m > 0.0 && m < total)
 }
 
+pub const SONDEO_MAXIMO_ERRORES: u32 = 5;
+
+pub fn sondeo_vencido(inicio: f64, ahora: f64, afip: bool) -> bool {
+    ahora - inicio >= if afip { 300.0 } else { 600.0 }
+}
+
+pub fn clave_manual_valida(ingresada: &str, configurada: Option<&str>) -> bool {
+    configurada.is_some_and(|clave| !clave.is_empty() && clave == ingresada)
+}
+
 pub fn estado_qr(status: &Value) -> String {
     let estado = status.as_str().unwrap_or("").to_uppercase();
     match estado.as_str() {
@@ -257,15 +255,7 @@ pub fn fecha_iso(ahora: DateTime<Utc>) -> String {
 }
 
 pub fn fecha_es_ar(ahora: DateTime<Local>) -> String {
-    format!(
-        "{}/{}/{}, {:02}:{:02}:{:02}",
-        ahora.day(),
-        ahora.month(),
-        ahora.year(),
-        ahora.hour(),
-        ahora.minute(),
-        ahora.second()
-    )
+    ahora.format("%d/%m/%Y %H:%M:%S").to_string()
 }
 
 pub fn items_orden(items: &[Producto], con_nombre_lista: bool) -> Vec<Value> {
@@ -712,12 +702,12 @@ impl Afip<'_> {
         );
         poner("cae", cadena(&[&r["afip"]["cae"], &r["cae"]], Value::Null));
         poner("afipQrUrl", cadena(&[&r["factura"]["afipQrUrl"], &r["afipQrUrl"]], Value::Null));
-        poner("fechaVtoCae", cadena(&[&r["afip"]["fechaVtoCae"], &r["fechaVtoCae"]], Value::Null));
-        poner("puntoVenta", cadena(&[&r["afip"]["puntoVenta"], &r["puntoVenta"], &r["punto_venta"]], json!("0001")));
+        poner("fechaVtoCae", cadena(&[&r["afip"]["vencimientoCae"], &r["afip"]["fechaVtoCae"], &r["fechaVtoCae"]], Value::Null));
+        poner("puntoVenta", cadena(&[&r["factura"]["puntoVenta"], &r["afip"]["puntoVenta"], &r["puntoVenta"], &r["punto_venta"]], json!("0001")));
         poner(
             "numeroFactura",
             cadena(
-                &[&r["factura"]["numero"], &r["factura"]["numeroFactura"], &r["afip"]["numeroFactura"], &r["numeroFactura"], &r["numero_factura"], &r["numero"]],
+                &[&r["factura"]["numeroFactura"], &r["afip"]["numeroFactura"], &r["numeroFactura"], &r["numero_factura"], &r["factura"]["numero"], &r["numero"]],
                 Value::Null,
             ),
         );
@@ -816,11 +806,6 @@ mod pruebas {
 
     #[test]
     fn formatos_como_javascript() {
-        assert_eq!(local(22449.5), "22,449.5");
-        assert_eq!(local(1234567.891), "1,234,567.891");
-        assert_eq!(local(0.1 + 0.2), "0.3");
-        assert_eq!(local(20200.0), "20,200");
-        assert_eq!(local(-49.5), "-49.5");
         assert_eq!(fijo(1122.475, 2), "1122.47");
         assert_eq!(fijo(22449.5 * 0.05, 2), "1122.48");
         assert_eq!(fijo(0.125, 2), "0.13");
@@ -900,7 +885,8 @@ mod pruebas {
         assert_eq!(descuento_calculado(1000.0, false, ""), 0.0);
         let d = Descuento::porcentaje(5.0, 1122.475);
         assert_eq!(d.etiqueta(), "5%");
-        assert_eq!(Descuento::fijo(1500.0, 1500.0).etiqueta(), "$1500");
+        assert_eq!(Descuento::fijo(1500.0, 1500.0).etiqueta(), "$1.500,00");
+        assert_eq!(Descuento::porcentaje(10.5, 0.0).etiqueta(), "10,5%");
         assert_eq!(d.datos(), json!({ "type": "percentage", "value": 5.0, "amount": 1122.475 }));
     }
 
@@ -993,19 +979,53 @@ mod pruebas {
         assert_eq!(payload["tipoFactura"], "B");
         assert_eq!(payload["productos"][0]["precio"], 1000.0);
         assert_eq!(payload["pagos"][1], json!({ "metodoPago": "tarjeta", "monto": 600.0 }));
-        let resultado = json!({ "success": true, "factura": { "numero": "B-0002-00000213" }, "afip": { "cae": "75412369899123", "puntoVenta": 2 } });
-        let impresion = afip.impresion(&resultado, "10/10/2026, 12:00:00");
+        let resultado = json!({
+            "message": "Factura AFIP creada correctamente",
+            "factura": { "id": 88, "numero": "0003-00000045", "numeroFactura": "45", "puntoVenta": "0003", "vencimientoCae": "2026-10-20T03:00:00.000Z" },
+            "afip": { "cae": "75412369899123", "vencimientoCae": "20261020" },
+        });
+        let impresion = afip.impresion(&resultado, "10/10/2026 12:00:00");
         assert_eq!(impresion["cae"], "75412369899123");
         assert_eq!(impresion["razonSocial"], "La Huerta S.R.L.");
         assert_eq!(impresion["businessName"], "Verdulería La Huerta");
-        assert_eq!(impresion["numeroFactura"], "B-0002-00000213");
-        assert_eq!(impresion["puntoVenta"], 2);
+        assert_eq!(impresion["numeroFactura"], "45");
+        assert_eq!(impresion["puntoVenta"], "0003");
+        assert_eq!(impresion["fechaVtoCae"], "20261020");
         assert_eq!(impresion["tipoFactura"], "FACTURA B");
         assert_eq!(impresion["direccion"], "Dirección no configurada");
         assert_eq!(impresion["tieneDescuento"], false);
         assert_eq!(impresion["afipQrUrl"], Value::Null);
-        assert!(impresion.get("fechaVtoCae").is_none());
+        let vieja = afip.impresion(&json!({ "afip": { "cae": "1", "fechaVtoCae": "20261101" } }), "");
+        assert_eq!(vieja["fechaVtoCae"], "20261101");
+        assert!(afip.impresion(&json!({ "afip": { "cae": "1" } }), "").get("fechaVtoCae").is_none());
         assert_eq!(impresion["pagos"][0]["monto"], 400.0);
+    }
+
+    #[test]
+    fn descuento_de_pago_en_efectivo() {
+        let elegido = Descuento::porcentaje(5.0, 1122.48);
+        assert_eq!(descuento_pago_efectivo(Some(elegido), false, None, 1149.5), Some(elegido.con_monto(1149.5)));
+        assert_eq!(descuento_pago_efectivo(Some(elegido), true, Some(10.0), 1149.5), Some(elegido.con_monto(1149.5)));
+        assert_eq!(descuento_pago_efectivo(None, true, Some(10.0), 2249.5), Some(Descuento::porcentaje(10.0, 2249.5)));
+        assert_eq!(descuento_pago_efectivo(None, false, Some(10.0), 49.5), None);
+        assert_eq!(descuento_pago_efectivo(None, true, None, 49.5), None);
+    }
+
+    #[test]
+    fn sondeo_con_limite_de_tiempo() {
+        assert!(!sondeo_vencido(100.0, 699.9, false));
+        assert!(sondeo_vencido(100.0, 700.0, false));
+        assert!(!sondeo_vencido(100.0, 399.9, true));
+        assert!(sondeo_vencido(100.0, 400.0, true));
+    }
+
+    #[test]
+    fn clave_manual() {
+        assert!(clave_manual_valida("secreta", Some("secreta")));
+        assert!(!clave_manual_valida("otra", Some("secreta")));
+        assert!(!clave_manual_valida("", Some("secreta")));
+        assert!(!clave_manual_valida("", Some("")));
+        assert!(!clave_manual_valida("cualquiera", None));
     }
 
     #[test]
@@ -1026,6 +1046,6 @@ mod pruebas {
         let utc = DateTime::parse_from_rfc3339("2026-01-05T09:03:07.120Z").unwrap().with_timezone(&Utc);
         assert_eq!(fecha_iso(utc), "2026-01-05T09:03:07.120Z");
         let local_ = Local.with_ymd_and_hms(2026, 1, 5, 9, 3, 7).unwrap();
-        assert_eq!(fecha_es_ar(local_), "5/1/2026, 09:03:07");
+        assert_eq!(fecha_es_ar(local_), "05/01/2026 09:03:07");
     }
 }
