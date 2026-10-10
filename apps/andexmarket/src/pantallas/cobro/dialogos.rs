@@ -318,7 +318,7 @@ impl Cobro {
 
     pub(super) fn dibujar(&mut self, _ui: &mut Ui, cx: &mut Contexto) {
         let tope = self.tope();
-        if self.cancelar_abierto {
+        if self.cancelar_abierto && !self.cancelacion.abierto {
             self.dialogo_cancelar(cx, tope == Some(Capa::Cancelar));
         }
         if self.pago == Some(Lado::Afip) {
@@ -880,15 +880,7 @@ impl Cobro {
                     cancelar = Boton::secundario("Cancelar cobro").modal().ui(ui).clicked();
                     if pendiente && qr.is_some() {
                         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                            manual |= Boton::new("Confirmar manualmente", Estilo::ContornoMarca)
-                                .modal()
-                                .icono("check")
-                                .tecla("Enter")
-                                .peso(Peso::Medio)
-                                .tam_texto(tam::CUERPO)
-                                .relleno(16.0)
-                                .ui(ui)
-                                .clicked();
+                            manual |= Boton::secundario("Confirmar manualmente").modal().icono("check").tam_icono(16.0).color_icono(color::VERDE).ui(ui).clicked();
                         });
                     }
                 });
