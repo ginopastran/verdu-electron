@@ -176,21 +176,22 @@ impl AdminLogin {
         }
         ui.add_space(22.0);
 
+        let boton = Boton::primario(if cargando { "Configurando…" } else { "Configurar negocio" })
+            .icono("store")
+            .alto(48.0)
+            .ancho(ancho)
+            .tam_texto(15.0)
+            .tam_icono(19.0)
+            .separacion(10.0)
+            .cargando(cargando);
         let boton = ui
             .scope(|ui| {
                 if cargando {
                     ui.set_opacity(0.75);
+                    boton.sin_sombra().ui(ui)
+                } else {
+                    boton.ui(ui)
                 }
-                let boton = Boton::primario(if cargando { "Configurando…" } else { "Configurar negocio" });
-                if cargando { boton.sin_sombra() } else { boton }
-                    .icono("store")
-                    .alto(48.0)
-                    .ancho(ancho)
-                    .tam_texto(15.0)
-                    .tam_icono(19.0)
-                    .separacion(10.0)
-                    .cargando(cargando)
-                    .ui(ui)
             })
             .inner;
         ui.add_space(22.0);

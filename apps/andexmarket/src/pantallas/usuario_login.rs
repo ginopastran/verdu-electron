@@ -243,7 +243,6 @@ impl UsuarioLogin {
                     v2::texto(ui, error, 13.0, Peso::Normal, color::ROJO);
                 }
             });
-            ui.add_space(2.0);
             pie_modal(ui, |ui| {
                 let principal = Boton::primario(if iniciando { "Ingresando…" } else { "Iniciar sesión" }).modal().tam_texto(14.0).cargando(iniciando);
                 if principal.ui(ui).clicked() {
