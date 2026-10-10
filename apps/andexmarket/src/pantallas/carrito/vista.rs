@@ -1,32 +1,35 @@
+use std::sync::Arc;
+
 use eframe::egui::{
-    self, Align, Area, Color32, CursorIcon, Id, Layout, Order, Pos2, Rect, Response, ScrollArea, Sense, StrokeKind, Ui, UiBuilder, Vec2,
+    Align, Color32, Context, CornerRadius, CursorIcon, Galley, Id, Layout, Pos2, Rect, Response, ScrollArea, Sense, Stroke, StrokeKind, Ui,
+    UiBuilder, Vec2,
 };
 use nucleo::carrito::{Carritos, Producto};
 use nucleo::formato;
 use nucleo::iva::precio_visual_con_iva;
 use serde_json::Value;
 
-use super::diseno::{encoger, Texto};
+use super::diseno::{borde_punteado, celdas, galeria_centrada, galeria_cortada, Pista};
 use super::productos::{monto, ProductoDisponible};
-use crate::ui::{self, borde, color, fuente, paleta, Boton, Direccion, Peso, Tam, TamBoton, Variante};
+use crate::ui::degradado::mezclar;
+use crate::ui::marca::{self, color, fuente, fuente_mono, radio, sombra, tam};
+use crate::ui::v2::{self, tarjetas::celda_texto, Avatar, Boton, BotonIcono, Estilo, EstiloTecla, ItemMenu, Popover, Usuario};
+use crate::ui::{pintar_icono_solar_en, Peso};
 
-pub const ANCHO_BARRA: f32 = 384.0;
-const ANCHO_BARRA_MINIMO: f32 = 336.0;
-const ANCHO_PANTALLA_DE_REFERENCIA: f32 = 1200.0;
-pub const NIVEL_CABECERA_MAXIMO: u8 = 3;
-const ALTO_MAXIMO_RESULTADOS: f32 = 400.0;
+pub const ALTO_CABECERA: f32 = 68.0;
+pub const ANCHO_PANEL: f32 = 380.0;
+const ANCHO_CABECERA_AMPLIA: f32 = 1240.0;
+const ANCHO_MARCA: f32 = 26.0 + 10.0 + 112.0;
+const ANCHO_BUSCADOR_MINIMO: f32 = 280.0;
+const ANCHO_BUSCADOR_MAXIMO: f32 = 680.0;
+const COLUMNAS: [Pista; 5] = [Pista::Fraccion(2.2, 0.0), Pista::Fraccion(1.0, 110.0), Pista::Fraccion(1.0, 110.0), Pista::Fraccion(1.0, 120.0), Pista::Fija(44.0)];
 
-pub fn ancho_barra(ancho_pantalla: f32) -> f32 {
-    (ANCHO_BARRA * ancho_pantalla / ANCHO_PANTALLA_DE_REFERENCIA).clamp(ANCHO_BARRA_MINIMO, ANCHO_BARRA)
+fn galeria(ui: &Ui, contenido: impl Into<String>, px: f32, peso: Peso, tinta: Color32) -> Arc<Galley> {
+    v2::galeria(ui, contenido, fuente(px, peso), tinta)
 }
 
-pub fn en_rect<R>(ui: &mut Ui, rect: Rect, contenido: impl FnOnce(&mut Ui) -> R) -> R {
-    let mut hijo = ui.new_child(UiBuilder::new().max_rect(rect).layout(Layout::left_to_right(Align::Min)));
-    contenido(&mut hijo)
-}
-
-pub fn ancho_texto(ui: &Ui, contenido: &str, tam: Tam, peso: Peso) -> f32 {
-    ui.painter().layout_no_wrap(contenido.to_string(), fuente(tam, peso), color::TEXTO).size().x
+fn clic(ui: &Ui, rect: Rect, id: Id) -> Response {
+    ui.interact(rect, id, Sense::click()).on_hover_cursor(CursorIcon::PointingHand)
 }
 
 pub fn precio_visual(precio: f64, iva_incluido: Option<bool>, iva_porcentaje: Option<f64>, negocio: Option<&Value>) -> f64 {
@@ -36,216 +39,12 @@ pub fn precio_visual(precio: f64, iva_incluido: Option<bool>, iva_porcentaje: Op
     }
 }
 
-pub fn atajos(negocio: Option<&Value>) -> Vec<(&'static str, &'static str)> {
-    let bandera = |clave: &str| negocio.is_some_and(|n| n[clave].as_bool().unwrap_or(false));
-    let facturacion = bandera("facturacionHabilitada");
-    let afip = facturacion && bandera("afipHabilitado");
-    [
-        ("F1", "CANCELAR", true),
-        ("F2", if afip { "PAGAR CON AFIP" } else { "PAGAR" }, true),
-        ("F7", if afip { "PAGAR CON DESCUENTO AFIP" } else { "PAGAR CON DESCUENTO" }, true),
-        ("F3", "PAGAR ORDEN", afip),
-        ("F8", "PAGAR CON DESCUENTO ORDEN", afip),
-        ("F6", "CUENTA CORRIENTE", facturacion),
-        ("F4", "CERRAR SESIÓN", true),
-    ]
-    .into_iter()
-    .filter(|(_, _, visible)| *visible)
-    .map(|(tecla, descripcion, _)| (tecla, descripcion))
-    .collect()
+pub fn pesos(valor: f64) -> String {
+    format!("${}", monto(valor))
 }
 
-pub fn barra_lateral(ui: &mut Ui, rect: Rect, atajos: &[(&str, &str)]) -> Rect {
-    ui::pintar_degradado(ui.painter(), rect, 0, color::ESMERALDA_DESDE, color::ESMERALDA_HASTA, Direccion::AbajoDerecha);
-    let alto_logo = 192.0 * 26.0 / 228.0;
-    let logo = Rect::from_min_size(rect.min + Vec2::new(24.0, 24.0), Vec2::new(192.0, alto_logo));
-    ui::imagen("andexmarket-logo.png").paint_at(ui, logo);
-    let filas = atajos.len() as f32;
-    let alto_panel = 8.0 + filas * 40.0 + (filas - 1.0).max(0.0) * 6.0;
-    let panel = Rect::from_min_max(Pos2::new(rect.left() + 8.0, rect.bottom() - 8.0 - alto_panel.max(128.0)), Pos2::new(rect.right() - 8.0, rect.bottom() - 8.0));
-    ui.painter().rect_filled(panel, ui::RADIO, paleta::GRAY_50);
-    let mut y = panel.top() + 4.0;
-    for (tecla, descripcion) in atajos {
-        let imagen = Rect::from_min_size(Pos2::new(panel.left() + 4.0, y), Vec2::splat(40.0));
-        ui::imagen(&format!("teclas/{tecla}.png")).paint_at(ui, imagen);
-        ui.painter().text(
-            Pos2::new(imagen.right() + 8.0, imagen.center().y),
-            egui::Align2::LEFT_CENTER,
-            *descripcion,
-            fuente(Tam::Base, Peso::Normal),
-            color::APAGADO_TEXTO,
-        );
-        y += 46.0;
-    }
-    Rect::from_min_size(Pos2::new(rect.left() + 16.0, logo.bottom() + 24.0 + 16.0), Vec2::new(rect.width() - 32.0, 40.0))
-}
-
-pub fn resultados(
-    ctx: &egui::Context,
-    origen: Pos2,
-    ancho: f32,
-    productos: &[ProductoDisponible],
-    indices: &[usize],
-    seleccion: Option<usize>,
-    mostrar_seleccion: bool,
-    negocio: Option<&Value>,
-) -> Option<usize> {
-    let mut elegido = None;
-    let alto_maximo = (ctx.content_rect().bottom() - origen.y - 8.0).clamp(0.0, ALTO_MAXIMO_RESULTADOS);
-    Area::new(Id::new("resultados-busqueda")).order(Order::Foreground).fixed_pos(origen).constrain(false).show(ctx, |ui| {
-        let pintor = ui.painter().clone();
-        let ancho_item = ancho - 18.0;
-        let disponible = ancho_item - 24.0;
-        let filas: Vec<_> = indices
-            .iter()
-            .enumerate()
-            .map(|(posicion, &indice)| {
-                let p = &productos[indice];
-                let elegida = seleccion == Some(posicion);
-                let peso = if elegida { Peso::Medio } else { Peso::Normal };
-                let color_nombre = if elegida { paleta::EMERALD_900 } else { color::TEXTO };
-                let insignia = p.plu.as_ref().map(|plu| Texto::new(format!("PLU: {plu}"), Tam::Xs, Peso::Medio, paleta::BLUE_800));
-                let ancho_insignia = insignia.as_ref().map_or(0.0, |t| t.maximo(&pintor) + 16.0 + 8.0);
-                let nombre = Texto::new(p.nombre.clone(), Tam::Base, peso, color_nombre);
-                let precio = format!("${}/{}", monto(precio_visual(p.precio, p.iva_incluido, p.iva_porcentaje, negocio)), p.unidad);
-                let precio = Texto::new(precio, Tam::Base, peso, paleta::EMERALD_600);
-                let ancho_precio = precio.maximo(&pintor);
-                let tamanos = encoger(
-                    &[ancho_insignia + nombre.maximo(&pintor), ancho_precio],
-                    &[ancho_insignia + nombre.minimo(&pintor), ancho_precio],
-                    disponible,
-                );
-                let galeria_nombre = nombre.galeria(&pintor, tamanos[0] - ancho_insignia);
-                let alto = nombre.alto(&galeria_nombre).max(24.0) + 24.0;
-                (elegida, insignia, ancho_insignia, nombre, galeria_nombre, precio, ancho_precio, alto)
-            })
-            .collect();
-        let alto_contenido = filas.iter().map(|f| f.7).sum::<f32>();
-        let (tarjeta, _) = ui.allocate_exact_size(Vec2::new(ancho, (alto_contenido + 18.0).min(alto_maximo)), Sense::hover());
-        ui.painter().add(ui::sombra_lg().as_shape(tarjeta, ui::RADIO_XL));
-        ui.painter().rect(tarjeta, ui::RADIO_XL, color::FONDO, borde(color::BORDE), StrokeKind::Inside);
-        let interior = tarjeta.shrink(9.0);
-        let mut hijo = ui.new_child(UiBuilder::new().max_rect(interior).layout(Layout::top_down(Align::Min)));
-        ScrollArea::vertical().id_salt("resultados-busqueda-scroll").max_height(interior.height()).auto_shrink(false).show(&mut hijo, |ui| {
-            let pintor = ui.painter().clone();
-            for (posicion, (elegida, insignia, ancho_insignia, nombre, galeria_nombre, precio, ancho_precio, alto)) in filas.into_iter().enumerate() {
-                let (caja, r) = ui.allocate_exact_size(Vec2::new(ancho_item, alto), Sense::click());
-                let r = r.on_hover_cursor(CursorIcon::PointingHand);
-                if elegida && mostrar_seleccion {
-                    ui.scroll_to_rect(caja, None);
-                }
-                if elegida {
-                    pintor.rect_filled(caja, ui::RADIO, paleta::EMERALD_100);
-                } else if r.hovered() {
-                    pintor.rect_filled(caja, ui::RADIO, color::APAGADO);
-                }
-                let centro = caja.center().y;
-                let mut x = caja.left() + 12.0;
-                if let Some(insignia) = insignia {
-                    let caja_insignia = Rect::from_min_size(Pos2::new(x, centro - 12.0), Vec2::new(ancho_insignia - 8.0, 24.0));
-                    pintor.rect_filled(caja_insignia, ui::RADIO_SM, paleta::BLUE_100);
-                    let g = insignia.galeria(&pintor, f32::INFINITY);
-                    insignia.pintar(&pintor, &g, Pos2::new(x + 8.0, centro - 8.0));
-                    x += ancho_insignia;
-                }
-                let alto_nombre = nombre.alto(&galeria_nombre);
-                nombre.pintar(&pintor, &galeria_nombre, Pos2::new(x, centro - alto_nombre / 2.0));
-                let g = precio.galeria(&pintor, f32::INFINITY);
-                precio.pintar(&pintor, &g, Pos2::new(caja.right() - 12.0 - ancho_precio, centro - 12.0));
-                if r.clicked() {
-                    elegido = Some(posicion);
-                }
-            }
-        });
-    });
-    elegido
-}
-
-pub enum AccionPestana {
-    Elegir(usize),
-    Agregar,
-    Borrar(usize),
-}
-
-struct Pestana {
-    indice: usize,
-    caja: Rect,
-    borrar: Option<Rect>,
-}
-
-fn disponer_pestanas(ui: &Ui, carritos: &Carritos, origen: Pos2, compactas: bool) -> (Vec<Pestana>, Option<Rect>, f32) {
-    let (separacion, relleno) = if compactas { (8.0, 24.0) } else { (16.0, 64.0) };
-    let mut x = origen.x;
-    let mut pestanas = Vec::new();
-    for indice in 0..carritos.screens.len() {
-        if indice > 0 {
-            x += separacion;
-        }
-        let activa = carritos.active_screen == indice;
-        let ancho = relleno + ancho_texto(ui, &format!("Orden {}", indice + 1), Tam::Sm, Peso::Medio) + if activa { 0.0 } else { 2.0 };
-        let caja = Rect::from_min_size(Pos2::new(x, origen.y - 20.0), Vec2::new(ancho, 40.0));
-        x += ancho;
-        let borrar = (indice > 0).then(|| {
-            let r = Rect::from_min_size(Pos2::new(x, origen.y - 16.0), Vec2::new(28.0, 32.0));
-            x += 28.0;
-            r
-        });
-        pestanas.push(Pestana { indice, caja, borrar });
-    }
-    let mas = (carritos.screens.len() < 4).then(|| {
-        x += 4.0;
-        let r = Rect::from_min_size(Pos2::new(x, origen.y - 16.0), Vec2::new(34.0, 32.0));
-        x += 34.0;
-        r
-    });
-    (pestanas, mas, x - origen.x)
-}
-
-pub fn ancho_pestanas(ui: &Ui, carritos: &Carritos, compactas: bool) -> f32 {
-    disponer_pestanas(ui, carritos, Pos2::ZERO, compactas).2
-}
-
-pub fn pestanas(ui: &mut Ui, carritos: &Carritos, origen: Pos2, compactas: bool) -> Option<AccionPestana> {
-    let (lista, mas, _) = disponer_pestanas(ui, carritos, origen, compactas);
-    let mut accion = None;
-    for pestana in lista {
-        let activa = carritos.active_screen == pestana.indice;
-        let r = ui.interact(pestana.caja, Id::new("pestana-orden").with(pestana.indice), Sense::click()).on_hover_cursor(CursorIcon::PointingHand);
-        let (fondo, texto_color, trazo) = match (activa, r.hovered()) {
-            (true, false) => (Color32::BLACK, Color32::WHITE, None),
-            (true, true) => (color::PRIMARIO.gamma_multiply(0.9), Color32::WHITE, None),
-            (false, false) => (paleta::GRAY_300, Color32::WHITE, Some(color::BORDE)),
-            (false, true) => (color::ACENTO, color::ACENTO_TEXTO, Some(color::BORDE)),
-        };
-        ui.painter().rect(pestana.caja, ui::RADIO, fondo, trazo.map_or(egui::Stroke::NONE, borde), StrokeKind::Inside);
-        ui.painter().text(pestana.caja.center(), egui::Align2::CENTER_CENTER, format!("Orden {}", pestana.indice + 1), fuente(Tam::Sm, Peso::Medio), texto_color);
-        if r.clicked() {
-            accion = Some(AccionPestana::Elegir(pestana.indice));
-        }
-        if let Some(caja) = pestana.borrar {
-            let r = ui.interact(caja, Id::new("borrar-orden").with(pestana.indice), Sense::click()).on_hover_cursor(CursorIcon::PointingHand);
-            let icono_color = if r.hovered() {
-                ui.painter().rect_filled(caja, ui::RADIO, paleta::RED_100);
-                paleta::RED_600
-            } else {
-                color::TEXTO
-            };
-            ui::pintar_icono_en(ui, Rect::from_center_size(caja.center(), Vec2::splat(16.0)), "x", icono_color);
-            if r.clicked() {
-                accion = Some(AccionPestana::Borrar(pestana.indice));
-            }
-        }
-    }
-    if let Some(caja) = mas {
-        let r = ui.interact(caja, Id::new("agregar-orden"), Sense::click()).on_hover_cursor(CursorIcon::PointingHand);
-        let fondo = if r.hovered() { color::ACENTO } else { color::FONDO };
-        ui.painter().rect(caja, ui::RADIO, fondo, borde(Color32::BLACK), StrokeKind::Inside);
-        ui::pintar_icono_en(ui, Rect::from_center_size(caja.center(), Vec2::splat(16.0)), "plus", Color32::BLACK);
-        if r.clicked() {
-            accion = Some(AccionPestana::Agregar);
-        }
-    }
-    accion
+pub fn kilos(valor: f64) -> String {
+    format!("{} kg", formato::numero_con(valor, 3, 3))
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -261,15 +60,23 @@ pub enum AccionCabecera {
 pub struct Cabecera<'a> {
     pub facturacion: bool,
     pub cierre: bool,
-    pub usuario: (&'a str, &'a str),
-    pub nivel: u8,
+    pub nombre: &'a str,
+    pub email: &'a str,
+    pub reloj: &'a str,
+}
+
+pub struct Disposicion {
+    pub barra: Rect,
+    pub buscador: Rect,
+    derecha: Rect,
+    amplia: bool,
 }
 
 impl Cabecera<'_> {
     fn botones(&self) -> Vec<(&'static str, &'static str, AccionCabecera)> {
         let mut botones = vec![("history", "Órdenes", AccionCabecera::Ordenes)];
         if self.facturacion {
-            botones.push(("receipt", "Cuenta Corriente", AccionCabecera::CuentaCorriente));
+            botones.push(("file-text", "Cuenta corriente", AccionCabecera::CuentaCorriente));
         }
         if self.cierre {
             botones.push(("store", "Cierre de caja", AccionCabecera::Cierre));
@@ -277,242 +84,557 @@ impl Cabecera<'_> {
         botones
     }
 
-    fn solo_iconos(&self) -> bool {
-        self.nivel >= 1
-    }
-
-    fn con_nombre(&self) -> bool {
-        self.nivel < 2
-    }
-
-    pub fn pestanas_compactas(&self) -> bool {
-        self.nivel >= 3
-    }
-
-    fn separacion_botones(&self) -> f32 {
-        if self.solo_iconos() {
-            8.0
-        } else {
-            16.0
-        }
-    }
-
-    fn ancho_boton(&self, ui: &Ui, texto: &str) -> f32 {
-        if self.solo_iconos() {
-            40.0
-        } else {
-            32.0 + 24.0 + 8.0 + ancho_texto(ui, texto, Tam::Base, Peso::Medio)
-        }
-    }
-
-    fn ancho_nombre(&self, ui: &Ui) -> f32 {
-        if self.con_nombre() {
-            ancho_texto(ui, self.usuario.0, Tam::Base, Peso::Medio) + 8.0
+    fn ancho_derecha(&self, ui: &Ui, amplia: bool) -> f32 {
+        let botones = self.botones();
+        let ancho_botones: f32 = botones
+            .iter()
+            .map(|(_, etiqueta, _)| if amplia { 10.0 + 20.0 + 8.0 + v2::ancho_texto(ui, etiqueta, tam::CONTROL, Peso::Medio) + 10.0 } else { 40.0 })
+            .sum::<f32>()
+            + 6.0 * botones.len().saturating_sub(1) as f32;
+        let textos = if amplia {
+            v2::ancho_texto(ui, self.nombre, tam::CONTROL, Peso::Medio).max(v2::ancho_texto(ui, self.reloj, tam::MINI, Peso::Normal)) + 10.0
         } else {
             0.0
-        }
+        };
+        ancho_botones + 12.0 + 1.0 + 12.0 + 6.0 + 32.0 + 10.0 + textos + 16.0 + 10.0
     }
 
-    pub fn ancho(&self, ui: &Ui) -> f32 {
-        let botones = self.botones();
-        let ancho: f32 = botones.iter().map(|(_, t, _)| self.ancho_boton(ui, t)).sum::<f32>() + self.separacion_botones() * (botones.len() as f32 - 1.0);
-        ancho + 16.0 + self.ancho_nombre(ui) + 40.0
+    pub fn disponer(&self, ui: &Ui, pantalla: Rect) -> Disposicion {
+        let barra = Rect::from_min_size(pantalla.min, Vec2::new(pantalla.width(), ALTO_CABECERA));
+        let interior = barra.shrink2(Vec2::new(20.0, 0.0));
+        let disponible = interior.width() - ANCHO_MARCA - 40.0;
+        let amplia = barra.width() >= ANCHO_CABECERA_AMPLIA && disponible - self.ancho_derecha(ui, true) >= ANCHO_BUSCADOR_MINIMO;
+        let ancho_derecha = self.ancho_derecha(ui, amplia);
+        let ancho_buscador = (disponible - ancho_derecha).clamp(0.0, ANCHO_BUSCADOR_MAXIMO);
+        let buscador = Rect::from_min_size(Pos2::new(interior.left() + ANCHO_MARCA + 20.0, barra.center().y - 23.0), Vec2::new(ancho_buscador, 46.0));
+        let derecha = Rect::from_min_max(Pos2::new(interior.right() - ancho_derecha, barra.top()), Pos2::new(interior.right(), barra.bottom()));
+        Disposicion { barra, buscador, derecha, amplia }
     }
 
-    pub fn mostrar(&self, ui: &mut Ui, derecha: f32, centro_y: f32) -> Option<AccionCabecera> {
-        let mut accion = None;
-        let mut x = derecha;
-        let (nombre, email) = self.usuario;
-        let caja = Rect::from_min_size(Pos2::new(x - 40.0, centro_y - 20.0), Vec2::splat(40.0));
-        let r = en_rect(ui, caja, |ui| {
-            Boton::new("").variante(Variante::Esmeralda).tam(TamBoton::Icono).icono("user").tam_icono(24.0).ui(ui)
-        });
-        if self.con_nombre() {
-            ui.painter().text(Pos2::new(x - 48.0, centro_y), egui::Align2::RIGHT_CENTER, nombre, fuente(Tam::Base, Peso::Medio), color::TEXTO);
-        }
-        x -= 40.0 + self.ancho_nombre(ui) + 16.0;
-        if let Some(Some(a)) = menu_usuario(&r, nombre, email) {
-            accion = Some(a);
-        }
-        for (icono, texto, a) in self.botones().into_iter().rev() {
-            let ancho = self.ancho_boton(ui, texto);
-            let caja = Rect::from_min_size(Pos2::new(x - ancho, centro_y - 20.0), Vec2::new(ancho, 40.0));
-            let r = en_rect(ui, caja, |ui| {
-                let boton = Boton::new(if self.solo_iconos() { "" } else { texto }).variante(Variante::Esmeralda).icono(icono).tam_icono(24.0);
-                if self.solo_iconos() {
-                    boton.tam(TamBoton::Icono).ui(ui).on_hover_text(texto)
-                } else {
-                    boton.texto_tam(Tam::Base).ancho(ancho).ui(ui)
-                }
-            });
-            if r.clicked() {
+    pub fn pintar_fondo(ui: &mut Ui, disposicion: &Disposicion) {
+        let barra = disposicion.barra;
+        ui.painter().rect_filled(barra, 0, color::VERDE_PROFUNDO);
+        let marca = Rect::from_min_size(Pos2::new(barra.left() + 20.0, barra.top()), Vec2::new(ANCHO_MARCA, barra.height()));
+        let mut hijo = ui.new_child(UiBuilder::new().max_rect(marca).layout(Layout::left_to_right(Align::Center)));
+        hijo.spacing_mut().item_spacing.x = 10.0;
+        v2::logo(&mut hijo, 26.0);
+        v2::logo_texto(&mut hijo, 112.0);
+    }
+
+    pub fn acciones(&self, ui: &mut Ui, disposicion: &Disposicion) -> Option<AccionCabecera> {
+        let mut hijo = ui.new_child(UiBuilder::new().max_rect(disposicion.derecha).layout(Layout::right_to_left(Align::Center)));
+        hijo.spacing_mut().item_spacing.x = 6.0;
+        let items = [
+            ItemMenu { icono: "printer", etiqueta: "Impresión", tecla: None, peligro: false },
+            ItemMenu { icono: "scale", etiqueta: "Balanza", tecla: None, peligro: false },
+            ItemMenu { icono: "log-out", etiqueta: "Cerrar sesión", tecla: Some("F4"), peligro: true },
+        ];
+        let usuario = Usuario { nombre: self.nombre, email: self.email, detalle: self.reloj };
+        let mut accion = match v2::menu_usuario(&mut hijo, "menu-usuario-carrito", &usuario, &items, !disposicion.amplia) {
+            Some(0) => Some(AccionCabecera::Impresion),
+            Some(1) => Some(AccionCabecera::Balanza),
+            Some(2) => Some(AccionCabecera::CerrarSesion),
+            _ => None,
+        };
+        hijo.add_space(6.0);
+        v2::separador_vertical(&mut hijo, 28.0, color::VERDE);
+        hijo.add_space(6.0);
+        for (icono, etiqueta, a) in self.botones().into_iter().rev() {
+            let texto = if disposicion.amplia { etiqueta } else { "" };
+            let respuesta = Boton::new(texto, Estilo::FantasmaOscuro).icono(icono).tam_icono(20.0).alto(40.0).relleno(10.0).radio(radio::CONTROL).tam_texto(tam::CONTROL).ui(&mut hijo);
+            let respuesta = if disposicion.amplia { respuesta } else { respuesta.on_hover_text(etiqueta) };
+            if respuesta.clicked() {
                 accion = Some(a);
             }
-            x -= ancho + self.separacion_botones();
         }
         accion
     }
 }
 
-fn menu_usuario(boton: &Response, nombre: &str, email: &str) -> Option<Option<AccionCabecera>> {
-    ui::menu(boton, 213.0, |ui| {
-        let (caja, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 42.0), Sense::hover());
-        ui.painter().text(caja.left_top() + Vec2::new(8.0, 6.0), egui::Align2::LEFT_TOP, nombre, fuente(Tam::Sm, Peso::Medio), color::TEXTO);
-        ui.painter().text(caja.left_top() + Vec2::new(8.0, 24.0), egui::Align2::LEFT_TOP, email, fuente(Tam::Xs, Peso::Normal), color::APAGADO_TEXTO);
-        ui::separador_menu(ui);
-        let mut accion = None;
-        if ui::item_menu(ui, Some("printer"), "Impresión").clicked() {
-            accion = Some(AccionCabecera::Impresion);
-        }
-        if ui::item_menu(ui, Some("scale"), "Balanza").clicked() {
-            accion = Some(AccionCabecera::Balanza);
-        }
-        if ui::item_menu_colores(ui, Some("log-out"), "Cerrar sesión", Some((paleta::RED_700, paleta::RED_800))).clicked() {
-            accion = Some(AccionCabecera::CerrarSesion);
-        }
-        if accion.is_some() {
-            ui.close();
-        }
-        accion
-    })
+pub struct Buscador {
+    pub caja: Response,
+    pub campo: Response,
+    pub limpiar: bool,
 }
 
-pub fn item_carrito(ui: &mut Ui, item: &Producto, negocio: Option<&Value>, permite_borrar: bool) -> bool {
-    let ancho = ui.available_width();
-    let pintor = ui.painter().clone();
-    let unitario = precio_visual(item.price_per_unit, item.iva_incluido, item.iva_porcentaje, negocio);
-    let subtotal = unitario * item.quantity;
-    let lista_por_defecto = negocio.and_then(|n| n["listaPrecioPorDefectoId"].as_i64());
-    let insignia = item.lista_precio_id.filter(|id| Some(*id) != lista_por_defecto).map(|id| {
-        let nombre = item.lista_precio_nombre.as_deref().map(str::trim).filter(|n| !n.is_empty());
-        Texto::new(nombre.map(str::to_string).unwrap_or_else(|| format!("Lista #{id}")), Tam::Xs, Peso::Normal, color::SECUNDARIO_TEXTO)
-    });
-    let ancho_insignia = insignia.as_ref().map_or(0.0, |t| t.maximo(&pintor) + 20.0 + 2.0);
-    let nombre = Texto::new(item.name.clone(), Tam::X2, Peso::Medio, color::TEXTO);
-    let etiqueta_precio = if item.unit == "Kg" { "$/Kg" } else { "$/U" };
-    let detalles = [
-        Texto::new(format!("Cantidad: {} {}", formato::numero(item.quantity), item.unit), Tam::Base, Peso::Normal, color::APAGADO_TEXTO),
-        Texto::new(format!("{etiqueta_precio}: ${}", monto(unitario)), Tam::Base, Peso::Normal, color::APAGADO_TEXTO),
-        Texto::new(format!("SUBTOTAL: ${}", monto(subtotal)), Tam::Base, Peso::Normal, color::APAGADO_TEXTO),
-    ];
-    let maximo_nombre = nombre.maximo(&pintor) + if ancho_insignia > 0.0 { 8.0 + ancho_insignia } else { 0.0 };
-    let minimo_nombre = nombre.minimo(&pintor).max(ancho_insignia);
-    let mut bases = vec![maximo_nombre];
-    let mut minimos = vec![minimo_nombre];
-    for d in &detalles {
-        bases.push(d.maximo(&pintor));
-        minimos.push(d.minimo(&pintor));
+pub fn buscador(ui: &mut Ui, rect: Rect, consulta: &mut String, id: Id) -> Buscador {
+    let caja = ui.interact(rect, id.with("caja"), Sense::hover());
+    let con_texto = !consulta.is_empty();
+    if con_texto {
+        marca::pintar_anillo(ui.painter(), rect, radio::CAMPO, color::ANILLO_BUSQUEDA);
     }
-    let separacion = 40.0 * 3.0;
-    let interior = ancho - 34.0;
-    let ancho_boton = if permite_borrar { 32.0 } else { 0.0 };
-    let bloque = encoger(
-        &[bases.iter().sum::<f32>() + separacion, ancho_boton],
-        &[minimos.iter().sum::<f32>() + separacion, if permite_borrar { 24.0 } else { 0.0 }],
-        interior,
-    );
-    let columnas = encoger(&bases, &minimos, bloque[0] - separacion);
-    let galeria_nombre = nombre.galeria(&pintor, columnas[0]);
-    let insignia_en_linea = columnas[0] + 0.5 >= maximo_nombre;
-    let alto_nombre = match &insignia {
-        Some(_) if !insignia_en_linea => nombre.alto(&galeria_nombre) + 8.0 + 22.0,
-        _ => nombre.alto(&galeria_nombre),
-    };
-    let galerias: Vec<_> = detalles.iter().zip(&columnas[1..]).map(|(d, w)| d.galeria(&pintor, *w)).collect();
-    let altos: Vec<f32> = detalles.iter().zip(&galerias).map(|(d, g)| d.alto(g)).collect();
-    let alto_bloque = altos.iter().copied().fold(alto_nombre, f32::max);
-    let alto_contenido = alto_bloque.max(32.0);
-    let (caja, _) = ui.allocate_exact_size(Vec2::new(ancho, alto_contenido + 34.0), Sense::hover());
-    ui.painter().add(ui::sombra_sm().as_shape(caja, ui::RADIO_XL));
-    ui.painter().rect(caja, ui::RADIO_XL, color::FONDO, borde(color::BORDE_ENTRADA), StrokeKind::Inside);
-    let contenido = caja.shrink(17.0);
-    let base_y = contenido.center().y + alto_bloque / 2.0;
-    let mut x = contenido.left();
-    let y_nombre = base_y - alto_nombre;
-    nombre.pintar(&pintor, &galeria_nombre, Pos2::new(x, y_nombre));
-    if let Some(insignia) = &insignia {
-        let ancho_linea = galeria_nombre.rows.last().map_or(0.0, |f| f.rect().width());
-        let (ix, centro) = if insignia_en_linea {
-            (x + ancho_linea + 8.0, y_nombre + nombre.alto(&galeria_nombre) - 16.0)
-        } else {
-            (x, base_y - 11.0)
-        };
-        let r = Rect::from_min_size(Pos2::new(ix, centro - 11.0), Vec2::new(ancho_insignia, 22.0));
-        ui.painter().rect(r, 11.0, color::SECUNDARIO, egui::Stroke::NONE, StrokeKind::Inside);
-        let g = insignia.galeria(&pintor, f32::INFINITY);
-        insignia.pintar(&pintor, &g, Pos2::new(r.left() + 11.0, r.center().y - 8.0));
-    }
-    x += columnas[0] + 40.0;
-    for ((d, g), (w, alto)) in detalles.iter().zip(&galerias).zip(columnas[1..].iter().zip(&altos)) {
-        d.pintar(&pintor, g, Pos2::new(x, base_y - alto));
-        x += w + 40.0;
-    }
-    if !permite_borrar {
-        return false;
-    }
-    let boton = Rect::from_min_size(Pos2::new(contenido.right() - bloque[1], contenido.center().y - 16.0), Vec2::new(bloque[1], 32.0));
-    en_rect(ui, boton, |ui| {
-        Boton::new("").variante(Variante::Cancelar).tam(TamBoton::Icono).icono("trash-2").tam_icono(16.0).ancho(bloque[1]).alto(32.0).ui(ui)
-    })
-    .on_hover_text("Eliminar producto")
-    .clicked()
+    ui.painter().rect_filled(rect, radio::CAMPO, color::BLANCO);
+    let interior = Rect::from_min_max(Pos2::new(rect.left() + 14.0, rect.top()), Pos2::new(rect.right() - 6.0, rect.bottom()));
+    let mut hijo = ui.new_child(UiBuilder::new().max_rect(interior).layout(Layout::left_to_right(Align::Center)));
+    hijo.spacing_mut().item_spacing.x = 10.0;
+    let (icono, _) = hijo.allocate_exact_size(Vec2::splat(20.0), Sense::hover());
+    pintar_icono_solar_en(&hijo, icono, "barcode", color::VERDE);
+    let ancho = (hijo.available_width() - if con_texto { 42.0 } else { 0.0 }).max(10.0);
+    let campo = hijo
+        .allocate_ui_with_layout(Vec2::new(ancho, 44.0), Layout::left_to_right(Align::Center), |ui| {
+            v2::entrada_desnuda(consulta).id(id).tam(tam::BUSQUEDA).sugerencia("Buscar producto, PLU o escanear código").ui(ui)
+        })
+        .inner;
+    let limpiar = con_texto && BotonIcono::new("x").tam(32.0).tam_icono(18.0).colores(color::TEXTO_TENUE, color::FONDO_APP, color::TEXTO_TENUE).ui(&mut hijo).clicked();
+    Buscador { caja, campo, limpiar }
 }
 
-pub struct Resumen {
+pub struct Resultados<'a> {
+    pub productos: &'a [ProductoDisponible],
+    pub indices: &'a [usize],
+    pub seleccion: Option<usize>,
+    pub mostrar_seleccion: bool,
+    pub consulta: &'a str,
+    pub negocio: Option<&'a Value>,
+}
+
+pub fn resultados(ctx: &Context, ancla: &Response, visible: bool, datos: &Resultados) -> Option<usize> {
+    Popover::new(Id::new("resultados-busqueda"), ancla)
+        .visible(visible)
+        .ancho(ancla.rect.width())
+        .separacion(8.0)
+        .radio(radio::POPOVER)
+        .sombra(sombra::POPOVER)
+        .alto_maximo(420.0)
+        .mostrar(ctx, |ui| {
+            let ancho = ui.available_width();
+            let pintor = ui.painter().clone();
+            let mut elegido = None;
+            for (posicion, &indice) in datos.indices.iter().enumerate() {
+                let producto = &datos.productos[indice];
+                let (caja, respuesta) = ui.allocate_exact_size(Vec2::new(ancho, 56.0), Sense::click());
+                let elegida = datos.seleccion == Some(posicion);
+                if elegida && datos.mostrar_seleccion {
+                    ui.scroll_to_rect(caja, None);
+                }
+                if elegida || respuesta.hovered() {
+                    pintor.rect_filled(caja, radio::CONTROL, color::VERDE_ELEGIDO);
+                }
+                let avatar = Rect::from_min_size(Pos2::new(caja.left() + 12.0, caja.center().y - 18.0), Vec2::splat(36.0));
+                Avatar::producto(producto.nombre.chars().next().map(String::from).unwrap_or_default()).pintar(ui, avatar);
+                let precio = precio_visual(producto.precio, producto.iva_incluido, producto.iva_porcentaje, datos.negocio);
+                let precio = galeria(ui, pesos(precio), tam::CUERPO_MAS, Peso::Semi, color::TEXTO);
+                let unidad = galeria(ui, if producto.unidad == "Kg" { " /kg" } else { " /u" }, tam::XS, Peso::Normal, color::TEXTO_APAGADO);
+                let x_unidad = caja.right() - 12.0 - unidad.size().x;
+                let x_precio = x_unidad - precio.size().x;
+                let y_precio = caja.center().y - precio.size().y / 2.0;
+                let linea_base = y_precio + precio.size().y * 0.8;
+                let ancho_texto = x_precio - 12.0 - (avatar.right() + 12.0);
+                let nombre = galeria_cortada(&pintor, &producto.nombre, fuente(tam::CUERPO_MAS, Peso::Medio), color::TEXTO, ancho_texto);
+                let codigos: Vec<String> = [producto.plu.as_ref().map(|plu| format!("PLU {plu}")), producto.codigo_barras.clone()]
+                    .into_iter()
+                    .flatten()
+                    .filter(|c| !c.trim().is_empty())
+                    .collect();
+                let detalle = (!codigos.is_empty()).then(|| galeria_cortada(&pintor, &codigos.join(" · "), fuente_mono(tam::XS, Peso::Normal), color::TEXTO_TENUE, ancho_texto));
+                let alto = nombre.size().y + detalle.as_ref().map_or(0.0, |d| 1.0 + d.size().y);
+                let mut y = caja.center().y - alto / 2.0;
+                let x = avatar.right() + 12.0;
+                let alto_nombre = nombre.size().y;
+                pintor.galley(Pos2::new(x, y), nombre, color::TEXTO);
+                y += alto_nombre + 1.0;
+                if let Some(detalle) = detalle {
+                    pintor.galley(Pos2::new(x, y), detalle, color::TEXTO_TENUE);
+                }
+                pintor.galley(Pos2::new(x_unidad, linea_base - unidad.size().y * 0.8), unidad, color::TEXTO_APAGADO);
+                pintor.galley(Pos2::new(x_precio, y_precio), precio, color::TEXTO);
+                if respuesta.on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                    elegido = Some(posicion);
+                }
+            }
+            if datos.indices.is_empty() {
+                let mensaje = format!("No hay productos que coincidan con “{}”", datos.consulta);
+                let mensaje = galeria_cortada(&pintor, &mensaje, fuente(tam::CUERPO, Peso::Normal), color::TEXTO_APAGADO, ancho - 24.0);
+                let (caja, _) = ui.allocate_exact_size(Vec2::new(ancho, 36.0 + mensaje.size().y), Sense::hover());
+                pintor.galley(caja.center() - mensaje.size() / 2.0, mensaje, color::TEXTO_APAGADO);
+            }
+            ui.add_space(4.0);
+            let alto_ayuda = galeria(ui, "Esc", tam::XS, Peso::Normal, color::TEXTO_TENUE).size().y;
+            let (pie, _) = ui.allocate_exact_size(Vec2::new(ancho, 8.0 + alto_ayuda + 4.0), Sense::hover());
+            pintor.hline(pie.x_range(), pie.top() + 0.5, Stroke::new(1.0, color::BORDE_SUAVE));
+            let mut x = pie.left() + 12.0;
+            for ayuda in ["↑ ↓ para moverte", "Enter para agregar", "Esc para cerrar"] {
+                let g = galeria(ui, ayuda, tam::XS, Peso::Normal, color::TEXTO_TENUE);
+                let ancho_ayuda = g.size().x;
+                pintor.galley(Pos2::new(x, pie.top() + 8.0), g, color::TEXTO_TENUE);
+                x += ancho_ayuda + 14.0;
+            }
+            elegido
+        })
+        .flatten()
+}
+
+pub enum AccionPestana {
+    Elegir(usize),
+    Agregar,
+    Borrar(usize),
+}
+
+pub enum AccionIndicador {
+    Balanza,
+    Impresora,
+}
+
+pub struct Indicadores {
+    pub peso: String,
+    pub balanza_conectada: bool,
+    pub impresora: String,
+}
+
+pub struct FilaPestanas {
+    pub pestana: Option<AccionPestana>,
+    pub indicador: Option<AccionIndicador>,
     pub alto: f32,
-    ancho_cancelar: f32,
-    ancho_pagar: f32,
-    ancho_izquierda: f32,
-    ancho_total: f32,
-    texto: Texto,
 }
 
-impl Resumen {
-    pub fn medir(ui: &Ui, total: f64, ancho: f32) -> Self {
-        let pintor = ui.painter().clone();
-        let ancho_cancelar = 112.0 + ancho_texto(ui, "CANCELAR", Tam::Xl, Peso::Medio);
-        let ancho_pagar = 112.0 + ancho_texto(ui, "PAGAR", Tam::Xl, Peso::Medio);
-        let texto = Texto::new(format!("TOTAL: ${}", monto(total)), Tam::X4, Peso::Semi, color::TEXTO);
-        let anchos = encoger(
-            &[ancho_cancelar + 8.0 + ancho_pagar, texto.maximo(&pintor) + 66.0],
-            &[ancho_cancelar.max(ancho_pagar), texto.minimo(&pintor) + 66.0],
-            ancho,
+pub fn fila_pestanas(ui: &mut Ui, area: Rect, carritos: &Carritos, indicadores: &Indicadores) -> FilaPestanas {
+    let pintor = ui.painter().clone();
+    let mut pestana = None;
+    let (mut x, mut y) = (area.left(), area.top());
+    let mut colocar = |ancho: f32| {
+        if x > area.left() && x + ancho > area.right() {
+            x = area.left();
+            y += 48.0;
+        }
+        let caja = Rect::from_min_size(Pos2::new(x, y), Vec2::new(ancho, 40.0));
+        x += ancho + 8.0;
+        caja
+    };
+    for (indice, pantalla) in carritos.screens.iter().enumerate() {
+        let activa = carritos.active_screen == indice;
+        let borrable = indice > 0;
+        let (fondo, borde, tinta, fondo_contador, tinta_contador, tinta_cruz) = if activa {
+            (color::VERDE_PROFUNDO, color::VERDE_PROFUNDO, color::BLANCO, color::DORADO, color::VERDE_PROFUNDO, color::SOBRE_OSCURO_APAGADO)
+        } else {
+            (color::BLANCO, color::BORDE, color::TEXTO_SECUNDARIO, color::VERDE_CHIP, color::VERDE, color::TEXTO_TENUE)
+        };
+        let texto = galeria(ui, format!("Orden {}", indice + 1), tam::CUERPO, if activa { Peso::Semi } else { Peso::Medio }, tinta);
+        let cantidad = galeria(ui, pantalla.items.len().to_string(), tam::XS, Peso::Medio, tinta_contador);
+        let ancho_contador = cantidad.size().x + 14.0;
+        let ancho = 14.0 + texto.size().x + 10.0 + ancho_contador + if borrable { 10.0 + 24.0 + 6.0 } else { 14.0 };
+        let caja = colocar(ancho);
+        let respuesta = clic(ui, caja, Id::new("pestana-orden").with(indice));
+        pintor.rect(caja, radio::BOTON_MODAL, fondo, Stroke::new(1.0, borde), StrokeKind::Inside);
+        let ancho_texto = texto.size().x;
+        pintor.galley(Pos2::new(caja.left() + 14.0, caja.center().y - texto.size().y / 2.0), texto, tinta);
+        let contador = Rect::from_min_size(
+            Pos2::new(caja.left() + 14.0 + ancho_texto + 10.0, caja.center().y - (cantidad.size().y + 2.0) / 2.0),
+            Vec2::new(ancho_contador, cantidad.size().y + 2.0),
         );
-        let partido = anchos[0] + 0.5 < ancho_cancelar + 8.0 + ancho_pagar;
-        let lineas = texto.galeria(&pintor, anchos[1] - 66.0).rows.len().max(1) as f32;
-        let alto_izquierda: f32 = if partido { 129.0 } else { 64.0 };
-        Resumen {
-            alto: alto_izquierda.max(lineas * 40.0 + 50.0),
-            ancho_cancelar,
-            ancho_pagar,
-            ancho_izquierda: anchos[0],
-            ancho_total: anchos[1],
-            texto,
+        pintor.rect_filled(contador, radio::PASTILLA, fondo_contador);
+        pintor.galley(contador.center() - cantidad.size() / 2.0, cantidad, tinta_contador);
+        if respuesta.clicked() {
+            pestana = Some(AccionPestana::Elegir(indice));
+        }
+        if borrable {
+            let cruz = Rect::from_min_size(Pos2::new(contador.right() + 10.0, caja.center().y - 12.0), Vec2::splat(24.0));
+            let respuesta = clic(ui, cruz, Id::new("borrar-orden").with(indice));
+            let tinta_cruz = if respuesta.hovered() {
+                pintor.rect_filled(cruz, radio::TECLA_CUADRADA, color::ROJO_12);
+                color::ROJO_PESTANA
+            } else {
+                tinta_cruz
+            };
+            pintar_icono_solar_en(ui, Rect::from_center_size(cruz.center(), Vec2::splat(15.0)), "x", tinta_cruz);
+            if respuesta.clicked() {
+                pestana = Some(AccionPestana::Borrar(indice));
+            }
         }
     }
-
-    pub fn mostrar(&self, ui: &mut Ui, caja: Rect) -> (bool, bool) {
-        let partido = self.ancho_izquierda + 0.5 < self.ancho_cancelar + 8.0 + self.ancho_pagar;
-        let alto_izquierda = if partido { 129.0 } else { 64.0 };
-        let arriba = caja.center().y - alto_izquierda / 2.0;
-        let cancelar_caja = Rect::from_min_size(Pos2::new(caja.left(), arriba), Vec2::new(self.ancho_cancelar, 64.0));
-        let pagar_caja = if partido {
-            Rect::from_min_size(Pos2::new(caja.left() + 8.0, arriba + 65.0), Vec2::new(self.ancho_pagar, 64.0))
-        } else {
-            Rect::from_min_size(Pos2::new(cancelar_caja.right() + 8.0, arriba), Vec2::new(self.ancho_pagar, 64.0))
-        };
-        let boton = |ui: &mut Ui, texto: &str, variante: Variante, ancho: f32| {
-            Boton::new(texto).variante(variante).texto_tam(Tam::Xl).radio(ui::RADIO_XL).ancho(ancho).alto(64.0).ui(ui).clicked()
-        };
-        let cancelar = en_rect(ui, cancelar_caja, |ui| boton(ui, "CANCELAR", Variante::Cancelar, self.ancho_cancelar));
-        let pagar = en_rect(ui, pagar_caja, |ui| boton(ui, "PAGAR", Variante::Esmeralda, self.ancho_pagar));
-        let pintor = ui.painter().clone();
-        let galeria = self.texto.galeria(&pintor, self.ancho_total - 66.0);
-        let alto = self.texto.alto(&galeria) + 50.0;
-        let total = Rect::from_min_size(Pos2::new(caja.right() - self.ancho_total, caja.center().y - alto / 2.0), Vec2::new(self.ancho_total, alto));
-        pintor.add(ui::sombra_sm().as_shape(total, 16));
-        pintor.rect(total, 16, color::FONDO, borde(color::BORDE_ENTRADA), StrokeKind::Inside);
-        self.texto.pintar(&pintor, &galeria, total.min + Vec2::new(33.0, 25.0));
-        (cancelar, pagar)
+    if carritos.screens.len() < 4 {
+        let texto = galeria(ui, "Nueva orden", tam::CONTROL, Peso::Normal, color::TEXTO_SECUNDARIO);
+        let caja = colocar(12.0 + 15.0 + 6.0 + texto.size().x + 12.0);
+        let respuesta = clic(ui, caja, Id::new("agregar-orden"));
+        let encima = respuesta.hovered();
+        if encima {
+            pintor.rect_filled(caja, radio::BOTON_MODAL, color::BLANCO);
+        }
+        let tinta = if encima { color::VERDE } else { color::TEXTO_SECUNDARIO };
+        borde_punteado(&pintor, caja, radio::BOTON_MODAL as f32, if encima { color::VERDE } else { color::BORDE_HOVER });
+        pintar_icono_solar_en(ui, Rect::from_min_size(Pos2::new(caja.left() + 12.0, caja.center().y - 7.5), Vec2::splat(15.0)), "plus", tinta);
+        pintor.galley(Pos2::new(caja.left() + 33.0, caja.center().y - texto.size().y / 2.0), texto, tinta);
+        if respuesta.clicked() {
+            pestana = Some(AccionPestana::Agregar);
+        }
     }
+    let balanza = galeria(ui, format!("Balanza · {}", indicadores.peso), tam::CHICO, Peso::Normal, color::TEXTO_APAGADO);
+    let impresora = galeria(ui, indicadores.impresora.as_str(), tam::CHICO, Peso::Normal, color::TEXTO_APAGADO);
+    let ancho_indicadores = 13.0 + balanza.size().x + 14.0 + 13.0 + impresora.size().x;
+    let alto_indicador = balanza.size().y.max(7.0);
+    let (inicio, centro, alto) = if x + 8.0 + ancho_indicadores <= area.right() + 0.5 {
+        (area.right() - ancho_indicadores, y + 20.0, y + 40.0 - area.top())
+    } else {
+        (area.left(), y + 48.0 + alto_indicador / 2.0, y + 48.0 + alto_indicador - area.top())
+    };
+    let mut indicador = None;
+    let mut x = inicio;
+    let punto_balanza = if indicadores.balanza_conectada { color::VERDE_PUNTO } else { color::TEXTO_DESHABILITADO };
+    for (g, punto, accion, id) in [(balanza, punto_balanza, AccionIndicador::Balanza, "indicador-balanza"), (impresora, color::VERDE_PUNTO, AccionIndicador::Impresora, "indicador-impresora")] {
+        let ancho = 13.0 + g.size().x;
+        let caja = Rect::from_min_size(Pos2::new(x, centro - 9.0), Vec2::new(ancho, 18.0));
+        pintor.circle_filled(Pos2::new(x + 3.5, centro), 3.5, punto);
+        pintor.galley(Pos2::new(x + 13.0, centro - g.size().y / 2.0), g, color::TEXTO_APAGADO);
+        if clic(ui, caja, Id::new(id)).clicked() {
+            indicador = Some(accion);
+        }
+        x += ancho + 14.0;
+    }
+    FilaPestanas { pestana, indicador, alto }
+}
+
+pub struct Fila {
+    pub cart_id: String,
+    pub nombre: String,
+    pub por_kilo: bool,
+    pub lista: Option<String>,
+    pub cantidad: String,
+    pub precio: String,
+    pub subtotal: String,
+}
+
+pub fn fila_de_item(item: &Producto, negocio: Option<&Value>) -> Fila {
+    let unitario = precio_visual(item.price_per_unit, item.iva_incluido, item.iva_porcentaje, negocio);
+    let por_kilo = item.unit == "Kg";
+    let lista_por_defecto = negocio.and_then(|n| n["listaPrecioPorDefectoId"].as_i64());
+    let lista = item.lista_precio_id.filter(|id| Some(*id) != lista_por_defecto).map(|id| {
+        let nombre = item.lista_precio_nombre.as_deref().map(str::trim).filter(|n| !n.is_empty());
+        nombre.map(str::to_string).unwrap_or_else(|| format!("Lista #{id}"))
+    });
+    Fila {
+        cart_id: item.cart_id.clone(),
+        nombre: item.name.clone(),
+        por_kilo,
+        lista,
+        cantidad: if por_kilo { kilos(item.quantity) } else { format!("{} u", formato::numero_con(item.quantity, 0, 2)) },
+        precio: format!("{}{}", pesos(unitario), if por_kilo { " /kg" } else { " /u" }),
+        subtotal: pesos(unitario * item.quantity),
+    }
+}
+
+pub struct Destello<'a> {
+    pub cart_id: &'a str,
+    pub avance: f32,
+    pub desplazar: bool,
+}
+
+pub fn tabla(ui: &mut Ui, caja: Rect, filas: &[Fila], permite_borrar: bool, destello: Option<&Destello>, id: Id) -> Option<String> {
+    let pintor = ui.painter().clone();
+    pintor.rect(caja, radio::TARJETA, color::BLANCO, Stroke::new(1.0, color::BORDE), StrokeKind::Inside);
+    let interior = caja.shrink(1.0);
+    let encabezado = Rect::from_min_size(interior.min, Vec2::new(interior.width(), 44.0));
+    let esquina = radio::TARJETA - 1;
+    pintor.rect_filled(encabezado, CornerRadius { nw: esquina, ne: esquina, sw: 0, se: 0 }, color::FONDO_ENCABEZADO_TABLA);
+    pintor.hline(encabezado.x_range(), encabezado.bottom() - 0.5, Stroke::new(1.0, color::BORDE_SUAVE));
+    for (celda, (titulo, derecha)) in celdas(encabezado, &COLUMNAS, 20.0, 14.0).into_iter().zip([("Producto", false), ("Cantidad", true), ("Precio", true), ("Subtotal", true)]) {
+        celda_texto(&pintor, celda, titulo, tam::CHICO, Peso::Medio, color::TEXTO_APAGADO, derecha);
+    }
+    let cuerpo = Rect::from_min_max(Pos2::new(interior.left(), encabezado.bottom()), Pos2::new(interior.right(), interior.bottom() - radio::TARJETA as f32 / 2.0));
+    let mut hijo = ui.new_child(UiBuilder::new().max_rect(cuerpo).layout(Layout::top_down(Align::Min)));
+    hijo.set_clip_rect(cuerpo.intersect(ui.clip_rect()));
+    let mut quitar = None;
+    ScrollArea::vertical().id_salt(id).auto_shrink(false).show(&mut hijo, |ui| {
+        let pintor = ui.painter().clone();
+        for (posicion, fila) in filas.iter().enumerate() {
+            let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 68.0), Sense::hover());
+            if let Some(d) = destello.filter(|d| d.cart_id == fila.cart_id) {
+                if d.avance < 1.0 {
+                    pintor.rect_filled(rect, 0, color::DORADO_FONDO.gamma_multiply(1.0 - d.avance));
+                }
+                pintor.rect_filled(Rect::from_min_size(rect.min, Vec2::new(3.0, rect.height())), 0, color::DORADO);
+                if d.desplazar {
+                    ui.scroll_to_rect(rect, None);
+                }
+            }
+            pintor.hline(rect.x_range(), rect.bottom() - 0.5, Stroke::new(1.0, color::BORDE_SUAVE));
+            let c = celdas(rect, &COLUMNAS, 20.0, 14.0);
+            let numero = galeria(ui, (posicion + 1).to_string(), tam::CHICO, Peso::Normal, color::TEXTO_TENUE);
+            pintor.galley(Pos2::new(c[0].left(), rect.center().y - numero.size().y / 2.0), numero, color::TEXTO_TENUE);
+            let x = c[0].left() + 26.0 + 12.0;
+            let nombre = galeria_cortada(&pintor, &fila.nombre, fuente(tam::FILA, Peso::Medio), color::TEXTO, c[0].right() - x);
+            let unidad = galeria(ui, if fila.por_kilo { "Por kilo" } else { "Por unidad" }, tam::XS, Peso::Normal, color::TEXTO_TENUE);
+            let chip = fila.lista.as_ref().map(|l| galeria(ui, l.as_str(), tam::MINI, Peso::Semi, color::DORADO_TEXTO));
+            let alto_detalle = unidad.size().y.max(chip.as_ref().map_or(0.0, |g| g.size().y + 2.0));
+            let alto_nombre = nombre.size().y;
+            let arriba = rect.center().y - (alto_nombre + 3.0 + alto_detalle) / 2.0;
+            pintor.galley(Pos2::new(x, arriba), nombre, color::TEXTO);
+            let centro_detalle = arriba + alto_nombre + 3.0 + alto_detalle / 2.0;
+            let ancho_unidad = unidad.size().x;
+            pintor.galley(Pos2::new(x, centro_detalle - unidad.size().y / 2.0), unidad, color::TEXTO_TENUE);
+            if let Some(chip) = chip {
+                let pintor = pintor.with_clip_rect(c[0].intersect(pintor.clip_rect()));
+                let caja_chip = Rect::from_center_size(Pos2::new(x + ancho_unidad + 6.0 + (chip.size().x + 14.0) / 2.0, centro_detalle), chip.size() + Vec2::new(14.0, 2.0));
+                pintor.rect_filled(caja_chip, radio::CHIP, color::DORADO_FONDO);
+                pintor.galley(caja_chip.center() - chip.size() / 2.0, chip, color::DORADO_TEXTO);
+            }
+            celda_texto(&pintor, c[1], &fila.cantidad, tam::DESTACADO, Peso::Normal, color::TEXTO, true);
+            celda_texto(&pintor, c[2], &fila.precio, tam::CUERPO_MAS, Peso::Normal, color::TEXTO_APAGADO, true);
+            celda_texto(&pintor, c[3], &fila.subtotal, tam::FILA, Peso::Semi, color::TEXTO, true);
+            if permite_borrar {
+                let boton = Rect::from_min_size(Pos2::new(c[4].left(), rect.center().y - 18.0), Vec2::splat(36.0));
+                let mut celda = ui.new_child(UiBuilder::new().id_salt(("quitar-item", &fila.cart_id)).max_rect(boton));
+                if BotonIcono::quitar().tam(36.0).radio(radio::CONTROL).tam_icono(19.0).ui(&mut celda).on_hover_text("Quitar").clicked() {
+                    quitar = Some(fila.cart_id.clone());
+                }
+            }
+        }
+    });
+    quitar
+}
+
+pub fn orden_vacia(ui: &Ui, caja: Rect, orden: usize) {
+    let pintor = ui.painter();
+    pintor.rect(caja, radio::TARJETA, color::BLANCO, Stroke::new(1.0, color::BORDE), StrokeKind::Inside);
+    let titulo = v2::galeria_espaciada(ui, format!("Orden {orden} vacía"), fuente(tam::GRANDE, Peso::Semi), color::TEXTO, -0.01 * tam::GRANDE);
+    let parrafo = galeria_centrada(
+        pintor,
+        "Escaneá un producto o buscalo arriba por nombre o PLU. Los productos por kilo toman el peso de la balanza.",
+        fuente(tam::CUERPO_MAS, Peso::Normal),
+        color::TEXTO_APAGADO,
+        1.5,
+        (caja.width() - 64.0).min(400.0),
+    );
+    let alto = 72.0 + 14.0 + titulo.size().y + 14.0 + parrafo.size().y;
+    let centro_x = caja.center().x;
+    let mut y = (caja.center().y - alto / 2.0).max(caja.top() + 32.0);
+    let icono = Rect::from_min_size(Pos2::new(centro_x - 36.0, y), Vec2::splat(72.0));
+    pintor.rect_filled(icono, radio::MODAL, color::VERDE_ELEGIDO);
+    pintar_icono_solar_en(ui, Rect::from_center_size(icono.center(), Vec2::splat(38.0)), "cart", color::VERDE);
+    y += 72.0 + 14.0;
+    let alto_titulo = titulo.size().y;
+    pintor.galley(Pos2::new(centro_x - titulo.size().x / 2.0, y), titulo, color::TEXTO);
+    y += alto_titulo + 14.0;
+    pintor.galley(Pos2::new(centro_x, y), parrafo, color::TEXTO_APAGADO);
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum AccionPanel {
+    Cobrar,
+    CobrarSinFactura,
+    Descuento,
+    DescuentoSinFactura,
+    CuentaCorriente,
+    Cancelar,
+    CerrarSesion,
+}
+
+pub struct Panel {
+    pub total: f64,
+    pub productos: usize,
+    pub orden: usize,
+    pub afip: bool,
+    pub facturacion: bool,
+}
+
+pub fn panel(ui: &mut Ui, area: Rect, datos: &Panel) -> Option<AccionPanel> {
+    let pintor = ui.painter().clone();
+    let titulo = v2::galeria_espaciada(ui, "TOTAL", fuente(tam::ETIQUETA, Peso::Medio), color::SOBRE_OSCURO_APAGADO, 0.06 * tam::ETIQUETA);
+    let cantidad = galeria(ui, format!("{} producto{}", datos.productos, if datos.productos == 1 { "" } else { "s" }), tam::CHICO, Peso::Normal, color::SOBRE_OSCURO_APAGADO);
+    let total = v2::galeria_espaciada(ui, pesos(datos.total), fuente(tam::TOTAL, Peso::Semi), color::BLANCO, -0.03 * tam::TOTAL);
+    let iva = galeria(ui, format!("IVA incluido · Orden {}", datos.orden), tam::CHICO, Peso::Normal, color::SOBRE_OSCURO_TENUE);
+    let alto_fila = titulo.size().y.max(cantidad.size().y);
+    let alto_total = tam::TOTAL * 1.1;
+    let tarjeta = Rect::from_min_size(area.min, Vec2::new(area.width(), 22.0 + alto_fila + 6.0 + alto_total + 6.0 + iva.size().y + 20.0));
+    pintor.rect_filled(tarjeta, radio::PANEL, color::VERDE_PROFUNDO);
+    let mut y = tarjeta.top() + 22.0;
+    pintor.galley(Pos2::new(tarjeta.left() + 22.0, y + (alto_fila - titulo.size().y) / 2.0), titulo, color::SOBRE_OSCURO_APAGADO);
+    pintor.galley(Pos2::new(tarjeta.right() - 22.0 - cantidad.size().x, y + (alto_fila - cantidad.size().y) / 2.0), cantidad, color::SOBRE_OSCURO_APAGADO);
+    y += alto_fila + 6.0;
+    pintor.galley(Pos2::new(tarjeta.left() + 22.0, y + (alto_total - total.size().y) / 2.0), total, color::BLANCO);
+    y += alto_total + 6.0;
+    pintor.galley(Pos2::new(tarjeta.left() + 22.0, y), iva, color::SOBRE_OSCURO_TENUE);
+
+    let mut laterales = Vec::new();
+    if datos.afip {
+        laterales.push(("Cobrar orden sin factura", "receipt", "F3", AccionPanel::CobrarSinFactura, false));
+    }
+    laterales.push(("Cobrar con descuento", "percent", "F7", AccionPanel::Descuento, false));
+    if datos.afip {
+        laterales.push(("Descuento sin factura", "tag", "F8", AccionPanel::DescuentoSinFactura, false));
+    }
+    if datos.facturacion {
+        laterales.push(("Cuenta corriente", "file-text", "F6", AccionPanel::CuentaCorriente, false));
+    }
+    laterales.push(("Cancelar orden", "trash-2", "F1", AccionPanel::Cancelar, true));
+    let acciones = Rect::from_min_size(
+        Pos2::new(area.left(), tarjeta.bottom() + 14.0),
+        Vec2::new(area.width(), 14.0 + 68.0 + laterales.len() as f32 * 60.0 + 14.0),
+    );
+    pintor.rect(acciones, radio::PANEL, color::BLANCO, Stroke::new(1.0, color::BORDE), StrokeKind::Inside);
+    let mut accion = None;
+    let cobrar = Rect::from_min_size(acciones.min + Vec2::splat(14.0), Vec2::new(acciones.width() - 28.0, 68.0));
+    if boton_cobrar(ui, cobrar, datos) {
+        accion = Some(AccionPanel::Cobrar);
+    }
+    let mut y = cobrar.bottom() + 8.0;
+    for (etiqueta, icono, tecla, a, peligro) in laterales {
+        let caja = Rect::from_min_size(Pos2::new(cobrar.left(), y), Vec2::new(cobrar.width(), 52.0));
+        if accion_lateral(ui, caja, etiqueta, icono, tecla, peligro) {
+            accion = Some(a);
+        }
+        y += 60.0;
+    }
+    if cerrar_sesion(ui, area, acciones.bottom() + 14.0) {
+        accion = Some(AccionPanel::CerrarSesion);
+    }
+    accion
+}
+
+fn boton_cobrar(ui: &mut Ui, rect: Rect, datos: &Panel) -> bool {
+    let respuesta = clic(ui, rect, Id::new("accion-cobrar"));
+    let avance = ui.ctx().animate_bool_with_time(respuesta.id.with("hover"), respuesta.hovered(), 0.15);
+    let opacidad = if datos.productos > 0 { 1.0 } else { 0.55 };
+    let tinte = |c: Color32| mezclar(color::BLANCO, c, opacidad);
+    let mut sombra_apagada = ui.new_child(UiBuilder::new().max_rect(rect));
+    sombra_apagada.set_opacity(opacidad);
+    sombra_apagada.painter().add(sombra::BOTON_COBRAR.forma(rect, radio::POPOVER));
+    let pintor = ui.painter().clone();
+    pintor.rect_filled(rect, radio::POPOVER, tinte(mezclar(color::VERDE, color::VERDE_PROFUNDO, avance)));
+    pintar_icono_solar_en(ui, Rect::from_min_size(Pos2::new(rect.left() + 18.0, rect.center().y - 13.0), Vec2::splat(26.0)), "wallet", tinte(color::DORADO));
+    let (titulo, detalle) = if datos.afip { ("Cobrar con factura", "Factura B en AFIP") } else { ("Cobrar", "Efectivo, tarjeta, QR o mixto") };
+    let titulo = galeria(ui, titulo, tam::FILA, Peso::Semi, color::BLANCO);
+    let detalle = galeria(ui, detalle, tam::XS, Peso::Normal, tinte(color::SOBRE_OSCURO_APAGADO));
+    let x = rect.left() + 18.0 + 26.0 + 14.0;
+    let arriba = rect.center().y - (titulo.size().y + 1.0 + detalle.size().y) / 2.0;
+    let alto_titulo = titulo.size().y;
+    pintor.galley(Pos2::new(x, arriba), titulo, color::BLANCO);
+    pintor.galley(Pos2::new(x, arriba + alto_titulo + 1.0), detalle, tinte(color::SOBRE_OSCURO_APAGADO));
+    let tam_tecla = v2::medir_tecla(ui, "F2", &EstiloTecla::SOBRE_OSCURO);
+    let tecla = Rect::from_min_size(Pos2::new(rect.right() - 18.0 - tam_tecla.x, rect.center().y - tam_tecla.y / 2.0), tam_tecla);
+    v2::pintar_tecla(ui, tecla, "F2", &EstiloTecla::SOBRE_OSCURO, color::BLANCO);
+    respuesta.clicked()
+}
+
+fn accion_lateral(ui: &mut Ui, rect: Rect, etiqueta: &str, icono: &str, tecla: &str, peligro: bool) -> bool {
+    let respuesta = clic(ui, rect, Id::new("accion-lateral").with(tecla));
+    let avance = ui.ctx().animate_bool_with_time(respuesta.id.with("hover"), respuesta.hovered(), 0.15);
+    let (borde, tinta, tinta_icono, fondo_hover) =
+        if peligro { (color::ROJO_BORDE, color::ROJO, color::ROJO_INTENSO, color::ROJO_FONDO) } else { (color::BORDE, color::TEXTO, color::VERDE, color::FONDO_APP) };
+    let pintor = ui.painter();
+    pintor.rect(rect, radio::CAMPO, mezclar(color::BLANCO, fondo_hover, avance), Stroke::new(1.0, borde), StrokeKind::Inside);
+    pintar_icono_solar_en(ui, Rect::from_min_size(Pos2::new(rect.left() + 14.0, rect.center().y - 10.5), Vec2::splat(21.0)), icono, tinta_icono);
+    let texto = galeria(ui, etiqueta, tam::CUERPO_MAS, Peso::Medio, tinta);
+    pintor.galley(Pos2::new(rect.left() + 14.0 + 21.0 + 12.0, rect.center().y - texto.size().y / 2.0), texto, tinta);
+    let tam_tecla = v2::medir_tecla(ui, tecla, &EstiloTecla::CLARA);
+    let caja_tecla = Rect::from_min_size(Pos2::new(rect.right() - 14.0 - tam_tecla.x, rect.center().y - tam_tecla.y / 2.0), tam_tecla);
+    v2::pintar_tecla(ui, caja_tecla, tecla, &EstiloTecla::CLARA, color::TEXTO_SECUNDARIO);
+    respuesta.clicked()
+}
+
+fn cerrar_sesion(ui: &mut Ui, area: Rect, minimo_y: f32) -> bool {
+    let texto = galeria(ui, "Cerrar sesión", tam::ETIQUETA, Peso::Normal, color::TEXTO_APAGADO);
+    let tam_tecla = v2::medir_tecla(ui, "F4", &EstiloTecla::CONTORNO);
+    let ancho = 6.0 + 16.0 + 8.0 + texto.size().x + 8.0 + tam_tecla.x + 6.0;
+    let alto = texto.size().y.max(tam_tecla.y).max(16.0) + 12.0;
+    let y = (area.bottom() - alto).max(minimo_y);
+    let rect = Rect::from_min_size(Pos2::new(area.center().x - ancho / 2.0, y), Vec2::new(ancho, alto));
+    let respuesta = clic(ui, rect, Id::new("accion-cerrar-sesion"));
+    let tinta = if respuesta.hovered() { color::ROJO } else { color::TEXTO_APAGADO };
+    let mut x = rect.left() + 6.0;
+    pintar_icono_solar_en(ui, Rect::from_min_size(Pos2::new(x, rect.center().y - 8.0), Vec2::splat(16.0)), "log-out", tinta);
+    x += 16.0 + 8.0;
+    let ancho_texto = texto.size().x;
+    ui.painter().galley_with_override_text_color(Pos2::new(x, rect.center().y - texto.size().y / 2.0), texto, tinta);
+    x += ancho_texto + 8.0;
+    v2::pintar_tecla(ui, Rect::from_min_size(Pos2::new(x, rect.center().y - tam_tecla.y / 2.0), tam_tecla), "F4", &EstiloTecla::CONTORNO, tinta);
+    respuesta.clicked()
 }

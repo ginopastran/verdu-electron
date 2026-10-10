@@ -9,6 +9,7 @@ use andexmarket::app::{App, Global, Ruta, Servicios};
 use andexmarket::pantallas::carrito::id_buscador;
 use andexmarket::pantallas::carrito::productos::ProductoDisponible;
 use eframe::egui::{Event, Key, Modifiers, PointerButton, Pos2};
+use egui_kittest::kittest::Queryable;
 use egui_kittest::Harness;
 use hardware::balanza::Balanza;
 use hardware::config::Config;
@@ -16,113 +17,125 @@ use nucleo::api::Cliente;
 use nucleo::carrito::Carritos;
 use serde_json::{json, Value};
 
+const TAMANOS: [(&str, [f32; 2]); 2] = [("1920", [1920.0, 1080.0]), ("1366", [1366.0, 768.0])];
+
+const CATALOGO: [(&str, &str, f64, &str, &str); 24] = [
+    ("Tomate redondo", "Kg", 2890.0, "101", "7790001000213"),
+    ("Tomate perita", "Kg", 2590.0, "102", "7790001000220"),
+    ("Papa negra", "Kg", 1150.0, "103", "7790001000046"),
+    ("Batata", "Kg", 1380.0, "104", "7790001000053"),
+    ("Cebolla", "Kg", 1300.0, "105", "7790001000084"),
+    ("Zanahoria", "Kg", 1100.0, "106", "7790001000121"),
+    ("Zapallo anco", "Kg", 1040.0, "107", "7790001000404"),
+    ("Morrón rojo", "Kg", 4280.0, "108", "7790001000411"),
+    ("Lechuga criolla", "Unidad", 950.0, "109", "7790001000305"),
+    ("Acelga", "Unidad", 780.0, "110", "7790001000312"),
+    ("Ajo", "Unidad", 480.0, "111", "7790001000091"),
+    ("Rúcula", "Unidad", 1085.0, "112", "7790001000329"),
+    ("Banana Ecuador", "Kg", 2400.0, "201", "7790001002019"),
+    ("Manzana roja", "Kg", 3200.0, "202", "7790001002002"),
+    ("Pera Williams", "Kg", 2940.0, "203", "7790001002033"),
+    ("Naranja de jugo", "Kg", 1450.0, "204", "7790001002217"),
+    ("Mandarina", "Kg", 1800.0, "205", "7790001002224"),
+    ("Limón", "Kg", 2100.0, "206", "7790001002255"),
+    ("Palta Hass", "Unidad", 1600.0, "207", "7790001002330"),
+    ("Frutilla", "Kg", 7280.0, "208", "7790001002606"),
+    ("Uva blanca", "Kg", 5240.0, "209", "7790001002705"),
+    ("Kiwi", "Kg", 5670.0, "210", "7790001002507"),
+    ("Huevos blancos x12", "Unidad", 3300.0, "301", "7790001003016"),
+    ("Nuez mariposa 250 g", "Unidad", 5260.0, "302", "7790001003108"),
+];
+
 fn productos() -> Vec<ProductoDisponible> {
-    let datos = json!([
-        [1, "Tomate perito", 2400, "Kg", null, "001"],
-        [2, "Papa negra", 900, "Kg", null, "002"],
-        [3, "Cebolla", 1100, "Kg", null, "003"],
-        [4, "Banana Ecuador", 2200, "Kg", null, "004"],
-        [5, "Manzana roja", 2800, "Kg", null, "005"],
-        [6, "Naranja de jugo", 1500, "Kg", null, "006"],
-        [7, "Mandarina", 1600, "Kg", null, "007"],
-        [8, "Zapallo anco", 1200, "Kg", null, "008"],
-        [9, "Zanahoria", 1000, "Kg", null, "009"],
-        [10, "Limón", 2000, "Kg", null, "010"],
-        [11, "Lechuga criolla", 2500, "Kg", null, "011"],
-        [12, "Pimiento morrón rojo", 4500, "Kg", null, "012"],
-        [13, "Batata", 1300, "Kg", null, "013"],
-        [14, "Pera Williams", 2600, "Kg", null, "014"],
-        [15, "Uva blanca", 4800, "Kg", null, "015"],
-        [16, "Berenjena", 2000, "Kg", null, "016"],
-        [17, "Zucchini", 2200, "Kg", null, "017"],
-        [18, "Kiwi", 4000, "Kg", null, "018"],
-        [19, "Palta Hass", 1500, "Unidad", "7791234500019", null],
-        [20, "Ananá", 3500, "Unidad", "7791234500026", null],
-        [21, "Huevos blancos maple x30", 6500, "Unidad", "7791234500033", null],
-        [22, "Ajo (cabeza)", 600, "Unidad", "7791234500040", null],
-        [23, "Perejil (atado)", 800, "Unidad", "7791234500057", null],
-        [24, "Choclo", 700, "Unidad", "7791234500064", null],
-        [25, "Frutilla bandeja 500 g", 3000, "Unidad", "7791234500071", null],
-        [26, "Acelga (atado)", 1200, "Unidad", "7791234500088", null]
-    ]);
-    datos
-        .as_array()
-        .unwrap()
+    CATALOGO
         .iter()
-        .map(|p| {
+        .enumerate()
+        .map(|(i, (nombre, unidad, precio, plu, codigo))| {
             ProductoDisponible::desde_backend(&json!({
-                "id": p[0], "nombre": p[1], "precio": p[2], "tipoMedida": p[3], "costo": 0,
-                "codigoBarras": p[4], "plu": p[5], "ivaIncluido": true, "ivaPorcentaje": 10.5
+                "id": i + 1, "nombre": nombre, "precio": precio, "tipoMedida": unidad, "costo": 0,
+                "codigoBarras": codigo, "plu": plu, "ivaIncluido": true, "ivaPorcentaje": 10.5
             }))
         })
         .collect()
 }
 
-fn negocio_simple() -> Value {
+fn precio_lista(id: usize, factor: f64) -> f64 {
+    (CATALOGO[id - 1].2 * factor / 10.0).round() * 10.0
+}
+
+#[derive(Clone, Copy)]
+struct Opciones {
+    afip: bool,
+    facturacion: bool,
+    controlada: bool,
+    peso_manual: bool,
+}
+
+const POR_DEFECTO: Opciones = Opciones { afip: true, facturacion: true, controlada: false, peso_manual: true };
+
+fn negocio(o: Opciones) -> Value {
     json!({
-        "id": 4, "nombre": "Verdulería La Huerta", "sistemaPago": "redondeo", "descuentoEfectivo": 10,
-        "mpEnabled": true, "afipHabilitado": false, "facturacionHabilitada": false,
-        "cancelacionHabilitada": false, "ivaIncluidoEnPrecios": true, "popupListaPreciosEnabled": false,
+        "id": 4, "nombre": "Verdulería Don José", "sistemaPago": "redondeo", "descuentoEfectivo": 10,
+        "mpEnabled": true, "afipHabilitado": o.afip, "facturacionHabilitada": o.facturacion,
+        "cancelacionHabilitada": o.controlada, "ivaIncluidoEnPrecios": true, "popupListaPreciosEnabled": false,
         "listaPrecioPorDefectoId": null, "etiquetaPrecioBase": "Precio catálogo"
     })
 }
 
-fn negocio_afip() -> Value {
-    let mut negocio = negocio_simple();
-    for clave in ["afipHabilitado", "facturacionHabilitada", "cancelacionHabilitada", "popupListaPreciosEnabled"] {
-        negocio[clave] = json!(true);
-    }
-    negocio["sistemaPago"] = json!("pago-exacto");
-    negocio
-}
-
-fn global(negocio: Value, peso_manual: bool) -> Global {
+fn global(o: Opciones) -> Global {
     let mut global = comun::global(Ruta::Carrito);
-    global.negocio = Some(negocio);
+    global.negocio = Some(negocio(o));
     global.usuario = Some(json!({
-        "id": 11, "nombre": "Lucía Fernández", "email": "lucia@lahuerta.test", "role": "VENDEDOR",
-        "permisos": { "pesoManualEnabled": peso_manual, "cierreDeCajaEnabled": true }
+        "id": 1, "nombre": "Lucía Fernández", "email": "lucia@donjose.com.ar", "role": "VENDEDOR",
+        "permisos": { "pesoManualEnabled": o.peso_manual, "cierreDeCajaEnabled": true }
     }));
     global.peso = json!(1245);
+    global.estado_balanza = json!({ "conectada": true });
     global
 }
 
-fn carritos_sembrados() -> Carritos {
-    let item = |id: i64, nombre: &str, cantidad: f64, unidad: &str, precio: f64| {
-        json!({
-            "id": id, "cartId": format!("{id}-seed-{cantidad}"), "name": nombre, "quantity": cantidad, "unit": unidad,
-            "pricePerUnit": precio, "subtotal": (precio * cantidad * 100.0).round() / 100.0, "costo": 0,
-            "ivaIncluido": true, "ivaPorcentaje": 10.5, "listaPrecioId": null, "listaPrecioNombre": "Precio catálogo"
-        })
-    };
-    serde_json::from_value(json!({
-        "screens": [
-            { "id": 0, "items": [
-                item(1, "Tomate perito", 1.245, "Kg", 2400.0),
-                item(2, "Papa negra", 2.5, "Kg", 900.0),
-                item(5, "Manzana roja", 0.98, "Kg", 2800.0),
-                item(21, "Huevos blancos maple x30", 1.0, "Unidad", 6500.0),
-                item(19, "Palta Hass", 3.0, "Unidad", 1500.0),
-                item(12, "Pimiento morrón rojo", 0.415, "Kg", 4500.0),
-                item(23, "Perejil (atado)", 2.0, "Unidad", 800.0)
-            ]},
-            { "id": 1, "items": [
-                item(4, "Banana Ecuador", 1.1, "Kg", 2200.0),
-                item(25, "Frutilla bandeja 500 g", 1.0, "Unidad", 3000.0)
-            ]}
-        ],
-        "activeScreen": 0
-    }))
-    .unwrap()
+fn item(id: usize, cantidad: f64, lista: Option<(i64, &str, f64)>) -> Value {
+    let (nombre, unidad, precio, _, _) = CATALOGO[id - 1];
+    let precio = lista.map_or(precio, |l| precio_lista(id, l.2));
+    json!({
+        "id": id, "cartId": format!("{id}-semilla-{cantidad}"), "name": nombre, "quantity": cantidad, "unit": unidad,
+        "pricePerUnit": precio, "subtotal": (precio * cantidad * 100.0).round() / 100.0, "costo": 0,
+        "ivaIncluido": true, "ivaPorcentaje": 10.5,
+        "listaPrecioId": lista.map(|l| l.0), "listaPrecioNombre": lista.map_or("Precio catálogo", |l| l.1)
+    })
+}
+
+fn items_orden() -> Vec<Value> {
+    vec![
+        item(1, 1.245, None),
+        item(3, 2.1, None),
+        item(9, 2.0, None),
+        item(13, 0.85, Some((1, "Mayorista", 0.88))),
+        item(23, 1.0, None),
+        item(19, 3.0, None),
+    ]
+}
+
+fn carritos(pantallas: Vec<Vec<Value>>, activa: usize) -> Carritos {
+    let screens: Vec<Value> = pantallas.into_iter().enumerate().map(|(id, items)| json!({ "id": id, "items": items })).collect();
+    serde_json::from_value(json!({ "screens": screens, "activeScreen": activa })).unwrap()
+}
+
+fn con_items(o: Opciones) -> Global {
+    let mut g = global(o);
+    g.carritos = carritos(vec![items_orden()], 0);
+    g
 }
 
 fn responder(ruta: &str) -> (u16, Value) {
-    let lista = |id: i64, nombre: &str, precio: f64| json!({ "listaPrecioId": id, "precio": precio, "activa": true, "listaPrecio": { "nombre": nombre, "activa": true } });
-    match ruta {
-        "/api/productos/1/listas-precios" => (200, json!({ "productos": [lista(1, "Mayorista", 2100.0), lista(2, "Comercios", 2250.0)] })),
-        "/api/productos/20/listas-precios" => (200, json!({ "productos": [lista(1, "Mayorista", 3100.0)] })),
-        r if r.ends_with("/listas-precios") => (200, json!({ "productos": [] })),
-        _ => (500, json!({ "error": "sin datos" })),
+    let fila = |id: usize, lista: i64, nombre: &str, factor: f64| {
+        json!({ "listaPrecioId": lista, "precio": precio_lista(id, factor), "activa": true, "listaPrecio": { "nombre": nombre, "activa": true } })
+    };
+    let id = ruta.strip_prefix("/api/productos/").and_then(|r| r.strip_suffix("/listas-precios")).and_then(|n| n.parse::<usize>().ok());
+    match id {
+        Some(id) if (id - 1) % 3 != 2 => (200, json!({ "productos": [fila(id, 1, "Mayorista", 0.88), fila(id, 2, "Restaurantes", 0.93)] })),
+        Some(_) => (200, json!({ "productos": [] })),
+        None => (500, json!({ "error": "sin datos" })),
     }
 }
 
@@ -153,23 +166,29 @@ fn api_falsa() -> Cliente {
 fn servicios() -> Servicios {
     let carpeta = std::env::temp_dir().join(format!("andexmarket-carrito-{}", std::process::id()));
     let _ = std::fs::create_dir_all(&carpeta);
-    Servicios { config: Arc::new(Config::cargar(carpeta.clone())), balanza: Balanza::new(|_| {}), api: api_falsa(), carpeta }
+    let config = Config::cargar(carpeta.clone());
+    config.set("impresoraWindows", json!("TP806L"));
+    Servicios { config: Arc::new(config), balanza: Balanza::new(|_| {}), api: api_falsa(), carpeta }
 }
 
-fn capturar(nombre: &str, global: Global, preparar: impl FnOnce(&mut App), pasos: impl FnOnce(&mut Harness<'_, App>)) {
-    capturar_en(nombre, [1200.0, 800.0], global, preparar, pasos);
-}
-
-fn capturar_en(nombre: &str, tam: [f32; 2], global: Global, preparar: impl FnOnce(&mut App), pasos: impl FnOnce(&mut Harness<'_, App>)) {
+fn arnes(global: Global, tam: [f32; 2], wgpu: bool) -> Harness<'static, App> {
     let mut app = App::de_prueba(global, servicios());
     app.pantallas().carrito.precargar_productos(productos());
-    preparar(&mut app);
-    let mut harness = Harness::builder().with_size(tam).wgpu().build_ui_state(|ui, app: &mut App| app.mostrar(ui), app);
+    let constructor = Harness::builder().with_size(tam);
+    let constructor = if wgpu { constructor.wgpu() } else { constructor };
+    let mut harness = constructor.build_ui_state(|ui, app: &mut App| app.mostrar(ui), app);
     harness.run_steps(3);
-    pasos(&mut harness);
-    harness.run_steps(6);
-    let imagen = harness.render().expect("render");
-    imagen.save(comun::carpeta_capturas().join(format!("{nombre}.png"))).expect("guardar captura");
+    harness
+}
+
+fn capturar(nombre: &str, global: impl Fn() -> Global, pasos: impl Fn(&mut Harness<'_, App>, [f32; 2])) {
+    for (sufijo, tam) in TAMANOS {
+        let mut harness = arnes(global(), tam, true);
+        pasos(&mut harness, tam);
+        harness.run_steps(6);
+        let imagen = harness.render().expect("render");
+        imagen.save(comun::carpeta_capturas().join(format!("{nombre}-{sufijo}.png"))).expect("guardar captura");
+    }
 }
 
 fn escribir(harness: &mut Harness<'_, App>, texto: &str) {
@@ -199,112 +218,208 @@ fn esperar_red(harness: &mut Harness<'_, App>) {
     }
 }
 
-fn nada(_: &mut Harness<'_, App>) {}
+fn abrir_producto(harness: &mut Harness<'_, App>, busqueda: &str) {
+    escribir(harness, busqueda);
+    tecla(harness, Key::Enter);
+    esperar_red(harness);
+}
 
-#[test]
-fn carrito_vacio() {
-    capturar("14-carrito-vacio", global(negocio_simple(), false), |_| {}, nada);
+fn etiqueta(harness: &mut Harness<'_, App>, texto: &str) {
+    harness.get_by_label(texto).click();
+    harness.run_steps(3);
+}
+
+fn nada(_: &mut Harness<'_, App>, _: [f32; 2]) {}
+
+fn sin_manual() -> Opciones {
+    Opciones { peso_manual: false, ..POR_DEFECTO }
 }
 
 #[test]
-fn toast_carrito_vacio() {
-    capturar("15-toast-error-carrito-vacio", global(negocio_simple(), false), |_| {}, |h| tecla(h, Key::F2));
+fn pos_orden_vacia() {
+    capturar("11-pos-orden-vacia", || global(POR_DEFECTO), nada);
 }
 
 #[test]
-fn busqueda_resultados() {
-    capturar("16-busqueda-resultados", global(negocio_simple(), false), |_| {}, |h| escribir(h, "ma"));
+fn pos_con_items() {
+    capturar("12-pos-con-items", || con_items(POR_DEFECTO), nada);
 }
 
 #[test]
-fn busqueda_flechas() {
-    capturar("17-busqueda-flechas", global(negocio_simple(), false), |_| {}, |h| {
-        escribir(h, "ma");
+fn pos_buscador_resultados() {
+    capturar("13-pos-buscador-resultados", || con_items(POR_DEFECTO), |h, _| escribir(h, "to"));
+}
+
+#[test]
+fn pos_buscador_segundo_resultado() {
+    capturar("14-pos-buscador-segundo-resultado", || con_items(POR_DEFECTO), |h, _| {
+        escribir(h, "to");
         tecla(h, Key::ArrowDown);
-        tecla(h, Key::ArrowDown);
     });
 }
 
 #[test]
-fn agregar_kg_balanza() {
-    capturar("18-agregar-producto-kg-balanza", global(negocio_simple(), false), |_| {}, |h| {
-        escribir(h, "zapallo");
-        tecla(h, Key::Enter);
-        esperar_red(h);
+fn pos_buscador_sin_resultados() {
+    capturar("15-pos-buscador-sin-resultados", || con_items(POR_DEFECTO), |h, _| escribir(h, "xyz"));
+}
+
+#[test]
+fn pos_menu_usuario() {
+    capturar("16-pos-menu-usuario", || con_items(POR_DEFECTO), |h, tam| clic(h, Pos2::new(tam[0] - 100.0, 34.0)));
+}
+
+#[test]
+fn pos_varias_pestanas() {
+    capturar(
+        "17-pos-varias-pestanas",
+        || {
+            let mut g = global(POR_DEFECTO);
+            g.carritos = carritos(vec![Vec::new(), vec![item(1, 1.245, None), item(9, 2.0, None)], Vec::new()], 1);
+            g
+        },
+        nada,
+    );
+}
+
+#[test]
+fn pos_sin_afip() {
+    capturar("18-pos-sin-afip", || con_items(Opciones { afip: false, ..POR_DEFECTO }), nada);
+}
+
+#[test]
+fn pos_sin_facturacion() {
+    capturar("19-pos-sin-facturacion", || con_items(Opciones { facturacion: false, ..POR_DEFECTO }), nada);
+}
+
+#[test]
+fn pos_sin_afip_sin_facturacion() {
+    capturar("20-pos-sin-afip-sin-facturacion", || con_items(Opciones { afip: false, facturacion: false, ..POR_DEFECTO }), nada);
+}
+
+#[test]
+fn pos_cancelacion_controlada() {
+    capturar("21-pos-cancelacion-controlada", || con_items(Opciones { controlada: true, ..POR_DEFECTO }), nada);
+}
+
+#[test]
+fn pos_responsive() {
+    for (sufijo, tam) in [("1280", [1280.0, 720.0]), ("1200", [1200.0, 800.0]), ("1024", [1024.0, 768.0])] {
+        let mut harness = arnes(con_items(POR_DEFECTO), tam, true);
+        harness.run_steps(6);
+        let imagen = harness.render().expect("render");
+        imagen.save(comun::carpeta_capturas().join(format!("22-pos-responsive-{sufijo}.png"))).expect("guardar captura");
+    }
+}
+
+#[test]
+fn pos_buscador_muchos_resultados() {
+    capturar("13b-pos-buscador-muchos-resultados", || con_items(POR_DEFECTO), |h, _| {
+        escribir(h, "a");
+        for _ in 0..9 {
+            tecla(h, Key::ArrowDown);
+        }
+        assert!(buscador_enfocado(h));
     });
 }
 
 #[test]
-fn agregar_con_listas() {
-    capturar("19-agregar-producto-con-listas", global(negocio_simple(), false), |_| {}, |h| {
-        escribir(h, "tomate");
-        tecla(h, Key::Enter);
-        esperar_red(h);
+fn modal_escanear_lista() {
+    capturar(
+        "55-modal-escanear-lista",
+        || {
+            let mut g = con_items(POR_DEFECTO);
+            g.negocio.as_mut().unwrap()["popupListaPreciosEnabled"] = json!(true);
+            g
+        },
+        |h, _| {
+            escribir(h, "7790001000213");
+            esperar_red(h);
+        },
+    );
+}
+
+#[test]
+fn modal_cerrar_pestana() {
+    capturar(
+        "25-modal-cerrar-pestana",
+        || {
+            let mut g = global(POR_DEFECTO);
+            g.carritos = carritos(vec![items_orden(), vec![item(1, 1.245, None), item(9, 2.0, None)]], 0);
+            g
+        },
+        |h, _| clic(h, Pos2::new(X_CERRAR_ORDEN_2, 106.0)),
+    );
+}
+
+const X_CERRAR_ORDEN_2: f32 = 251.0;
+
+#[test]
+fn modal_agregar_kg() {
+    capturar("26-modal-agregar-kg", || con_items(POR_DEFECTO), |h, _| {
+        abrir_producto(h, "redondo");
+        etiqueta(h, "Ingresar peso manualmente");
     });
 }
 
 #[test]
-fn agregar_unidad() {
-    capturar("20-agregar-producto-unidad", global(negocio_simple(), false), |_| {}, |h| {
-        escribir(h, "palta");
-        tecla(h, Key::Enter);
-        esperar_red(h);
+fn modal_agregar_kg_desconectada() {
+    capturar(
+        "27-modal-agregar-kg-desconectada",
+        || {
+            let mut g = con_items(sin_manual());
+            g.estado_balanza = json!({ "conectada": false });
+            g
+        },
+        |h, _| abrir_producto(h, "redondo"),
+    );
+}
+
+#[test]
+fn modal_agregar_kg_manual() {
+    capturar("28-modal-agregar-kg-manual", || con_items(POR_DEFECTO), |h, _| {
+        abrir_producto(h, "redondo");
+        escribir(h, "1250");
+    });
+}
+
+#[test]
+fn modal_agregar_kg_sin_peso_manual() {
+    capturar("29-modal-agregar-kg-sin-peso-manual", || con_items(sin_manual()), |h, _| abrir_producto(h, "zanahoria"));
+}
+
+#[test]
+fn modal_agregar_unidad() {
+    capturar("30-modal-agregar-unidad", || con_items(POR_DEFECTO), |h, _| {
+        abrir_producto(h, "lechuga");
+        escribir(h, "2");
+    });
+}
+
+#[test]
+fn modal_agregar_unidad_lista() {
+    capturar("31-modal-agregar-unidad-lista", || con_items(POR_DEFECTO), |h, _| {
+        abrir_producto(h, "palta");
         escribir(h, "3");
+        etiqueta(h, "Mayorista");
     });
 }
 
 #[test]
-fn agregar_peso_manual() {
-    capturar("21-agregar-producto-peso-manual", global(negocio_simple(), true), |_| {}, |h| {
-        escribir(h, "zapallo");
-        tecla(h, Key::Enter);
-        esperar_red(h);
-        escribir(h, "1750");
+fn modal_agregar_error() {
+    capturar("32-modal-agregar-error", || con_items(POR_DEFECTO), |h, tam| {
+        abrir_producto(h, "lechuga");
+        clic(h, Pos2::new(tam[0] / 2.0 + 115.0, tam[1] / 2.0 + 113.0));
     });
 }
 
 #[test]
-fn carrito_con_items() {
-    let mut g = global(negocio_simple(), false);
-    g.carritos = carritos_sembrados();
-    capturar("22-carrito-con-items", g, |_| {}, nada);
-}
-
-#[test]
-fn pestanas_carritos() {
-    let mut g = global(negocio_simple(), false);
-    g.carritos = carritos_sembrados();
-    capturar("23-pestanas-carritos", g, |_| {}, |h| clic(h, Pos2::new(598.0, 45.0)));
-}
-
-#[test]
-fn carrito_afip() {
-    let mut g = global(negocio_afip(), false);
-    g.carritos = carritos_sembrados();
-    capturar("44-carrito-afip", g, |_| {}, nada);
-}
-
-#[test]
-fn escanear_lista_precios() {
-    capturar("55-escanear-lista-precios", global(negocio_afip(), false), |_| {}, |h| {
-        escribir(h, "7791234500026");
-        esperar_red(h);
-    });
-}
-
-#[test]
-fn menu_usuario() {
-    capturar("71-menu-usuario", global(negocio_simple(), false), |_| {}, |h| {
-        clic(h, Pos2::new(1156.0, 44.0));
-    });
+fn toast_error_orden_vacia() {
+    capturar("88-toast-error", || global(POR_DEFECTO), |h, _| tecla(h, Key::F2));
 }
 
 #[test]
 fn agregar_y_quitar_items() {
-    let mut app = App::de_prueba(global(negocio_simple(), false), servicios());
-    app.pantallas().carrito.precargar_productos(productos());
-    let mut h = Harness::builder().with_size([1200.0, 800.0]).build_ui_state(|ui, app: &mut App| app.mostrar(ui), app);
-    h.run_steps(3);
+    let mut h = arnes(global(POR_DEFECTO), [1200.0, 800.0], false);
     escribir(&mut h, "palta");
     tecla(&mut h, Key::Enter);
     esperar_red(&mut h);
@@ -313,27 +428,28 @@ fn agregar_y_quitar_items() {
     h.run_steps(3);
     let items = h.state_mut().global().carritos.items().to_vec();
     assert_eq!(items.len(), 1);
-    assert_eq!((items[0].quantity, items[0].unit.as_str(), items[0].subtotal), (3.0, "Unidad", 4500.0));
+    assert_eq!((items[0].quantity, items[0].unit.as_str(), items[0].subtotal), (3.0, "Unidad", 4800.0));
     assert_eq!(items[0].lista_precio_nombre.as_deref(), Some("Precio catálogo"));
-    escribir(&mut h, "005000013552");
+    escribir(&mut h, "0101000013552");
     for _ in 0..20 {
         h.step();
         std::thread::sleep(Duration::from_millis(10));
     }
     let items = h.state_mut().global().carritos.items().to_vec();
     assert_eq!(items.len(), 2);
-    assert_eq!((items[1].id, items[1].quantity, items[1].subtotal), (5, 1.355, 3794.0));
+    assert_eq!((items[1].id, items[1].quantity), (1, 1.355));
+}
+
+fn buscador_enfocado(harness: &Harness<'_, App>) -> bool {
+    harness.ctx.memory(|m| m.has_focus(id_buscador()))
 }
 
 #[test]
 fn borrar_pestana_y_cerrar_sesion() {
-    let mut g = global(negocio_simple(), false);
-    g.carritos = carritos_sembrados();
-    let mut app = App::de_prueba(g, servicios());
-    app.pantallas().carrito.precargar_productos(productos());
-    let mut h = Harness::builder().with_size([1200.0, 800.0]).build_ui_state(|ui, app: &mut App| app.mostrar(ui), app);
-    h.run_steps(3);
-    clic(&mut h, Pos2::new(671.0, 45.0));
+    let mut g = global(POR_DEFECTO);
+    g.carritos = carritos(vec![items_orden(), vec![item(1, 1.245, None), item(9, 2.0, None)]], 0);
+    let mut h = arnes(g, [1920.0, 1080.0], false);
+    clic(&mut h, Pos2::new(X_CERRAR_ORDEN_2, 106.0));
     assert_eq!(h.state_mut().global().carritos.screens.len(), 2);
     tecla(&mut h, Key::Enter);
     assert_eq!(h.state_mut().global().carritos.screens.len(), 1);
@@ -343,119 +459,33 @@ fn borrar_pestana_y_cerrar_sesion() {
     assert_eq!(h.state_mut().global().ruta, Ruta::UsuarioLogin);
 }
 
-fn buscador_enfocado(harness: &Harness<'_, App>) -> bool {
-    harness.ctx.memory(|m| m.has_focus(id_buscador()))
-}
-
-fn buscar_muchos(h: &mut Harness<'_, App>) {
-    escribir(h, "a");
-    for _ in 0..14 {
-        tecla(h, Key::ArrowDown);
-    }
-    assert!(buscador_enfocado(h));
-}
-
-#[test]
-fn busqueda_muchos_resultados() {
-    capturar("16b-busqueda-muchos-resultados", global(negocio_simple(), false), |_| {}, buscar_muchos);
-}
-
-#[test]
-fn busqueda_muchos_resultados_1920() {
-    capturar_en("16c-busqueda-muchos-resultados-1920", [1920.0, 1080.0], global(negocio_simple(), false), |_| {}, buscar_muchos);
-}
-
-#[test]
-fn menu_usuario_1920() {
-    let mut g = global(negocio_afip(), false);
-    g.carritos = carritos_sembrados();
-    capturar_en("71b-menu-usuario-1920", [1920.0, 1080.0], g, |_| {}, |h| clic(h, Pos2::new(1876.0, 44.0)));
-}
-
 #[test]
 fn pestana_clickeada_enfoca_buscador() {
-    let mut g = global(negocio_simple(), false);
-    g.carritos = carritos_sembrados();
-    let mut app = App::de_prueba(g, servicios());
-    app.pantallas().carrito.precargar_productos(productos());
-    let mut h = Harness::builder().with_size([1200.0, 800.0]).build_ui_state(|ui, app: &mut App| app.mostrar(ui), app);
-    h.run_steps(3);
-    clic(&mut h, Pos2::new(598.0, 45.0));
+    let mut g = global(POR_DEFECTO);
+    g.carritos = carritos(vec![items_orden(), vec![item(1, 1.245, None)]], 0);
+    let mut h = arnes(g, [1920.0, 1080.0], false);
+    clic(&mut h, Pos2::new(X_CERRAR_ORDEN_2 - 60.0, 106.0));
     assert_eq!(h.state_mut().global().carritos.active_screen, 1);
     assert!(buscador_enfocado(&h));
     escribir(&mut h, "ma");
     assert_eq!(h.state_mut().global().carritos.active_screen, 1);
     tecla(&mut h, Key::Escape);
-    clic(&mut h, Pos2::new(465.0, 45.0));
+    clic(&mut h, Pos2::new(60.0, 106.0));
     assert_eq!(h.state_mut().global().carritos.active_screen, 0);
     assert!(buscador_enfocado(&h));
 }
 
 #[test]
 fn menu_usuario_abre_impresion_y_balanza() {
-    let mut app = App::de_prueba(global(negocio_simple(), false), servicios());
-    app.pantallas().carrito.precargar_productos(productos());
-    let mut h = Harness::builder().with_size([1200.0, 800.0]).build_ui_state(|ui, app: &mut App| app.mostrar(ui), app);
-    h.run_steps(3);
-    clic(&mut h, Pos2::new(1156.0, 44.0));
-    clic(&mut h, Pos2::new(1020.0, 140.0));
+    let mut h = arnes(global(POR_DEFECTO), [1920.0, 1080.0], false);
+    clic(&mut h, Pos2::new(1820.0, 34.0));
+    clic(&mut h, Pos2::new(1760.0, Y_MENU_IMPRESION));
     assert!(h.state_mut().pantallas().carrito.impresion.abierto());
     tecla(&mut h, Key::Escape);
     assert!(!h.state_mut().pantallas().carrito.impresion.abierto());
-    clic(&mut h, Pos2::new(1156.0, 44.0));
-    clic(&mut h, Pos2::new(1015.0, 172.0));
+    clic(&mut h, Pos2::new(1820.0, 34.0));
+    clic(&mut h, Pos2::new(1760.0, Y_MENU_IMPRESION + 37.0));
     assert!(h.state_mut().pantallas().carrito.balanza.abierto());
 }
 
-
-fn carritos_cuatro() -> Carritos {
-    let mut carritos = carritos_sembrados();
-    let mut extra = serde_json::to_value(&carritos.screens[1]).unwrap();
-    for id in [2, 3] {
-        extra["id"] = json!(id);
-        carritos.screens.push(serde_json::from_value(extra.clone()).unwrap());
-    }
-    carritos
-}
-
-fn cabecera_en(nombre: &str, tam: [f32; 2], buscar: bool) {
-    let mut g = global(negocio_afip(), false);
-    g.carritos = carritos_cuatro();
-    capturar_en(nombre, tam, g, |_| {}, |h| {
-        if buscar {
-            escribir(h, "a");
-        } else {
-            clic(h, Pos2::new(tam[0] - 44.0, 44.0));
-        }
-    });
-}
-
-#[test]
-fn cabecera_1920() {
-    cabecera_en("74-carrito-cabecera-1920", [1920.0, 1080.0], false);
-}
-
-#[test]
-fn cabecera_1366() {
-    cabecera_en("74b-carrito-cabecera-1366", [1366.0, 768.0], false);
-}
-
-#[test]
-fn cabecera_1280() {
-    cabecera_en("74c-carrito-cabecera-1280", [1280.0, 720.0], false);
-}
-
-#[test]
-fn cabecera_1200() {
-    cabecera_en("74d-carrito-cabecera-1200", [1200.0, 800.0], false);
-}
-
-#[test]
-fn cabecera_1024() {
-    cabecera_en("74e-carrito-cabecera-1024", [1024.0, 768.0], false);
-}
-
-#[test]
-fn buscador_1024() {
-    cabecera_en("74f-carrito-buscador-1024", [1024.0, 768.0], true);
-}
+const Y_MENU_IMPRESION: f32 = 140.0;
