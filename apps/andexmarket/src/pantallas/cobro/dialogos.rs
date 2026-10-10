@@ -1,16 +1,19 @@
-use eframe::egui::{
-    self, Align, Align2, Color32, Context, CursorIcon, Id, Key, Modifiers, Pos2, Rect, Response, Sense, Shape, Stroke, StrokeKind,
-    TextEdit, Ui, Vec2,
-};
-use nucleo::cobros::{self, Descuento};
-use nucleo::formato::{self, pesos};
+use std::time::Duration;
+
+use eframe::egui::{self, Align, Align2, Area, Color32, Context, CursorIcon, Frame, Id, Key, Layout, Margin, Modifiers, Order, Rect, Response, Sense, Shape, Stroke, StrokeKind, Ui, UiBuilder, Vec2};
+use nucleo::carrito::Producto;
+use nucleo::cobros::{self, Descuento, TipoDescuento};
+use nucleo::formato;
 use serde_json::Value;
 
-use super::{Cobro, Lado};
+use super::{dinero, Cobro, Lado, ResultadoCobro};
 use crate::app::Contexto;
-use crate::ui::{self, color, fuente, paleta, Boton, Peso, Tam, Variante};
+use crate::ui::marca::{self, color, fuente, radio, sombra, tam};
+use crate::ui::v2::{self, animacion, Boton, BotonIcono, Contenedor, Estilo, EstiloSegmentado, EstiloTecla, Segmento};
+use crate::ui::{pintar_icono_solar_en, Peso};
 
-const GRIS_ENTRADA: Color32 = color::BORDE_ENTRADA;
+const SEGUNDOS_COMPLETADA: f64 = 6.0;
+const ALTO_PIE: f32 = 44.0;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Capa {
@@ -28,240 +31,125 @@ enum Capa {
     MixtoAfip,
 }
 
-fn opacar(c: Color32, habilitado: bool) -> Color32 {
-    if habilitado {
-        c
-    } else {
-        c.gamma_multiply(0.5)
+fn alto_linea(px: f32) -> f32 {
+    (px * 1.21).round()
+}
+
+fn linea(ui: &mut Ui, ancla: Align2, contenido: &str, px: f32, peso: Peso, color_texto: Color32, espaciado_em: f32) -> Rect {
+    let g = v2::galeria_espaciada(ui, contenido, fuente(px, peso), color_texto, px * espaciado_em);
+    let alto = alto_linea(px).max(g.size().y.min(alto_linea(px)));
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), alto), Sense::hover());
+    let x = match ancla.x() {
+        Align::Min => rect.left(),
+        Align::Center => rect.center().x - g.size().x / 2.0,
+        Align::Max => rect.right() - g.size().x,
+    };
+    let pos = egui::pos2(x, rect.center().y - g.size().y / 2.0);
+    let caja = Rect::from_min_size(pos, g.size());
+    ui.painter().galley(pos, g, color_texto);
+    caja
+}
+
+struct Texto<'a> {
+    contenido: &'a str,
+    px: f32,
+    peso: Peso,
+    color: Color32,
+    espaciado_em: f32,
+}
+
+fn t(contenido: &str, px: f32, peso: Peso, color_texto: Color32) -> Texto<'_> {
+    Texto { contenido, px, peso, color: color_texto, espaciado_em: 0.0 }
+}
+
+impl Texto<'_> {
+    fn espaciado(mut self, em: f32) -> Self {
+        self.espaciado_em = em;
+        self
     }
 }
 
-fn medir(ui: &Ui, texto: &str, tam: Tam, peso: Peso) -> f32 {
-    ui.painter().layout_no_wrap(texto.to_string(), fuente(tam, peso), Color32::WHITE).size().x
+fn fila(ui: &mut Ui, izquierda: Texto, derecha: Texto) -> (Rect, Rect) {
+    let gi = v2::galeria_espaciada(ui, izquierda.contenido, fuente(izquierda.px, izquierda.peso), izquierda.color, izquierda.px * izquierda.espaciado_em);
+    let gd = v2::galeria_espaciada(ui, derecha.contenido, fuente(derecha.px, derecha.peso), derecha.color, derecha.px * derecha.espaciado_em);
+    let alto = alto_linea(izquierda.px).max(alto_linea(derecha.px));
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), alto), Sense::hover());
+    let pi = egui::pos2(rect.left(), rect.center().y - gi.size().y / 2.0);
+    let pd = egui::pos2(rect.right() - gd.size().x, rect.center().y - gd.size().y / 2.0);
+    let (ri, rd) = (Rect::from_min_size(pi, gi.size()), Rect::from_min_size(pd, gd.size()));
+    ui.painter().galley(pi, gi, izquierda.color);
+    ui.painter().galley(pd, gd, derecha.color);
+    (ri, rd)
 }
 
-fn pintar(ui: &Ui, pos: Pos2, ancla: Align2, texto: &str, tam: Tam, peso: Peso, color: Color32) -> Rect {
-    ui.painter().text(pos, ancla, texto, fuente(tam, peso), color)
+fn tachar(ui: &Ui, rect: Rect, color_linea: Color32) {
+    let y = rect.center().y + 0.5;
+    ui.painter().hline(rect.x_range(), y, Stroke::new(1.0, color_linea));
 }
 
-fn tachar(ui: &Ui, rect: Rect, color: Color32) {
-    let y = rect.center().y + 1.0;
-    ui.painter().line_segment([egui::pos2(rect.left(), y), egui::pos2(rect.right(), y)], Stroke::new(1.0, color));
-}
-
-fn caja(ui: &mut Ui, alto: f32) -> Rect {
-    ui.allocate_exact_size(Vec2::new(ui.available_width(), alto), Sense::hover()).0
-}
-
-fn envolver(ui: &Ui, texto: &str, tam: Tam, peso: Peso, ancho: f32) -> Vec<String> {
-    let mut piezas: Vec<(String, bool)> = Vec::new();
-    for palabra in texto.split(' ') {
-        let mut primera = true;
-        let mut resto = palabra;
-        while let Some(i) = resto.find('-').filter(|i| *i + 1 < resto.len()) {
-            piezas.push((resto[..=i].to_string(), primera));
-            primera = false;
-            resto = &resto[i + 1..];
-        }
-        piezas.push((resto.to_string(), primera));
-    }
-    let mut lineas: Vec<String> = Vec::new();
-    let mut actual = String::new();
-    for (pieza, con_espacio) in piezas {
-        let candidato = if actual.is_empty() {
-            pieza.clone()
-        } else if con_espacio {
-            format!("{actual} {pieza}")
-        } else {
-            format!("{actual}{pieza}")
-        };
-        if !actual.is_empty() && medir(ui, candidato.trim_end(), tam, peso) > ancho {
-            lineas.push(actual.trim_end().to_string());
-            actual = pieza;
-        } else {
-            actual = candidato;
-        }
-    }
-    lineas.push(actual);
-    lineas
-}
-
-fn parrafo(ui: &mut Ui, texto: &str, tam: Tam, peso: Peso, color: Color32, alto_linea: f32, ancla: Align2) {
-    let ancho = ui.available_width();
-    let lineas = envolver(ui, texto, tam, peso, ancho);
-    let rect = caja(ui, alto_linea * lineas.len() as f32);
-    for (i, linea) in lineas.iter().enumerate() {
-        let y = rect.top() + alto_linea * (i as f32 + 0.5);
-        let x = match ancla.x() {
-            Align::Min => rect.left(),
-            Align::Center => rect.center().x,
-            Align::Max => rect.right(),
-        };
-        pintar(ui, egui::pos2(x, y), Align2([ancla.x(), Align::Center]), linea, tam, peso, color);
-    }
-}
-
-fn titulo(ui: &mut Ui, texto: &str, tam: Tam, alto: f32, color: Color32, icono: Option<&str>) {
-    let rect = caja(ui, alto.max(if icono.is_some() { 20.0 } else { 0.0 }));
-    let mut x = rect.left();
-    if let Some(nombre) = icono {
-        ui::pintar_icono_en(ui, Rect::from_min_size(egui::pos2(x, rect.center().y - 10.0), Vec2::splat(20.0)), nombre, color);
-        x += 28.0;
-    }
-    let ancho = rect.right() - x;
-    let lineas = envolver(ui, texto, tam, Peso::Semi, ancho);
-    if lineas.len() == 1 {
-        pintar(ui, egui::pos2(x, rect.center().y), Align2::LEFT_CENTER, texto, tam, Peso::Semi, color);
-    } else {
-        ui.add_space(alto * (lineas.len() as f32 - 1.0));
-        for (i, linea) in lineas.iter().enumerate() {
-            let y = rect.top() + alto * (i as f32 + 0.5);
-            pintar(ui, egui::pos2(x, y), Align2::LEFT_CENTER, linea, tam, Peso::Semi, color);
-        }
-    }
-}
-
-fn encabezado(ui: &mut Ui, texto: &str, tam: Tam, alto: f32, color_titulo: Color32, icono: Option<&str>, descripcion: &str) {
-    titulo(ui, texto, tam, alto, color_titulo, icono);
-    if !descripcion.is_empty() {
-        ui.add_space(6.0);
-        parrafo(ui, descripcion, Tam::Sm, Peso::Normal, color::APAGADO_TEXTO, 20.0, Align2::LEFT_TOP);
-    }
-}
-
-fn anillo(ui: &Ui, rect: Rect, radio: f32) {
-    ui.painter().rect_stroke(rect.expand(3.0), radio + 3.0, Stroke::new(2.0, color::ANILLO), StrokeKind::Middle);
-}
-
-fn girador(ui: &Ui, centro: Pos2, radio: f32, color: Color32) {
-    let t = ui.input(|i| i.time) as f32 * std::f32::consts::TAU;
-    let puntos: Vec<Pos2> = (0..=24)
-        .map(|k| {
-            let a = t + std::f32::consts::FRAC_PI_4 + (k as f32 / 24.0) * std::f32::consts::FRAC_PI_2;
-            centro + Vec2::angled(a) * (radio - 1.0)
-        })
-        .collect();
-    ui.painter().add(Shape::line(puntos, Stroke::new(2.0, color)));
-    ui.ctx().request_repaint();
-}
-
-fn fila(ui: &mut Ui, alto: f32, izquierda: (&str, Tam, Peso, Color32), derecha: (&str, Tam, Peso, Color32)) -> (Rect, Rect) {
-    let rect = caja(ui, alto);
-    let i = pintar(ui, rect.left_center(), Align2::LEFT_CENTER, izquierda.0, izquierda.1, izquierda.2, izquierda.3);
-    let d = pintar(ui, rect.right_center(), Align2::RIGHT_CENTER, derecha.0, derecha.1, derecha.2, derecha.3);
-    (i, d)
-}
-
-fn recuadro(ui: &mut Ui, fondo: Color32, borde: Color32, relleno: f32, contenido: impl FnOnce(&mut Ui)) {
-    ui::marco()
+fn panel<R>(ui: &mut Ui, fondo: Color32, borde: Option<Color32>, radio_panel: u8, relleno: Margin, contenido: impl FnOnce(&mut Ui) -> R) -> R {
+    Frame::NONE
         .fill(fondo)
-        .stroke(Stroke::new(1.0, borde))
-        .corner_radius(ui::RADIO)
-        .inner_margin(egui::Margin::same(relleno as i8))
+        .stroke(borde.map_or(Stroke::NONE, |c| Stroke::new(1.0, c)))
+        .corner_radius(radio_panel)
+        .inner_margin(relleno)
         .show(ui, |ui| {
             ui.set_width(ui.available_width());
-            contenido(ui);
-        });
+            contenido(ui)
+        })
+        .inner
 }
 
-struct Campo<'a> {
-    id: Id,
-    texto: &'a mut String,
-    ancho: f32,
-    alto: f32,
-    sugerencia: &'a str,
-    alineacion: Align,
-    habilitado: bool,
-    numerico: bool,
-    clave: bool,
-    multilinea: bool,
+fn margen(vertical: i8, horizontal: i8) -> Margin {
+    Margin::symmetric(horizontal, vertical)
 }
 
-impl<'a> Campo<'a> {
-    fn new(id: impl std::hash::Hash + std::fmt::Debug, texto: &'a mut String, sugerencia: &'a str) -> Self {
-        Campo {
-            id: Id::new(("cobro-campo", id)),
-            texto,
-            ancho: f32::INFINITY,
-            alto: 40.0,
-            sugerencia,
-            alineacion: Align::Min,
-            habilitado: true,
-            numerico: true,
-            clave: false,
-            multilinea: false,
-        }
-    }
+fn pie<R>(ui: &mut Ui, arriba: i8, abajo: i8, contenido: impl FnOnce(&mut Ui) -> R) -> R {
+    Frame::NONE
+        .inner_margin(Margin { left: 24, right: 24, top: arriba, bottom: abajo })
+        .show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            ui.allocate_ui_with_layout(Vec2::new(ui.available_width(), ALTO_PIE), Layout::right_to_left(Align::Center), |ui| {
+                ui.spacing_mut().item_spacing.x = 10.0;
+                contenido(ui)
+            })
+            .inner
+        })
+        .inner
+}
 
-    fn ui(self, ui: &mut Ui, enfocar: &mut bool) -> Response {
-        let ancho = self.ancho.min(ui.available_width());
-        let (rect, _) = ui.allocate_exact_size(Vec2::new(ancho, self.alto), Sense::hover());
-        let (radio, borde) = if self.multilinea { (ui::RADIO_MD, color::BORDE) } else { (ui::RADIO_XL, GRIS_ENTRADA) };
-        ui.painter().rect(
-            rect,
-            radio,
-            opacar(color::FONDO, self.habilitado),
-            Stroke::new(1.0, opacar(borde, self.habilitado)),
-            StrokeKind::Inside,
-        );
-        let enfocado = ui.memory(|m| m.has_focus(self.id));
-        let flechas = self.numerico && enfocado;
-        let mut interior = rect.shrink2(Vec2::new(12.0, if self.multilinea { 8.0 } else { 0.0 }));
-        if self.multilinea {
-            interior.min.y += 2.0;
-        }
-        if flechas {
-            interior.max.x -= 15.0;
-            let centro = egui::pos2(rect.right() - 20.5, rect.center().y);
-            let gris = Color32::from_gray(110);
-            ui.painter().add(Shape::convex_polygon(
-                vec![centro + Vec2::new(0.0, -7.5), centro + Vec2::new(4.0, -1.5), centro + Vec2::new(-4.0, -1.5)],
-                gris,
-                Stroke::NONE,
-            ));
-            ui.painter().add(Shape::convex_polygon(
-                vec![centro + Vec2::new(-4.0, 1.5), centro + Vec2::new(4.0, 1.5), centro + Vec2::new(0.0, 7.5)],
-                gris,
-                Stroke::NONE,
-            ));
-        }
-        let alto_linea = if self.multilinea { Some(20.0) } else { None };
-        let sugerencia = egui::WidgetText::from(
-            egui::RichText::new(self.sugerencia).font(fuente(Tam::Sm, Peso::Normal)).color(color::APAGADO_TEXTO).line_height(alto_linea),
-        );
-        let mut maquetar = |ui: &Ui, texto: &dyn egui::TextBuffer, ancho: f32| {
-            let mut trabajo = egui::text::LayoutJob::simple(texto.as_str().to_owned(), fuente(Tam::Sm, Peso::Normal), color::TEXTO, ancho);
-            trabajo.sections[0].format.line_height = alto_linea;
-            ui.fonts_mut(|f| f.layout_job(trabajo))
-        };
-        let editor = if self.multilinea { TextEdit::multiline(self.texto).layouter(&mut maquetar) } else { TextEdit::singleline(self.texto) };
-        let mut hijo = ui.new_child(
-            egui::UiBuilder::new().max_rect(interior).layout(egui::Layout::centered_and_justified(egui::Direction::TopDown)),
-        );
-        let respuesta = hijo.add(
-            editor
-                .id(self.id)
-                .frame(egui::Frame::NONE)
-                .hint_text(sugerencia)
-                .password(self.clave)
-                .font(fuente(Tam::Sm, Peso::Normal))
-                .text_color(color::TEXTO)
-                .horizontal_align(self.alineacion)
-                .vertical_align(if self.multilinea { Align::Min } else { Align::Center })
-                .margin(egui::Margin::ZERO)
-                .desired_width(interior.width())
-                .desired_rows(if self.multilinea { 4 } else { 1 })
-                .interactive(self.habilitado),
-        );
-        if self.multilinea && enfocado {
-            anillo(ui, rect, radio as f32);
-        }
-        if *enfocar {
-            respuesta.request_focus();
-            *enfocar = false;
-        }
-        respuesta
+fn boton(texto: impl Into<String>, estilo: Estilo) -> Boton<'static> {
+    Boton::new(texto, estilo).alto(ALTO_PIE).radio(radio::BOTON_MODAL).sin_sombra()
+}
+
+fn etiqueta_campo(ui: &mut Ui, contenido: &str) {
+    linea(ui, Align2::LEFT_CENTER, contenido, tam::ETIQUETA, Peso::Semi, color::TEXTO_SECUNDARIO, 0.0);
+}
+
+fn chip_valor(ui: &mut Ui, contenido: &str, ancho: Option<f32>, alto: f32, radio_chip: u8, px: f32, activo: bool) -> bool {
+    let ancho = ancho.unwrap_or_else(|| v2::ancho_texto(ui, contenido, px, Peso::Medio) + 24.0);
+    v2::opcion_eleccion(ui, Vec2::new(ancho, alto), radio_chip, activo, 1.0, |ui, rect, _| {
+        v2::pintar_texto(ui, rect.center(), Align2::CENTER_CENTER, contenido, px, Peso::Medio, color::TEXTO);
+    })
+    .clicked()
+}
+
+fn campo_monto(ui: &mut Ui, id: Id, texto: &mut String, sugerencia: &str, px: f32, error: bool, habilitado: bool, enfocar: &mut bool) -> Response {
+    let ancho = ui.available_width();
+    let contenedor = Contenedor { alto: marca::alto::CAMPO_GRANDE, separacion: 6.0, error, ..Default::default() };
+    let respuesta = contenedor.mostrar(ui, ancho, |ui| {
+        v2::texto(ui, "$", tam::DESTACADO, Peso::Normal, color::TEXTO_TENUE);
+        let alto = ui.available_height();
+        ui.allocate_ui_with_layout(Vec2::new(ui.available_width(), alto), Layout::left_to_right(Align::Center), |ui| {
+            v2::entrada_desnuda(texto).id(id).tam(px).sugerencia(sugerencia).habilitado(habilitado).ui(ui)
+        })
+        .inner
+    });
+    if *enfocar {
+        respuesta.request_focus();
+        *enfocar = false;
     }
+    respuesta
 }
 
 fn filtrar_numero(texto: &mut String) {
@@ -269,21 +157,6 @@ fn filtrar_numero(texto: &mut String) {
         *texto = texto.replace(',', ".");
     }
     texto.retain(|c| c.is_ascii_digit() || c == '.' || c == '-');
-}
-
-fn ancho_boton(ui: &Ui, texto: &str, tam: Tam, cargando: bool, relleno: f32) -> f32 {
-    medir(ui, texto, tam, Peso::Medio) + if cargando { 24.0 } else { 0.0 } + relleno * 2.0
-}
-
-fn boton_confirmar(ui: &mut Ui, cargando: bool, habilitado: bool) -> Response {
-    let texto = if cargando { "Procesando..." } else { "Confirmar pago" };
-    Boton::new(texto)
-        .variante(Variante::Esmeralda)
-        .texto_tam(Tam::Lg)
-        .cargando(cargando)
-        .ancho(ancho_boton(ui, texto, Tam::Lg, cargando, 24.0))
-        .habilitado(habilitado)
-        .ui(ui)
 }
 
 fn enter(ctx: &Context) -> bool {
@@ -296,47 +169,95 @@ fn mantener_foco(ctx: &Context, respuesta: &Response) {
     }
 }
 
-enum Icono {
-    Uno(&'static str),
-    Mixto,
+fn cantidad_producto(item: &Producto) -> String {
+    if item.unit.eq_ignore_ascii_case("kg") {
+        format!("{} kg", formato::numero_con(item.quantity, 3, 3))
+    } else {
+        format!("{} u", formato::numero(item.quantity))
+    }
 }
 
-#[allow(clippy::too_many_arguments)]
-fn boton_metodo(ui: &mut Ui, rect: Rect, id: &str, etiqueta: &str, icono: Icono, seleccionado: bool, girando: bool, habilitado: bool, foco: bool) -> bool {
-    let respuesta = ui.interact(rect, Id::new(("cobro-metodo", id)), if habilitado { Sense::click() } else { Sense::hover() });
-    let encima = habilitado && respuesta.hovered();
-    let fondo = if seleccionado {
-        paleta::EMERALD_100
-    } else if encima {
-        color::ACENTO
-    } else {
-        color::FONDO
-    };
-    let (borde, grosor) = if seleccionado { (paleta::EMERALD_600, 2.0) } else { (GRIS_ENTRADA, 1.0) };
-    ui.painter().rect(rect, ui::RADIO, opacar(fondo, habilitado), Stroke::new(grosor, opacar(borde, habilitado)), StrokeKind::Inside);
-    let tinta = opacar(color::TEXTO, habilitado);
-    let centro_icono = egui::pos2(rect.center().x, rect.top() + 45.5);
-    if girando {
-        girador(ui, centro_icono, 12.0, opacar(paleta::GRAY_900, habilitado));
-    } else {
-        match icono {
-            Icono::Uno(nombre) => ui::pintar_icono_en(ui, Rect::from_center_size(centro_icono, Vec2::splat(32.0)), nombre, tinta),
-            Icono::Mixto => {
-                let mas = medir(ui, "+", Tam::Xl, Peso::Normal);
-                let total = 32.0 + 4.0 + mas + 4.0 + 32.0;
-                let x = rect.center().x - total / 2.0;
-                ui::pintar_icono_en(ui, Rect::from_min_size(egui::pos2(x, centro_icono.y - 16.0), Vec2::splat(32.0)), "wallet", tinta);
-                pintar(ui, egui::pos2(x + 36.0, centro_icono.y), Align2::LEFT_CENTER, "+", Tam::Xl, Peso::Normal, tinta);
-                let x2 = x + 36.0 + mas + 4.0;
-                ui::pintar_icono_en(ui, Rect::from_min_size(egui::pos2(x2, centro_icono.y - 16.0), Vec2::splat(32.0)), "credit-card", tinta);
+fn lista_productos(ui: &mut Ui, items: &[Producto], total: f64) {
+    panel(ui, color::BLANCO, Some(color::BORDE_SUAVE), radio::CAMPO, Margin::ZERO, |ui| {
+        ui.spacing_mut().scroll.fade.strength = 0.0;
+        egui::ScrollArea::vertical().max_height(178.0).auto_shrink([false, true]).show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            for item in items {
+                let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 35.0), Sense::hover());
+                let interior = rect.shrink2(Vec2::new(14.0, 0.0));
+                let detalle = format!("{} · {}", cantidad_producto(item), dinero(item.subtotal));
+                let ancho_detalle = v2::pintar_texto(ui, interior.right_center(), Align2::RIGHT_CENTER, detalle, tam::CONTROL, Peso::Normal, color::TEXTO_APAGADO).width();
+                let nombre = v2::galeria(ui, item.name.clone(), fuente(tam::CONTROL, Peso::Normal), color::TEXTO);
+                let recorte = Rect::from_min_max(interior.min, egui::pos2(interior.right() - ancho_detalle - 12.0, interior.bottom()));
+                ui.painter().with_clip_rect(recorte).galley(egui::pos2(interior.left(), interior.center().y - nombre.size().y / 2.0), nombre, color::TEXTO);
+                ui.painter().hline(rect.x_range(), rect.bottom() - 0.5, Stroke::new(1.0, color::BORDE_SUAVE));
             }
-        }
+            let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 37.0), Sense::hover());
+            let interior = rect.shrink2(Vec2::new(14.0, 0.0));
+            v2::pintar_texto(ui, interior.left_center(), Align2::LEFT_CENTER, "Total", tam::CUERPO, Peso::Semi, color::TEXTO);
+            v2::pintar_texto(ui, interior.right_center(), Align2::RIGHT_CENTER, dinero(total), tam::CUERPO, Peso::Semi, color::ROJO);
+        });
+    });
+}
+
+fn texto_descuento(d: &Descuento) -> String {
+    match d.tipo {
+        TipoDescuento::Porcentaje => format!("{}% de descuento · {}", formato::numero(d.valor), dinero(-d.monto)),
+        TipoDescuento::Fijo => format!("Descuento · {}", dinero(-d.monto)),
     }
-    pintar(ui, egui::pos2(rect.center().x, rect.top() + 95.5), Align2::CENTER_CENTER, etiqueta, Tam::Sm, Peso::Medio, tinta);
+}
+
+fn tarjeta_metodo(ui: &mut Ui, rect: Rect, id: Id, numero: &str, etiqueta: &str, icono: &str, elegido: bool, girando: bool, habilitado: bool, foco: bool) -> bool {
+    let respuesta = ui.interact(rect, id, if habilitado { Sense::click() } else { Sense::hover() });
+    let colores = v2::colores_eleccion(elegido || girando);
+    let encima = habilitado && respuesta.hovered();
+    let mut hijo = ui.new_child(UiBuilder::new().max_rect(rect));
+    hijo.multiply_opacity(if habilitado || elegido || girando { 1.0 } else { 0.45 });
+    let borde = if encima { color::VERDE } else { colores.borde };
+    hijo.painter().rect(rect, radio::TARJETA, colores.fondo, Stroke::new(1.5, borde), StrokeKind::Inside);
+    let tecla = Rect::from_min_size(rect.min + Vec2::splat(10.0), Vec2::splat(24.0));
+    v2::pintar_tecla(&hijo, tecla, numero, &EstiloTecla::CUADRADA, color::TEXTO_SECUNDARIO);
+    let alto_etiqueta = alto_linea(tam::ENTRADA);
+    let arriba = rect.center().y - (36.0 + 10.0 + alto_etiqueta) / 2.0;
+    let centro_icono = egui::pos2(rect.center().x, arriba + 18.0);
+    if girando {
+        v2::girando(&hijo, Rect::from_center_size(centro_icono, Vec2::splat(34.0)), color::VERDE);
+    } else {
+        pintar_icono_solar_en(&hijo, Rect::from_center_size(centro_icono, Vec2::splat(36.0)), icono, color::VERDE);
+    }
+    v2::pintar_texto(&hijo, egui::pos2(rect.center().x, arriba + 46.0 + alto_etiqueta / 2.0), Align2::CENTER_CENTER, etiqueta, tam::ENTRADA, Peso::Semi, color::TEXTO);
     if foco && habilitado {
-        anillo(ui, rect, ui::RADIO as f32);
+        marca::pintar_anillo(ui.painter(), rect, radio::TARJETA, color::ANILLO_FOCO);
     }
     respuesta.on_hover_cursor(if habilitado { CursorIcon::PointingHand } else { CursorIcon::Default }).clicked()
+}
+
+fn opcion_medio(ui: &mut Ui, ancho: f32, etiqueta: &str, icono: &str, activo: bool) -> bool {
+    v2::opcion_eleccion(ui, Vec2::new(ancho, ALTO_PIE), radio::BOTON_MODAL, activo, 1.5, |ui, rect, colores| {
+        let g = v2::galeria(ui, etiqueta, fuente(tam::CUERPO, Peso::Medio), colores.texto);
+        let total = 18.0 + 8.0 + g.size().x;
+        let x = rect.center().x - total / 2.0;
+        pintar_icono_solar_en(ui, Rect::from_min_size(egui::pos2(x, rect.center().y - 9.0), Vec2::splat(18.0)), icono, colores.texto);
+        ui.painter().galley(egui::pos2(x + 26.0, rect.center().y - g.size().y / 2.0), g, colores.texto);
+    })
+    .clicked()
+}
+
+fn pastilla_estado(ui: &mut Ui, estado: Option<&str>) {
+    let (fondo, tinta, texto, latiendo) = match estado {
+        Some("PENDIENTE") => (color::DORADO_FONDO, color::DORADO_TEXTO, "Esperando el pago…", true),
+        Some("COMPLETADA") => (color::VERDE_EXITO_FONDO, color::VERDE_EXITO, "Pago acreditado", false),
+        Some("CANCELADA") => (color::ROJO_FONDO, color::ROJO, "Pago cancelado", false),
+        _ => (color::FONDO_APP, color::TEXTO_APAGADO, "Estado desconocido", false),
+    };
+    let g = v2::galeria(ui, texto, fuente(tam::CONTROL, Peso::Medio), tinta);
+    let tam_pastilla = Vec2::new(12.0 + 7.0 + 8.0 + g.size().x + 12.0, alto_linea(tam::CONTROL) + 10.0);
+    let (fila_rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), tam_pastilla.y), Sense::hover());
+    let rect = Rect::from_center_size(fila_rect.center(), tam_pastilla);
+    ui.painter().rect_filled(rect, radio::PASTILLA, fondo);
+    let alfa = if latiendo { animacion::pulso(ui.ctx(), 1.1) } else { 1.0 };
+    ui.painter().circle_filled(egui::pos2(rect.left() + 12.0 + 3.5, rect.center().y), 3.5, tinta.gamma_multiply(alfa));
+    ui.painter().galley(egui::pos2(rect.left() + 27.0, rect.center().y - g.size().y / 2.0), g, tinta);
 }
 
 fn decodificar_base64(texto: &str) -> Option<Vec<u8>> {
@@ -433,35 +354,35 @@ impl Cobro {
                 self.dialogo_mixto(cx, lado, tope == Some(capa));
             }
         }
+        if tope.is_none() {
+            self.venta_completada(cx);
+        }
     }
 
     fn dialogo_cancelar(&mut self, cx: &mut Contexto, tope: bool) {
         let ctx = cx.egui.clone();
         let cargando = self.normal.procesando;
-        let con_foco = !cargando && !self.cancelacion.abierto && self.teclado;
         let mut confirmar = false;
         let mut mantener = tope && !cargando && enter(&ctx);
-        let r = ui::Dialogo::new("cobro-cancelar").ancho(448.0).mostrar(&ctx, |ui| {
-            encabezado(
-                ui,
-                "¿Cancelar orden?",
-                Tam::Lg,
-                18.0,
-                color::TEXTO,
-                None,
-                "¿Estás seguro de que deseas cancelar la orden? Se eliminarán todos los productos del carrito.",
-            );
-            ui.add_space(16.0);
-            ui::pie_dialogo(ui, |ui| {
-                let texto = if cargando { "Cancelando..." } else { "Sí, cancelar orden" };
-                confirmar = Boton::new(texto).variante(Variante::Cancelar).habilitado(!cargando).ui(ui).clicked();
-                let no = Boton::new("No, mantener productos").variante(Variante::Contorno).habilitado(!cargando).ui(ui);
-                if con_foco {
-                    anillo(ui, no.rect, ui::RADIO as f32);
-                }
-                mantener |= no.clicked();
+        let items = cx.global.carritos.items().to_vec();
+        let total = cx.global.carritos.total();
+        let r = v2::Modal::new("cobro-cancelar", "¿Cancelar la orden?")
+            .subtitulo("Se quitan todos los productos de la orden")
+            .icono("trash-2")
+            .peligro()
+            .ancho(500.0)
+            .mostrar(&ctx, |ui| {
+                v2::cuerpo_modal(ui, 16, |ui| {
+                    v2::parrafo(ui, "Esta acción no se puede deshacer.", tam::CUERPO, color::TEXTO_SECUNDARIO, 1.55, ui.available_width());
+                    ui.add_space(14.0);
+                    lista_productos(ui, &items, total);
+                });
+                pie(ui, 20, 22, |ui| {
+                    let texto = if cargando { "Cancelando…" } else { "Sí, cancelar" };
+                    confirmar = boton(texto, Estilo::Peligro).alto(42.0).cargando(cargando).ui(ui).clicked();
+                    mantener |= boton("No, volver", Estilo::Secundario).alto(42.0).tecla("Enter").habilitado(!cargando).ui(ui).clicked();
+                });
             });
-        });
         if r.cerrar || mantener {
             self.cancelar_abierto = false;
         } else if confirmar {
@@ -491,51 +412,62 @@ impl Cobro {
         if tope && elegido.is_none() && habilitado("qr") && enter(&ctx) {
             elegido = Some("qr");
         }
-        let (titulo_texto, descripcion) = if afip {
-            (
-                "Seleccionar método de pago - Factura AFIP",
-                "Presiona el número correspondiente al método de pago para generar factura AFIP",
-            )
-        } else {
-            (
-                "Seleccionar método de pago",
-                "Presiona el número correspondiente al método de pago o haz clic en el botón",
-            )
+        let tipo_factura = cx
+            .global
+            .negocio
+            .as_ref()
+            .and_then(|n| n["configuracionAfip"]["tipoFactura"].as_str())
+            .filter(|t| !t.trim().is_empty())
+            .map(|t| t.trim().to_string());
+        let subtitulo = match (afip, tipo_factura) {
+            (true, Some(tipo)) => format!("Se emite Factura {tipo}. Presioná 1 a 4 para elegir."),
+            (true, None) => "Se emite la factura en AFIP. Presioná 1 a 4 para elegir.".to_string(),
+            (false, _) => "Sin factura. Presioná 1 a 4 para elegir.".to_string(),
         };
-        let r = ui::Dialogo::new(("cobro-pago", afip)).ancho(448.0).mostrar(&ctx, |ui| {
-            encabezado(ui, titulo_texto, Tam::Lg, 18.0, color::TEXTO, None, descripcion);
-            ui.add_space(16.0);
-            if let Some(d) = descuento {
-                caja_descuento(ui, &d, subtotal);
-                ui.add_space(32.0);
-            }
-            let rect = caja(ui, 272.0);
-            let ancho = (rect.width() - 16.0) / 2.0;
-            let botones = [
-                ("qr", "Transferencia (1)", Icono::Uno("qr-code")),
-                ("tarjeta", "Tarjeta (2)", Icono::Uno("credit-card")),
-                ("efectivo", "Efectivo (3)", Icono::Uno("wallet")),
-                ("split", "Pago Mixto (4)", Icono::Mixto),
-            ];
-            for (i, (m, etiqueta, icono)) in botones.into_iter().enumerate() {
-                let x = rect.left() + (i % 2) as f32 * (ancho + 16.0);
-                let y = rect.top() + (i / 2) as f32 * 144.0;
-                let caja_boton = Rect::from_min_size(egui::pos2(x, y), Vec2::new(ancho, 128.0));
-                let clic = boton_metodo(
-                    ui,
-                    caja_boton,
-                    &format!("{afip}-{m}"),
-                    etiqueta,
-                    icono,
-                    metodo == Some(m),
-                    procesando && metodo == Some(m),
-                    habilitado(m),
-                    i == 0 && teclado,
-                );
-                if clic {
-                    elegido = Some(m);
+        let titulo = if afip { "Cobrar con factura AFIP" } else { "Cobrar orden" };
+        let r = v2::Modal::new(("cobro-pago", afip), titulo).subtitulo(&subtitulo).icono("wallet").ancho(520.0).mostrar(&ctx, |ui| {
+            v2::cuerpo_modal(ui, 20, |ui| {
+                panel(ui, color::FONDO_APP, None, radio::POPOVER, margen(16, 18), |ui| {
+                    let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), alto_linea(tam::ETIQUETA) + 4.0 + tam::MONTO), Sense::hover());
+                    v2::pintar_texto(ui, rect.left_top() + Vec2::new(0.0, alto_linea(tam::ETIQUETA) / 2.0), Align2::LEFT_CENTER, "Total a cobrar", tam::ETIQUETA, Peso::Normal, color::TEXTO_APAGADO);
+                    let total = subtotal - descuento.map_or(0.0, |d| d.monto);
+                    let g = v2::galeria_espaciada(ui, dinero(total), fuente(tam::MONTO, Peso::Semi), color::TEXTO, marca::em(tam::MONTO, -0.02));
+                    ui.painter().galley(egui::pos2(rect.left(), rect.bottom() - tam::MONTO / 2.0 - g.size().y / 2.0), g, color::TEXTO);
+                    if let Some(d) = descuento {
+                        let abajo = egui::pos2(rect.right(), rect.bottom() - 2.0);
+                        v2::pintar_texto(ui, abajo, Align2::RIGHT_BOTTOM, texto_descuento(&d), tam::ETIQUETA, Peso::Semi, color::VERDE_EXITO);
+                        let arriba = abajo - Vec2::new(0.0, alto_linea(tam::ETIQUETA) + 3.0);
+                        let tachado = v2::pintar_texto(ui, arriba, Align2::RIGHT_BOTTOM, dinero(subtotal), tam::ETIQUETA, Peso::Normal, color::TEXTO_TENUE);
+                        tachar(ui, tachado, color::TEXTO_TENUE);
+                    }
+                });
+                ui.add_space(16.0);
+                let ancho = (ui.available_width() - 10.0) / 2.0;
+                let (grilla, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 124.0 * 2.0 + 10.0), Sense::hover());
+                let metodos = [("qr", "Transferencia / QR", "qr"), ("tarjeta", "Tarjeta", "card"), ("efectivo", "Efectivo", "cash"), ("split", "Pago mixto", "split")];
+                for (i, (m, etiqueta, icono)) in metodos.into_iter().enumerate() {
+                    let x = grilla.left() + (i % 2) as f32 * (ancho + 10.0);
+                    let y = grilla.top() + (i / 2) as f32 * (124.0 + 10.0);
+                    let rect = Rect::from_min_size(egui::pos2(x, y), Vec2::new(ancho, 124.0));
+                    let numero = (i + 1).to_string();
+                    let clic = tarjeta_metodo(
+                        ui,
+                        rect,
+                        Id::new(("cobro-metodo", afip, m)),
+                        &numero,
+                        etiqueta,
+                        icono,
+                        metodo == Some(m),
+                        procesando && metodo == Some(m),
+                        habilitado(m),
+                        i == 0 && teclado,
+                    );
+                    if clic {
+                        elegido = Some(m);
+                    }
                 }
-            }
+                ui.add_space(24.0);
+            });
         });
         if r.cerrar {
             self.pago = None;
@@ -554,77 +486,89 @@ impl Cobro {
     fn dialogo_descuento(&mut self, cx: &mut Contexto, tope: bool) {
         let ctx = cx.egui.clone();
         let subtotal = cx.global.carritos.total();
+        let afip = self.accion_descuento == Some(Lado::Afip);
         let Some(dialogo) = self.descuento_dialogo.as_mut() else { return };
         let escape = tope && ctx.input(|i| i.key_pressed(Key::Escape));
         let mut confirmar = false;
         let mut cancelar = escape;
-        let r = ui::Dialogo::new("cobro-descuento").ancho(448.0).mostrar(&ctx, |ui| {
-            encabezado(
-                ui,
-                "Aplicar Descuento",
-                Tam::Lg,
-                18.0,
-                color::TEXTO,
-                Some("percent"),
-                "Selecciona el tipo de descuento y el valor a aplicar",
-            );
-            ui.add_space(16.0);
-            let anterior = dialogo.cantidad_fija;
-            pestanas_descuento(ui, &mut dialogo.cantidad_fija);
-            if anterior && !dialogo.cantidad_fija {
-                dialogo.enfocar = true;
-            }
-            ui.add_space(8.0);
-            let etiqueta = if dialogo.cantidad_fija { "Cantidad fija de descuento" } else { "Porcentaje de descuento (1-100%)" };
-            let rect = caja(ui, 24.0);
-            pintar(ui, rect.left_center(), Align2::LEFT_CENTER, etiqueta, Tam::Sm, Peso::Medio, color::TEXTO);
-            ui.add_space(8.0);
-            let maximo = format!("Máximo: {}", pesos(subtotal));
-            let (texto, sugerencia, id) = if dialogo.cantidad_fija {
-                (&mut dialogo.monto, maximo.as_str(), "monto")
-            } else {
-                (&mut dialogo.porcentaje, "Ej: 10", "porcentaje")
-            };
-            let mut campo = Campo::new(("descuento", id), &mut *texto, sugerencia);
-            campo.alineacion = Align::Center;
-            let respuesta = campo.ui(ui, &mut dialogo.enfocar);
-            filtrar_numero(texto);
-            mantener_foco(&ctx, &respuesta);
-            ui.add_space(16.0);
-            let valor = if dialogo.cantidad_fija { &dialogo.monto } else { &dialogo.porcentaje };
-            let calculado = cobros::descuento_calculado(subtotal, !dialogo.cantidad_fija, valor);
-            ui::marco().fill(paleta::GRAY_50).corner_radius(ui::RADIO).inner_margin(egui::Margin::same(24)).show(ui, |ui| {
-                ui.set_width(ui.available_width());
-                let sub = pesos(subtotal);
-                fila(ui, 28.0, ("Subtotal original:", Tam::Lg, Peso::Medio, color::TEXTO), (&sub, Tam::Xl, Peso::Negrita, color::TEXTO));
-                ui.add_space(12.0);
-                let menos = format!("-{}", pesos(calculado));
-                fila(
-                    ui,
-                    28.0,
-                    ("Descuento aplicado:", Tam::Lg, Peso::Medio, paleta::GREEN_600),
-                    (&menos, Tam::Xl, Peso::Negrita, paleta::GREEN_600),
-                );
-                ui.add_space(12.0);
-                let linea = caja(ui, 1.0);
-                ui.painter().rect_filled(linea, 0.0, paleta::GRAY_300);
-                ui.add_space(12.0);
-                let total = pesos(subtotal - calculado);
-                fila(ui, 36.0, ("Total final:", Tam::X2, Peso::Negrita, color::TEXTO), (&total, Tam::X3, Peso::Negrita, paleta::BLUE_600));
+        let subtitulo = if afip { "Después se emite la factura en AFIP" } else { "Orden sin factura" };
+        let r = v2::Modal::new("cobro-descuento", "Aplicar descuento").subtitulo(subtitulo).icono("percent").ancho(460.0).mostrar(&ctx, |ui| {
+            let calculado = v2::cuerpo_modal(ui, 20, |ui| {
+                let anterior = dialogo.cantidad_fija;
+                let mut indice = usize::from(dialogo.cantidad_fija);
+                let pestanas = [Segmento::con_icono("Porcentaje", "percent"), Segmento::con_icono("Monto fijo", "dollar-sign")];
+                v2::segmentado(ui, &pestanas, &mut indice, Some(ui.available_width()), EstiloSegmentado::Claro);
+                dialogo.cantidad_fija = indice == 1;
+                if anterior && !dialogo.cantidad_fija {
+                    dialogo.enfocar = true;
+                }
+                ui.add_space(16.0);
+                let presets: [(&str, String); 4] = if dialogo.cantidad_fija {
+                    ["500", "1000", "2000", "5000"].map(|v| (v, dinero(v.parse().unwrap_or(0.0))))
+                } else {
+                    ["5", "10", "15", "20"].map(|v| (v, format!("{v}%")))
+                };
+                let ancho_preset = (ui.available_width() - 8.0 * 3.0) / 4.0;
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 8.0;
+                    for (valor, etiqueta) in &presets {
+                        let texto = if dialogo.cantidad_fija { &mut dialogo.monto } else { &mut dialogo.porcentaje };
+                        if chip_valor(ui, etiqueta, Some(ancho_preset), 36.0, radio::CHIP_ICONO, tam::CONTROL, texto == valor) {
+                            *texto = valor.to_string();
+                            dialogo.enfocar = true;
+                        }
+                    }
+                });
+                ui.add_space(16.0);
+                let (prefijo, sufijo) = if dialogo.cantidad_fija { ("$", "") } else { ("", "%") };
+                let id = Id::new(("cobro-descuento-valor", dialogo.cantidad_fija));
+                let texto = if dialogo.cantidad_fija { &mut dialogo.monto } else { &mut dialogo.porcentaje };
+                let contenedor = Contenedor { alto: 60.0, radio: radio::POPOVER, relleno_izquierdo: 16.0, relleno_derecho: 16.0, separacion: 8.0, ..Default::default() };
+                let ancho = ui.available_width();
+                let respuesta = contenedor.mostrar(ui, ancho, |ui| {
+                    v2::texto(ui, prefijo, tam::GRANDE, Peso::Normal, color::TEXTO_TENUE);
+                    let reservado = if sufijo.is_empty() { 0.0 } else { v2::ancho_texto(ui, sufijo, tam::GRANDE, Peso::Normal) + 8.0 };
+                    let alto = ui.available_height();
+                    let respuesta = ui
+                        .allocate_ui_with_layout(Vec2::new(ui.available_width() - reservado, alto), Layout::left_to_right(Align::Center), |ui| {
+                            v2::entrada_desnuda(texto).id(id).tam(28.0).peso(Peso::Semi).centrada().sugerencia("0").ui(ui)
+                        })
+                        .inner;
+                    if !sufijo.is_empty() {
+                        v2::texto(ui, sufijo, tam::GRANDE, Peso::Normal, color::TEXTO_TENUE);
+                    }
+                    respuesta
+                });
+                if dialogo.enfocar {
+                    respuesta.request_focus();
+                    dialogo.enfocar = false;
+                }
+                filtrar_numero(texto);
+                mantener_foco(&ctx, &respuesta);
+                ui.add_space(16.0);
+                let valor = if dialogo.cantidad_fija { &dialogo.monto } else { &dialogo.porcentaje };
+                let calculado = cobros::descuento_calculado(subtotal, !dialogo.cantidad_fija, valor);
+                panel(ui, color::FONDO_APP, None, radio::POPOVER, margen(14, 16), |ui| {
+                    fila(ui, t("Subtotal", tam::CUERPO_MAS, Peso::Normal, color::TEXTO_APAGADO), t(&dinero(subtotal), tam::CUERPO_MAS, Peso::Normal, color::TEXTO));
+                    ui.add_space(8.0);
+                    let menos = if calculado > 0.0 { dinero(-calculado) } else { dinero(0.0) };
+                    fila(ui, t("Descuento", tam::CUERPO_MAS, Peso::Normal, color::VERDE_EXITO), t(&menos, tam::CUERPO_MAS, Peso::Normal, color::VERDE_EXITO));
+                    ui.add_space(8.0);
+                    let (separador, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 1.0), Sense::hover());
+                    ui.painter().rect_filled(separador, 0, color::BORDE);
+                    ui.add_space(10.0);
+                    fila(ui, t("Total", tam::GRANDE, Peso::Semi, color::TEXTO), t(&dinero(subtotal - calculado), tam::GRANDE, Peso::Semi, color::VERDE));
+                });
+                calculado
             });
-            ui.add_space(16.0);
             let valido = calculado > 0.0;
             if tope && valido && enter(&ctx) {
                 confirmar = true;
             }
-            let rect = caja(ui, 40.0);
-            let ancho = (rect.width() - 16.0) / 2.0;
-            let mut izquierda = ui.new_child(egui::UiBuilder::new().max_rect(Rect::from_min_size(rect.min, Vec2::new(ancho, 40.0))));
-            cancelar |= Boton::new("Cancelar").variante(Variante::Contorno).ancho(ancho).ui(&mut izquierda).clicked();
-            let mut derecha =
-                ui.new_child(egui::UiBuilder::new().max_rect(Rect::from_min_size(egui::pos2(rect.left() + ancho + 16.0, rect.top()), Vec2::new(ancho, 40.0))));
-            let fondo = if derecha.rect_contains_pointer(derecha.max_rect()) && valido { paleta::GREEN_700 } else { paleta::GREEN_600 };
-            confirmar |= Boton::new("Aplicar Descuento").colores(fondo, Color32::WHITE).ancho(ancho).habilitado(valido).ui(&mut derecha).clicked();
+            pie(ui, 20, 22, |ui| {
+                confirmar |= boton("Aplicar y cobrar", Estilo::Primario).tecla("Enter").habilitado(valido).ui(ui).clicked();
+                cancelar |= boton("Cancelar", Estilo::Secundario).ui(ui).clicked();
+            });
             calculado
         });
         let calculado = r.interior;
@@ -647,59 +591,75 @@ impl Cobro {
 
     fn dialogo_efectivo(&mut self, cx: &mut Contexto, lado: Lado, tope: bool) {
         let ctx = cx.egui.clone();
-        let teclado = self.teclado;
+        let descuento = self.descuento;
+        let porcentaje = cx.global.negocio.as_ref().and_then(cobros::descuento_efectivo);
         let p = self.proc_mut(lado);
         let cargando = p.procesando;
-        let Some(e) = p.efectivo.as_ref() else { return };
+        let Some(e) = p.efectivo.as_mut() else { return };
         let (original, cobrar, aplicando) = (e.original, e.cobrar, e.aplicando);
         let con_descuento = cobrar < original;
         let mut confirmar = tope && !cargando && enter(&ctx);
         let mut aplicar_d = tope && !cargando && !aplicando && ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::F5));
         let mut cancelar = false;
-        let r = ui::Dialogo::new(("cobro-efectivo", lado == Lado::Afip)).ancho(512.0).mostrar(&ctx, |ui| {
-            let descripcion = if con_descuento { "Se ha aplicado un descuento por pago en efectivo" } else { "Confirma el monto a cobrar" };
-            encabezado(ui, "Confirmar pago en efectivo", Tam::Lg, 18.0, color::TEXTO, None, descripcion);
-            ui.add_space(32.0);
-            if con_descuento {
-                let tachado = pesos(original);
-                let (_, d) = fila(ui, 24.0, ("Monto original:", Tam::Base, Peso::Normal, color::TEXTO), (&tachado, Tam::Base, Peso::Normal, color::TEXTO));
-                tachar(ui, d, color::TEXTO);
-                ui.add_space(8.0);
-                let nuevo = pesos(cobrar);
-                fila(
-                    ui,
-                    28.0,
-                    ("Nuevo monto con descuento:", Tam::Lg, Peso::Medio, color::TEXTO),
-                    (&nuevo, Tam::Lg, Peso::Medio, paleta::EMERALD_600),
-                );
-                ui.add_space(8.0);
-                let rect = caja(ui, 20.0);
-                let texto = format!("Descuento aplicado: {}", pesos(original - cobrar));
-                pintar(ui, rect.left_center(), Align2::LEFT_CENTER, &texto, Tam::Sm, Peso::Normal, color::APAGADO_TEXTO);
-            } else {
-                let monto = pesos(cobrar);
-                fila(ui, 36.0, ("Monto a cobrar:", Tam::Lg, Peso::Medio, color::TEXTO), (&monto, Tam::X3, Peso::Negrita, paleta::EMERALD_600));
-            }
-            ui.add_space(32.0);
-            ui::pie_dialogo(ui, |ui| {
-                let b = boton_confirmar(ui, cargando, !cargando);
-                if !cargando && teclado {
-                    anillo(ui, b.rect, ui::RADIO as f32);
+        let r = v2::Modal::new(("cobro-efectivo", lado == Lado::Afip), "Cobro en efectivo")
+            .subtitulo("Confirmá el monto a cobrar")
+            .icono("cash")
+            .ancho(480.0)
+            .mostrar(&ctx, |ui| {
+                v2::cuerpo_modal(ui, 20, |ui| {
+                    panel(ui, color::FONDO_APP, None, radio::POPOVER, margen(16, 18), |ui| {
+                        let (etiqueta, nota) = match (descuento, aplicando) {
+                            _ if !con_descuento => ("Monto a cobrar".to_string(), String::new()),
+                            (Some(d), _) => ("Monto con descuento".to_string(), format!("Descuento {}: {}", d.etiqueta(), dinero(cobrar - original))),
+                            (None, true) => (
+                                "Con descuento en efectivo".to_string(),
+                                format!("Descuento por pago en efectivo ({}%): {}", formato::numero(porcentaje.unwrap_or(0.0)), dinero(cobrar - original)),
+                            ),
+                            (None, false) => ("Monto a cobrar (redondeado)".to_string(), format!("Redondeo: {}", dinero(cobrar - original))),
+                        };
+                        if con_descuento {
+                            let (_, tachado) = fila(ui, t("Monto original", tam::CUERPO, Peso::Normal, color::TEXTO_APAGADO), t(&dinero(original), tam::CUERPO, Peso::Normal, color::TEXTO_TENUE));
+                            tachar(ui, tachado, color::TEXTO_TENUE);
+                            ui.add_space(8.0);
+                        }
+                        fila(ui, t(&etiqueta, tam::ENTRADA, Peso::Medio, color::TEXTO), t(&dinero(cobrar), tam::MONTO_MEDIO, Peso::Semi, color::VERDE).espaciado(-0.02));
+                        if con_descuento {
+                            ui.add_space(8.0);
+                            linea(ui, Align2::LEFT_CENTER, &nota, tam::CHICO, Peso::Normal, color::VERDE_EXITO, 0.0);
+                        }
+                    });
+                    ui.add_space(14.0);
+                    etiqueta_campo(ui, "Recibido del cliente");
+                    ui.add_space(6.0);
+                    billetes(ui, &mut e.pagado, cobrar, &mut e.enfocar);
+                    ui.add_space(6.0);
+                    let id = Id::new(("cobro-recibido", lado == Lado::Afip));
+                    let respuesta = campo_monto(ui, id, &mut e.pagado, "Opcional, para calcular el vuelto", tam::FILA, false, !cargando, &mut e.enfocar);
+                    filtrar_numero(&mut e.pagado);
+                    mantener_foco(&ctx, &respuesta);
+                    let recibido = cobros::parse_float(&e.pagado).unwrap_or(0.0);
+                    if recibido > 0.0 && recibido >= cobrar {
+                        ui.add_space(14.0);
+                        caja_vuelto(ui, "Vuelto", recibido - cobrar);
+                    }
+                });
+                let texto = if cargando { "Registrando…" } else { "Confirmar cobro" };
+                if aplicando {
+                    pie(ui, 20, 22, |ui| {
+                        confirmar |= boton(texto, Estilo::Primario).tecla("Enter").cargando(cargando).ui(ui).clicked();
+                        cancelar = boton("Cancelar", Estilo::Secundario).habilitado(!cargando).ui(ui).clicked();
+                    });
+                } else {
+                    pie(ui, 20, 0, |ui| {
+                        let etiqueta = porcentaje.map_or("Descuento efectivo".to_string(), |p| format!("Descuento efectivo {}%", formato::numero(p)));
+                        aplicar_d |= boton(etiqueta, Estilo::Dorado).tecla("F5").relleno(14.0).habilitado(!cargando).ui(ui).clicked();
+                        cancelar = boton("Cancelar", Estilo::Secundario).habilitado(!cargando).ui(ui).clicked();
+                    });
+                    pie(ui, 10, 22, |ui| {
+                        confirmar |= boton(texto, Estilo::Primario).tecla("Enter").cargando(cargando).ui(ui).clicked();
+                    });
                 }
-                confirmar |= b.clicked();
-                if !aplicando {
-                    aplicar_d |= Boton::new("Aplicar D (F5)")
-                        .variante(Variante::Contorno)
-                        .colores(paleta::BLUE_50, color::TEXTO)
-                        .color_borde(paleta::BLUE_200)
-                        .texto_tam(Tam::Base)
-                        .habilitado(!cargando)
-                        .ui(ui)
-                        .clicked();
-                }
-                cancelar = Boton::new("Cancelar").variante(Variante::Contorno).texto_tam(Tam::Base).habilitado(!cargando).ui(ui).clicked();
             });
-        });
         if r.cerrar || cancelar {
             self.cerrar_efectivo(lado);
         } else if aplicar_d {
@@ -719,81 +679,56 @@ impl Cobro {
         let total = e.cobrar;
         let mut confirmar = false;
         let mut cancelar = false;
-        let r = ui::Dialogo::new(("cobro-exacto", lado == Lado::Afip)).ancho(512.0).mostrar(&ctx, |ui| {
-            encabezado(
-                ui,
-                "Pago exacto - Calcular vuelto",
-                Tam::Lg,
-                18.0,
-                color::TEXTO,
-                Some("calculator"),
-                "Ingresa con cuánto dinero paga el cliente para calcular el vuelto",
-            );
-            ui.add_space(32.0);
-            if let (Some(d), true) = (descuento, subtotal != 0.0) {
-                let sub = pesos(subtotal);
-                fila(ui, 20.0, ("Subtotal:", Tam::Sm, Peso::Normal, paleta::GRAY_600), (&sub, Tam::Sm, Peso::Normal, color::TEXTO));
-                ui.add_space(8.0);
-                let etiqueta = format!("Descuento ({}):", d.etiqueta());
-                let menos = format!("-{}", pesos(d.monto));
-                fila(ui, 20.0, (&etiqueta, Tam::Sm, Peso::Normal, paleta::GRAY_600), (&menos, Tam::Sm, Peso::Normal, paleta::GREEN_600));
-                ui.add_space(8.0);
-                let linea = caja(ui, 1.0);
-                ui.painter().rect_filled(linea, 0.0, paleta::GRAY_200);
-                ui.add_space(24.0);
-            }
-            recuadro(ui, paleta::EMERALD_50, paleta::EMERALD_200, 16.0, |ui| {
-                let monto = pesos(total);
-                fila(ui, 32.0, ("Total a pagar:", Tam::Lg, Peso::Medio, paleta::EMERALD_700), (&monto, Tam::X2, Peso::Negrita, paleta::EMERALD_600));
-            });
-            ui.add_space(24.0);
-            let rect = caja(ui, 20.0);
-            ui::pintar_icono_en(ui, Rect::from_min_size(egui::pos2(rect.left(), rect.center().y - 8.0), Vec2::splat(16.0)), "dollar-sign", color::TEXTO);
-            pintar(ui, egui::pos2(rect.left() + 24.0, rect.center().y), Align2::LEFT_CENTER, "Con cuánto paga el cliente:", Tam::Sm, Peso::Medio, color::TEXTO);
-            ui.add_space(8.0);
-            let mut campo = Campo::new(("exacto", lado == Lado::Afip), &mut e.pagado, "Ej: 5000");
-            campo.alineacion = Align::Center;
-            campo.habilitado = !cargando;
-            let respuesta = campo.ui(ui, &mut e.enfocar);
-            filtrar_numero(&mut e.pagado);
-            mantener_foco(&ctx, &respuesta);
-            if e.pagado != e.anterior {
-                e.anterior = e.pagado.clone();
-                e.error = cobros::vuelto(&e.pagado, total).1;
-            }
-            let cambio = cobros::vuelto(&e.pagado, total).0;
-            let error = e.error;
-            if error.is_some() {
-                let borde = Rect::from_x_y_ranges(ui.min_rect().x_range(), respuesta.rect.y_range());
-                ui.painter().rect_stroke(borde, ui::RADIO_XL, Stroke::new(1.0, paleta::RED_500), StrokeKind::Inside);
-            }
-            if let Some(texto) = error {
-                ui.add_space(8.0);
-                let rect = caja(ui, 20.0);
-                pintar(ui, rect.left_center(), Align2::LEFT_CENTER, texto, Tam::Sm, Peso::Normal, paleta::RED_600);
-            }
-            if !e.pagado.is_empty() && error.is_none() && cambio >= 0.0 {
-                ui.add_space(24.0);
-                recuadro(ui, paleta::BLUE_50, paleta::BLUE_200, 16.0, |ui| {
-                    let monto = pesos(cambio);
-                    fila(ui, 32.0, ("Vuelto a entregar:", Tam::Lg, Peso::Medio, paleta::BLUE_700), (&monto, Tam::X2, Peso::Negrita, paleta::BLUE_600));
-                    if cambio == 0.0 {
-                        ui.add_space(8.0);
-                        let rect = caja(ui, 20.0);
-                        pintar(ui, rect.left_center(), Align2::LEFT_CENTER, "✅ Pago exacto - No hay vuelto", Tam::Sm, Peso::Normal, paleta::BLUE_600);
+        let r = v2::Modal::new(("cobro-exacto", lado == Lado::Afip), "Cobro en efectivo")
+            .subtitulo("Ingresá con cuánto paga el cliente para calcular el vuelto")
+            .icono("cash")
+            .ancho(480.0)
+            .mostrar(&ctx, |ui| {
+                v2::cuerpo_modal(ui, 20, |ui| {
+                    panel(ui, color::FONDO_APP, None, radio::POPOVER, margen(16, 18), |ui| {
+                        if let (Some(d), true) = (descuento, subtotal != 0.0) {
+                            fila(ui, t("Subtotal", tam::CUERPO, Peso::Normal, color::TEXTO_APAGADO), t(&dinero(subtotal), tam::CUERPO, Peso::Normal, color::TEXTO));
+                            ui.add_space(8.0);
+                            let etiqueta = format!("Descuento ({})", d.etiqueta());
+                            fila(ui, t(&etiqueta, tam::CUERPO, Peso::Normal, color::VERDE_EXITO), t(&dinero(-d.monto), tam::CUERPO, Peso::Normal, color::VERDE_EXITO));
+                            ui.add_space(8.0);
+                        }
+                        fila(ui, t("Total a pagar", tam::ENTRADA, Peso::Medio, color::TEXTO), t(&dinero(total), tam::MONTO_MEDIO, Peso::Semi, color::VERDE).espaciado(-0.02));
+                    });
+                    ui.add_space(14.0);
+                    etiqueta_campo(ui, "Con cuánto paga el cliente");
+                    ui.add_space(6.0);
+                    billetes(ui, &mut e.pagado, total, &mut e.enfocar);
+                    ui.add_space(6.0);
+                    let id = Id::new(("cobro-exacto-campo", lado == Lado::Afip));
+                    let error_previo = e.error.is_some();
+                    let respuesta = campo_monto(ui, id, &mut e.pagado, "Ej: 5000", tam::FILA, error_previo, !cargando, &mut e.enfocar);
+                    filtrar_numero(&mut e.pagado);
+                    mantener_foco(&ctx, &respuesta);
+                    if e.pagado != e.anterior {
+                        e.anterior = e.pagado.clone();
+                        e.error = cobros::vuelto(&e.pagado, total).1;
+                    }
+                    let cambio = cobros::vuelto(&e.pagado, total).0;
+                    if let Some(texto) = e.error {
+                        ui.add_space(6.0);
+                        linea(ui, Align2::LEFT_CENTER, texto, tam::CHICO, Peso::Normal, color::ROJO, 0.0);
+                    }
+                    if !e.pagado.is_empty() && e.error.is_none() && cambio >= 0.0 {
+                        ui.add_space(14.0);
+                        caja_vuelto(ui, if cambio == 0.0 { "Pago exacto, sin vuelto" } else { "Vuelto" }, cambio);
                     }
                 });
-            }
-            ui.add_space(32.0);
-            let habilitado = !cargando && error.is_none() && !e.pagado.is_empty();
-            if tope && habilitado && enter(&ctx) {
-                confirmar = true;
-            }
-            ui::pie_dialogo(ui, |ui| {
-                confirmar |= boton_confirmar(ui, cargando, habilitado).clicked();
-                cancelar = Boton::new("Cancelar").variante(Variante::Contorno).texto_tam(Tam::Base).habilitado(!cargando).ui(ui).clicked();
+                let habilitado = !cargando && e.error.is_none() && !e.pagado.is_empty();
+                if tope && habilitado && enter(&ctx) {
+                    confirmar = true;
+                }
+                pie(ui, 20, 22, |ui| {
+                    let texto = if cargando { "Registrando…" } else { "Confirmar cobro" };
+                    confirmar |= boton(texto, Estilo::Primario).tecla("Enter").cargando(cargando).habilitado(habilitado || cargando).ui(ui).clicked();
+                    cancelar = boton("Cancelar", Estilo::Secundario).habilitado(!cargando).ui(ui).clicked();
+                });
             });
-        });
         if r.cerrar || cancelar {
             self.cerrar_efectivo(lado);
             return;
@@ -816,95 +751,58 @@ impl Cobro {
         let procesando = p.procesando;
         let mut completar = false;
         let mut cancelar = false;
-        let r = ui::Dialogo::new(("cobro-mixto", afip)).ancho(500.0).mostrar(&ctx, |ui| {
-            let (titulo_texto, descripcion) = if afip {
-                (
-                    "Pago mixto - Factura AFIP",
-                    "Ingresa el monto a pagar con efectivo y selecciona el método para el resto. Se generará una factura AFIP.",
-                )
-            } else {
-                ("Pago mixto", "Ingresa el monto a pagar con efectivo y selecciona el método para el resto")
-            };
-            encabezado(ui, titulo_texto, Tam::Xl, 28.0, color::TEXTO, None, descripcion);
-            ui.add_space(32.0);
-            if let Some(d) = descuento {
-                recuadro(ui, paleta::GREEN_50, paleta::GREEN_200, 16.0, |ui| {
-                    let etiqueta = format!("Descuento ({})", d.etiqueta());
-                    let menos = format!("-{}", pesos(d.monto));
-                    fila(ui, 20.0, (&etiqueta, Tam::Sm, Peso::Medio, paleta::GREEN_800), (&menos, Tam::Sm, Peso::Negrita, paleta::GREEN_800));
-                    ui.add_space(8.0);
+        let subtitulo = if afip {
+            "Una parte en efectivo y el resto con otro medio. Se emite factura AFIP."
+        } else {
+            "Una parte en efectivo y el resto con otro medio"
+        };
+        let r = v2::Modal::new(("cobro-mixto", afip), "Pago mixto").subtitulo(subtitulo).icono("split").ancho(480.0).mostrar(&ctx, |ui| {
+            v2::cuerpo_modal(ui, 20, |ui| {
+                panel(ui, color::FONDO_APP, None, radio::POPOVER, margen(14, 14), |ui| {
+                    linea(ui, Align2::CENTER_CENTER, "Total a pagar", tam::ETIQUETA, Peso::Normal, color::TEXTO_APAGADO, 0.0);
+                    ui.add_space(4.0);
+                    linea(ui, Align2::CENTER_CENTER, &dinero(total), tam::MONTO_MEDIO, Peso::Semi, color::VERDE, -0.02);
+                    if let Some(d) = descuento {
+                        ui.add_space(4.0);
+                        let texto = format!("Incluye descuento {}: {}", d.etiqueta(), dinero(-d.monto));
+                        linea(ui, Align2::CENTER_CENTER, &texto, tam::CHICO, Peso::Normal, color::VERDE_EXITO, 0.0);
+                    }
                 });
-                ui.add_space(24.0);
-            }
-            let rect = caja(ui, 28.0);
-            pintar(ui, rect.center(), Align2::CENTER_CENTER, "Total a pagar", Tam::Lg, Peso::Normal, color::APAGADO_TEXTO);
-            ui.add_space(4.0);
-            let rect = caja(ui, 36.0);
-            pintar(ui, rect.center(), Align2::CENTER_CENTER, &pesos(total), Tam::X3, Peso::Negrita, paleta::EMERALD_600);
-            ui.add_space(24.0);
-            let fila_efectivo = caja(ui, 40.0);
-            ui::pintar_icono_en(
-                ui,
-                Rect::from_min_size(egui::pos2(fila_efectivo.left(), fila_efectivo.center().y - 8.0), Vec2::splat(16.0)),
-                "wallet",
-                color::TEXTO,
-            );
-            pintar(ui, egui::pos2(fila_efectivo.left() + 24.0, fila_efectivo.center().y), Align2::LEFT_CENTER, "Efectivo", Tam::Sm, Peso::Medio, color::TEXTO);
-            let mut hijo = ui.new_child(egui::UiBuilder::new().max_rect(Rect::from_min_size(egui::pos2(fila_efectivo.right() - 160.0, fila_efectivo.top()), Vec2::new(160.0, 40.0))));
-            let mut campo = Campo::new(("mixto", afip), &mut p.efectivo_mixto, "Monto en efectivo");
-            campo.alineacion = Align::Max;
-            campo.habilitado = !procesando;
-            let respuesta = campo.ui(&mut hijo, &mut p.enfocar_mixto);
-            filtrar_numero(&mut p.efectivo_mixto);
-            mantener_foco(&ctx, &respuesta);
-            ui.add_space(16.0);
-            let rect = caja(ui, 24.0);
-            pintar(ui, rect.left_center(), Align2::LEFT_CENTER, "Segundo método", Tam::Sm, Peso::Medio, color::TEXTO);
-            ui.add_space(8.0);
-            let rect = caja(ui, 40.0);
-            let ancho = (rect.width() - 12.0) / 2.0;
-            for (i, (m, texto, icono)) in [("tarjeta", "Tarjeta", "credit-card"), ("qr", "Transferencia", "qr-code")].into_iter().enumerate() {
-                let caja_boton = Rect::from_min_size(egui::pos2(rect.left() + i as f32 * (ancho + 12.0), rect.top()), Vec2::new(ancho, 40.0));
-                let mut hijo = ui.new_child(egui::UiBuilder::new().max_rect(caja_boton));
-                let activo = p.segundo == m;
-                let boton = Boton::new(texto).icono(icono).ancho(ancho).habilitado(!procesando);
-                let boton = if activo {
-                    let fondo = if hijo.rect_contains_pointer(caja_boton) { paleta::EMERALD_700 } else { paleta::EMERALD_600 };
-                    boton.colores(fondo, Color32::WHITE)
-                } else {
-                    boton.variante(Variante::Contorno)
-                };
-                if boton.ui(&mut hijo).clicked() {
-                    p.segundo = m;
-                }
-            }
-            ui.add_space(16.0);
-            let (icono, texto) = if p.segundo == "tarjeta" { ("credit-card", "Tarjeta") } else { ("qr-code", "Transferencia") };
-            let restante = pesos(cobros::mixto_restante(total, &p.efectivo_mixto));
-            if afip {
-                let rect = caja(ui, 20.0);
-                ui::pintar_icono_en(ui, Rect::from_min_size(egui::pos2(rect.left(), rect.center().y - 8.0), Vec2::splat(16.0)), icono, color::TEXTO);
-                pintar(ui, egui::pos2(rect.left() + 24.0, rect.center().y), Align2::LEFT_CENTER, texto, Tam::Sm, Peso::Medio, color::TEXTO);
-                ui.add_space(8.0);
-                let rect = caja(ui, 28.0);
-                pintar(ui, rect.left_center(), Align2::LEFT_CENTER, &restante, Tam::Xl, Peso::Semi, paleta::EMERALD_600);
-            } else {
-                ui.add_space(8.0);
-                let rect = caja(ui, 28.0);
-                ui::pintar_icono_en(ui, Rect::from_min_size(egui::pos2(rect.left(), rect.center().y - 8.0), Vec2::splat(16.0)), icono, color::TEXTO);
-                pintar(ui, egui::pos2(rect.left() + 24.0, rect.center().y), Align2::LEFT_CENTER, texto, Tam::Sm, Peso::Medio, color::TEXTO);
-                pintar(ui, rect.right_center(), Align2::RIGHT_CENTER, &restante, Tam::Xl, Peso::Semi, paleta::EMERALD_600);
-            }
-            ui.add_space(32.0);
+                ui.add_space(14.0);
+                let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), alto_linea(tam::ETIQUETA)), Sense::hover());
+                pintar_icono_solar_en(ui, Rect::from_min_size(egui::pos2(rect.left(), rect.center().y - 8.0), Vec2::splat(16.0)), "cash", color::VERDE);
+                v2::pintar_texto(ui, egui::pos2(rect.left() + 22.0, rect.center().y), Align2::LEFT_CENTER, "Parte en efectivo", tam::ETIQUETA, Peso::Semi, color::TEXTO_SECUNDARIO);
+                ui.add_space(6.0);
+                let id = Id::new(("cobro-mixto-efectivo", afip));
+                let respuesta = campo_monto(ui, id, &mut p.efectivo_mixto, "0", 18.0, false, !procesando, &mut p.enfocar_mixto);
+                filtrar_numero(&mut p.efectivo_mixto);
+                mantener_foco(&ctx, &respuesta);
+                ui.add_space(14.0);
+                etiqueta_campo(ui, "El resto con");
+                ui.add_space(6.0);
+                let ancho = (ui.available_width() - 8.0) / 2.0;
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 8.0;
+                    for (m, texto, icono) in [("tarjeta", "Tarjeta", "card"), ("qr", "Transferencia", "qr")] {
+                        if opcion_medio(ui, ancho, texto, icono, p.segundo == m) && !procesando {
+                            p.segundo = m;
+                        }
+                    }
+                });
+                ui.add_space(14.0);
+                let etiqueta = if p.segundo == "tarjeta" { "Resto con tarjeta" } else { "Resto por transferencia" };
+                let restante = dinero(cobros::mixto_restante(total, &p.efectivo_mixto));
+                panel(ui, color::BLANCO, Some(color::BORDE_SUAVE), radio::CAMPO, margen(12, 16), |ui| {
+                    fila(ui, t(etiqueta, tam::CUERPO, Peso::Normal, color::TEXTO_SECUNDARIO), t(&restante, tam::GRANDE, Peso::Semi, color::VERDE));
+                });
+            });
             let habilitado = cobros::mixto_habilitado(total, &p.efectivo_mixto, procesando);
             if tope && habilitado && enter(&ctx) {
                 completar = true;
             }
-            ui::pie_dialogo(ui, |ui| {
-                let texto = if afip { "Completar pago con AFIP" } else { "Completar pago" };
-                let boton = if procesando { Boton::new("Procesando...").cargando(true) } else { Boton::new(texto) };
-                completar |= boton.variante(Variante::Esmeralda).habilitado(habilitado).ui(ui).clicked();
-                cancelar = Boton::new("Cancelar").variante(Variante::Contorno).habilitado(!procesando).ui(ui).clicked();
+            pie(ui, 20, 22, |ui| {
+                completar |= boton("Completar pago", Estilo::Primario).tecla("Enter").cargando(procesando).habilitado(habilitado || procesando).ui(ui).clicked();
+                cancelar = boton("Cancelar", Estilo::Secundario).habilitado(!procesando).ui(ui).clicked();
             });
         });
         if r.cerrar || cancelar {
@@ -916,7 +814,6 @@ impl Cobro {
 
     fn dialogo_qr(&mut self, cx: &mut Contexto, tope: bool) {
         let ctx = cx.egui.clone();
-        let teclado = self.teclado;
         let afip = self.flujo_afip;
         let fuente_qr = if afip { &self.afip } else { &self.normal };
         let qr = fuente_qr.qr.clone();
@@ -925,101 +822,78 @@ impl Cobro {
         let subtotal = cx.global.carritos.total();
         let uri = qr.as_ref().and_then(|q| q["qrImageUrl"].as_str()).and_then(|url| self.uri_qr(cx, url));
         let pendiente = estado.as_deref() == Some("PENDIENTE");
+        let acreditado = estado.as_deref() == Some("COMPLETADA");
         let mut manual = tope && pendiente && qr.is_some() && enter(&ctx);
         let mut cancelar = false;
-        let r = ui::Dialogo::new("cobro-qr").ancho(448.0).mostrar(&ctx, |ui| {
-            let (titulo_texto, descripcion) = if afip {
-                (
-                    "Escanea el código QR para pagar y generar factura AFIP",
-                    "Usa la app de Mercado Pago para escanear. La factura AFIP se generará automáticamente después del pago.",
-                )
-            } else {
-                ("Escanea el código QR para pagar", "Usa la app de Mercado Pago para escanear")
-            };
-            encabezado(ui, titulo_texto, Tam::Xl, 28.0, color::TEXTO, None, descripcion);
-            ui.add_space(32.0);
-            match &qr {
-                Some(datos) => {
-                    let aviso = "No cierres esta ventana hasta que el pago sea completado";
-                    let texto_boton = if afip { "Completar manualmente y generar factura" } else { "Completar manualmente" };
-                    let ancho_columna = 256f32
-                        .max(medir(ui, aviso, Tam::Sm, Peso::Normal))
-                        .max(medir(ui, texto_boton, Tam::Sm, Peso::Medio) + 56.0)
-                        .min(ui.available_width());
-                    let columna = Rect::from_min_size(
-                        egui::pos2(ui.cursor().left() + (ui.available_width() - ancho_columna) / 2.0, ui.cursor().top()),
-                        Vec2::new(ancho_columna, f32::INFINITY),
-                    );
-                    ui.scope_builder(egui::UiBuilder::new().max_rect(columna), |ui| {
-                        let rect = caja(ui, 256.0);
-                        let marco_qr = Rect::from_center_size(rect.center(), Vec2::splat(256.0));
-                        ui.painter().rect_stroke(marco_qr, 0.0, Stroke::new(1.0, paleta::GRAY_200), StrokeKind::Inside);
-                        if let Some(uri) = &uri {
-                            egui::Image::new(uri.clone()).paint_at(ui, marco_qr.shrink(9.0));
-                        }
-                        ui.add_space(16.0);
-                        if verdad_json(&datos["isSplitPayment"]) {
-                            let rect = caja(ui, 20.0);
-                            pintar(ui, rect.center(), Align2::CENTER_CENTER, "Pago mixto:", Tam::Sm, Peso::Medio, color::APAGADO_TEXTO);
-                            ui.add_space(4.0);
-                            let efectivo = pesos(cobros::numero(&datos["cashAmount"]));
-                            let rect = caja(ui, 24.0);
-                            ui::pintar_icono_en(ui, Rect::from_min_size(egui::pos2(rect.left(), rect.center().y - 8.0), Vec2::splat(16.0)), "wallet", color::TEXTO);
-                            pintar(ui, egui::pos2(rect.left() + 20.0, rect.center().y), Align2::LEFT_CENTER, "Efectivo:", Tam::Base, Peso::Medio, color::TEXTO);
-                            pintar(ui, rect.right_center(), Align2::RIGHT_CENTER, &efectivo, Tam::Base, Peso::Medio, color::TEXTO);
-                            ui.add_space(4.0);
-                            let monto = pesos(cobros::numero(&datos["monto"]));
-                            let rect = caja(ui, 28.0);
-                            ui::pintar_icono_en(ui, Rect::from_min_size(egui::pos2(rect.left(), rect.center().y - 8.0), Vec2::splat(16.0)), "qr-code", color::TEXTO);
-                            pintar(ui, egui::pos2(rect.left() + 20.0, rect.center().y), Align2::LEFT_CENTER, "QR:", Tam::Lg, Peso::Semi, color::TEXTO);
-                            pintar(ui, rect.right_center(), Align2::RIGHT_CENTER, &monto, Tam::Lg, Peso::Semi, color::TEXTO);
-                        } else if let Some(d) = descuento {
-                            let sub = pesos(subtotal);
-                            fila(ui, 24.0, ("Subtotal:", Tam::Base, Peso::Medio, color::TEXTO), (&sub, Tam::Base, Peso::Medio, color::TEXTO));
-                            ui.add_space(8.0);
-                            let etiqueta = format!("Descuento ({}):", d.etiqueta());
-                            let menos = format!("-{}", pesos(d.monto));
-                            fila(ui, 24.0, (&etiqueta, Tam::Base, Peso::Medio, paleta::GREEN_600), (&menos, Tam::Base, Peso::Medio, paleta::GREEN_600));
-                            ui.add_space(8.0);
-                            let linea = caja(ui, 1.0);
-                            ui.painter().rect_filled(linea, 0.0, color::BORDE);
-                            ui.add_space(8.0);
-                            let total = pesos(subtotal - d.monto);
-                            fila(ui, 28.0, ("Total:", Tam::Lg, Peso::Semi, color::TEXTO), (&total, Tam::Lg, Peso::Semi, color::TEXTO));
-                        } else {
-                            let rect = caja(ui, 28.0);
-                            let texto = format!("Monto a pagar: {}", pesos(cobros::numero(&datos["monto"])));
-                            pintar(ui, rect.center(), Align2::CENTER_CENTER, &texto, Tam::Base, Peso::Medio, color::TEXTO);
-                        }
-                        ui.add_space(16.0);
-                        pastilla_estado(ui, estado.as_deref());
-                        ui.add_space(8.0);
-                        let rect = caja(ui, 20.0);
-                        pintar(ui, rect.center(), Align2::CENTER_CENTER, aviso, Tam::Sm, Peso::Normal, color::APAGADO_TEXTO);
-                        if pendiente {
-                            ui.add_space(8.0);
-                            let b = Boton::new(texto_boton)
-                                .variante(Variante::Contorno)
-                                .icono("receipt")
-                                .colores(paleta::EMERALD_50, color::TEXTO)
-                                .color_borde(paleta::EMERALD_200)
-                                .lleno(ui)
-                                .ui(ui);
-                            if tope && teclado {
-                                anillo(ui, b.rect, ui::RADIO as f32);
-                            }
-                            manual |= b.clicked();
-                        }
-                    });
+        let subtitulo = if afip { "Mercado Pago o transferencia · la factura AFIP se emite al acreditarse" } else { "Mercado Pago o transferencia" };
+        let r = v2::Modal::new("cobro-qr", "Cobro con QR").subtitulo(subtitulo).icono("qr").ancho(440.0).mostrar(&ctx, |ui| {
+            v2::cuerpo_modal(ui, 20, |ui| {
+                let (fila_qr, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 250.0), Sense::hover());
+                let marco = Rect::from_center_size(fila_qr.center(), Vec2::splat(250.0));
+                ui.painter().rect(marco, radio::PANEL, color::BLANCO, Stroke::new(1.0, color::BORDE), StrokeKind::Inside);
+                let area = marco.shrink(15.0);
+                match (&qr, &uri) {
+                    (Some(_), Some(uri)) => {
+                        let tinte = if acreditado { Color32::WHITE.gamma_multiply(0.15) } else { Color32::WHITE };
+                        egui::Image::new(uri.clone()).tint(tinte).paint_at(ui, area);
+                    }
+                    (Some(_), None) => v2::tarjetas::pintar_shimmer(ui, area, radio::ICONO, true),
+                    (None, _) => {
+                        v2::girando(ui, Rect::from_center_size(area.center() - Vec2::new(0.0, 14.0), Vec2::splat(30.0)), color::VERDE);
+                        v2::pintar_texto(ui, area.center() + Vec2::new(0.0, 20.0), Align2::CENTER_CENTER, "Generando código QR…", tam::CONTROL, Peso::Normal, color::TEXTO_APAGADO);
+                    }
                 }
-                None => {
-                    let rect = caja(ui, 256.0);
-                    girador(ui, rect.center() - Vec2::new(0.0, 22.0), 24.0, paleta::GRAY_900);
-                    pintar(ui, rect.center() + Vec2::new(0.0, 24.0), Align2::CENTER_CENTER, "Generando código QR...", Tam::Base, Peso::Normal, color::TEXTO);
+                if acreditado {
+                    let circulo = Rect::from_center_size(marco.center(), Vec2::splat(84.0));
+                    ui.painter().add(sombra::ICONO_EXITO.forma(circulo, radio::PASTILLA));
+                    ui.painter().rect_filled(circulo, radio::PASTILLA, color::VERDE);
+                    pintar_icono_solar_en(ui, Rect::from_center_size(circulo.center(), Vec2::splat(46.0)), "check", color::BLANCO);
                 }
-            }
-            ui.add_space(32.0);
-            cancelar = Boton::new("Cancelar").variante(Variante::Contorno).lleno(ui).ui(ui).clicked();
+                if let Some(datos) = &qr {
+                    ui.add_space(16.0);
+                    let mixto = cobros::verdad(&datos["isSplitPayment"]);
+                    let (monto, detalle) = match descuento {
+                        _ if mixto => (cobros::numero(&datos["monto"]), Some(format!("Pago mixto: {} en efectivo + QR", dinero(cobros::numero(&datos["cashAmount"]))))),
+                        Some(d) => (subtotal - d.monto, Some(format!("Subtotal {} · Descuento ({}) {}", dinero(subtotal), d.etiqueta(), dinero(-d.monto)))),
+                        None => (cobros::numero(&datos["monto"]), None),
+                    };
+                    linea(ui, Align2::CENTER_CENTER, &dinero(monto), 30.0, Peso::Semi, color::TEXTO, -0.02);
+                    if let Some(detalle) = detalle {
+                        ui.add_space(4.0);
+                        linea(ui, Align2::CENTER_CENTER, &detalle, tam::ETIQUETA, Peso::Normal, color::TEXTO_APAGADO, 0.0);
+                    }
+                    ui.add_space(6.0);
+                    pastilla_estado(ui, estado.as_deref());
+                }
+                ui.add_space(16.0);
+                let ayuda = "El cliente escanea el código con Mercado Pago o la app de su banco. La venta se registra sola cuando se acredita.";
+                let ancho = ui.available_width().min(360.0);
+                let mut trabajo = egui::text::LayoutJob::simple(ayuda.to_string(), fuente(tam::ETIQUETA, Peso::Normal), color::TEXTO_APAGADO, ancho);
+                trabajo.halign = Align::Center;
+                trabajo.sections[0].format.line_height = Some(tam::ETIQUETA * 1.5);
+                let g = ui.painter().layout_job(trabajo);
+                let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), g.size().y), Sense::hover());
+                ui.painter().galley(egui::pos2(rect.center().x, rect.top()), g, color::TEXTO_APAGADO);
+            });
+            Frame::NONE.inner_margin(Margin { left: 24, right: 24, top: 20, bottom: 22 }).show(ui, |ui| {
+                ui.set_width(ui.available_width());
+                ui.allocate_ui_with_layout(Vec2::new(ui.available_width(), 42.0), Layout::left_to_right(Align::Center), |ui| {
+                    cancelar = Boton::secundario("Cancelar cobro").modal().ui(ui).clicked();
+                    if pendiente && qr.is_some() {
+                        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                            manual |= Boton::new("Confirmar manualmente", Estilo::ContornoMarca)
+                                .modal()
+                                .icono("check")
+                                .tecla("Enter")
+                                .peso(Peso::Medio)
+                                .tam_texto(tam::CUERPO)
+                                .relleno(16.0)
+                                .ui(ui)
+                                .clicked();
+                        });
+                    }
+                });
+            });
         });
         if r.cerrar {
             self.cerrar_qr_usuario();
@@ -1064,34 +938,39 @@ impl Cobro {
         let enviando = manual.enviando;
         let mut enviar = false;
         let mut cancelar = false;
-        let r = ui::Dialogo::new(("cobro-manual", lado == Lado::Afip)).ancho(448.0).mostrar(&ctx, |ui| {
-            encabezado(
-                ui,
-                "Contraseña para Completar Manualmente",
-                Tam::Lg,
-                18.0,
-                color::TEXTO,
-                None,
-                "Ingresa la contraseña para completar la orden manualmente.",
-            );
-            ui.add_space(32.0);
-            let mut campo = Campo::new(("manual", lado == Lado::Afip), &mut manual.clave, "Contraseña");
-            campo.numerico = false;
-            campo.clave = true;
-            campo.habilitado = !enviando;
-            let respuesta = campo.ui(ui, &mut manual.enfocar);
-            if tope && respuesta.lost_focus() && enter(&ctx) {
-                enviar = true;
-                respuesta.request_focus();
-            }
-            ui.add_space(32.0);
-            ui::pie_dialogo(ui, |ui| {
-                ui.spacing_mut().item_spacing.x = 16.0;
-                let boton = if enviando { Boton::new("Procesando...").cargando(true) } else { Boton::new("Confirmar") };
-                enviar |= boton.colores(paleta::EMERALD_600, Color32::WHITE).habilitado(!enviando).ui(ui).clicked();
-                cancelar = Boton::new("Cancelar").variante(Variante::Contorno).habilitado(!enviando).ui(ui).clicked();
+        let r = v2::Modal::new(("cobro-manual", lado == Lado::Afip), "Confirmar manualmente")
+            .subtitulo("Ingresá la contraseña para completar la orden sin esperar la acreditación")
+            .icono("lock")
+            .ancho(440.0)
+            .mostrar(&ctx, |ui| {
+                v2::cuerpo_modal(ui, 22, |ui| {
+                    v2::etiqueta(ui, "Contraseña");
+                    ui.add_space(8.0);
+                    let respuesta = v2::CampoTexto::new(&mut manual.clave)
+                        .id(Id::new(("cobro-manual-clave", lado == Lado::Afip)))
+                        .icono("lock")
+                        .contrasena(true)
+                        .alto(marca::alto::CAMPO_GRANDE)
+                        .tam_texto(tam::DESTACADO)
+                        .sugerencia("Contraseña")
+                        .habilitado(!enviando)
+                        .ui(ui)
+                        .respuesta;
+                    if manual.enfocar {
+                        respuesta.request_focus();
+                        manual.enfocar = false;
+                    }
+                    if tope && respuesta.lost_focus() && enter(&ctx) {
+                        enviar = true;
+                        respuesta.request_focus();
+                    }
+                });
+                pie(ui, 22, 22, |ui| {
+                    let texto = if enviando { "Procesando…" } else { "Confirmar" };
+                    enviar |= Boton::primario(texto).modal().tecla("Enter").cargando(enviando).ui(ui).clicked();
+                    cancelar = Boton::secundario("Cancelar").modal().habilitado(!enviando).ui(ui).clicked();
+                });
             });
-        });
         if r.cerrar || cancelar {
             self.proc_mut(lado).manual = None;
         } else if enviar && !enviando {
@@ -1103,82 +982,57 @@ impl Cobro {
         let ctx = cx.egui.clone();
         let escape = tope && ctx.input(|i| i.key_pressed(Key::Escape));
         let ctrl_enter = tope && ctx.input(|i| i.key_pressed(Key::Enter) && i.modifiers.command);
+        let items = cx.global.carritos.items().to_vec();
         let c = &mut self.cancelacion;
+        let total = c.pendiente.as_ref().map_or(0.0, |p| p.monto);
         let enviando = c.enviando;
         let mut confirmar = ctrl_enter && !enviando;
         let mut mantener = escape;
-        let r = ui::Dialogo::new("cobro-cancelacion").ancho(448.0).mostrar(&ctx, |ui| {
-            let descripcion = c
-                .pendiente
-                .as_ref()
-                .map(|p| format!("¿Estás seguro de que deseas cancelar la orden #{}? Esta acción quedará registrada en el sistema.", p.referencia))
-                .unwrap_or_default();
-            let (titulo_texto, icono) = if c.pendiente.is_some() { ("Cancelar Orden", "file-text") } else { ("Cancelar", "alert-triangle") };
-            encabezado(ui, titulo_texto, Tam::Lg, 18.0, paleta::RED_600, Some(icono), &descripcion);
-            ui.add_space(32.0);
-            let rect = caja(ui, 24.0);
-            pintar(ui, rect.left_center(), Align2::LEFT_CENTER, "Motivo de la cancelación *", Tam::Sm, Peso::Medio, color::TEXTO);
-            ui.add_space(8.0);
-            let mut campo = Campo::new("cancelacion", &mut c.motivo, "Ej: Cliente cambió de opinión, error en el pedido, producto no disponible...");
-            campo.numerico = false;
-            campo.multilinea = true;
-            campo.alto = 100.0;
-            campo.habilitado = !enviando;
-            campo.ui(ui, &mut c.enfocar);
-            if c.motivo.chars().count() > 500 {
-                c.motivo = c.motivo.chars().take(500).collect();
-            }
-            ui.add_space(8.0);
-            let contador = format!("{}/500", c.motivo.chars().count());
-            fila(ui, 16.0, ("Mínimo 3 caracteres", Tam::Xs, Peso::Normal, color::APAGADO_TEXTO), (&contador, Tam::Xs, Peso::Normal, color::APAGADO_TEXTO));
-            if !c.error.is_empty() {
-                ui.add_space(8.0);
-                let rect = caja(ui, 20.0);
-                pintar(ui, rect.left_center(), Align2::LEFT_CENTER, &c.error, Tam::Sm, Peso::Normal, paleta::RED_600);
-            }
-            if let Some(p) = c.pendiente.as_ref().filter(|p| !p.productos.is_empty()) {
-                ui.add_space(16.0);
-                let rect = caja(ui, 24.0);
-                let etiqueta = format!("Productos a cancelar ({})", p.productos.len());
-                pintar(ui, rect.left_center(), Align2::LEFT_CENTER, &etiqueta, Tam::Sm, Peso::Medio, paleta::GRAY_700);
-                ui.add_space(8.0);
-                ui::marco()
-                    .fill(paleta::GRAY_50)
-                    .stroke(Stroke::new(1.0, color::BORDE))
-                    .corner_radius(ui::RADIO_MD)
-                    .inner_margin(egui::Margin::same(8))
-                    .show(ui, |ui| {
-                        ui.set_width(ui.available_width());
-                        ui.spacing_mut().scroll.fade.strength = 0.0;
-                        egui::ScrollArea::vertical().max_height(110.0).show(ui, |ui| {
-                            ui.set_width(ui.available_width());
-                            for producto in &p.productos {
-                                let derecha = format!(
-                                    "{} x {} = {}",
-                                    formato::numero(cobros::numero(&producto["cantidad"])),
-                                    pesos(cobros::numero(&producto["precioUnitario"])),
-                                    pesos(cobros::numero(&producto["subtotal"]))
-                                );
-                                let nombre = producto["nombreProducto"].as_str().unwrap_or("");
-                                fila(ui, 28.0, (nombre, Tam::Sm, Peso::Medio, color::TEXTO), (&derecha, Tam::Sm, Peso::Normal, paleta::GRAY_600));
-                            }
-                            ui.add_space(8.0);
-                            let linea = caja(ui, 1.0);
-                            ui.painter().rect_filled(linea, 0.0, color::BORDE);
-                            ui.add_space(8.0);
-                            let total = pesos(p.monto);
-                            fila(ui, 24.0, ("Total a cancelar:", Tam::Base, Peso::Semi, color::TEXTO), (&total, Tam::Base, Peso::Semi, paleta::RED_600));
-                        });
-                    });
-            }
-            ui.add_space(32.0);
-            let valido = cobros::validar_motivo(&c.motivo).is_ok();
-            ui::pie_dialogo(ui, |ui| {
-                let boton = if enviando { Boton::new("Registrando...").cargando(true) } else { Boton::new("Sí, cancelar y registrar") };
-                confirmar |= boton.colores(paleta::RED_600, Color32::WHITE).habilitado(!enviando && valido).ui(ui).clicked();
-                mantener |= Boton::new("No, mantener").variante(Variante::Contorno).habilitado(!enviando).ui(ui).clicked();
+        let r = v2::Modal::new("cobro-cancelacion", "Cancelar y registrar")
+            .subtitulo("La cancelación queda registrada con su motivo")
+            .icono("trash-2")
+            .peligro()
+            .ancho(500.0)
+            .mostrar(&ctx, |ui| {
+                v2::cuerpo_modal(ui, 16, |ui| {
+                    if c.pendiente.as_ref().is_some_and(|p| !p.productos.is_empty()) {
+                        ui.add_space(4.0);
+                        lista_productos(ui, &items, total);
+                    }
+                    ui.add_space(14.0);
+                    v2::etiqueta(ui, "Motivo de la cancelación");
+                    ui.add_space(6.0);
+                    let respuesta = v2::CampoTexto::new(&mut c.motivo)
+                        .id(Id::new("cobro-cancelacion-motivo"))
+                        .multilinea(96.0)
+                        .tam_texto(tam::CUERPO)
+                        .sugerencia("Ej: el cliente cambió de opinión, error en el pedido…")
+                        .caracteres_maximos(500)
+                        .habilitado(!enviando)
+                        .ui(ui)
+                        .respuesta;
+                    if c.enfocar {
+                        respuesta.request_focus();
+                        c.enfocar = false;
+                    }
+                    if c.motivo.chars().count() > 500 {
+                        c.motivo = c.motivo.chars().take(500).collect();
+                    }
+                    ui.add_space(6.0);
+                    let contador = format!("{}/500", c.motivo.chars().count());
+                    fila(ui, t("Queda registrado en el sistema. Mínimo 3 caracteres.", tam::XS, Peso::Normal, color::TEXTO_TENUE), t(&contador, tam::XS, Peso::Normal, color::TEXTO_TENUE));
+                    if !c.error.is_empty() {
+                        ui.add_space(6.0);
+                        linea(ui, Align2::LEFT_CENTER, &c.error, tam::CHICO, Peso::Normal, color::ROJO, 0.0);
+                    }
+                });
+                let valido = cobros::validar_motivo(&c.motivo).is_ok();
+                pie(ui, 20, 22, |ui| {
+                    let texto = if enviando { "Registrando…" } else { "Cancelar y registrar" };
+                    confirmar |= boton(texto, Estilo::Peligro).alto(42.0).tecla("Ctrl+Enter").cargando(enviando).habilitado(valido || enviando).ui(ui).clicked();
+                    mantener |= boton("No, volver", Estilo::Secundario).alto(42.0).habilitado(!enviando).ui(ui).clicked();
+                });
             });
-        });
         if mantener {
             self.cancelacion.abierto = false;
             self.cancelacion.motivo.clear();
@@ -1189,77 +1043,157 @@ impl Cobro {
             self.confirmar_cancelacion(cx);
         }
     }
-}
 
-fn verdad_json(v: &Value) -> bool {
-    cobros::verdad(v)
-}
+    fn cerrar_completada(&mut self) {
+        self.completada = None;
+        self.resultado = Some(ResultadoCobro::VentaRegistrada);
+    }
 
-fn caja_descuento(ui: &mut Ui, d: &Descuento, subtotal: f64) {
-    recuadro(ui, paleta::GREEN_50, paleta::GREEN_200, 16.0, |ui| {
-        let rect = caja(ui, 64.0);
-        let texto_valor = match d.tipo {
-            cobros::TipoDescuento::Porcentaje => format!("{}% de descuento", formato::numero(d.valor)),
-            cobros::TipoDescuento::Fijo => format!("{} de descuento", pesos(d.valor)),
-        };
-        pintar(ui, egui::pos2(rect.left(), rect.center().y - 10.0), Align2::LEFT_CENTER, "Descuento Aplicado", Tam::Base, Peso::Semi, paleta::GREEN_800);
-        pintar(ui, egui::pos2(rect.left(), rect.center().y + 12.0), Align2::LEFT_CENTER, &texto_valor, Tam::Sm, Peso::Normal, paleta::GREEN_600);
-        let x = rect.right();
-        pintar(ui, egui::pos2(x, rect.top() + 10.0), Align2::RIGHT_CENTER, &format!("Subtotal: {}", pesos(subtotal)), Tam::Sm, Peso::Normal, paleta::GRAY_600);
-        pintar(ui, egui::pos2(x, rect.top() + 30.0), Align2::RIGHT_CENTER, &format!("Descuento: -{}", pesos(d.monto)), Tam::Sm, Peso::Semi, paleta::GREEN_600);
-        pintar(ui, egui::pos2(x, rect.top() + 52.0), Align2::RIGHT_CENTER, &format!("Total: {}", pesos(subtotal - d.monto)), Tam::Base, Peso::Negrita, paleta::GREEN_800);
-    });
-}
-
-fn pestanas_descuento(ui: &mut Ui, cantidad_fija: &mut bool) {
-    let rect = caja(ui, 40.0);
-    ui.painter().rect_filled(rect, ui::RADIO_MD, color::APAGADO);
-    let interior = rect.shrink(4.0);
-    let ancho = interior.width() / 2.0;
-    for (i, (texto, icono)) in [("Porcentaje", "percent"), ("Cantidad Fija", "dollar-sign")].into_iter().enumerate() {
-        let caja_pestana = Rect::from_min_size(egui::pos2(interior.left() + i as f32 * ancho, interior.top()), Vec2::new(ancho, interior.height()));
-        let respuesta = ui.interact(caja_pestana, Id::new(("cobro-pestana", i)), Sense::click());
-        if respuesta.clicked() {
-            *cantidad_fija = i == 1;
+    fn venta_completada(&mut self, cx: &mut Contexto) {
+        let Some(completada) = self.completada.as_ref() else { return };
+        let ctx = cx.egui.clone();
+        let transcurrido = ctx.input(|i| i.time) - completada.desde;
+        if !cx.global.carritos.items().is_empty() || transcurrido >= SEGUNDOS_COMPLETADA {
+            self.completada = None;
+            return;
         }
-        let activa = *cantidad_fija == (i == 1);
-        if activa {
-            ui.painter().add(ui::sombra_sm().as_shape(caja_pestana, ui::RADIO_SM));
-            ui.painter().rect_filled(caja_pestana, ui::RADIO_SM, color::FONDO);
+        if ctx.input(|i| i.key_pressed(Key::Enter) || i.key_pressed(Key::Escape)) {
+            self.cerrar_completada();
+            return;
         }
-        let tinta = if activa { color::TEXTO } else { color::APAGADO_TEXTO };
-        let ancho_texto = medir(ui, texto, Tam::Sm, Peso::Medio);
-        let total = 16.0 + 8.0 + ancho_texto;
-        let x = caja_pestana.center().x - total / 2.0;
-        ui::pintar_icono_en(ui, Rect::from_min_size(egui::pos2(x, caja_pestana.center().y - 8.0), Vec2::splat(16.0)), icono, tinta);
-        pintar(ui, egui::pos2(x + 24.0, caja_pestana.center().y), Align2::LEFT_CENTER, texto, Tam::Sm, Peso::Medio, tinta);
-        respuesta.on_hover_cursor(CursorIcon::PointingHand);
+        ctx.request_repaint_after(Duration::from_secs_f64(SEGUNDOS_COMPLETADA - transcurrido));
+        let resumen = completada.resumen.clone();
+        let id = Id::new("cobro-venta-completada");
+        let pantalla = ctx.content_rect();
+        let fundido = animacion::apertura(&ctx, id.with("fondo"), animacion::DURACION_FONDO);
+        let avance = animacion::apertura(&ctx, id, animacion::DURACION_MODAL);
+        Area::new(id.with("velo")).order(Order::Middle).fixed_pos(pantalla.min).interactable(false).show(&ctx, |ui| {
+            ui.painter().rect_filled(pantalla, 0, color::OVERLAY_MODAL.gamma_multiply(fundido));
+        });
+        let ancho = 440f32.min(pantalla.width() - 48.0);
+        let mut cerrar = false;
+        Area::new(id).order(Order::Foreground).anchor(Align2::CENTER_CENTER, Vec2::ZERO).show(&ctx, |ui| {
+            ui.set_opacity(avance);
+            animacion::escalar_capa(&ctx, ui.layer_id(), pantalla.center(), animacion::escala_pop(avance));
+            ui.spacing_mut().item_spacing = Vec2::ZERO;
+            ui.set_width(ancho);
+            let fondo = ui.painter().add(Shape::Noop);
+            ui.vertical(|ui| {
+                ui.set_width(ancho);
+                Frame::NONE.inner_margin(Margin { left: 24, right: 24, top: 22, bottom: 0 }).show(ui, |ui| {
+                    ui.set_width(ancho - 48.0);
+                    cerrar |= encabezado_completada(ui, resumen.comprobante.is_some());
+                });
+                v2::cuerpo_modal(ui, 8, |ui| cuerpo_completada(ui, &resumen));
+                Frame::NONE.inner_margin(Margin { left: 24, right: 24, top: 20, bottom: 22 }).show(ui, |ui| {
+                    ui.set_width(ui.available_width());
+                    let boton_nueva = boton("Nueva venta", Estilo::Primario).tecla("Enter").relleno(20.0);
+                    ui.vertical_centered(|ui| {
+                        cerrar |= boton_nueva.ui(ui).clicked();
+                    });
+                });
+            });
+            let rect = Rect::from_min_size(ui.min_rect().min, Vec2::new(ancho, ui.min_rect().height()));
+            ui.painter().set(fondo, Shape::Vec(vec![sombra::MODAL.forma(rect, radio::MODAL), Shape::rect_filled(rect, radio::MODAL, color::BLANCO)]));
+        });
+        if cerrar {
+            self.cerrar_completada();
+        }
     }
 }
 
-fn pastilla_estado(ui: &mut Ui, estado: Option<&str>) {
-    let (fondo, tinta, texto) = match estado {
-        Some("PENDIENTE") => (paleta::YELLOW_100, paleta::YELLOW_800, "Esperando pago..."),
-        Some("COMPLETADA") => (paleta::GREEN_100, paleta::GREEN_800, "¡Pago completado!"),
-        Some("CANCELADA") => (paleta::RED_100, paleta::RED_800, "Pago cancelado"),
-        _ => (paleta::GRAY_100, paleta::GRAY_800, "Desconocido"),
-    };
-    let rect = caja(ui, 40.0);
-    ui.painter().rect_filled(rect, 20.0, fondo);
-    let etiqueta = format!("Estado: {texto}");
-    let ancho = medir(ui, &etiqueta, Tam::Base, Peso::Medio);
-    let puntos = if estado == Some("PENDIENTE") { 8.0 + 36.0 } else { 0.0 };
-    let x = rect.center().x - (ancho + puntos) / 2.0;
-    pintar(ui, egui::pos2(x, rect.center().y), Align2::LEFT_CENTER, &etiqueta, Tam::Base, Peso::Medio, tinta);
-    if puntos > 0.0 {
-        let t = ui.input(|i| i.time);
-        for k in 0..3 {
-            let fase = ((t - k as f64 * 0.15) * std::f64::consts::PI).sin() * 0.5 + 0.5;
-            let alfa = 0.5 + 0.5 * fase as f32;
-            let centro = egui::pos2(x + ancho + 8.0 + 2.0 + 4.0 + k as f32 * 12.0, rect.center().y + 2.0);
-            ui.painter().circle_filled(centro, 4.0, paleta::YELLOW_500.gamma_multiply(alfa));
+fn billetes(ui: &mut Ui, recibido: &mut String, total: f64, enfocar: &mut bool) {
+    let exacto = cobros::numero_js(total);
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 8.0;
+        for (valor, etiqueta) in [(exacto.as_str(), "Exacto".to_string()), ("5000", dinero(5000.0)), ("10000", dinero(10000.0)), ("20000", dinero(20000.0))] {
+            if chip_valor(ui, &etiqueta, None, 34.0, radio::CHIP_ICONO, tam::CONTROL, recibido == valor) {
+                *recibido = valor.to_string();
+                *enfocar = true;
+            }
         }
-        ui.ctx().request_repaint();
+    });
+}
+
+fn caja_vuelto(ui: &mut Ui, etiqueta: &str, monto: f64) {
+    panel(ui, color::DORADO_FONDO, None, radio::CAMPO, margen(12, 16), |ui| {
+        fila(ui, t(etiqueta, tam::CUERPO, Peso::Medio, color::DORADO_TEXTO), t(&dinero(monto), tam::TITULO_SECCION, Peso::Semi, color::DORADO_TEXTO));
+    });
+}
+
+fn encabezado_completada(ui: &mut Ui, con_factura: bool) -> bool {
+    let mut clic = false;
+    ui.with_layout(Layout::left_to_right(Align::Min), |ui| {
+        ui.spacing_mut().item_spacing.x = 14.0;
+        let (caja, _) = ui.allocate_exact_size(Vec2::splat(42.0), Sense::hover());
+        ui.painter().rect_filled(caja, radio::CAMPO, color::VERDE);
+        pintar_icono_solar_en(ui, Rect::from_center_size(caja.center(), Vec2::splat(23.0)), "check", color::BLANCO);
+        let ancho_textos = ui.available_width() - 32.0 - 12.0;
+        ui.allocate_ui_with_layout(Vec2::new(ancho_textos, 0.0), Layout::top_down(Align::Min), |ui| {
+            ui.add_space(1.0);
+            v2::titulo(ui, "Venta cobrada", tam::TITULO_MODAL, -0.01, color::TEXTO);
+            if con_factura {
+                ui.add_space(3.0);
+                v2::parrafo(ui, "Factura emitida", tam::CONTROL, color::TEXTO_APAGADO, 1.45, ancho_textos);
+            }
+        });
+        ui.with_layout(Layout::right_to_left(Align::Min), |ui| {
+            clic = BotonIcono::cerrar().ui(ui).clicked();
+        });
+    });
+    clic
+}
+
+fn bloque_centrado(ui: &mut Ui, tam_bloque: Vec2) -> Rect {
+    let (fila_rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), tam_bloque.y), Sense::hover());
+    Rect::from_center_size(fila_rect.center(), tam_bloque)
+}
+
+fn cuerpo_completada(ui: &mut Ui, resumen: &super::Resumen) {
+    linea(ui, Align2::CENTER_CENTER, &dinero(resumen.total), 42.0, Peso::Semi, color::TEXTO, -0.025);
+    ui.add_space(12.0);
+    let mut trabajo = egui::text::LayoutJob::simple(resumen.metodo.clone(), fuente(tam::CUERPO, Peso::Normal), color::TEXTO_APAGADO, ui.available_width());
+    trabajo.halign = Align::Center;
+    let g = ui.painter().layout_job(trabajo);
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), g.size().y), Sense::hover());
+    ui.painter().galley(egui::pos2(rect.center().x, rect.top()), g, color::TEXTO_APAGADO);
+    if let Some(vuelto) = resumen.vuelto {
+        ui.add_space(12.0);
+        let etiqueta = v2::galeria(ui, "Vuelto", fuente(tam::ENTRADA, Peso::Semi), color::DORADO_TEXTO);
+        let monto = v2::galeria(ui, dinero(vuelto), fuente(tam::ENTRADA, Peso::Semi), color::DORADO_TEXTO);
+        let caja = bloque_centrado(ui, Vec2::new(16.0 + etiqueta.size().x + 10.0 + monto.size().x + 16.0, alto_linea(tam::ENTRADA) + 20.0));
+        ui.painter().rect_filled(caja, radio::CAMPO, color::DORADO_FONDO);
+        let x = caja.left() + 16.0;
+        let ancho_etiqueta = etiqueta.size().x;
+        ui.painter().galley(egui::pos2(x, caja.center().y - etiqueta.size().y / 2.0), etiqueta, color::DORADO_TEXTO);
+        ui.painter().galley(egui::pos2(x + ancho_etiqueta + 10.0, caja.center().y - monto.size().y / 2.0), monto, color::DORADO_TEXTO);
+    }
+    if let Some(comprobante) = &resumen.comprobante {
+        ui.add_space(12.0);
+        let titulo = v2::galeria(ui, comprobante.clone(), fuente(tam::ETIQUETA, Peso::Semi), color::TEXTO_SECUNDARIO);
+        let cae = resumen.cae.as_ref().map(|c| v2::galeria(ui, format!("CAE {c}"), marca::fuente_mono(tam::XS, Peso::Normal), color::TEXTO_APAGADO));
+        let ancho = titulo.size().x.max(cae.as_ref().map_or(0.0, |g| g.size().x)) + 32.0;
+        let alto = alto_linea(tam::ETIQUETA) + cae.as_ref().map_or(0.0, |_| 3.0 + alto_linea(tam::XS)) + 20.0;
+        let caja = bloque_centrado(ui, Vec2::new(ancho, alto));
+        ui.painter().rect(caja, radio::CAMPO, color::BLANCO, Stroke::new(1.0, color::BORDE_SUAVE), StrokeKind::Inside);
+        let mut y = caja.top() + 10.0;
+        ui.painter().galley(egui::pos2(caja.center().x - titulo.size().x / 2.0, y + (alto_linea(tam::ETIQUETA) - titulo.size().y) / 2.0), titulo, color::TEXTO_SECUNDARIO);
+        y += alto_linea(tam::ETIQUETA) + 3.0;
+        if let Some(cae) = cae {
+            ui.painter().galley(egui::pos2(caja.center().x - cae.size().x / 2.0, y + (alto_linea(tam::XS) - cae.size().y) / 2.0), cae, color::TEXTO_APAGADO);
+        }
+    }
+    if let Some(impreso) = resumen.impreso {
+        ui.add_space(12.0);
+        let (icono, texto, tinta) = if impreso {
+            ("circle-check", "Ticket impreso", color::VERDE_EXITO)
+        } else {
+            ("alert", "No se pudo imprimir el ticket", color::ROJO)
+        };
+        let g = v2::galeria(ui, texto, fuente(tam::CONTROL, Peso::Normal), tinta);
+        let caja = bloque_centrado(ui, Vec2::new(17.0 + 8.0 + g.size().x, alto_linea(tam::CONTROL).max(17.0)));
+        pintar_icono_solar_en(ui, Rect::from_min_size(egui::pos2(caja.left(), caja.center().y - 8.5), Vec2::splat(17.0)), icono, tinta);
+        ui.painter().galley(egui::pos2(caja.left() + 25.0, caja.center().y - g.size().y / 2.0), g, tinta);
     }
 }
 
