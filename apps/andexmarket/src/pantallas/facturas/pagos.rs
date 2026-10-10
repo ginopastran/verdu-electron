@@ -42,6 +42,8 @@ pub struct AgregarPago {
     referencia: String,
     cargando: bool,
     tarea: Option<Tarea<bool>>,
+    error_monto: Option<String>,
+    error_fecha: Option<String>,
 }
 
 fn fecha_hoy() -> String {
@@ -50,7 +52,7 @@ fn fecha_hoy() -> String {
 
 impl AgregarPago {
     pub fn new(factura: Value) -> Self {
-        AgregarPago { factura, monto: String::new(), metodo: 0, fecha: fecha_hoy(), referencia: String::new(), cargando: false, tarea: None }
+        AgregarPago { factura, monto: String::new(), metodo: 0, fecha: fecha_hoy(), referencia: String::new(), cargando: false, tarea: None, error_monto: None, error_fecha: None }
     }
 
     fn enviar(&mut self, cx: &Contexto) {
@@ -58,14 +60,14 @@ impl AgregarPago {
         let monto = match logica::validar_pago(&self.monto, maximo) {
             Ok(monto) => monto,
             Err(error) => {
-                toast::error(&cx.egui, error.to_string());
+                self.error_monto = Some(error.to_string());
                 return;
             }
         };
         let fecha = match logica::fecha_dia_mes_anio(&self.fecha).filter(|f| *f <= logica::hoy_argentina()) {
             Some(fecha) => fecha.format("%Y-%m-%d").to_string(),
             None => {
-                toast::error(&cx.egui, "Ingresá una fecha válida (dd/mm/aaaa) que no sea futura");
+                self.error_fecha = Some("Ingresá una fecha válida (dd/mm/aaaa) que no sea futura".into());
                 return;
             }
         };
@@ -106,9 +108,21 @@ impl AgregarPago {
                 let enlace = v2::pintar_texto(ui, fila.right_center(), Align2::RIGHT_CENTER, "Saldo total", tam::CHICO, Peso::Semi, color::VERDE);
                 if ui.interact(enlace, Id::new("pago-saldo-total"), Sense::click()).on_hover_cursor(CursorIcon::PointingHand).clicked() {
                     self.monto = logica::texto_entrada(maximo);
+                    self.error_monto = None;
                 }
                 ui.add_space(6.0);
-                CampoTexto::new(&mut self.monto).alto(48.0).prefijo("$").tam_texto(18.0).sugerencia("0").id(Id::new("pago-monto")).ui(ui);
+                let monto = CampoTexto::new(&mut self.monto)
+                    .alto(48.0)
+                    .prefijo("$")
+                    .tam_texto(18.0)
+                    .sugerencia("0")
+                    .error(self.error_monto.is_some())
+                    .id(Id::new("pago-monto"))
+                    .ui(ui);
+                if monto.respuesta.changed() {
+                    self.error_monto = None;
+                }
+                mensaje_error(ui, &self.error_monto);
                 ui.add_space(14.0);
                 vista::etiqueta(ui, "Método");
                 ui.add_space(6.0);
@@ -133,7 +147,17 @@ impl AgregarPago {
                         ui.set_width(150.0);
                         vista::etiqueta(ui, "Fecha");
                         ui.add_space(6.0);
-                        CampoTexto::new(&mut self.fecha).alto(42.0).radio(radio::CONTROL).tam_texto(tam::CUERPO).relleno(10.0, 10.0).sugerencia("dd/mm/aaaa").ui(ui);
+                        let fecha = CampoTexto::new(&mut self.fecha)
+                            .alto(42.0)
+                            .radio(radio::CONTROL)
+                            .tam_texto(tam::CUERPO)
+                            .relleno(10.0, 10.0)
+                            .sugerencia("dd/mm/aaaa")
+                            .error(self.error_fecha.is_some())
+                            .ui(ui);
+                        if fecha.respuesta.changed() {
+                            self.error_fecha = None;
+                        }
                     });
                     ui.add_space(10.0);
                     ui.vertical(|ui| {
@@ -152,6 +176,7 @@ impl AgregarPago {
                             .ui(ui);
                     });
                 });
+                mensaje_error(ui, &self.error_fecha);
             });
             v2::pie_modal(ui, |ui| {
                 if Boton::primario("Registrar pago").modal().cargando(self.cargando).habilitado(habilitado || self.cargando).ui(ui).clicked() {
@@ -172,6 +197,14 @@ impl AgregarPago {
             return ResultadoPago::Cerrar;
         }
         ResultadoPago::Nada
+    }
+}
+
+fn mensaje_error(ui: &mut Ui, error: &Option<String>) {
+    if let Some(error) = error {
+        ui.add_space(6.0);
+        let ancho = ui.available_width();
+        v2::parrafo(ui, error, tam::CHICO, color::ROJO, 1.4, ancho);
     }
 }
 

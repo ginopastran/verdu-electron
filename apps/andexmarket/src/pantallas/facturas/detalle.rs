@@ -202,8 +202,8 @@ fn productos(ui: &mut Ui, factura: &Value) {
         v2::pintar_texto(ui, interior.right_center(), Align2::RIGHT_CENTER, vista::productos(detalles.len()), tam::ETIQUETA, Peso::Normal, color::TEXTO_APAGADO);
         let tabla = Tabla::new(&COLUMNAS).relleno(22.0).radio_superior(0);
         let arriba = ui.cursor().top();
-        ui.painter().hline(ui.max_rect().x_range(), arriba + 0.5, Stroke::new(1.0, color::BORDE_SUAVE));
         tabla.encabezado(ui, &["Producto", "Cantidad", "Precio", "Subtotal"], 38.0);
+        ui.painter().hline(ui.max_rect().x_range(), arriba + 0.5, Stroke::new(1.0, color::BORDE_SUAVE));
         for detalle in &detalles {
             let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 50.0), Sense::hover());
             ui.painter().hline(rect.x_range(), rect.bottom() - 0.5, Stroke::new(1.0, color::BORDE_SUAVE));

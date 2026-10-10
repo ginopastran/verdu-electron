@@ -319,3 +319,127 @@ fn listas_pedidas(registro: &Registro) -> Vec<String> {
 fn cc_lista() {
     en_ambos("70-cc-lista", Ruta::Facturas, Opciones::default(), |_, _| {});
 }
+
+fn segun(ancho: f32, grande: f32, chico: f32) -> f32 {
+    if ancho > 1500.0 {
+        grande
+    } else {
+        chico
+    }
+}
+
+fn rueda<S>(harness: &mut Harness<'_, S>, x: f32, y: f32, delta: f32) {
+    harness.event(Event::PointerMoved(Pos2::new(x, y)));
+    harness.step();
+    harness.event(Event::MouseWheel { unit: egui::MouseWheelUnit::Point, delta: egui::vec2(0.0, delta), phase: egui::TouchPhase::Move, modifiers: Default::default() });
+    esperar(harness, 300);
+}
+
+const FILA_1: f32 = 374.0;
+
+#[test]
+fn cc_filtros() {
+    en_ambos("71-cc-filtro-con-saldo", Ruta::Facturas, Opciones::default(), |h, ancho| {
+        clic(h, segun(ancho, 534.0, 420.0), 262.0);
+        esperar(h, 600);
+    });
+    en_ambos("72-cc-busqueda", Ruta::Facturas, Opciones::default(), |h, _| {
+        clic(h, 150.0, 262.0);
+        escribir(h, "hotel");
+        esperar(h, 900);
+    });
+    en_ambos("73-cc-dropdown-tipo", Ruta::Facturas, Opciones::default(), |h, ancho| {
+        clic(h, segun(ancho, 935.0, 820.0), 262.0);
+        esperar(h, 300);
+    });
+    en_ambos("74-cc-filtro-tipo-remito", Ruta::Facturas, Opciones::default(), |h, ancho| {
+        clic(h, segun(ancho, 935.0, 820.0), 262.0);
+        esperar(h, 300);
+        clic(h, segun(ancho, 935.0, 820.0), 342.0);
+        esperar(h, 600);
+    });
+    en_ambos("75-cc-vacio", Ruta::Facturas, Opciones::default(), |h, _| {
+        clic(h, 150.0, 262.0);
+        escribir(h, "zzz");
+        esperar(h, 900);
+    });
+}
+
+#[test]
+fn cc_paginacion() {
+    en_ambos("76-cc-paginacion-2", Ruta::Facturas, Opciones { copias: 1, ..Default::default() }, |h, ancho| {
+        rueda(h, ancho / 2.0, 500.0, -3000.0);
+        clic(h, segun(ancho, 1822.0, 1269.0), segun(ancho, 1012.0, 700.0));
+        esperar(h, 600);
+        rueda(h, ancho / 2.0, 500.0, 3000.0);
+    });
+}
+
+#[test]
+fn cc_detalle() {
+    en_ambos("77-cc-detalle-parcial", Ruta::FacturaDetalle("f1".into()), Opciones::default(), |_, _| {});
+    en_ambos("78-cc-detalle-sin-pagos", Ruta::FacturaDetalle("f2".into()), Opciones::default(), |_, _| {});
+    en_ambos("79-cc-detalle-pagada", Ruta::FacturaDetalle("f4".into()), Opciones::default(), |_, _| {});
+}
+
+#[test]
+fn cc_modales() {
+    en_ambos("80-modal-agregar-pago", Ruta::Facturas, Opciones::default(), |h, ancho| {
+        clic(h, segun(ancho, 1709.0, 1155.0), FILA_1);
+        esperar(h, 400);
+    });
+    en_ambos("83-modal-historial-pagos", Ruta::Facturas, Opciones::default(), |h, ancho| {
+        rueda(h, ancho / 2.0, 500.0, -3000.0);
+        clic(h, segun(ancho, 1761.0, 1207.0), segun(ancho, 870.0, 696.0));
+        esperar(h, 400);
+    });
+    en_ambos("84-modal-historial-pagos-vacio", Ruta::Facturas, Opciones::default(), |h, ancho| {
+        clic(h, segun(ancho, 1761.0, 1207.0), FILA_1);
+        esperar(h, 400);
+    });
+    en_ambos("85-modal-confirmar-eliminar-factura", Ruta::Facturas, Opciones::default(), |h, ancho| {
+        clic(h, segun(ancho, 1857.0, 1303.0), FILA_1);
+        esperar(h, 400);
+    });
+}
+
+fn en_modal(ancho: f32, x: f32, y: f32) -> (f32, f32) {
+    if ancho > 1500.0 {
+        (x + 277.0, y + 156.0)
+    } else {
+        (x, y)
+    }
+}
+
+#[test]
+fn cc_agregar_pago_variantes() {
+    en_ambos("81-modal-agregar-pago-completo", Ruta::Facturas, Opciones::default(), |h, ancho| {
+        clic(h, segun(ancho, 1709.0, 1155.0), FILA_1);
+        esperar(h, 400);
+        let (x, y) = en_modal(ancho, 877.0, 314.0);
+        clic(h, x, y);
+        let (x, y) = en_modal(ancho, 836.0, 434.0);
+        clic(h, x, y);
+        let (x, y) = en_modal(ancho, 762.0, 513.0);
+        clic(h, x, y);
+        escribir(h, "TRF 90544");
+        esperar(h, 200);
+    });
+    en_ambos("82-modal-agregar-pago-error", Ruta::Facturas, Opciones::default(), |h, ancho| {
+        clic(h, segun(ancho, 1709.0, 1155.0), FILA_1);
+        esperar(h, 400);
+        let (x, y) = en_modal(ancho, 680.0, 352.0);
+        clic(h, x, y);
+        escribir(h, "999999");
+        h.key_press(egui::Key::Enter);
+        esperar(h, 300);
+    });
+}
+
+#[test]
+fn cc_editar_factura() {
+    en_ambos("68-cc-editar-factura", Ruta::Facturas, Opciones::default(), |h, ancho| {
+        clic(h, segun(ancho, 1793.0, 1239.0), FILA_1);
+        esperar(h, 400);
+    });
+}
