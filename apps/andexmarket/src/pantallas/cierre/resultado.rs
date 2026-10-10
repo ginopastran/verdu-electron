@@ -1,5 +1,6 @@
 use eframe::egui::{self, Align2, Sense, Ui, Vec2};
-use nucleo::cierre::{self as logica, miles, numero, texto_valor};
+use nucleo::cierre::{self as logica, numero, texto_valor};
+use nucleo::formato;
 use serde_json::Value;
 
 use crate::app::Contexto;
@@ -11,15 +12,39 @@ pub struct DialogoResultadoCierre {
     resultado: Option<Value>,
 }
 
-fn como_jsx(valor: Option<&Value>) -> String {
+fn texto(valor: Option<&Value>) -> String {
     match valor {
         None | Some(Value::Null) | Some(Value::Bool(_)) => String::new(),
         Some(otro) => texto_valor(otro),
     }
 }
 
+fn importe(valor: Option<&Value>) -> f64 {
+    let valor = match valor {
+        Some(Value::Object(objeto)) => objeto.get("total"),
+        otro => otro,
+    };
+    Some(numero(valor)).filter(|n| n.is_finite()).unwrap_or(0.0)
+}
+
 fn monto(valor: Option<&Value>) -> String {
-    format!("${}", miles(numero(valor)))
+    formato::pesos(importe(valor))
+}
+
+fn periodo(valor: &Value) -> String {
+    if valor == "custom" {
+        "MANUAL".into()
+    } else {
+        texto_valor(valor).to_uppercase()
+    }
+}
+
+fn cantidad(valor: Option<&Value>) -> String {
+    let valor = match valor {
+        Some(Value::Object(objeto)) => objeto.get("cantidad"),
+        otro => otro,
+    };
+    Some(numero(valor)).filter(|n| n.is_finite()).map(formato::numero).unwrap_or_else(|| "0".into())
 }
 
 fn tarjeta_tabla(ui: &mut Ui, titulo: &str, columnas: &[(f32, &str, bool)], filas: Vec<Vec<(String, Peso)>>) {
@@ -81,7 +106,7 @@ impl DialogoResultadoCierre {
                     ui.vertical(|ui| {
                         ui.set_width(ancho);
                         ui.label(ui::texto("Período", Tam::Sm, Peso::Medio, color::TEXTO));
-                        ui.label(ui::texto(texto_valor(&resultado["periodo"]).to_uppercase(), Tam::Xl, Peso::Negrita, color::TEXTO));
+                        ui.label(ui::texto(periodo(&resultado["periodo"]), Tam::Xl, Peso::Negrita, color::TEXTO));
                     });
                     ui.vertical(|ui| {
                         ui.set_width(ancho);
@@ -104,7 +129,7 @@ impl DialogoResultadoCierre {
                         ui.spacing_mut().item_spacing.x = 16.0;
                         let datos = [
                             ("Total Ventas", monto(resultado.get("totalVentas")), paleta::EMERALD_600),
-                            ("Cantidad de Ventas", como_jsx(resultado.get("cantidadVentas")), color::TEXTO),
+                            ("Cantidad de Ventas", cantidad(resultado.get("cantidadVentas")), color::TEXTO),
                         ];
                         for (titulo, valor, tinta) in datos {
                             ui.vertical(|ui| {
@@ -129,10 +154,10 @@ impl DialogoResultadoCierre {
                         .iter()
                         .map(|v| {
                             vec![
-                                (como_jsx(v.get("nombre")), Peso::Medio),
-                                (como_jsx(v.get("email")), Peso::Normal),
+                                (texto(v.get("nombre")), Peso::Medio),
+                                (texto(v.get("email")), Peso::Normal),
                                 (monto(v.get("totalVentas")), Peso::Normal),
-                                (como_jsx(v.get("cantidadVentas")), Peso::Normal),
+                                (cantidad(v.get("cantidadVentas")), Peso::Normal),
                             ]
                         })
                         .collect();
@@ -150,5 +175,26 @@ impl DialogoResultadoCierre {
         if cerrar || respuesta.cerrar {
             self.abierto = false;
         }
+    }
+}
+
+#[cfg(test)]
+mod pruebas {
+    use serde_json::json;
+
+    use super::*;
+
+    #[test]
+    fn montos_y_cantidades_sin_nan() {
+        assert_eq!(monto(Some(&json!(186450))), "$186.450,00");
+        assert_eq!(monto(Some(&json!({ "total": 8500.5, "cantidad": 3 }))), "$8.500,50");
+        assert_eq!(cantidad(Some(&json!({ "total": 8500.5, "cantidad": 3 }))), "3");
+        assert_eq!(monto(None), "$0,00");
+        assert_eq!(monto(Some(&json!("abc"))), "$0,00");
+        assert_eq!(monto(Some(&json!({}))), "$0,00");
+        assert_eq!(cantidad(Some(&json!(1234))), "1.234");
+        assert_eq!(cantidad(None), "0");
+        assert_eq!(periodo(&json!("custom")), "MANUAL");
+        assert_eq!(periodo(&json!("mañana")), "MAÑANA");
     }
 }

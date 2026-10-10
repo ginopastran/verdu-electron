@@ -9,10 +9,11 @@ use andexmarket::app::{App, Contexto, Global, Ruta, Servicios};
 use andexmarket::pantallas::cierre::resultado::DialogoResultadoCierre;
 use andexmarket::pantallas::cierre::DialogoCierre;
 use andexmarket::pantallas::pedidos::DialogoPedidos;
-use chrono::{FixedOffset, Local, Offset, Utc};
+use chrono::{FixedOffset, Utc};
 use egui_kittest::Harness;
 use eframe::egui;
 use nucleo::api::Cliente;
+use nucleo::cierre::ahora_argentina;
 use serde_json::{json, Value};
 
 #[derive(Clone, Debug)]
@@ -237,12 +238,34 @@ fn cierre_caja_procesando() {
     assert_eq!(pedido.cuerpo["periodo"], "mañana");
     let claves: Vec<&String> = pedido.cuerpo.as_object().unwrap().keys().collect();
     assert_eq!(claves, ["vendedorId", "sucursalId", "fechaInicio", "fechaCierre", "periodo"]);
-    if Local::now().offset().fix().local_minus_utc() == -3 * 3600 {
-        let hoy = Local::now().date_naive();
-        assert_eq!(pedido.cuerpo["fechaInicio"], format!("{hoy}T00:00:00.000Z"));
-        let cierre = pedido.cuerpo["fechaCierre"].as_str().unwrap().to_string();
-        assert!(cierre.starts_with(&Local::now().naive_local().format("%Y-%m-%dT%H").to_string()[..13]));
-    }
+    let ahora = ahora_argentina();
+    assert_eq!(pedido.cuerpo["fechaInicio"], format!("{}T00:00:00.000Z", ahora.date()));
+    let cierre = pedido.cuerpo["fechaCierre"].as_str().unwrap().to_string();
+    assert!(cierre.starts_with(&ahora.format("%Y-%m-%dT%H").to_string()), "{cierre}");
+    assert!(cierre.ends_with('Z'));
+}
+
+#[test]
+fn cierre_caja_atajos() {
+    let (base, pedidos) = servidor(listas);
+    let mut harness = escena(servicios_con(&base));
+    harness.state_mut().cierre.abrir();
+    harness.run_steps(2);
+    harness.key_press(egui::Key::Num4);
+    harness.run_steps(2);
+    assert!(harness.state().cierre.manual_abierto());
+    harness.key_press(egui::Key::Num2);
+    harness.run_steps(2);
+    assert!(!harness.state().cierre.cerrando());
+    harness.key_press(egui::Key::Escape);
+    harness.run_steps(2);
+    assert!(!harness.state().cierre.manual_abierto());
+    assert!(harness.state().cierre.abierto());
+    harness.key_press(egui::Key::Num3);
+    esperar(&mut harness, |e| e.completados == 1);
+    let cierres: Vec<Pedido> = pedidos.lock().unwrap().iter().filter(|p| p.ruta == "/api/cierres").cloned().collect();
+    assert_eq!(cierres.len(), 1);
+    assert_eq!(cierres[0].cuerpo["periodo"], "todo");
 }
 
 #[test]
@@ -253,7 +276,8 @@ fn cierre_caja_resultado() {
     harness.run_steps(2);
     clic(&mut harness, 496.0, 367.0);
     esperar(&mut harness, |e| e.completados == 1);
-    assert!(!harness.state().cierre.abierto());
+    assert!(!harness.state().cierre.cerrando());
+    assert!(harness.state().cierre.abierto());
     guardar(&mut harness, "39-cierre-caja-resultado");
     assert_eq!(pedidos.lock().unwrap().len(), 1);
 }
@@ -278,13 +302,13 @@ fn cierre_manual() {
     assert_eq!(pedido.cuerpo["periodo"], "custom");
     assert_eq!(pedido.cuerpo["vendedorId"], 11);
     assert_eq!(pedido.cuerpo["sucursalId"], 1);
-    if Local::now().offset().fix().local_minus_utc() == -3 * 3600 {
-        let hoy = Local::now().date_naive();
-        assert_eq!(pedido.cuerpo["fechaInicio"], format!("{hoy}T00:00:00.000Z"));
-        assert_eq!(pedido.cuerpo["fechaCierre"], format!("{hoy}T23:59:59.999Z"));
-    }
+    let hoy = ahora_argentina().date();
+    assert_eq!(pedido.cuerpo["fechaInicio"], format!("{hoy}T00:00:00.000Z"));
+    let cierre = pedido.cuerpo["fechaCierre"].as_str().unwrap();
+    assert!(cierre.starts_with(&format!("{hoy}T")) && cierre.ends_with(":59.999Z"), "{cierre}");
     guardar(&mut harness, "40b-cierre-manual-creando");
-    esperar(&mut harness, |e| !e.cierre.manual_abierto());
+    esperar(&mut harness, |e| e.completados == 1);
+    assert!(!harness.state().cierre.manual_abierto());
     assert!(harness.state().cierre.abierto());
     guardar(&mut harness, "40d-cierre-manual-creado");
 }
@@ -318,6 +342,8 @@ fn ordenes_recientes() {
     std::thread::sleep(Duration::from_millis(150));
     harness.run_steps(4);
     guardar(&mut harness, "36-ordenes-recientes");
+    harness.hover_at(egui::pos2(320.0, 413.0));
+    guardar(&mut harness, "36d-ordenes-hover");
     let rutas: Vec<String> = pedidos.lock().unwrap().iter().map(|p| p.ruta.clone()).collect();
     assert_eq!(rutas, ["/api/ordenes/vendedor/11"]);
 }

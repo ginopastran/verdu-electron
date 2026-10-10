@@ -1,4 +1,4 @@
-use chrono::{Datelike, Duration, Local, NaiveDate, NaiveDateTime};
+use chrono::{Datelike, Duration, NaiveDate, NaiveDateTime, Timelike};
 use eframe::egui::{
     self, Align2, Color32, CursorIcon, Id, Popup, PopupCloseBehavior, Rect, RectAlign, Sense, StrokeKind, Ui, Vec2,
 };
@@ -15,7 +15,7 @@ use crate::ui::{self, color, fuente, paleta, toast, Boton, Dialogo, Peso, Tam, V
 type Listas = Result<(Option<Vec<Value>>, Option<Vec<Value>>), ()>;
 
 pub enum RespuestaManual {
-    Hecho(Value),
+    Hecho { cierre: Value, impresion: Value },
     Error(String),
 }
 
@@ -27,9 +27,8 @@ enum Extremo {
 
 pub struct CierreManual {
     abierto: bool,
-    fechas_listas: bool,
-    inicio: Option<NaiveDateTime>,
-    fin: Option<NaiveDateTime>,
+    inicio: NaiveDate,
+    fin: NaiveDate,
     horas: [usize; 4],
     usuarios: Vec<Value>,
     sucursales: Vec<Value>,
@@ -40,18 +39,19 @@ pub struct CierreManual {
 
 impl Default for CierreManual {
     fn default() -> Self {
-        CierreManual {
+        let mut manual = CierreManual {
             abierto: false,
-            fechas_listas: false,
-            inicio: None,
-            fin: None,
-            horas: [0, 0, 23, 59],
+            inicio: NaiveDate::MIN,
+            fin: NaiveDate::MIN,
+            horas: [0; 4],
             usuarios: Vec::new(),
             sucursales: Vec::new(),
-            mes_visible: Local::now().date_naive(),
+            mes_visible: NaiveDate::MIN,
             carga: None,
             envio: None,
-        }
+        };
+        manual.valores_por_defecto(logica::ahora_argentina());
+        manual
     }
 }
 
@@ -87,7 +87,8 @@ pub fn crear_cierre(servicios: &Servicios, cuerpo: &Value) -> RespuestaManual {
         let mensaje = Some(&respuesta.cuerpo["message"]).filter(|m| logica::verdadero(Some(m))).map(logica::texto_valor);
         return RespuestaManual::Error(mensaje.unwrap_or_else(|| "Error al crear el cierre".into()));
     }
-    RespuestaManual::Hecho(imprimir(servicios, Comprobante::Cierre, respuesta.cuerpo))
+    let impresion = imprimir(servicios, Comprobante::Cierre, respuesta.cuerpo.clone());
+    RespuestaManual::Hecho { cierre: respuesta.cuerpo, impresion }
 }
 
 impl CierreManual {
@@ -95,17 +96,15 @@ impl CierreManual {
         self.abierto
     }
 
-    fn preparar_fechas(&mut self) {
-        if !self.fechas_listas {
-            let ahora = Local::now().naive_local();
-            self.inicio = Some(ahora);
-            self.fin = Some(ahora);
-            self.fechas_listas = true;
-        }
+    fn valores_por_defecto(&mut self, ahora: NaiveDateTime) {
+        self.inicio = ahora.date();
+        self.fin = ahora.date();
+        self.horas = [0, 0, ahora.hour() as usize, ahora.minute() as usize];
+        self.mes_visible = ahora.date().with_day(1).expect("día 1");
     }
 
     pub fn abrir(&mut self, cx: &mut Contexto) {
-        self.preparar_fechas();
+        self.valores_por_defecto(logica::ahora_argentina());
         self.abierto = true;
         let servicios = cx.servicios.clone();
         self.carga = Some(Tarea::lanzar(&cx.egui, move || cargar_listas(&servicios)));
@@ -124,7 +123,7 @@ impl CierreManual {
         )
     }
 
-    fn recibir(&mut self, cx: &mut Contexto) {
+    fn recibir(&mut self, cx: &mut Contexto) -> Option<Value> {
         match esperar(&mut self.carga) {
             Some(Ok((usuarios, sucursales))) => {
                 if let Some(usuarios) = usuarios {
@@ -137,18 +136,17 @@ impl CierreManual {
             Some(Err(())) => toast::error(&cx.egui, "Error al cargar datos para el formulario."),
             None => {}
         }
-        match esperar(&mut self.envio) {
-            Some(RespuestaManual::Hecho(impresion)) => {
+        match esperar(&mut self.envio)? {
+            RespuestaManual::Hecho { cierre, impresion } => {
                 avisar_impresion(&cx.egui, &impresion);
                 toast::exito(&cx.egui, "Cierre creado correctamente");
                 self.abierto = false;
-                let ahora = Local::now().naive_local();
-                self.inicio = Some(ahora);
-                self.fin = Some(ahora);
-                self.horas = [0, 0, 23, 59];
+                Some(cierre)
             }
-            Some(RespuestaManual::Error(mensaje)) => toast::error(&cx.egui, mensaje),
-            None => {}
+            RespuestaManual::Error(mensaje) => {
+                toast::error(&cx.egui, mensaje);
+                None
+            }
         }
     }
 
@@ -157,8 +155,8 @@ impl CierreManual {
         let (hora_inicio, hora_fin) = (self.hora(Extremo::Inicio), self.hora(Extremo::Fin));
         match logica::validar_manual(self.inicio, self.fin, &vendedor, &sucursal, hora_inicio, hora_fin) {
             Err(mensaje) => toast::error(&cx.egui, mensaje),
-            Ok((dia_inicio, dia_fin)) => {
-                let (desde, hasta) = logica::rango_manual(&Local, dia_inicio, hora_inicio, dia_fin, hora_fin);
+            Ok(()) => {
+                let (desde, hasta) = logica::rango_manual(self.inicio, hora_inicio, self.fin, hora_fin);
                 let cuerpo = logica::cuerpo_manual(&vendedor, &sucursal, &desde, &hasta);
                 let servicios = cx.servicios.clone();
                 self.envio = Some(Tarea::lanzar(&cx.egui, move || crear_cierre(&servicios, &cuerpo)));
@@ -166,11 +164,10 @@ impl CierreManual {
         }
     }
 
-    pub fn mostrar(&mut self, _ui: &mut Ui, cx: &mut Contexto) {
-        self.preparar_fechas();
-        self.recibir(cx);
+    pub fn mostrar(&mut self, _ui: &mut Ui, cx: &mut Contexto) -> Option<Value> {
+        let completado = self.recibir(cx);
         if !self.abierto {
-            return;
+            return completado;
         }
         let enviando = self.envio.is_some();
         let (vendedor_id, sucursal_id) = Self::ids(cx);
@@ -211,11 +208,9 @@ impl CierreManual {
                 etiqueta(ui, if columna == 0 { "Hora de inicio" } else { "Hora de fin" });
                 self.selector_hora(ui, ancho, columna * 2);
             });
-            if let (Some(inicio), Some(fin)) = (self.inicio, self.fin) {
-                ui.add_space(16.0);
-                let horas = (self.hora(Extremo::Inicio).texto(), self.hora(Extremo::Fin).texto());
-                resumen(ui, inicio, fin, &horas.0, &horas.1);
-            }
+            ui.add_space(16.0);
+            let horas = (self.hora(Extremo::Inicio).texto(), self.hora(Extremo::Fin).texto());
+            resumen(ui, self.inicio, self.fin, &horas.0, &horas.1);
             ui.add_space(32.0);
             ui::pie_dialogo(ui, |ui| {
                 let texto = if enviando { "Creando..." } else { "Crear Cierre" };
@@ -229,6 +224,7 @@ impl CierreManual {
         if cancelar || respuesta.cerrar {
             self.abierto = false;
         }
+        None
     }
 
     fn selector_fecha(&mut self, ui: &mut Ui, ancho: f32, extremo: Extremo) {
@@ -238,10 +234,7 @@ impl CierreManual {
         ui.painter().rect(rect, RADIO, fondo, ui::borde(color::BORDE), StrokeKind::Inside);
         let icono = Rect::from_min_size(egui::pos2(rect.left() + 17.0, rect.center().y - 8.0), Vec2::splat(16.0));
         ui::pintar_icono_en(ui, icono, "calendar", color::TEXTO);
-        let texto = match valor {
-            Some(fecha) => logica::fecha_larga(fecha.date()),
-            None => if extremo == Extremo::Inicio { "Elige fecha inicio" } else { "Elige fecha fin" }.to_string(),
-        };
+        let texto = logica::fecha_larga(valor);
         ui.painter().with_clip_rect(ui.ctx().content_rect()).text(
             egui::pos2(icono.right() + 16.0, rect.center().y),
             Align2::LEFT_CENTER,
@@ -252,7 +245,7 @@ impl CierreManual {
         let id = Id::new("cierre-manual-calendario").with(extremo == Extremo::Inicio);
         if respuesta.on_hover_cursor(CursorIcon::PointingHand).clicked() {
             if !Popup::is_id_open(ui.ctx(), id) {
-                self.mes_visible = Local::now().date_naive().with_day(1).expect("día 1");
+                self.mes_visible = valor.with_day(1).expect("día 1");
             }
             Popup::toggle_id(ui.ctx(), id);
         }
@@ -271,15 +264,15 @@ impl CierreManual {
                     .inner_margin(egui::Margin::same(12)),
             )
             .show(|ui| {
-                elegido = calendario(ui, &mut self.mes_visible, valor.map(|v| v.date()));
+                elegido = calendario(ui, &mut self.mes_visible, valor);
             });
         if let Some(dia) = elegido {
-            let nuevo = if valor.map(|v| v.date()) == Some(dia) { None } else { dia.and_hms_opt(0, 0, 0) };
             if extremo == Extremo::Inicio {
-                self.inicio = nuevo;
+                self.inicio = dia;
             } else {
-                self.fin = nuevo;
+                self.fin = dia;
             }
+            Popup::close_id(ui.ctx(), id);
         }
     }
 
@@ -332,7 +325,7 @@ fn linea_mixta(ui: &mut Ui, partes: &[(&str, Peso)], tam: Tam, color: Color32, a
     ui.painter().galley(egui::pos2(rect.left(), rect.center().y - galeria.size().y / 2.0), galeria, color);
 }
 
-fn resumen(ui: &mut Ui, inicio: NaiveDateTime, fin: NaiveDateTime, hora_inicio: &str, hora_fin: &str) {
+fn resumen(ui: &mut Ui, inicio: NaiveDate, fin: NaiveDate, hora_inicio: &str, hora_fin: &str) {
     ui::marco()
         .fill(paleta::BLUE_50)
         .stroke(ui::borde(paleta::BLUE_200))
@@ -348,10 +341,10 @@ fn resumen(ui: &mut Ui, inicio: NaiveDateTime, fin: NaiveDateTime, hora_inicio: 
                 ui::texto_en(ui, rect.left_center(), Align2::LEFT_CENTER, "Período seleccionado:", Tam::Sm, Peso::Medio, paleta::BLUE_800);
             });
             ui.add_space(8.0);
-            let texto_inicio = format!(" {} a las {hora_inicio}", logica::fecha_larga(inicio.date()));
+            let texto_inicio = format!(" {} a las {hora_inicio}", logica::fecha_larga(inicio));
             linea_mixta(ui, &[("Inicio:", Peso::Negrita), (&texto_inicio, Peso::Normal)], Tam::Sm, paleta::BLUE_700, 20.0);
             ui.add_space(4.0);
-            let texto_fin = format!(" {} a las {hora_fin}", logica::fecha_larga(fin.date()));
+            let texto_fin = format!(" {} a las {hora_fin}", logica::fecha_larga(fin));
             linea_mixta(ui, &[("Fin:", Peso::Negrita), (&texto_fin, Peso::Normal)], Tam::Sm, paleta::BLUE_700, 20.0);
             if inicio != fin {
                 ui.add_space(4.0);
@@ -372,10 +365,10 @@ fn boton_navegacion(ui: &Ui, rect: Rect, icono: &str, id: Id) -> bool {
     respuesta.clicked()
 }
 
-fn calendario(ui: &mut Ui, mes: &mut NaiveDate, elegida: Option<NaiveDate>) -> Option<NaiveDate> {
+fn calendario(ui: &mut Ui, mes: &mut NaiveDate, elegida: NaiveDate) -> Option<NaiveDate> {
     let ancho = 36.0 * 7.0;
     ui.set_width(ancho);
-    let hoy = Local::now().date_naive();
+    let hoy = logica::ahora_argentina().date();
     let (cabecera, _) = ui.allocate_exact_size(Vec2::new(ancho, 28.0), Sense::hover());
     ui::texto_en(ui, cabecera.center() + Vec2::new(0.0, 2.0), Align2::CENTER_CENTER, &nombre_mes(*mes), Tam::Sm, Peso::Medio, color::TEXTO);
     let anterior = Rect::from_min_size(egui::pos2(cabecera.left() + 4.0, cabecera.top()), Vec2::splat(28.0));
@@ -402,7 +395,7 @@ fn calendario(ui: &mut Ui, mes: &mut NaiveDate, elegida: Option<NaiveDate>) -> O
             let caja = Rect::from_min_size(egui::pos2(fila.left() + 36.0 * columna as f32, fila.top()), Vec2::splat(36.0));
             let afuera = dia.month() != primero.month();
             let deshabilitado = dia > hoy;
-            let seleccionado = elegida == Some(dia);
+            let seleccionado = elegida == dia;
             let sentido = if deshabilitado { Sense::hover() } else { Sense::click() };
             let respuesta = ui.interact(caja, ui.id().with(("dia", dia)), sentido);
             let (fondo, texto) = if seleccionado && !afuera {
