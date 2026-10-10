@@ -60,7 +60,9 @@ fn servidor(responder: impl Fn(&str, &str) -> Option<(u16, Value)> + Send + Sync
                 let mut cuerpo = vec![0; largo];
                 lector.read_exact(&mut cuerpo).unwrap();
                 let cuerpo = serde_json::from_slice(&cuerpo).unwrap_or(Value::Null);
-                registro.lock().unwrap().push(Pedido { metodo: metodo.clone(), ruta: ruta.clone(), encabezados, cuerpo });
+                if !ruta.starts_with("/api/productos") && !ruta.starts_with("/api/business/logo-comprobante") {
+                    registro.lock().unwrap().push(Pedido { metodo: metodo.clone(), ruta: ruta.clone(), encabezados, cuerpo });
+                }
                 let Some((estado, respuesta)) = responder(&metodo, &ruta) else {
                     std::thread::sleep(Duration::from_secs(600));
                     return;
