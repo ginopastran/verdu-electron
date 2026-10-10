@@ -324,7 +324,7 @@ impl SelectorProducto {
         let total_paginas = filtrados.len().div_ceil(PRODUCTOS_POR_PAGINA) as u32;
         let inicio = (self.pagina.saturating_sub(1)) * PRODUCTOS_POR_PAGINA;
         let pagina: Vec<Value> = filtrados.iter().skip(inicio).take(PRODUCTOS_POR_PAGINA).cloned().collect();
-        let negocio = cx.global.negocio.clone();
+        let iva_en_precios = super::iva_en_precios(cx);
         let mut elegido = None;
         let mut cerrar = false;
         let fijo = 277.0 + if self.error.is_some() { 64.0 } else { 0.0 } + if total_paginas > 1 && !self.cargando { 61.0 } else { 0.0 };
@@ -381,7 +381,7 @@ impl SelectorProducto {
                         if i > 0 {
                             ui.add_space(8.0);
                         }
-                        if boton_producto(ui, producto, &lista, negocio.as_ref()).clicked() {
+                        if boton_producto(ui, producto, &lista, iva_en_precios).clicked() {
                             elegido = Some(producto.clone());
                         }
                     }
@@ -414,19 +414,7 @@ fn chip(ui: &Ui, x: f32, centro: f32, contenido: &str, fondo: Color32, tinta: Co
     ancho
 }
 
-fn precio_visual(producto: &Value, precio: f64, negocio: Option<&Value>) -> f64 {
-    match negocio {
-        Some(n) => nucleo::iva::precio_visual_con_iva(
-            precio,
-            producto["ivaIncluido"].as_bool().unwrap_or(false),
-            producto["ivaPorcentaje"].as_f64(),
-            n["ivaIncluidoEnPrecios"].as_bool().unwrap_or(false),
-        ),
-        None => precio,
-    }
-}
-
-fn boton_producto(ui: &mut Ui, producto: &Value, lista: &ListaActiva, negocio: Option<&Value>) -> egui::Response {
+fn boton_producto(ui: &mut Ui, producto: &Value, lista: &ListaActiva, iva_en_precios: Option<bool>) -> egui::Response {
     let ancho = ui.available_width();
     let (rect, _) = ui.allocate_exact_size(Vec2::new(ancho, 86.0), Sense::hover());
     let id = producto["id"].as_i64().unwrap_or_default();
@@ -451,11 +439,11 @@ fn boton_producto(ui: &mut Ui, producto: &Value, lista: &ListaActiva, negocio: O
     let mut x = rect.left() + 17.0;
     x += chip(ui, x, fila2, texto(producto, "tipoMedida"), color::APAGADO, color::APAGADO_TEXTO, Peso::Normal) + 8.0;
     let base = numero(producto, "precio");
-    let precio = formato::pesos(precio_visual(producto, precio_lista.unwrap_or(base), negocio));
+    let precio = formato::pesos(logica::precio_con_iva(Some(producto), precio_lista.unwrap_or(base), iva_en_precios));
     let r = comun::texto_en(ui, egui::pos2(x, fila2), Align2::LEFT_CENTER, &precio, Tam::Sm, Peso::Medio, color::PRIMARIO);
     x = r.right() + 8.0;
     if precio_lista.is_some_and(|p| p != base) {
-        let tachado = formato::pesos(precio_visual(producto, base, negocio));
+        let tachado = formato::pesos(logica::precio_con_iva(Some(producto), base, iva_en_precios));
         let r = comun::texto_en(ui, egui::pos2(x, fila2), Align2::LEFT_CENTER, &tachado, Tam::Xs, Peso::Normal, color::APAGADO_TEXTO);
         ui.painter().hline(r.x_range(), r.center().y, Stroke::new(1.0, color::APAGADO_TEXTO));
         x = r.right() + 8.0;
@@ -471,6 +459,7 @@ fn boton_producto(ui: &mut Ui, producto: &Value, lista: &ListaActiva, negocio: O
 pub struct CantidadProducto {
     producto: Option<Value>,
     precio: f64,
+    precio_con_iva: f64,
     cantidad: f64,
     texto: String,
     error: Option<String>,
@@ -479,7 +468,7 @@ pub struct CantidadProducto {
 
 impl Default for CantidadProducto {
     fn default() -> Self {
-        CantidadProducto { producto: None, precio: 0.0, cantidad: 1.0, texto: "1".into(), error: None, enfocar: false }
+        CantidadProducto { producto: None, precio: 0.0, precio_con_iva: 0.0, cantidad: 1.0, texto: "1".into(), error: None, enfocar: false }
     }
 }
 
@@ -489,8 +478,9 @@ pub enum ResultadoCantidad {
 }
 
 impl CantidadProducto {
-    pub fn abrir(&mut self, producto: Value, precio: f64) {
-        *self = CantidadProducto { producto: Some(producto), precio, enfocar: true, ..CantidadProducto::default() };
+    pub fn abrir(&mut self, producto: Value, precio: f64, iva_en_precios: Option<bool>) {
+        let precio_con_iva = logica::precio_con_iva(Some(&producto), precio, iva_en_precios);
+        *self = CantidadProducto { producto: Some(producto), precio, precio_con_iva, enfocar: true, ..CantidadProducto::default() };
     }
 
     fn cambiar_texto(&mut self) {
@@ -509,7 +499,7 @@ impl CantidadProducto {
     pub fn mostrar(&mut self, ctx: &Context) -> Option<ResultadoCantidad> {
         let producto = self.producto.clone()?;
         let precio = self.precio;
-        let subtotal = self.cantidad * precio;
+        let subtotal = self.cantidad * self.precio_con_iva;
         let mut resultado = None;
         let mut confirmar = false;
         let r = ui::Dialogo::new("facturas-cantidad").ancho(448.0).mostrar(ctx, |ui| {
@@ -535,7 +525,7 @@ impl CantidadProducto {
                 comun::texto_en(ui, egui::pos2(x1, y + 10.0), Align2::RIGHT_CENTER, valor, Tam::Sm, Peso::Medio, tinta);
                 y += 28.0;
             };
-            fila("Precio unitario:", &formato::pesos(precio), color::TEXTO);
+            fila("Precio unitario:", &formato::pesos(self.precio_con_iva), color::TEXTO);
             fila("Unidad:", texto(&producto, "tipoMedida"), color::TEXTO);
             if let Some(stock) = stock {
                 fila("Stock disponible:", &formato::numero(stock), if stock > 0.0 { paleta::GREEN_600 } else { paleta::RED_600 });

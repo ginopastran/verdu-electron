@@ -6,6 +6,7 @@ use serde_json::{json, Map, Value};
 use crate::api::{codificar, Cliente};
 use crate::cierre::argentina;
 use crate::formato;
+use crate::iva::precio_visual_con_iva;
 
 pub fn total_pagado(factura: &Value) -> f64 {
     redondear2(
@@ -131,6 +132,26 @@ impl Detalle {
         mapa.insert("subtotal".into(), json!(self.subtotal));
         Value::Object(mapa)
     }
+}
+
+pub fn precio_con_iva(producto: Option<&Value>, precio: f64, iva_incluido_en_precios: Option<bool>) -> f64 {
+    match iva_incluido_en_precios {
+        Some(en_precios) => precio_visual_con_iva(
+            precio,
+            producto.is_some_and(|p| p["ivaIncluido"].as_bool().unwrap_or(false)),
+            producto.and_then(|p| p["ivaPorcentaje"].as_f64()),
+            en_precios,
+        ),
+        None => precio,
+    }
+}
+
+pub fn precio_sin_iva(producto: Option<&Value>, precio_con_iva_visible: f64, iva_incluido_en_precios: Option<bool>) -> f64 {
+    precio_con_iva_visible / precio_con_iva(producto, 1.0, iva_incluido_en_precios)
+}
+
+pub fn texto_precio_con_iva(producto: Option<&Value>, precio: f64, iva_incluido_en_precios: Option<bool>) -> String {
+    texto_entrada(redondear2(precio_con_iva(producto, precio, iva_incluido_en_precios)))
 }
 
 pub fn precio_con_lista(producto: &Value, precio_lista: Option<f64>) -> f64 {
@@ -573,6 +594,43 @@ mod tests {
         let sin_producto = vec![Detalle::nuevo(9, None, "X".into(), 1.0, 100.0)];
         assert_eq!(calcular_totales(&sin_producto, "A", false), Totales { subtotal: 100.0, impuestos: 21.0, total: 121.0 });
         assert_eq!(calcular_totales(&sin_producto, "C", true), Totales { subtotal: 82.64, impuestos: 17.36, total: 100.0 });
+    }
+
+    #[test]
+    fn precios_visibles_con_iva_y_vuelta() {
+        let manzana = json!({ "ivaIncluido": false, "ivaPorcentaje": 10.5 });
+        let incluido = json!({ "ivaIncluido": true, "ivaPorcentaje": 21.0 });
+        assert_eq!(precio_con_iva(Some(&manzana), 1000.0, Some(false)), 1105.0);
+        assert_eq!(precio_con_iva(Some(&manzana), 1000.0, Some(true)), 1000.0);
+        assert_eq!(precio_con_iva(Some(&incluido), 1000.0, Some(false)), 1000.0);
+        assert_eq!(precio_con_iva(None, 100.0, Some(false)), 121.0);
+        assert_eq!(precio_con_iva(Some(&manzana), 1000.0, None), 1000.0);
+        assert!((precio_sin_iva(Some(&manzana), 1105.0, Some(false)) - 1000.0).abs() < 1e-9);
+        assert!((precio_sin_iva(None, 121.0, Some(false)) - 100.0).abs() < 1e-9);
+        assert_eq!(precio_sin_iva(Some(&incluido), 1000.0, Some(false)), 1000.0);
+        assert_eq!(texto_precio_con_iva(Some(&manzana), 82.5, Some(false)), "91,16");
+        assert_eq!(texto_precio_con_iva(None, 0.1 * 3.0, Some(true)), "0,3");
+    }
+
+    #[test]
+    fn filas_con_iva_suman_el_total_de_la_factura() {
+        let sin_incluir = json!({ "ivaIncluido": false, "ivaPorcentaje": 10.5 });
+        let detalles = vec![
+            Detalle::nuevo(1, Some(sin_incluir.clone()), "Tomate".into(), 1.245, 2400.0),
+            Detalle::nuevo(2, Some(sin_incluir), "Pimiento".into(), 0.415, 4500.0),
+            Detalle::nuevo(3, None, "Varios".into(), 3.0, 333.33),
+        ];
+        for tipo in ["A", "C"] {
+            let totales = calcular_totales(&detalles, tipo, false);
+            let visibles: f64 = detalles.iter().map(|d| redondear2(precio_con_iva(d.producto.as_ref(), d.subtotal, Some(false)))).sum();
+            assert!((visibles - totales.total).abs() <= 0.01 * detalles.len() as f64, "{tipo}: {visibles} vs {}", totales.total);
+            assert_eq!(totales.total, redondear2(totales.subtotal + totales.impuestos));
+        }
+        let mut editado = detalles[0].clone();
+        editado.precio_unitario = precio_sin_iva(editado.producto.as_ref(), 2652.0, Some(false));
+        editado.recalcular();
+        assert!((precio_con_iva(editado.producto.as_ref(), editado.subtotal, Some(false)) - 2652.0 * 1.245).abs() < 1e-6);
+        assert!((editado.precio_unitario - 2400.0).abs() < 1e-9);
     }
 
     #[test]

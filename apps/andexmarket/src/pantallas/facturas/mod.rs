@@ -49,6 +49,10 @@ fn numero(valor: &Value, clave: &str) -> f64 {
     valor[clave].as_f64().unwrap_or(0.0)
 }
 
+fn iva_en_precios(cx: &Contexto) -> Option<bool> {
+    cx.global.negocio.as_ref().map(|n| n["ivaIncluidoEnPrecios"].as_bool().unwrap_or(false))
+}
+
 fn mostrar_valor(valor: &Value) -> String {
     match valor {
         Value::Null => String::new(),

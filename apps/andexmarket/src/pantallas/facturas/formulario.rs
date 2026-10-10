@@ -38,9 +38,9 @@ struct Fila {
 }
 
 impl Fila {
-    fn new(detalle: Detalle) -> Self {
+    fn new(detalle: Detalle, iva_en_precios: Option<bool>) -> Self {
         let cantidad = logica::texto_entrada(detalle.cantidad);
-        let precio = logica::texto_entrada(detalle.precio_unitario);
+        let precio = logica::texto_precio_con_iva(detalle.producto.as_ref(), detalle.precio_unitario, iva_en_precios);
         Fila { detalle, cantidad, precio }
     }
 }
@@ -228,7 +228,7 @@ impl FormularioFactura {
                 Respuesta::Iniciales(apertura, detalles) => {
                     if apertura == self.apertura {
                         self.cargando_iniciales = false;
-                        self.filas = detalles.into_iter().map(Fila::new).collect();
+                        self.filas = detalles.into_iter().map(|d| Fila::new(d, super::iva_en_precios(cx))).collect();
                         if let Some(id) = id_lista(&self.lista_seleccionada) {
                             self.actualizar_precios(cx, Some(id));
                         }
@@ -236,7 +236,7 @@ impl FormularioFactura {
                 }
                 Respuesta::Actualizados(apertura, lista, detalles) => {
                     if apertura == self.apertura && lista == id_lista(&self.lista_seleccionada) {
-                        self.filas = detalles.into_iter().map(Fila::new).collect();
+                        self.filas = detalles.into_iter().map(|d| Fila::new(d, super::iva_en_precios(cx))).collect();
                     }
                 }
             }
@@ -399,12 +399,12 @@ impl FormularioFactura {
             let id = producto["id"].as_i64().unwrap_or_default();
             let precio_lista = self.lista_seleccionada.as_ref().and(self.precios_lista.get(&id).copied());
             let precio = logica::precio_con_lista(&producto, precio_lista);
-            self.cantidad.abrir(producto, precio);
+            self.cantidad.abrir(producto, precio, super::iva_en_precios(cx));
         }
         if let Some(ResultadoCantidad::Confirmada(producto, cantidad, precio)) = self.cantidad.mostrar(&ctx) {
             let id = producto["id"].as_i64().unwrap_or_default();
             let nombre = texto(&producto, "nombre").to_string();
-            self.filas.push(Fila::new(Detalle::nuevo(id, Some(producto), nombre, cantidad, precio)));
+            self.filas.push(Fila::new(Detalle::nuevo(id, Some(producto), nombre, cantidad, precio), super::iva_en_precios(cx)));
         }
         if r.cerrar {
             self.abierto = false;
@@ -526,7 +526,7 @@ impl FormularioFactura {
         }
         if !self.filas.is_empty() {
             ui.add_space(16.0);
-            self.tabla(ui);
+            self.tabla(ui, super::iva_en_precios(cx));
             ui.add_space(16.0);
             resumen(ui, &self.tipo_factura, totales);
         }
@@ -580,7 +580,7 @@ impl FormularioFactura {
         respuesta
     }
 
-    fn tabla(&mut self, ui: &mut Ui) {
+    fn tabla(&mut self, ui: &mut Ui, iva_en_precios: Option<bool>) {
         let ancho = ui.available_width();
         let interior = ancho - 2.0;
         let fijos = [interior * 305.0 / 1085.0, interior * 356.0 / 1085.0, 120.0, 120.0, 120.0];
@@ -647,10 +647,10 @@ impl FormularioFactura {
             }
             let mut hijo = ui.new_child(egui::UiBuilder::new().max_rect(celda(3)));
             if Entrada::new(&mut fila.precio).tam(Tam::Sm).id(Id::new(("factura-precio", i))).ui(&mut hijo).changed() {
-                d.precio_unitario = logica::parsear_numero(&fila.precio).unwrap_or(0.0);
+                d.precio_unitario = logica::precio_sin_iva(d.producto.as_ref(), logica::parsear_numero(&fila.precio).unwrap_or(0.0), iva_en_precios);
                 d.recalcular();
             }
-            comun::texto_en(ui, egui::pos2(celda(4).right(), centro), Align2::RIGHT_CENTER, &formato::pesos(d.subtotal), Tam::Sm, Peso::Medio, color::TEXTO);
+            comun::texto_en(ui, egui::pos2(celda(4).right(), centro), Align2::RIGHT_CENTER, &formato::pesos(logica::precio_con_iva(d.producto.as_ref(), d.subtotal, iva_en_precios)), Tam::Sm, Peso::Medio, color::TEXTO);
             let papelera = Rect::from_min_size(egui::pos2(columnas[5] + 16.0, centro - 16.0), Vec2::splat(32.0));
             let r = ui.interact(papelera, Id::new(("factura-borrar", i)), Sense::click()).on_hover_cursor(CursorIcon::PointingHand);
             if r.hovered() {

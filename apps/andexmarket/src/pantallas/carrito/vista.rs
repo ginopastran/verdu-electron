@@ -11,7 +11,14 @@ use super::productos::{monto, ProductoDisponible};
 use crate::ui::{self, borde, color, fuente, paleta, Boton, Direccion, Peso, Tam, TamBoton, Variante};
 
 pub const ANCHO_BARRA: f32 = 384.0;
+const ANCHO_BARRA_MINIMO: f32 = 336.0;
+const ANCHO_PANTALLA_DE_REFERENCIA: f32 = 1200.0;
+pub const NIVEL_CABECERA_MAXIMO: u8 = 3;
 const ALTO_MAXIMO_RESULTADOS: f32 = 400.0;
+
+pub fn ancho_barra(ancho_pantalla: f32) -> f32 {
+    (ANCHO_BARRA * ancho_pantalla / ANCHO_PANTALLA_DE_REFERENCIA).clamp(ANCHO_BARRA_MINIMO, ANCHO_BARRA)
+}
 
 pub fn en_rect<R>(ui: &mut Ui, rect: Rect, contenido: impl FnOnce(&mut Ui) -> R) -> R {
     let mut hijo = ui.new_child(UiBuilder::new().max_rect(rect).layout(Layout::left_to_right(Align::Min)));
@@ -166,15 +173,16 @@ struct Pestana {
     borrar: Option<Rect>,
 }
 
-fn disponer_pestanas(ui: &Ui, carritos: &Carritos, origen: Pos2) -> (Vec<Pestana>, Option<Rect>, f32) {
+fn disponer_pestanas(ui: &Ui, carritos: &Carritos, origen: Pos2, compactas: bool) -> (Vec<Pestana>, Option<Rect>, f32) {
+    let (separacion, relleno) = if compactas { (8.0, 24.0) } else { (16.0, 64.0) };
     let mut x = origen.x;
     let mut pestanas = Vec::new();
     for indice in 0..carritos.screens.len() {
         if indice > 0 {
-            x += 16.0;
+            x += separacion;
         }
         let activa = carritos.active_screen == indice;
-        let ancho = 64.0 + ancho_texto(ui, &format!("Orden {}", indice + 1), Tam::Sm, Peso::Medio) + if activa { 0.0 } else { 2.0 };
+        let ancho = relleno + ancho_texto(ui, &format!("Orden {}", indice + 1), Tam::Sm, Peso::Medio) + if activa { 0.0 } else { 2.0 };
         let caja = Rect::from_min_size(Pos2::new(x, origen.y - 20.0), Vec2::new(ancho, 40.0));
         x += ancho;
         let borrar = (indice > 0).then(|| {
@@ -193,12 +201,12 @@ fn disponer_pestanas(ui: &Ui, carritos: &Carritos, origen: Pos2) -> (Vec<Pestana
     (pestanas, mas, x - origen.x)
 }
 
-pub fn ancho_pestanas(ui: &Ui, carritos: &Carritos) -> f32 {
-    disponer_pestanas(ui, carritos, Pos2::ZERO).2
+pub fn ancho_pestanas(ui: &Ui, carritos: &Carritos, compactas: bool) -> f32 {
+    disponer_pestanas(ui, carritos, Pos2::ZERO, compactas).2
 }
 
-pub fn pestanas(ui: &mut Ui, carritos: &Carritos, origen: Pos2) -> Option<AccionPestana> {
-    let (lista, mas, _) = disponer_pestanas(ui, carritos, origen);
+pub fn pestanas(ui: &mut Ui, carritos: &Carritos, origen: Pos2, compactas: bool) -> Option<AccionPestana> {
+    let (lista, mas, _) = disponer_pestanas(ui, carritos, origen, compactas);
     let mut accion = None;
     for pestana in lista {
         let activa = carritos.active_screen == pestana.indice;
@@ -254,6 +262,7 @@ pub struct Cabecera<'a> {
     pub facturacion: bool,
     pub cierre: bool,
     pub usuario: (&'a str, &'a str),
+    pub nivel: u8,
 }
 
 impl Cabecera<'_> {
@@ -268,14 +277,46 @@ impl Cabecera<'_> {
         botones
     }
 
-    fn ancho_boton(ui: &Ui, texto: &str) -> f32 {
-        32.0 + 24.0 + 8.0 + ancho_texto(ui, texto, Tam::Base, Peso::Medio)
+    fn solo_iconos(&self) -> bool {
+        self.nivel >= 1
+    }
+
+    fn con_nombre(&self) -> bool {
+        self.nivel < 2
+    }
+
+    pub fn pestanas_compactas(&self) -> bool {
+        self.nivel >= 3
+    }
+
+    fn separacion_botones(&self) -> f32 {
+        if self.solo_iconos() {
+            8.0
+        } else {
+            16.0
+        }
+    }
+
+    fn ancho_boton(&self, ui: &Ui, texto: &str) -> f32 {
+        if self.solo_iconos() {
+            40.0
+        } else {
+            32.0 + 24.0 + 8.0 + ancho_texto(ui, texto, Tam::Base, Peso::Medio)
+        }
+    }
+
+    fn ancho_nombre(&self, ui: &Ui) -> f32 {
+        if self.con_nombre() {
+            ancho_texto(ui, self.usuario.0, Tam::Base, Peso::Medio) + 8.0
+        } else {
+            0.0
+        }
     }
 
     pub fn ancho(&self, ui: &Ui) -> f32 {
         let botones = self.botones();
-        let ancho: f32 = botones.iter().map(|(_, t, _)| Self::ancho_boton(ui, t)).sum::<f32>() + 16.0 * (botones.len() as f32 - 1.0);
-        ancho + 16.0 + ancho_texto(ui, self.usuario.0, Tam::Base, Peso::Medio) + 8.0 + 40.0
+        let ancho: f32 = botones.iter().map(|(_, t, _)| self.ancho_boton(ui, t)).sum::<f32>() + self.separacion_botones() * (botones.len() as f32 - 1.0);
+        ancho + 16.0 + self.ancho_nombre(ui) + 40.0
     }
 
     pub fn mostrar(&self, ui: &mut Ui, derecha: f32, centro_y: f32) -> Option<AccionCabecera> {
@@ -286,23 +327,28 @@ impl Cabecera<'_> {
         let r = en_rect(ui, caja, |ui| {
             Boton::new("").variante(Variante::Esmeralda).tam(TamBoton::Icono).icono("user").tam_icono(24.0).ui(ui)
         });
-        x -= 48.0;
-        let ancho_nombre = ancho_texto(ui, nombre, Tam::Base, Peso::Medio);
-        ui.painter().text(Pos2::new(x, centro_y), egui::Align2::RIGHT_CENTER, nombre, fuente(Tam::Base, Peso::Medio), color::TEXTO);
-        x -= ancho_nombre + 16.0;
+        if self.con_nombre() {
+            ui.painter().text(Pos2::new(x - 48.0, centro_y), egui::Align2::RIGHT_CENTER, nombre, fuente(Tam::Base, Peso::Medio), color::TEXTO);
+        }
+        x -= 40.0 + self.ancho_nombre(ui) + 16.0;
         if let Some(Some(a)) = menu_usuario(&r, nombre, email) {
             accion = Some(a);
         }
         for (icono, texto, a) in self.botones().into_iter().rev() {
-            let ancho = Self::ancho_boton(ui, texto);
+            let ancho = self.ancho_boton(ui, texto);
             let caja = Rect::from_min_size(Pos2::new(x - ancho, centro_y - 20.0), Vec2::new(ancho, 40.0));
             let r = en_rect(ui, caja, |ui| {
-                Boton::new(texto).variante(Variante::Esmeralda).icono(icono).tam_icono(24.0).texto_tam(Tam::Base).ancho(ancho).ui(ui)
+                let boton = Boton::new(if self.solo_iconos() { "" } else { texto }).variante(Variante::Esmeralda).icono(icono).tam_icono(24.0);
+                if self.solo_iconos() {
+                    boton.tam(TamBoton::Icono).ui(ui).on_hover_text(texto)
+                } else {
+                    boton.texto_tam(Tam::Base).ancho(ancho).ui(ui)
+                }
             });
             if r.clicked() {
                 accion = Some(a);
             }
-            x -= ancho + 16.0;
+            x -= ancho + self.separacion_botones();
         }
         accion
     }

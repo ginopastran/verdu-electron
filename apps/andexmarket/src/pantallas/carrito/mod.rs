@@ -11,7 +11,7 @@ use serde_json::Value;
 
 use self::dialogos::{DialogoAgregar, DialogoEscanear, Salida};
 use self::productos::{FilaLista, ProductoDisponible};
-use self::vista::{AccionCabecera, AccionPestana, Cabecera, Resumen, ANCHO_BARRA};
+use self::vista::{AccionCabecera, AccionPestana, Cabecera, Resumen, NIVEL_CABECERA_MAXIMO};
 use super::cierre::DialogoCierre;
 use super::cobro::{AccionCobro, Cobro};
 use super::configuracion::balanza::DialogoBalanza;
@@ -368,7 +368,7 @@ impl Carrito {
         }
 
         let pantalla = ui.max_rect();
-        let barra = Rect::from_min_size(pantalla.min, Vec2::new(ANCHO_BARRA, pantalla.height()));
+        let barra = Rect::from_min_size(pantalla.min, Vec2::new(vista::ancho_barra(pantalla.width()), pantalla.height()));
         let atajos = vista::atajos(cx.global.negocio.as_ref());
         let caja_buscador = vista::barra_lateral(ui, barra, &atajos);
         let eligio = if self.hay_dialogo() { false } else { self.teclas_busqueda(ui, cx) };
@@ -436,13 +436,18 @@ impl Carrito {
         let usuario = cx.global.usuario.clone();
         let nombre = usuario.as_ref().and_then(|u| u["nombre"].as_str()).unwrap_or_default().to_string();
         let email = usuario.as_ref().and_then(|u| u["email"].as_str()).unwrap_or_default().to_string();
-        let cabecera = Cabecera {
+        let mut cabecera = Cabecera {
             facturacion: cx.global.negocio_bool("facturacionHabilitada"),
             cierre: usuario.as_ref().is_some_and(|u| u["permisos"]["cierreDeCajaEnabled"].as_bool().unwrap_or(false)),
             usuario: (nombre.as_str(), email.as_str()),
+            nivel: 0,
         };
-        let ancho_pestanas = vista::ancho_pestanas(ui, &cx.global.carritos);
         let ancho_columna = ui.max_rect().width() - 48.0;
+        let necesario_con = |cabecera: &Cabecera| vista::ancho_pestanas(ui, &cx.global.carritos, cabecera.pestanas_compactas()) + 8.0 + cabecera.ancho(ui);
+        while cabecera.nivel < NIVEL_CABECERA_MAXIMO && necesario_con(&cabecera) > ancho_columna + 0.5 {
+            cabecera.nivel += 1;
+        }
+        let ancho_pestanas = vista::ancho_pestanas(ui, &cx.global.carritos, cabecera.pestanas_compactas());
         let necesario = ancho_pestanas + 8.0 + cabecera.ancho(ui);
         let desborda = necesario > ancho_columna + 0.5;
         let mut estilo_scroll = ui.spacing().scroll;
@@ -482,7 +487,7 @@ impl Carrito {
 
     fn cabecera(&mut self, ui: &mut Ui, cx: &mut Contexto, cabecera: &Cabecera, columna: Rect, ancho_pestanas: f32, desborda: bool) {
         let centro_y = columna.top() + 20.0;
-        match vista::pestanas(ui, &cx.global.carritos, Pos2::new(columna.left(), centro_y)) {
+        match vista::pestanas(ui, &cx.global.carritos, Pos2::new(columna.left(), centro_y), cabecera.pestanas_compactas()) {
             Some(AccionPestana::Elegir(indice)) => {
                 cx.global.carritos.elegir(indice);
                 self.enfocar = CUADROS_ENFOQUE;

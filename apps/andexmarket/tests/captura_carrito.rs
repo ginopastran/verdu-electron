@@ -407,3 +407,55 @@ fn menu_usuario_abre_impresion_y_balanza() {
     assert!(h.state_mut().pantallas().carrito.balanza.abierto());
 }
 
+
+fn carritos_cuatro() -> Carritos {
+    let mut carritos = carritos_sembrados();
+    let mut extra = serde_json::to_value(&carritos.screens[1]).unwrap();
+    for id in [2, 3] {
+        extra["id"] = json!(id);
+        carritos.screens.push(serde_json::from_value(extra.clone()).unwrap());
+    }
+    carritos
+}
+
+fn cabecera_en(nombre: &str, tam: [f32; 2], buscar: bool) {
+    let mut g = global(negocio_afip(), false);
+    g.carritos = carritos_cuatro();
+    capturar_en(nombre, tam, g, |_| {}, |h| {
+        if buscar {
+            escribir(h, "a");
+        } else {
+            clic(h, Pos2::new(tam[0] - 44.0, 44.0));
+        }
+    });
+}
+
+#[test]
+fn cabecera_1920() {
+    cabecera_en("74-carrito-cabecera-1920", [1920.0, 1080.0], false);
+}
+
+#[test]
+fn cabecera_1366() {
+    cabecera_en("74b-carrito-cabecera-1366", [1366.0, 768.0], false);
+}
+
+#[test]
+fn cabecera_1280() {
+    cabecera_en("74c-carrito-cabecera-1280", [1280.0, 720.0], false);
+}
+
+#[test]
+fn cabecera_1200() {
+    cabecera_en("74d-carrito-cabecera-1200", [1200.0, 800.0], false);
+}
+
+#[test]
+fn cabecera_1024() {
+    cabecera_en("74e-carrito-cabecera-1024", [1024.0, 768.0], false);
+}
+
+#[test]
+fn buscador_1024() {
+    cabecera_en("74f-carrito-buscador-1024", [1024.0, 768.0], true);
+}
