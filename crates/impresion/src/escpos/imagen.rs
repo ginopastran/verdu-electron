@@ -1,6 +1,8 @@
 use std::io::Cursor;
 use std::path::Path;
 
+const PROPORCION_MINIMA: usize = 3;
+
 pub struct Imagen {
     pub ancho: usize,
     pub alto: usize,
@@ -40,11 +42,17 @@ pub fn cargar_logo(ruta: &Path, ancho_destino: usize) -> Option<Imagen> {
     } else {
         return None;
     };
-    let alto_destino = (original.alto as f64 * (ancho_destino as f64 / original.ancho as f64)).floor() as usize;
+    let alto_maximo = ancho_destino / PROPORCION_MINIMA;
+    let mut ancho_logo = ancho_destino;
+    let mut alto_destino = (original.alto as f64 * (ancho_destino as f64 / original.ancho as f64)).floor() as usize;
+    if alto_destino > alto_maximo {
+        ancho_logo = ((original.ancho as f64 * alto_maximo as f64 / original.alto as f64).floor() as usize).max(1);
+        alto_destino = alto_maximo;
+    }
     if alto_destino == 0 {
         return None;
     }
-    let escalado = remuestrear(&original, ancho_destino, alto_destino);
+    let escalado = remuestrear(&original, ancho_logo, alto_destino);
     let tinta: Vec<bool> = escalado
         .pixeles
         .iter()
@@ -60,6 +68,11 @@ pub fn cargar_logo(ruta: &Path, ancho_destino: usize) -> Option<Imagen> {
     } else {
         tinta
     };
+    let margen = (ancho_destino - ancho_logo) / 2;
+    let negro = negro
+        .chunks(ancho_logo)
+        .flat_map(|fila| std::iter::repeat_n(false, margen).chain(fila.iter().copied()).chain(std::iter::repeat_n(false, ancho_destino - ancho_logo - margen)))
+        .collect();
     Some(Imagen { ancho: ancho_destino, alto: alto_destino, negro })
 }
 
@@ -200,11 +213,11 @@ mod tests {
 
     #[test]
     fn logo_blanco_sobre_transparente_sale_con_tinta() {
-        let (ancho, alto) = (40u32, 20u32);
+        let (ancho, alto) = (60u32, 20u32);
         let mut rgba = Vec::new();
         for y in 0..alto {
             for x in 0..ancho {
-                let forma = (10..30).contains(&x) && (5..15).contains(&y);
+                let forma = (20..40).contains(&x) && (5..15).contains(&y);
                 rgba.extend_from_slice(&[255, 255, 255, if forma { 255 } else { 0 }]);
             }
         }
@@ -216,11 +229,11 @@ mod tests {
             codificador.set_depth(png::BitDepth::Eight);
             codificador.write_header().unwrap().write_image_data(&rgba).unwrap();
         }
-        let imagen = cargar_logo(&ruta, 40).unwrap();
+        let imagen = cargar_logo(&ruta, 60).unwrap();
         std::fs::remove_file(&ruta).unwrap();
         let negros = imagen.negro.iter().filter(|&&n| n).count();
         assert_eq!(negros, 200);
-        assert!(imagen.negro[10 * 40 + 20]);
+        assert!(imagen.negro[10 * 60 + 30]);
         assert!(!imagen.negro[0]);
     }
 }
