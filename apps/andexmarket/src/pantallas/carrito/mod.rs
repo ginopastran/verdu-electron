@@ -401,7 +401,7 @@ impl Carrito {
         let disposicion = cabecera.disponer(ui, pantalla);
         Cabecera::pintar_fondo(ui, &disposicion);
 
-        let eligio = if self.hay_dialogo() { false } else { self.teclas_busqueda(ui, cx) };
+        let eligio = if self.hay_dialogo() || self.cobro.venta_cobrada() { false } else { self.teclas_busqueda(ui, cx) };
         let pegados: Vec<String> = if ui.memory(|m| m.has_focus(id_buscador())) {
             ui.input(|i| i.events.iter().filter_map(|e| if let Event::Paste(t) = e { Some(t.clone()) } else { None }).collect())
         } else {

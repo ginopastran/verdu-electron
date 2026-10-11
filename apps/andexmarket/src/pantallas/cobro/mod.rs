@@ -274,6 +274,10 @@ impl Cobro {
             || self.tareas.iter().any(|t| t.bloquea)
     }
 
+    pub fn venta_cobrada(&self) -> bool {
+        self.completada.is_some()
+    }
+
     pub fn mostrar(&mut self, ui: &mut Ui, cx: &mut Contexto) -> Option<ResultadoCobro> {
         cx.egui.input(|i| {
             for evento in &i.events {

@@ -135,6 +135,7 @@ fn responder(ruta: &str) -> (u16, Value) {
     match id {
         Some(id) if (id - 1) % 3 != 2 => (200, json!({ "productos": [fila(id, 1, "Mayorista", 0.88), fila(id, 2, "Restaurantes", 0.93)] })),
         Some(_) => (200, json!({ "productos": [] })),
+        None if ruta == "/api/ordenes" => (200, json!({ "id": 9022, "idReal": 9022, "estado": "COMPLETADA" })),
         None => (500, json!({ "error": "sin datos" })),
     }
 }
@@ -438,6 +439,28 @@ fn agregar_y_quitar_items() {
     let items = h.state_mut().global().carritos.items().to_vec();
     assert_eq!(items.len(), 2);
     assert_eq!((items[1].id, items[1].quantity), (1, 1.355));
+}
+
+#[test]
+fn enter_cierra_venta_cobrada() {
+    let mut h = arnes(con_items(Opciones { afip: false, ..POR_DEFECTO }), [1366.0, 768.0], false);
+    tecla(&mut h, Key::F3);
+    tecla(&mut h, Key::Num2);
+    for _ in 0..300 {
+        if h.state_mut().pantallas().carrito.cobro.venta_cobrada() {
+            break;
+        }
+        h.step();
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    h.run_steps(4);
+    assert!(h.state_mut().pantallas().carrito.cobro.venta_cobrada());
+    assert!(h.state_mut().global().carritos.items().is_empty());
+    assert!(buscador_enfocado(&h));
+    tecla(&mut h, Key::Enter);
+    assert!(!h.state_mut().pantallas().carrito.cobro.venta_cobrada());
+    h.run_steps(4);
+    assert!(buscador_enfocado(&h));
 }
 
 fn buscador_enfocado(harness: &Harness<'_, App>) -> bool {
