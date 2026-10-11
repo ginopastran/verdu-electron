@@ -589,14 +589,17 @@ fn boton_cobrar(ui: &mut Ui, rect: Rect, datos: &Panel) -> bool {
     let pintor = ui.painter().clone();
     pintor.rect_filled(rect, radio::POPOVER, tinte(mezclar(color::VERDE, color::VERDE_PROFUNDO, avance)));
     pintar_icono_solar_en(ui, Rect::from_min_size(Pos2::new(rect.left() + 18.0, rect.center().y - 13.0), Vec2::splat(26.0)), "wallet", tinte(color::DORADO));
-    let (titulo, detalle) = if datos.afip { ("Cobrar con factura", "Factura B en AFIP") } else { ("Cobrar", "Efectivo, tarjeta, QR o mixto") };
+    let (titulo, detalle) = if datos.afip { ("Cobrar con factura", None) } else { ("Cobrar", Some("Efectivo, tarjeta, QR o mixto")) };
     let titulo = galeria(ui, titulo, tam::FILA, Peso::Semi, color::BLANCO);
-    let detalle = galeria(ui, detalle, tam::XS, Peso::Normal, tinte(color::SOBRE_OSCURO_APAGADO));
+    let detalle = detalle.map(|d| galeria(ui, d, tam::XS, Peso::Normal, tinte(color::SOBRE_OSCURO_APAGADO)));
     let x = rect.left() + 18.0 + 26.0 + 14.0;
-    let arriba = rect.center().y - (titulo.size().y + 1.0 + detalle.size().y) / 2.0;
+    let alto_detalle = detalle.as_ref().map_or(0.0, |d| 1.0 + d.size().y);
+    let arriba = rect.center().y - (titulo.size().y + alto_detalle) / 2.0;
     let alto_titulo = titulo.size().y;
     pintor.galley(Pos2::new(x, arriba), titulo, color::BLANCO);
-    pintor.galley(Pos2::new(x, arriba + alto_titulo + 1.0), detalle, tinte(color::SOBRE_OSCURO_APAGADO));
+    if let Some(detalle) = detalle {
+        pintor.galley(Pos2::new(x, arriba + alto_titulo + 1.0), detalle, tinte(color::SOBRE_OSCURO_APAGADO));
+    }
     let tam_tecla = v2::medir_tecla(ui, "F2", &EstiloTecla::SOBRE_OSCURO);
     let tecla = Rect::from_min_size(Pos2::new(rect.right() - 18.0 - tam_tecla.x, rect.center().y - tam_tecla.y / 2.0), tam_tecla);
     v2::pintar_tecla(ui, tecla, "F2", &EstiloTecla::SOBRE_OSCURO, color::BLANCO);
