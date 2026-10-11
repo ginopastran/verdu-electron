@@ -17,13 +17,9 @@ pub fn hora_argentina() -> Ahora {
     Utc::now().with_timezone(&FixedOffset::west_opt(3 * 3600).unwrap())
 }
 
-pub fn logo(datos: &Value, defecto: &Path, ancho: usize) -> Option<Imagen> {
-    let propio = datos["logoPath"].as_str().filter(|ruta| !ruta.is_empty()).map(Path::new);
-    let ruta = [propio, Some(defecto)]
-        .into_iter()
-        .flatten()
-        .find(|ruta| std::fs::metadata(ruta).is_ok_and(|m| m.len() > 0))?;
-    cargar_logo(ruta, ancho, propio == Some(ruta))
+pub fn logo(datos: &Value, ancho: usize) -> Option<Imagen> {
+    let ruta = datos["logoPath"].as_str().filter(|ruta| !ruta.is_empty()).map(Path::new)?;
+    std::fs::metadata(ruta).is_ok_and(|m| m.len() > 0).then(|| cargar_logo(ruta, ancho)).flatten()
 }
 
 pub fn primero<'a, const N: usize>(valores: [&'a Value; N]) -> &'a Value {
@@ -217,10 +213,6 @@ pub mod pruebas {
 
     pub fn ahora_fija() -> Ahora {
         FixedOffset::west_opt(3 * 3600).unwrap().with_ymd_and_hms(2026, 1, 2, 3, 4, 5).unwrap()
-    }
-
-    pub fn logo_defecto() -> PathBuf {
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets/imagenes/andextech-logo.png")
     }
 
     pub fn comparar(nombre: &str, render: impl Fn(&Value) -> Vec<u8>) {

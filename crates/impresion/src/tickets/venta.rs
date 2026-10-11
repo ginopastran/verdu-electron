@@ -1,5 +1,3 @@
-use std::path::Path;
-
 use serde_json::Value;
 
 use super::formato::*;
@@ -41,11 +39,11 @@ fn metodo_pago(metodo: &str) -> String {
     }
 }
 
-pub fn venta(datos: &Value, logo_defecto: &Path, ahora: Ahora) -> Vec<u8> {
+pub fn venta(datos: &Value, ahora: Ahora) -> Vec<u8> {
     let mut ticket = Ticket::new();
     ticket.alinear(CENTRO);
     let ancho_logo = if flotante(&datos["anchoPapel"]) == 58.0 { 370 } else { 556 };
-    if let Some(imagen) = logo(datos, logo_defecto, ancho_logo) {
+    if let Some(imagen) = logo(datos, ancho_logo) {
         ticket.imagen(&imagen);
     }
 
@@ -162,7 +160,7 @@ mod tests {
 
     #[test]
     fn igual_que_ticket_printer_php() {
-        comparar("venta", |datos| venta(datos, &logo_defecto(), ahora_fija()));
+        comparar("venta", |datos| venta(datos, ahora_fija()));
     }
 }
 

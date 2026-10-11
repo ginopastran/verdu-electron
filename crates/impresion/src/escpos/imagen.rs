@@ -31,7 +31,7 @@ impl Lienzo {
     }
 }
 
-pub fn cargar_logo(ruta: &Path, ancho_destino: usize, tinta_por_alfa: bool) -> Option<Imagen> {
+pub fn cargar_logo(ruta: &Path, ancho_destino: usize) -> Option<Imagen> {
     let bytes = std::fs::read(ruta).ok()?;
     let original = if bytes.starts_with(&[0x89, b'P', b'N', b'G']) {
         decodificar_png(&bytes)?
@@ -55,7 +55,7 @@ pub fn cargar_logo(ruta: &Path, ancho_destino: usize, tinta_por_alfa: bool) -> O
         .collect();
     let transparencia = escalado.pixeles.iter().any(|p| p.alfa > 0);
     let opacos = escalado.pixeles.iter().filter(|p| p.alfa < 64).count();
-    let negro = if tinta_por_alfa && transparencia && tinta.iter().filter(|&&n| n).count() * 100 < opacos {
+    let negro = if transparencia && tinta.iter().filter(|&&n| n).count() * 100 < opacos {
         escalado.pixeles.iter().map(|p| p.alfa < 64).collect()
     } else {
         tinta
@@ -216,13 +216,11 @@ mod tests {
             codificador.set_depth(png::BitDepth::Eight);
             codificador.write_header().unwrap().write_image_data(&rgba).unwrap();
         }
-        let imagen = cargar_logo(&ruta, 40, true).unwrap();
-        let sin_regla = cargar_logo(&ruta, 40, false).unwrap();
+        let imagen = cargar_logo(&ruta, 40).unwrap();
         std::fs::remove_file(&ruta).unwrap();
         let negros = imagen.negro.iter().filter(|&&n| n).count();
         assert_eq!(negros, 200);
         assert!(imagen.negro[10 * 40 + 20]);
         assert!(!imagen.negro[0]);
-        assert!(sin_regla.negro.iter().all(|&n| !n));
     }
 }

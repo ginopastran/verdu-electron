@@ -25,14 +25,6 @@ impl Comprobante {
     }
 }
 
-pub fn logo_defecto(servicios: &Servicios) -> PathBuf {
-    let ruta = servicios.carpeta.join("logo-andextech.png");
-    if !ruta.exists() {
-        let _ = std::fs::write(&ruta, include_bytes!("../../../assets/imagenes/andextech-logo.png"));
-    }
-    ruta
-}
-
 pub fn ruta_logo_negocio(servicios: &Servicios) -> PathBuf {
     servicios.config.ruta_logo_negocio()
 }
@@ -67,14 +59,13 @@ fn con_impresion(servicios: &Servicios, datos: Value) -> Value {
 pub fn imprimir(servicios: &Servicios, comprobante: Comprobante, datos: Value) -> Value {
     let (exito, prefijo) = comprobante.textos();
     let datos = con_impresion(servicios, datos);
-    let logo = logo_defecto(servicios);
     let resultado = impresora::resolver(&servicios.config).and_then(|nombre| {
         let ahora = hora_argentina();
         let bytes = match comprobante {
-            Comprobante::Venta => tickets::venta::venta(&datos, &logo, ahora),
-            Comprobante::Factura => tickets::factura::factura(&datos, &logo, ahora),
-            Comprobante::Afip => tickets::afip::afip(&datos, &logo, ahora),
-            Comprobante::Cierre => tickets::cierre::cierre(&datos, &logo, ahora),
+            Comprobante::Venta => tickets::venta::venta(&datos, ahora),
+            Comprobante::Factura => tickets::factura::factura(&datos, ahora),
+            Comprobante::Afip => tickets::afip::afip(&datos, ahora),
+            Comprobante::Cierre => tickets::cierre::cierre(&datos, ahora),
         };
         if bytes.is_empty() {
             return Err("No se pudo armar el ticket con los datos recibidos".to_string());

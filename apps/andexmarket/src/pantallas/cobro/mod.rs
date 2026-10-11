@@ -519,7 +519,7 @@ mod pruebas {
             "afip": { "cae": "75412369899123", "vencimientoCae": "20261020" },
         });
         let datos = factura.impresion(&respuesta, "10/10/2026 12:00:00");
-        let bytes = impresion::tickets::afip::afip(&datos, std::path::Path::new("sin-logo.png"), impresion::tickets::hora_argentina());
+        let bytes = impresion::tickets::afip::afip(&datos, impresion::tickets::hora_argentina());
         let texto = String::from_utf8_lossy(&bytes);
         assert!(texto.contains("Nro: 0003-00000045\n"), "{texto}");
         assert!(texto.contains("Fecha Vto CAE: 20/10/2026\n"), "{texto}");

@@ -1,5 +1,3 @@
-use std::path::Path;
-
 use chrono::{DateTime, FixedOffset};
 use serde_json::Value;
 
@@ -198,11 +196,11 @@ fn monto(etiqueta: &str, valor: f64) -> String {
     format!("{}\n", rellenar_izquierda(&format!("{etiqueta}: ${}", numero(valor, 2)), 32))
 }
 
-pub fn factura(datos: &Value, logo_defecto: &Path, ahora: Ahora) -> Vec<u8> {
+pub fn factura(datos: &Value, ahora: Ahora) -> Vec<u8> {
     let mut ticket = Ticket::new();
     ticket.alinear(CENTRO);
     let ancho_logo = if igual_a(&datos["anchoPapel"], 58.0) { 370 } else { 556 };
-    if let Some(imagen) = logo(datos, logo_defecto, ancho_logo) {
+    if let Some(imagen) = logo(datos, ancho_logo) {
         ticket.imagen(&imagen);
     }
 
@@ -337,6 +335,6 @@ mod tests {
 
     #[test]
     fn igual_que_factura_ticket_printer_php() {
-        comparar("factura", |datos| factura(datos, &logo_defecto(), ahora_fija()));
+        comparar("factura", |datos| factura(datos, ahora_fija()));
     }
 }

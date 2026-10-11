@@ -1,5 +1,3 @@
-use std::path::Path;
-
 use chrono::{Duration, NaiveDate};
 use serde_json::Value;
 
@@ -232,11 +230,11 @@ fn vencimiento_cae(valor: &str) -> String {
     strtotime(valor).map_or("31/12/1969".into(), |fecha| fecha.format("%d/%m/%Y").to_string())
 }
 
-pub fn afip(datos: &Value, logo_defecto: &Path, ahora: Ahora) -> Vec<u8> {
+pub fn afip(datos: &Value, ahora: Ahora) -> Vec<u8> {
     let mut ticket = Ticket::new();
     ticket.alinear(CENTRO);
     let ancho_logo = if flotante(&datos["anchoPapel"]) == 58.0 { 370 } else { 556 };
-    if let Some(imagen) = logo(datos, logo_defecto, ancho_logo) {
+    if let Some(imagen) = logo(datos, ancho_logo) {
         ticket.imagen(&imagen);
     }
 
@@ -446,7 +444,7 @@ mod tests {
 
     #[test]
     fn igual_que_afip_ticket_printer_php() {
-        comparar("afip", |datos| afip(datos, &logo_defecto(), ahora_fija()));
+        comparar("afip", |datos| afip(datos, ahora_fija()));
     }
 
     #[test]
@@ -461,6 +459,6 @@ mod tests {
     #[test]
     fn nombre_cortado_a_mitad_de_caracter_no_imprime_nada() {
         let datos = serde_json::json!({"total": 10, "items": [{"nombre": "Calabazas añejas", "cantidad": 1, "subtotal": 10}]});
-        assert!(afip(&datos, &logo_defecto(), ahora_fija()).is_empty());
+        assert!(afip(&datos, ahora_fija()).is_empty());
     }
 }

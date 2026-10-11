@@ -1,5 +1,3 @@
-use std::path::Path;
-
 use chrono::{Duration, NaiveDate, NaiveDateTime};
 use serde_json::Value;
 
@@ -355,10 +353,10 @@ fn vendedor_general(ticket: &mut Ticket, vendedor: &Value) -> Option<()> {
     Some(())
 }
 
-fn imprimir(datos: &Value, logo_defecto: &Path, ahora: Ahora) -> Option<Vec<u8>> {
+fn imprimir(datos: &Value, ahora: Ahora) -> Option<Vec<u8>> {
     let mut ticket = Ticket::new();
     let ancho_logo = if es_58(&datos["anchoPapel"]) { 370 } else { 556 };
-    if let Some(imagen) = logo(datos, logo_defecto, ancho_logo) {
+    if let Some(imagen) = logo(datos, ancho_logo) {
         ticket.imagen(&imagen);
     }
 
@@ -528,8 +526,8 @@ fn imprimir(datos: &Value, logo_defecto: &Path, ahora: Ahora) -> Option<Vec<u8>>
     Some(ticket.bytes())
 }
 
-pub fn cierre(datos: &Value, logo_defecto: &Path, ahora: Ahora) -> Vec<u8> {
-    imprimir(datos, logo_defecto, ahora).unwrap_or_default()
+pub fn cierre(datos: &Value, ahora: Ahora) -> Vec<u8> {
+    imprimir(datos, ahora).unwrap_or_default()
 }
 
 #[cfg(test)]
@@ -551,20 +549,20 @@ mod tests {
             json!({"periodo": "todo", "fechaInicio": "", "fechaCierre": "", "totalVentas": 1, "ventasPorVendedor": [{"nombre": ["x"], "totalVentas": 1}]}),
         ];
         for datos in casos {
-            assert!(cierre(&datos, Path::new("no-existe.png"), ahora_fija()).is_empty(), "{datos}");
+            assert!(cierre(&datos, ahora_fija()).is_empty(), "{datos}");
         }
     }
 
     #[test]
     fn fecha_inicio_con_la_hora_real_del_cierre() {
         let datos = json!({"periodo": "tarde", "fechaInicio": "2026-10-10T09:37:00.619Z", "fechaCierre": "2026-10-10T20:15:00.000Z", "totalVentas": 1, "cantidadVentas": 1});
-        let texto = String::from_utf8_lossy(&cierre(&datos, Path::new("no-existe.png"), ahora_fija())).into_owned();
+        let texto = String::from_utf8_lossy(&cierre(&datos, ahora_fija())).into_owned();
         assert!(texto.contains("Fecha inicio: 10/10/2026 09:37\n"), "{texto}");
         assert!(texto.contains("Fecha cierre: 10/10/2026 20:15\n"), "{texto}");
     }
 
     #[test]
     fn igual_que_closing_printer_php() {
-        comparar("cierre", |datos| cierre(datos, &logo_defecto(), ahora_fija()));
+        comparar("cierre", |datos| cierre(datos, ahora_fija()));
     }
 }
