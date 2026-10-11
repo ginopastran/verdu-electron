@@ -3,7 +3,7 @@ use windows::core::{HSTRING, PCWSTR, PWSTR};
 use windows::Win32::Graphics::Printing::{
     ClosePrinter, EndDocPrinter, EndPagePrinter, EnumPrintersW, GetDefaultPrinterW, OpenPrinterW, StartDocPrinterW,
     StartPagePrinter, WritePrinter, DOC_INFO_1W, PRINTER_ENUM_CONNECTIONS, PRINTER_ENUM_LOCAL, PRINTER_HANDLE,
-    PRINTER_INFO_2W,
+    PRINTER_INFO_2W, PRINTER_STATUS_PENDING_DELETION,
 };
 
 use crate::config::{Config, IMPRESORA_DEFAULT};
@@ -37,6 +37,7 @@ fn enumerar() -> Vec<Impresora> {
         }
         std::slice::from_raw_parts(memoria.as_ptr().cast::<PRINTER_INFO_2W>(), cantidad as usize)
             .iter()
+            .filter(|info| info.Status & PRINTER_STATUS_PENDING_DELETION == 0)
             .filter_map(|info| {
                 Some(Impresora {
                     nombre: texto_ancho(info.pPrinterName)?,
