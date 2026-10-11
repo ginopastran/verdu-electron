@@ -8,6 +8,7 @@ use std::time::Duration;
 use andexmarket::app::{App, Global, Ruta, Servicios};
 use andexmarket::pantallas::carrito::id_buscador;
 use andexmarket::pantallas::carrito::productos::ProductoDisponible;
+use andexmarket::ui::v2::toast;
 use eframe::egui::{Event, Key, Modifiers, PointerButton, Pos2};
 use egui_kittest::kittest::Queryable;
 use egui_kittest::Harness;
@@ -461,6 +462,90 @@ fn enter_cierra_venta_cobrada() {
     assert!(!h.state_mut().pantallas().carrito.cobro.venta_cobrada());
     h.run_steps(4);
     assert!(buscador_enfocado(&h));
+}
+
+fn api_recarga(funciona: bool) -> Cliente {
+    let escucha = TcpListener::bind("127.0.0.1:0").unwrap();
+    let puerto = escucha.local_addr().unwrap().port();
+    std::thread::spawn(move || {
+        for conexion in escucha.incoming().flatten() {
+            let mut lector = BufReader::new(conexion.try_clone().unwrap());
+            let mut linea = String::new();
+            let _ = lector.read_line(&mut linea);
+            loop {
+                let mut encabezado = String::new();
+                if lector.read_line(&mut encabezado).unwrap_or(0) == 0 || encabezado.trim().is_empty() {
+                    break;
+                }
+            }
+            let ruta = linea.split_whitespace().nth(1).unwrap_or("/").to_string();
+            let (estado, cuerpo): (u16, Vec<u8>) = match ruta.as_str() {
+                _ if !funciona => (500, b"{}".to_vec()),
+                "/api/business/logo-comprobante" => (200, include_bytes!("../../../assets/imagenes/andex-market-logo.png").to_vec()),
+                r if r.starts_with("/api/business/4") => (200, json!({ "id": 4, "nombre": "Verdulería Recargada", "sistemaPago": "redondeo", "facturacionHabilitada": true }).to_string().into_bytes()),
+                r if r.starts_with("/api/productos?") => (
+                    200,
+                    json!({ "productos": [{ "id": 99, "nombre": "Producto recargado", "precio": 100, "tipoMedida": "Unidad" }], "pagination": { "hasNext": false } }).to_string().into_bytes(),
+                ),
+                _ => (404, b"{}".to_vec()),
+            };
+            let mut salida = conexion;
+            let _ = write!(salida, "HTTP/1.1 {estado} OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", cuerpo.len());
+            let _ = salida.write_all(&cuerpo);
+        }
+    });
+    Cliente::new(&format!("http://127.0.0.1:{puerto}"))
+}
+
+fn recargar(funciona: bool) -> (Harness<'static, App>, std::path::PathBuf) {
+    let carpeta = std::env::temp_dir().join(format!("andexmarket-recarga-{funciona}-{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&carpeta);
+    let config = Config::cargar(carpeta.clone());
+    config.set("impresoraWindows", json!("Impresora inexistente de prueba"));
+    let logo = config.ruta_logo_negocio();
+    let servicios = Servicios { config: Arc::new(config), balanza: Balanza::new(|_| {}), api: api_recarga(funciona), carpeta };
+    let mut app = App::de_prueba(con_items(POR_DEFECTO), servicios);
+    app.pantallas().carrito.precargar_productos(productos());
+    let mut h = Harness::builder().with_size([1366.0, 768.0]).build_ui_state(|ui, app: &mut App| app.mostrar(ui), app);
+    esperar_red(&mut h);
+    let _ = std::fs::remove_file(&logo);
+    h.key_press_modifiers(Modifiers::COMMAND, Key::R);
+    h.run_steps(2);
+    for _ in 0..200 {
+        if !h.state_mut().pantallas().recargando() {
+            break;
+        }
+        h.step();
+        std::thread::sleep(Duration::from_millis(15));
+    }
+    assert!(!h.state_mut().pantallas().recargando());
+    h.run_steps(2);
+    (h, logo)
+}
+
+#[test]
+fn ctrl_r_recarga_negocio_productos_y_logo() {
+    let (mut h, logo) = recargar(true);
+    assert_eq!(toast::titulo_actual(&h.ctx).as_deref(), Some("Datos actualizados"));
+    let app = h.state_mut();
+    assert_eq!(app.global().negocio.as_ref().unwrap()["nombre"], "Verdulería Recargada");
+    assert_eq!(app.global().ruta, Ruta::Carrito);
+    assert_eq!(app.global().usuario.as_ref().unwrap()["nombre"], "Lucía Fernández");
+    assert_eq!(app.global().carritos.items().len(), items_orden().len());
+    let nombres: Vec<String> = app.pantallas().carrito.productos().iter().map(|p| p.nombre.clone()).collect();
+    assert_eq!(nombres, ["Producto recargado"]);
+    assert!(std::fs::read(&logo).unwrap().starts_with(b"\x89PNG"));
+}
+
+#[test]
+fn ctrl_r_con_error_conserva_los_datos() {
+    let (mut h, logo) = recargar(false);
+    assert_eq!(toast::titulo_actual(&h.ctx).as_deref(), Some("No se pudieron actualizar los datos"));
+    let app = h.state_mut();
+    assert_eq!(app.global().negocio.as_ref().unwrap()["nombre"], "Verdulería Don José");
+    assert_eq!(app.pantallas().carrito.productos().len(), CATALOGO.len());
+    assert_eq!(app.global().carritos.items().len(), items_orden().len());
+    assert!(!logo.exists());
 }
 
 fn buscador_enfocado(harness: &Harness<'_, App>) -> bool {

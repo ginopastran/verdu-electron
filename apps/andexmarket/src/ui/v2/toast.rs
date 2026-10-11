@@ -54,6 +54,10 @@ pub fn con_detalle(ctx: &Context, tipo: Tipo, titulo: impl Into<String>, detalle
     mostrar_aviso(ctx, tipo, titulo, Some(detalle.into()), DURACION);
 }
 
+pub fn titulo_actual(ctx: &Context) -> Option<String> {
+    ctx.data(|d| d.get_temp::<Option<Aviso>>(clave()).flatten()).map(|aviso| aviso.titulo)
+}
+
 fn estilo(tipo: Tipo) -> (&'static str, egui::Color32) {
     match tipo {
         Tipo::Exito => ("circle-check", color::VERDE_TOAST),

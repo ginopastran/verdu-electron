@@ -6,7 +6,7 @@ use hardware::config::Config;
 use nucleo::sesion as logica;
 use serde_json::{json, Value};
 
-use crate::app::{Contexto, Ruta};
+use crate::app::{Contexto, Ruta, Servicios};
 use crate::tareas::{self, Tarea};
 use crate::ui::marca::fuente;
 use crate::ui::Peso;
@@ -98,13 +98,15 @@ impl Sesion {
 
 fn cargar_negocio(cx: &Contexto, id: i64) -> Tarea<(i64, Result<Value, String>)> {
     let servicios = cx.servicios.clone();
-    Tarea::lanzar(&cx.egui, move || {
-        let resultado = logica::pedir_negocio(&servicios.api, id);
-        if let Ok(negocio) = &resultado {
-            servicios.config.set(&logica::clave_negocio(id), negocio.clone());
-        }
-        (id, resultado)
-    })
+    Tarea::lanzar(&cx.egui, move || (id, descargar_negocio(&servicios, id)))
+}
+
+pub fn descargar_negocio(servicios: &Servicios, id: i64) -> Result<Value, String> {
+    let resultado = logica::pedir_negocio(&servicios.api, id);
+    if let Ok(negocio) = &resultado {
+        servicios.config.set(&logica::clave_negocio(id), negocio.clone());
+    }
+    resultado
 }
 
 fn id_refresco() -> Id {

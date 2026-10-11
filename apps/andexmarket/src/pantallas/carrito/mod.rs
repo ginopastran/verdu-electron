@@ -80,7 +80,7 @@ pub struct Carrito {
     productos: Vec<ProductoDisponible>,
     productos_precargados: bool,
     tarea_productos: Option<Tarea<Result<Vec<ProductoDisponible>, String>>>,
-    tarea_logo: Option<Tarea<()>>,
+    tarea_logo: Option<Tarea<Result<(), String>>>,
     tarea_escaneo: Option<Tarea<ResultadoEscaneo>>,
     ultimo_escaneo: Option<(String, f64)>,
     busqueda: Busqueda,
@@ -100,6 +100,17 @@ impl Carrito {
     pub fn precargar_productos(&mut self, productos: Vec<ProductoDisponible>) {
         self.productos = productos;
         self.productos_precargados = true;
+    }
+
+    pub fn productos(&self) -> &[ProductoDisponible] {
+        &self.productos
+    }
+
+    pub fn fijar_productos(&mut self, lista: Vec<ProductoDisponible>) {
+        self.productos = lista;
+        if !self.busqueda.consulta.is_empty() {
+            self.busqueda.filtrar(&self.productos);
+        }
     }
 
     fn agregar_escaneado(&mut self, producto: ProductoDisponible, cantidad: f64, cx: &mut Contexto) {
@@ -163,12 +174,7 @@ impl Carrito {
     fn atender_tareas(&mut self, cx: &mut Contexto) {
         if let Some(resultado) = tareas::esperar(&mut self.tarea_productos) {
             match resultado {
-                Ok(lista) => {
-                    self.productos = lista;
-                    if !self.busqueda.consulta.is_empty() {
-                        self.busqueda.filtrar(&self.productos);
-                    }
-                }
+                Ok(lista) => self.fijar_productos(lista),
                 Err(mensaje) => toast::error(&cx.egui, mensaje),
             }
         }
@@ -254,7 +260,7 @@ impl Carrito {
         }
     }
 
-    fn hay_dialogo(&self) -> bool {
+    pub fn hay_dialogo(&self) -> bool {
         self.agregar.abierto()
             || self.escanear.abierto()
             || self.borrar_pantalla.is_some()
@@ -625,13 +631,14 @@ fn cancelacion_controlada(cx: &Contexto) -> bool {
     cx.global.negocio.as_ref().is_some_and(|n| n["cancelacionHabilitada"] == Value::Bool(true))
 }
 
-fn sincronizar_logo(servicios: &crate::app::Servicios) {
-    let Ok((estado, bytes)) = servicios.api.bytes("/api/business/logo-comprobante") else {
-        return;
-    };
+pub fn sincronizar_logo(servicios: &crate::app::Servicios) -> Result<(), String> {
+    let (estado, bytes) = servicios.api.bytes("/api/business/logo-comprobante").map_err(|e| e.mensaje)?;
     if estado == 404 {
-        let _ = crate::impresion::guardar_logo_negocio(servicios, None);
+        crate::impresion::guardar_logo_negocio(servicios, None)?;
     } else if (200..300).contains(&estado) && bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
-        let _ = crate::impresion::guardar_logo_negocio(servicios, Some(&bytes));
+        crate::impresion::guardar_logo_negocio(servicios, Some(&bytes))?;
+    } else if !(200..300).contains(&estado) {
+        return Err(format!("No se pudo descargar el logo del negocio (HTTP {estado})"));
     }
+    Ok(())
 }
