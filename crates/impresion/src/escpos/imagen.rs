@@ -31,7 +31,7 @@ impl Lienzo {
     }
 }
 
-pub fn cargar_logo(ruta: &Path, ancho_destino: usize) -> Option<Imagen> {
+pub fn cargar_logo(ruta: &Path, ancho_destino: usize, tinta_por_alfa: bool) -> Option<Imagen> {
     let bytes = std::fs::read(ruta).ok()?;
     let original = if bytes.starts_with(&[0x89, b'P', b'N', b'G']) {
         decodificar_png(&bytes)?
@@ -45,7 +45,7 @@ pub fn cargar_logo(ruta: &Path, ancho_destino: usize) -> Option<Imagen> {
         return None;
     }
     let escalado = remuestrear(&original, ancho_destino, alto_destino);
-    let negro = escalado
+    let tinta: Vec<bool> = escalado
         .pixeles
         .iter()
         .map(|p| {
@@ -53,6 +53,13 @@ pub fn cargar_logo(ruta: &Path, ancho_destino: usize) -> Option<Imagen> {
             ((1 - grisura) >> (p.alfa >> 6)) == 1
         })
         .collect();
+    let transparencia = escalado.pixeles.iter().any(|p| p.alfa > 0);
+    let opacos = escalado.pixeles.iter().filter(|p| p.alfa < 64).count();
+    let negro = if tinta_por_alfa && transparencia && tinta.iter().filter(|&&n| n).count() * 100 < opacos {
+        escalado.pixeles.iter().map(|p| p.alfa < 64).collect()
+    } else {
+        tinta
+    };
     Some(Imagen { ancho: ancho_destino, alto: alto_destino, negro })
 }
 
@@ -185,4 +192,37 @@ fn remuestrear(origen: &Lienzo, ancho: usize, alto: usize) -> Lienzo {
         }
     }
     Lienzo { ancho, alto, pixeles }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::cargar_logo;
+
+    #[test]
+    fn logo_blanco_sobre_transparente_sale_con_tinta() {
+        let (ancho, alto) = (40u32, 20u32);
+        let mut rgba = Vec::new();
+        for y in 0..alto {
+            for x in 0..ancho {
+                let forma = (10..30).contains(&x) && (5..15).contains(&y);
+                rgba.extend_from_slice(&[255, 255, 255, if forma { 255 } else { 0 }]);
+            }
+        }
+        let ruta = std::env::temp_dir().join(format!("logo_blanco_{}.png", std::process::id()));
+        {
+            let archivo = std::io::BufWriter::new(std::fs::File::create(&ruta).unwrap());
+            let mut codificador = png::Encoder::new(archivo, ancho, alto);
+            codificador.set_color(png::ColorType::Rgba);
+            codificador.set_depth(png::BitDepth::Eight);
+            codificador.write_header().unwrap().write_image_data(&rgba).unwrap();
+        }
+        let imagen = cargar_logo(&ruta, 40, true).unwrap();
+        let sin_regla = cargar_logo(&ruta, 40, false).unwrap();
+        std::fs::remove_file(&ruta).unwrap();
+        let negros = imagen.negro.iter().filter(|&&n| n).count();
+        assert_eq!(negros, 200);
+        assert!(imagen.negro[10 * 40 + 20]);
+        assert!(!imagen.negro[0]);
+        assert!(sin_regla.negro.iter().all(|&n| !n));
+    }
 }

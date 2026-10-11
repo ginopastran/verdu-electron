@@ -23,7 +23,7 @@ pub fn logo(datos: &Value, defecto: &Path, ancho: usize) -> Option<Imagen> {
         .into_iter()
         .flatten()
         .find(|ruta| std::fs::metadata(ruta).is_ok_and(|m| m.len() > 0))?;
-    cargar_logo(ruta, ancho)
+    cargar_logo(ruta, ancho, propio == Some(ruta))
 }
 
 pub fn primero<'a, const N: usize>(valores: [&'a Value; N]) -> &'a Value {
