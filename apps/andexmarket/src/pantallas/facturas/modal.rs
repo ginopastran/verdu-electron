@@ -237,13 +237,3 @@ fn tabla(ui: &mut Ui, f: &Value) {
         });
     });
 }
-
-pub fn estilo_desplazamiento(ui: &mut Ui) {
-    ui.spacing_mut().scroll = egui::style::ScrollStyle {
-        floating: false,
-        bar_width: 11.0,
-        bar_inner_margin: 2.0,
-        bar_outer_margin: 2.0,
-        ..egui::style::ScrollStyle::solid()
-    };
-}

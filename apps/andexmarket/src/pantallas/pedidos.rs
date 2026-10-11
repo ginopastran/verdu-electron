@@ -344,7 +344,7 @@ fn boton_reimprimir(ui: &mut Ui, celda: Rect, indice: usize, imprimiendo: bool, 
     }
 }
 
-pub(crate) fn boton_pagina(ui: &mut Ui, contenido: Result<&str, usize>, activo: bool, habilitado: bool) -> Response {
+fn boton_pagina(ui: &mut Ui, contenido: Result<&str, usize>, activo: bool, habilitado: bool) -> Response {
     let (rect, respuesta) = ui.allocate_exact_size(Vec2::splat(34.0), if habilitado { Sense::click() } else { Sense::hover() });
     let alfa = if habilitado { 1.0 } else { 0.4 };
     let encima = habilitado && respuesta.hovered();

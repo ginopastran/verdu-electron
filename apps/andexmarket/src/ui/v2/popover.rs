@@ -18,6 +18,7 @@ pub struct Popover {
     ancho: Option<f32>,
     separacion: f32,
     derecha: bool,
+    encima: bool,
     radio: u8,
     sombra: Sombra,
     relleno: f32,
@@ -35,6 +36,7 @@ impl Popover {
             ancho: None,
             separacion: 6.0,
             derecha: false,
+            encima: false,
             radio: radio::CAMPO,
             sombra: sombra::DESPLEGABLE,
             relleno: 6.0,
@@ -56,6 +58,11 @@ impl Popover {
 
     pub fn a_la_derecha(mut self) -> Self {
         self.derecha = true;
+        self
+    }
+
+    pub fn encima(mut self) -> Self {
+        self.encima = true;
         self
     }
 
@@ -100,7 +107,12 @@ impl Popover {
         let abierto = self.visible.unwrap_or_else(|| Popup::is_id_open(ctx, self.id));
         let avance = aparicion(ctx, self.id.with("pop"), abierto, self.duracion);
         let popup = Popup::new(self.id, ctx.clone(), self.ancla, self.capa)
-            .align(if self.derecha { RectAlign::BOTTOM_END } else { RectAlign::BOTTOM_START })
+            .align(match (self.encima, self.derecha) {
+                (true, true) => RectAlign::TOP_END,
+                (true, false) => RectAlign::TOP_START,
+                (false, true) => RectAlign::BOTTOM_END,
+                (false, false) => RectAlign::BOTTOM_START,
+            })
             .gap(self.separacion)
             .frame(Frame::NONE);
         let popup = match self.visible {
@@ -111,13 +123,17 @@ impl Popover {
             Some(a) => popup.width(a),
             None => popup,
         };
-        let origen = egui::pos2(if self.derecha { self.ancla.right() } else { self.ancla.left() }, self.ancla.bottom() + self.separacion);
+        let y_origen = if self.encima { self.ancla.top() - self.separacion } else { self.ancla.bottom() + self.separacion };
+        let origen = egui::pos2(if self.derecha { self.ancla.right() } else { self.ancla.left() }, y_origen);
         let (radio_px, sombra_pop, relleno, alto_maximo, ancho) = (self.radio, self.sombra, self.relleno, self.alto_maximo, self.ancho);
         popup
             .show(|ui| {
                 ui.set_opacity(avance);
                 escalar_capa(ui.ctx(), ui.layer_id(), origen, escala_pop(avance));
                 ui.spacing_mut().item_spacing = Vec2::ZERO;
+                if let Some(h) = alto_maximo {
+                    ui.set_max_height(h);
+                }
                 let fondo = ui.painter().add(Shape::Noop);
                 let marco = Frame::NONE.inner_margin(Margin::same(relleno as i8)).show(ui, |ui| {
                     if let Some(a) = ancho {

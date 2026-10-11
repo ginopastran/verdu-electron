@@ -174,7 +174,7 @@ fn factura_nueva_clientes() {
 fn factura_nueva_productos() {
     escena("67-modal-factura-nueva-productos", false, |h| {
         let (x, y) = centro(h);
-        clic(h, x + 292.0, y + AGREGAR_Y);
+        clic(h, x - 60.0, y + AGREGAR_Y);
         esperar(h, 400);
     });
 }

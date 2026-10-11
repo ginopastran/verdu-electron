@@ -296,6 +296,24 @@ fn factura_form_totales() {
     });
 }
 
+fn elegir_primer_cliente(h: &mut Harness<'_, Formulario>) {
+    clic(h, 440.0, 155.0);
+    esperar(h, 400);
+    h.key_press(egui::Key::Enter);
+    esperar(h, 200);
+}
+
+fn buscar_producto(h: &mut Harness<'_, Formulario>, texto: &str) {
+    clic(h, BUSCAR_PRODUCTO.0, BUSCAR_PRODUCTO.1);
+    esperar(h, 200);
+    if !texto.is_empty() {
+        h.event(Event::Text(texto.into()));
+        esperar(h, 200);
+    }
+}
+
+const BUSCAR_PRODUCTO: (f32, f32) = (500.0, 637.0);
+
 #[test]
 fn selector_cliente() {
     formulario("57-selector-cliente", |h| {
@@ -308,10 +326,7 @@ fn selector_cliente() {
 #[test]
 fn factura_form_con_cliente() {
     formulario("58-factura-form-con-cliente", |h| {
-        clic(h, 440.0, 155.0);
-        esperar(h, 400);
-        clic(h, 590.0, 310.0);
-        esperar(h, 300);
+        elegir_primer_cliente(h);
         h.remove_cursor();
     });
 }
@@ -319,29 +334,55 @@ fn factura_form_con_cliente() {
 #[test]
 fn selector_producto() {
     formulario("59-selector-producto", |h| {
-        clic(h, 440.0, 155.0);
-        esperar(h, 400);
-        clic(h, 590.0, 310.0);
-        esperar(h, 300);
-        clic(h, 892.0, 637.0);
-        esperar(h, 400);
+        elegir_primer_cliente(h);
+        buscar_producto(h, "");
         h.remove_cursor();
     });
 }
 
 #[test]
-fn cantidad_producto() {
-    formulario("60-cantidad-producto", |h| {
-        clic(h, 440.0, 155.0);
-        esperar(h, 400);
-        clic(h, 590.0, 310.0);
-        esperar(h, 300);
-        clic(h, 892.0, 637.0);
-        esperar(h, 400);
-        clic(h, 590.0, 302.0);
-        esperar(h, 300);
+fn producto_elegido() {
+    formulario("60-factura-form-producto-elegido", |h| {
+        elegir_primer_cliente(h);
+        buscar_producto(h, "ceb");
+        h.key_press(egui::Key::Enter);
+        esperar(h, 200);
+        h.event(Event::Text("2,5".into()));
+        esperar(h, 200);
         h.remove_cursor();
     });
+}
+
+#[test]
+fn agregar_producto_con_el_teclado() {
+    let (registro, abierto) = formulario_registrado(|h| {
+        h.key_press(egui::Key::ArrowDown);
+        esperar(h, 400);
+        h.key_press(egui::Key::Enter);
+        esperar(h, 200);
+        buscar_producto(h, "ceb");
+        h.key_press(egui::Key::Escape);
+        esperar(h, 200);
+        assert!(h.state().formulario.abierto());
+        h.key_press(egui::Key::ArrowDown);
+        esperar(h, 100);
+        h.key_press(egui::Key::Enter);
+        esperar(h, 200);
+        h.event(Event::Text("2,5".into()));
+        esperar(h, 100);
+        h.key_press(egui::Key::Enter);
+        esperar(h, 300);
+        bajar_y_crear(h);
+    });
+    let cuerpos = enviados(&registro, "POST", "/api/facturas");
+    assert_eq!(cuerpos.len(), 1, "{:?}", registro.lock().unwrap());
+    assert_eq!(cuerpos[0]["clienteId"], "c1");
+    let detalles = cuerpos[0]["detalles"].as_array().unwrap();
+    assert_eq!(detalles.len(), 8);
+    let cebolla = detalles.iter().find(|d| d["productoId"] == 3).expect("cebolla agregada");
+    assert_eq!(cebolla["cantidad"], 2.5);
+    assert_eq!(cebolla["precioUnitario"], 1100.0);
+    assert!(!abierto);
 }
 
 #[test]
@@ -430,10 +471,7 @@ fn bajar_y_crear(h: &mut Harness<'_, Formulario>) {
 #[test]
 fn envio_de_remito_desde_carrito() {
     let (registro, abierto) = formulario_registrado(|h| {
-        clic(h, 440.0, 155.0);
-        esperar(h, 400);
-        clic(h, 590.0, 310.0);
-        esperar(h, 300);
+        elegir_primer_cliente(h);
         bajar_y_crear(h);
     });
     let cuerpos = enviados(&registro, "POST", "/api/facturas");
@@ -457,10 +495,7 @@ fn lista_de_precios_actualiza_los_precios() {
         esperar(h, 200);
         clic(h, 440.0, 319.0);
         esperar(h, 800);
-        clic(h, 440.0, 155.0);
-        esperar(h, 400);
-        clic(h, 590.0, 310.0);
-        esperar(h, 300);
+        elegir_primer_cliente(h);
         bajar_y_crear(h);
     });
     let cuerpos = enviados(&registro, "POST", "/api/facturas");
@@ -521,10 +556,7 @@ fn reabrir_con_lista_mantiene_desplegable_y_envio() {
         h.state_mut().formulario.abrir(productos_carrito());
         esperar(h, 1200);
         guardar(h, "56d-factura-form-reabierto-con-lista");
-        clic(h, 440.0, 155.0);
-        esperar(h, 400);
-        clic(h, 590.0, 310.0);
-        esperar(h, 300);
+        elegir_primer_cliente(h);
         bajar_y_crear(h);
     });
     let cuerpos = enviados(&registro, "POST", "/api/facturas");

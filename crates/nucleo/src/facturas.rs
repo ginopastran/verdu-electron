@@ -450,45 +450,6 @@ pub fn parsear_float(texto: &str) -> Option<f64> {
     numero.parse().ok()
 }
 
-pub fn paginas_visibles(pagina: u32, total_paginas: u32) -> Vec<u32> {
-    if total_paginas <= 5 {
-        (1..=total_paginas).collect()
-    } else if pagina <= 3 {
-        (1..=5).collect()
-    } else if pagina >= total_paginas - 2 {
-        (total_paginas - 4..=total_paginas).collect()
-    } else {
-        (pagina - 2..=pagina + 2).collect()
-    }
-}
-
-fn plural(n: usize, singular: &str, plural: &str) -> String {
-    if n == 1 { singular } else { plural }.to_string()
-}
-
-pub fn resumen_clientes(cargando: bool, buscando: bool, total: usize) -> String {
-    if cargando {
-        return "Cargando...".into();
-    }
-    if buscando {
-        format!("{total} resultado{} encontrado{}", plural(total, "", "s"), plural(total, "", "s"))
-    } else {
-        format!("{total} cliente{} total{}", plural(total, "", "s"), plural(total, "", "es"))
-    }
-}
-
-pub fn resumen_productos(cargando: bool, buscando: bool, total: usize) -> String {
-    if cargando {
-        return "Cargando...".into();
-    }
-    let s = plural(total, "", "s");
-    if buscando {
-        format!("{total} producto{s} encontrado{s}")
-    } else {
-        format!("{total} producto{s} disponible{s}")
-    }
-}
-
 pub fn filtrar_productos(productos: &[Value], busqueda: &str, excluidos: &[i64]) -> Vec<Value> {
     let busqueda = busqueda.trim().to_lowercase();
     productos
@@ -498,6 +459,7 @@ pub fn filtrar_productos(productos: &[Value], busqueda: &str, excluidos: &[i64])
             busqueda.is_empty()
                 || p["nombre"].as_str().unwrap_or_default().to_lowercase().contains(&busqueda)
                 || p["plu"].as_str().is_some_and(|plu| !plu.is_empty() && plu.to_lowercase().contains(&busqueda))
+                || p["codigoBarras"].as_str().is_some_and(|codigo| !codigo.is_empty() && codigo.contains(&busqueda))
         })
         .cloned()
         .collect()
@@ -779,16 +741,11 @@ mod tests {
     }
 
     #[test]
-    fn paginacion_y_resumenes() {
-        assert_eq!(paginas_visibles(1, 4), vec![1, 2, 3, 4]);
-        assert_eq!(paginas_visibles(2, 9), vec![1, 2, 3, 4, 5]);
-        assert_eq!(paginas_visibles(8, 9), vec![5, 6, 7, 8, 9]);
-        assert_eq!(paginas_visibles(5, 9), vec![3, 4, 5, 6, 7]);
-        assert_eq!(resumen_clientes(false, false, 6), "6 clientes totales");
-        assert_eq!(resumen_clientes(false, true, 1), "1 resultado encontrado");
-        assert_eq!(resumen_productos(false, false, 19), "19 productos disponibles");
-        let productos = vec![json!({ "id": 1, "nombre": "Tomate", "plu": "001" }), json!({ "id": 2, "nombre": "Papa", "plu": null })];
-        assert_eq!(filtrar_productos(&productos, "00", &[]).len(), 1);
+    fn filtrar_productos_por_nombre_plu_y_codigo() {
+        let productos = vec![json!({ "id": 1, "nombre": "Tomate", "plu": "001" }), json!({ "id": 2, "nombre": "Papa", "plu": null, "codigoBarras": "7790002000046" })];
+        assert_eq!(filtrar_productos(&productos, "00", &[]).len(), 2);
+        assert_eq!(filtrar_productos(&productos, "001", &[]).len(), 1);
+        assert_eq!(filtrar_productos(&productos, "779000", &[]).len(), 1);
         assert_eq!(filtrar_productos(&productos, "", &[1]).len(), 1);
         assert_eq!(filtrar_productos(&productos, " PA ", &[]).len(), 1);
     }
