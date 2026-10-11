@@ -21,7 +21,6 @@ const ANCHO_CABECERA_AMPLIA: f32 = 1240.0;
 const ANCHO_MARCA: f32 = 26.0 + 10.0 + 112.0;
 const ANCHO_BUSCADOR_MINIMO: f32 = 280.0;
 const ANCHO_BUSCADOR_MAXIMO: f32 = 680.0;
-const COLUMNAS: [Pista; 5] = [Pista::Fraccion(2.2, 0.0), Pista::Fraccion(1.0, 110.0), Pista::Fraccion(1.0, 110.0), Pista::Fraccion(1.0, 120.0), Pista::Fija(44.0)];
 
 fn galeria(ui: &Ui, contenido: impl Into<String>, px: f32, peso: Peso, tinta: Color32) -> Arc<Galley> {
     v2::galeria(ui, contenido, fuente(px, peso), tinta)
@@ -424,7 +423,10 @@ pub fn tabla(ui: &mut Ui, caja: Rect, filas: &[Fila], permite_borrar: bool, dest
     let esquina = radio::TARJETA - 1;
     pintor.rect_filled(encabezado, CornerRadius { nw: esquina, ne: esquina, sw: 0, se: 0 }, color::FONDO_ENCABEZADO_TABLA);
     pintor.hline(encabezado.x_range(), encabezado.bottom() - 0.5, Stroke::new(1.0, color::BORDE_SUAVE));
-    for (celda, (titulo, derecha)) in celdas(encabezado, &COLUMNAS, 20.0, 14.0).into_iter().zip([("Producto", false), ("Cantidad", true), ("Precio", true), ("Subtotal", true)]) {
+    let estrecha = interior.width() < 700.0;
+    let columnas = columnas_tabla(ui, filas, estrecha);
+    let (relleno, separacion) = if estrecha { (16.0, 10.0) } else { (20.0, 14.0) };
+    for (celda, (titulo, derecha)) in celdas(encabezado, &columnas, relleno, separacion).into_iter().zip([("Producto", false), ("Cantidad", true), ("Precio", true), ("Subtotal", true)]) {
         celda_texto(&pintor, celda, titulo, tam::CHICO, Peso::Medio, color::TEXTO_APAGADO, derecha);
     }
     let cuerpo = Rect::from_min_max(Pos2::new(interior.left(), encabezado.bottom()), Pos2::new(interior.right(), interior.bottom() - radio::TARJETA as f32 / 2.0));
@@ -445,7 +447,7 @@ pub fn tabla(ui: &mut Ui, caja: Rect, filas: &[Fila], permite_borrar: bool, dest
                 }
             }
             pintor.hline(rect.x_range(), rect.bottom() - 0.5, Stroke::new(1.0, color::BORDE_SUAVE));
-            let c = celdas(rect, &COLUMNAS, 20.0, 14.0);
+            let c = celdas(rect, &columnas, relleno, separacion);
             let numero = galeria(ui, (posicion + 1).to_string(), tam::CHICO, Peso::Normal, color::TEXTO_TENUE);
             pintor.galley(Pos2::new(c[0].left(), rect.center().y - numero.size().y / 2.0), numero, color::TEXTO_TENUE);
             let x = c[0].left() + 26.0 + 12.0;
@@ -478,6 +480,18 @@ pub fn tabla(ui: &mut Ui, caja: Rect, filas: &[Fila], permite_borrar: bool, dest
         }
     });
     quitar
+}
+
+fn columnas_tabla(ui: &Ui, filas: &[Fila], estrecha: bool) -> [Pista; 5] {
+    let medir = |texto: &str, px: f32, peso: Peso| galeria(ui, texto, px, peso, color::TEXTO).size().x.ceil() + 2.0;
+    let ancho = |titulo: &str, valor: fn(&Fila) -> &str, px: f32, peso: Peso| filas.iter().map(|f| medir(valor(f), px, peso)).fold(medir(titulo, tam::CHICO, Peso::Medio), f32::max);
+    [
+        Pista::Fraccion(2.2, 0.0),
+        Pista::Fraccion(1.0, ancho("Cantidad", |f| &f.cantidad, tam::DESTACADO, Peso::Normal)),
+        Pista::Fraccion(1.0, ancho("Precio", |f| &f.precio, tam::CUERPO_MAS, Peso::Normal)),
+        Pista::Fraccion(1.0, ancho("Subtotal", |f| &f.subtotal, tam::FILA, Peso::Semi)),
+        Pista::Fija(if estrecha { 36.0 } else { 44.0 }),
+    ]
 }
 
 pub fn orden_vacia(ui: &Ui, caja: Rect, orden: usize) {
