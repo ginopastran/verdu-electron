@@ -164,7 +164,7 @@ impl DialogoImpresion {
             let logo = if self.tiene_logo {
                 "Se usa el logo del negocio cargado en Administración › Configuración."
             } else {
-                "Sin logo del negocio: se imprime el logo por defecto. Cargalo en Administración › Configuración."
+                "Sin logo del negocio: el ticket sale sin logo. Cargalo en Administración › Configuración."
             };
             nota(ui, "info", 17.0, logo, tam::ETIQUETA, color::FONDO_APP, color::TEXTO_SECUNDARIO, color::VERDE);
         });
