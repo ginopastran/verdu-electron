@@ -592,13 +592,15 @@ impl Cobro {
         let ctx = cx.egui.clone();
         let descuento = self.descuento;
         let porcentaje = cx.global.negocio.as_ref().and_then(cobros::descuento_efectivo);
+        let minimo = cx.global.negocio.as_ref().and_then(cobros::minimo_descuento_efectivo);
         let p = self.proc_mut(lado);
         let cargando = p.procesando;
         let Some(e) = p.efectivo.as_mut() else { return };
         let (original, cobrar, aplicando) = (e.original, e.cobrar, e.aplicando);
+        let alcanza = minimo.is_none_or(|m| original >= m);
         let con_descuento = cobrar < original;
         let mut confirmar = tope && !cargando && enter(&ctx);
-        let mut aplicar_d = tope && !cargando && !aplicando && ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::F5));
+        let mut aplicar_d = tope && !cargando && !aplicando && ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::F5)) && alcanza;
         let mut cancelar = false;
         let r = v2::Modal::new(("cobro-efectivo", lado == Lado::Afip), "Cobro en efectivo")
             .subtitulo("Confirmá el monto a cobrar")
@@ -650,8 +652,11 @@ impl Cobro {
                     });
                 } else {
                     pie(ui, 20, 0, |ui| {
-                        let etiqueta = porcentaje.map_or("Descuento efectivo".to_string(), |p| format!("Descuento efectivo {}%", formato::numero(p)));
-                        aplicar_d |= boton(etiqueta, Estilo::Dorado).tecla("F5").relleno(14.0).habilitado(!cargando).ui(ui).clicked();
+                        let etiqueta = match minimo.filter(|_| !alcanza) {
+                            Some(m) => format!("Desde {}", dinero(m)),
+                            None => porcentaje.map_or("Descuento efectivo".to_string(), |p| format!("Descuento efectivo {}%", formato::numero(p))),
+                        };
+                        aplicar_d |= boton(etiqueta, Estilo::Dorado).tecla("F5").relleno(14.0).habilitado(!cargando && alcanza).ui(ui).clicked();
                         cancelar = boton("Cancelar", Estilo::Secundario).habilitado(!cargando).ui(ui).clicked();
                     });
                     pie(ui, 10, 22, |ui| {

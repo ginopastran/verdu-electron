@@ -277,6 +277,9 @@ impl Cobro {
             return;
         }
         let d = Datos::de(cx);
+        if !cobros::alcanza_minimo_efectivo(&d.negocio, redondear(d.total_iva, 2)) {
+            return;
+        }
         self.proc_mut(lado).efectivo = None;
         let descuento = if lado == Lado::Afip { self.descuento } else { None };
         self.abrir_efectivo(lado, &d, true, descuento);

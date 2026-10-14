@@ -196,6 +196,14 @@ pub fn descuento_efectivo(negocio: &Value) -> Option<f64> {
     verdad(&negocio["descuentoEfectivo"]).then(|| numero(&negocio["descuentoEfectivo"]))
 }
 
+pub fn minimo_descuento_efectivo(negocio: &Value) -> Option<f64> {
+    Some(numero(&negocio["descuentoEfectivoMinimo"])).filter(|minimo| *minimo > 0.0)
+}
+
+pub fn alcanza_minimo_efectivo(negocio: &Value, total: f64) -> bool {
+    minimo_descuento_efectivo(negocio).is_none_or(|minimo| total >= minimo)
+}
+
 pub fn vuelto(texto: &str, total: f64) -> (f64, Option<&'static str>) {
     match parse_float(texto) {
         Some(pagado) if pagado > 0.0 => {
@@ -851,6 +859,18 @@ mod pruebas {
         assert_eq!(descuento_efectivo(&json!({ "descuentoEfectivo": "5" })), Some(5.0));
         assert_eq!(descuento_efectivo(&json!({ "descuentoEfectivo": 0 })), None);
         assert_eq!(descuento_efectivo(&json!({})), None);
+    }
+
+    #[test]
+    fn descuento_en_efectivo_desde_un_minimo() {
+        let con_minimo = json!({ "descuentoEfectivo": 10, "descuentoEfectivoMinimo": 20000 });
+        assert_eq!(minimo_descuento_efectivo(&con_minimo), Some(20000.0));
+        assert!(!alcanza_minimo_efectivo(&con_minimo, 19999.99));
+        assert!(alcanza_minimo_efectivo(&con_minimo, 20000.0));
+        for sin_minimo in [json!({ "descuentoEfectivo": 10 }), json!({ "descuentoEfectivoMinimo": null }), json!({ "descuentoEfectivoMinimo": 0 })] {
+            assert_eq!(minimo_descuento_efectivo(&sin_minimo), None);
+            assert!(alcanza_minimo_efectivo(&sin_minimo, 1.0));
+        }
     }
 
     #[test]
