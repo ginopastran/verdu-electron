@@ -3,7 +3,8 @@ pub mod manual;
 pub mod resultado;
 
 use chrono::Utc;
-use eframe::egui::{self, Color32, CursorIcon, Id, Key, Modifiers, Rect, Response, Sense, Stroke, StrokeKind, Ui, Vec2};
+use eframe::egui::{self, Align2, Color32, CursorIcon, Frame, Id, Key, Margin, Modifiers, Rect, Response, Sense, Stroke, StrokeKind, Ui, Vec2};
+
 use nucleo::cierre::{self as logica, AvisoImpresion, FalloCierre};
 use nucleo::entorno;
 use serde_json::Value;
@@ -33,6 +34,9 @@ pub struct DialogoCierre {
     periodo_en_curso: Option<&'static str>,
     contado: String,
     contado_enviado: Option<f64>,
+    esperados: [Option<f64>; 3],
+    tareas_esperado: Vec<Tarea<(usize, Option<f64>)>>,
+    pedir_esperados: bool,
     manual: manual::CierreManual,
     resultado: resultado::DialogoResultadoCierre,
 }
@@ -53,6 +57,11 @@ pub fn avisar_impresion(ctx: &egui::Context, resultado: &Value) {
         ),
         AvisoImpresion::ErrorGeneral(mensaje) => toast::error(ctx, format!("Error al imprimir el ticket de cierre: {mensaje}")),
     }
+}
+
+pub fn pedir_esperado(servicios: &Servicios, cuerpo: &Value) -> Option<f64> {
+    let respuesta = servicios.api.pedir("GET", &logica::ruta_esperado(cuerpo), None, &encabezados_app()).ok()?;
+    logica::esperado_de(respuesta.ok(), &respuesta.cuerpo)
 }
 
 pub fn registrar_cierre(servicios: &Servicios, cuerpo: &Value, periodo: String) -> RespuestaCierre {
@@ -91,6 +100,61 @@ impl DialogoCierre {
     pub fn abrir(&mut self) {
         self.abierto = true;
         self.contado.clear();
+        self.esperados = [None; 3];
+        self.tareas_esperado.clear();
+        self.pedir_esperados = true;
+    }
+
+    fn atender_esperados(&mut self, cx: &Contexto) {
+        if std::mem::take(&mut self.pedir_esperados) {
+            if let Some(usuario) = cx.global.usuario.clone() {
+                let ahora = Utc::now();
+                for (indice, opcion) in OPCIONES.iter().enumerate() {
+                    let Some(periodo) = opcion.periodo else { continue };
+                    let (inicio, fin) = logica::rango_periodo(periodo, &ahora);
+                    let cuerpo = logica::cuerpo_cierre(&usuario, periodo, &inicio, &fin);
+                    let servicios = cx.servicios.clone();
+                    self.tareas_esperado.push(Tarea::lanzar(&cx.egui, move || (indice, pedir_esperado(&servicios, &cuerpo))));
+                }
+            }
+        }
+        let mut listos = Vec::new();
+        self.tareas_esperado.retain_mut(|t| match t.listo() {
+            Some(listo) => {
+                listos.push(listo);
+                false
+            }
+            None => true,
+        });
+        for (indice, esperado) in listos {
+            self.esperados[indice] = esperado;
+        }
+    }
+
+    fn arqueo_en_vivo(&self, ui: &mut Ui) {
+        let contado = logica::efectivo_contado(&self.contado);
+        let calculando = !self.tareas_esperado.is_empty();
+        Frame::NONE.fill(color::FONDO_APP).corner_radius(radio::POPOVER).inner_margin(Margin::symmetric(14, 8)).show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            for (opcion, esperado) in OPCIONES.iter().zip(self.esperados) {
+                let (fila, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 24.0), Sense::hover());
+                v2::pintar_texto(ui, fila.left_center(), Align2::LEFT_CENTER, opcion.titulo, tam::CONTROL, Peso::Medio, color::TEXTO_SECUNDARIO);
+                let columna = egui::pos2(fila.left() + fila.width() * 0.58, fila.center().y);
+                match esperado {
+                    Some(esperado) => {
+                        v2::pintar_texto(ui, columna, Align2::RIGHT_CENTER, format!("Esperado {}", dibujo::dinero(esperado)), tam::CONTROL, Peso::Normal, color::TEXTO);
+                        if let Some(contado) = contado {
+                            let (texto, tinta) = dibujo::diferencia(&logica::arqueo(esperado, contado));
+                            v2::pintar_texto(ui, fila.right_center(), Align2::RIGHT_CENTER, texto, tam::CONTROL, Peso::Semi, tinta);
+                        }
+                    }
+                    None => {
+                        let texto = if calculando { "Calculando…" } else { "—" };
+                        v2::pintar_texto(ui, columna, Align2::RIGHT_CENTER, texto, tam::CONTROL, Peso::Normal, color::TEXTO_TENUE);
+                    }
+                }
+            }
+        });
     }
 
     fn campo_contado(&mut self, ui: &mut Ui, ocupado: bool) -> bool {
@@ -104,7 +168,12 @@ impl DialogoCierre {
         self.contado = self.contado.replace(',', ".");
         self.contado.retain(|c| c.is_ascii_digit() || c == '.');
         ui.add_space(6.0);
-        v2::texto(ui, "Al cerrar se compara con el efectivo esperado del período.", tam::CHICO, Peso::Normal, color::TEXTO_TENUE);
+        if self.esperados.iter().any(Option::is_some) || !self.tareas_esperado.is_empty() {
+            ui.add_space(2.0);
+            self.arqueo_en_vivo(ui);
+        } else {
+            v2::texto(ui, "Al cerrar se compara con el efectivo esperado del período.", tam::CHICO, Peso::Normal, color::TEXTO_TENUE);
+        }
         ui.add_space(16.0);
         respuesta.has_focus()
     }
@@ -127,6 +196,9 @@ impl DialogoCierre {
 
     pub fn mostrar(&mut self, ui: &mut Ui, cx: &mut Contexto) -> Option<ResultadoCierre> {
         let mut resultado = self.recibir(cx);
+        if self.abierto {
+            self.atender_esperados(cx);
+        }
         if self.abierto && !self.manual.abierto() {
             let ocupado = self.cerrando();
             let en_curso = self.periodo_en_curso.filter(|_| ocupado);

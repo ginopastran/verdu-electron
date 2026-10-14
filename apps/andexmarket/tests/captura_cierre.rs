@@ -64,7 +64,8 @@ fn servidor(responder: impl Fn(&str, &str) -> Option<(u16, Value)> + Send + Sync
                 let mut cuerpo = vec![0; largo];
                 lector.read_exact(&mut cuerpo).unwrap();
                 let cuerpo = serde_json::from_slice(&cuerpo).unwrap_or(Value::Null);
-                if !ruta.starts_with("/api/productos") && !ruta.starts_with("/api/business/logo-comprobante") {
+                if !ruta.starts_with("/api/productos") && !ruta.starts_with("/api/business/logo-comprobante") && !ruta.starts_with("/api/cierres/esperado") {
+
                     registro.lock().unwrap().push(Pedido { metodo: metodo.clone(), ruta: ruta.clone(), encabezados, cuerpo });
                 }
                 let Some((estado, respuesta)) = responder(&metodo, &ruta) else {
@@ -295,7 +296,7 @@ fn cierre_caja_clic_en_manana() {
     let mut harness = escena(servicios_con(&base), tam);
     harness.state_mut().cierre.abrir();
     harness.run_steps(4);
-    clic_centro(&mut harness, tam, -120.0, -46.0);
+    clic_centro(&mut harness, tam, -120.0, 30.0);
     assert!(harness.state().cierre.cerrando());
     for _ in 0..40 {
         if !pedidos.lock().unwrap().is_empty() {
@@ -455,4 +456,31 @@ fn resultado_del_cierre_manual() {
     cierre["periodo"] = json!("custom");
     harness.state_mut().resultado.abrir(cierre);
     guardar(&mut harness, "92-resultado-cierre-manual", tam);
+}
+
+#[test]
+fn cierre_caja_pide_el_esperado_de_cada_periodo() {
+    for tam in TAMANOS {
+        let pedidos_esperado = Arc::new(Mutex::new(Vec::new()));
+        let registro = pedidos_esperado.clone();
+        let (base, _) = servidor(move |metodo, ruta| {
+            if metodo == "GET" && ruta.starts_with("/api/cierres/esperado?") {
+                registro.lock().unwrap().push(ruta.to_string());
+                let esperado = if ruta.contains("periodo=tarde") { 8200.0 } else { 19800.0 };
+                return Some((200, json!({ "esperado": esperado, "ventasPorMetodo": { "efectivo": esperado } })));
+            }
+            Some((404, json!({})))
+        });
+        let mut harness = escena(servicios_con(&base), tam);
+        harness.state_mut().cierre.abrir();
+        esperar(&mut harness, |_| pedidos_esperado.lock().unwrap().len() == 3);
+        harness.run_steps(4);
+        clic_centro(&mut harness, tam, 0.0, -145.0);
+        harness.event(egui::Event::Text("19500".into()));
+        guardar(&mut harness, "54b-modal-cierre-caja-arqueo", tam);
+        let rutas = pedidos_esperado.lock().unwrap().clone();
+        for periodo in ["periodo=ma%C3%B1ana", "periodo=tarde", "periodo=todo"] {
+            assert!(rutas.iter().any(|r| r.contains(periodo) && r.contains("vendedorId=11") && r.contains("sucursalId=1")), "{rutas:?}");
+        }
+    }
 }

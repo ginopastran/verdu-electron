@@ -3,7 +3,8 @@ use eframe::egui::{self, Align, Color32, CursorIcon, Id, Rect, Response, ScrollA
 use nucleo::cierre::{self as logica, Hora};
 use serde_json::Value;
 
-use super::dibujo::{caja_entrada, etiqueta, nota};
+use super::dibujo::{caja_entrada, diferencia, dinero, etiqueta, nota};
+
 use super::{avisar_impresion, encabezados_app};
 use crate::app::{Contexto, Servicios};
 use crate::impresion::{imprimir, Comprobante};
@@ -38,6 +39,9 @@ pub struct CierreManual {
     carga: Option<Tarea<Listas>>,
     envio: Option<Tarea<RespuestaManual>>,
     contado: Option<f64>,
+    esperado: Option<f64>,
+    esperado_de: Option<Value>,
+    tarea_esperado: Option<Tarea<(Value, Option<f64>)>>,
 }
 
 impl Default for CierreManual {
@@ -53,6 +57,9 @@ impl Default for CierreManual {
             carga: None,
             envio: None,
             contado: None,
+            esperado: None,
+            esperado_de: None,
+            tarea_esperado: None,
         };
         manual.valores_por_defecto(logica::ahora_argentina());
         manual
@@ -127,6 +134,9 @@ impl CierreManual {
         self.valores_por_defecto(logica::ahora_argentina());
         self.abierto = true;
         self.contado = contado;
+        self.esperado = None;
+        self.esperado_de = None;
+        self.tarea_esperado = None;
         let servicios = cx.servicios.clone();
         self.carga = Some(Tarea::lanzar(&cx.egui, move || cargar_listas(&servicios)));
     }
@@ -185,6 +195,24 @@ impl CierreManual {
         }
     }
 
+    fn seguir_esperado(&mut self, cx: &Contexto, cuerpo: Value) {
+        if let Some((de, esperado)) = esperar(&mut self.tarea_esperado) {
+            if Some(&de) == self.esperado_de.as_ref() {
+                self.esperado = esperado;
+            }
+        }
+        if Some(&cuerpo) == self.esperado_de.as_ref() {
+            return;
+        }
+        self.esperado = None;
+        self.esperado_de = Some(cuerpo.clone());
+        let servicios = cx.servicios.clone();
+        self.tarea_esperado = Some(Tarea::lanzar(&cx.egui, move || {
+            let esperado = super::pedir_esperado(&servicios, &cuerpo);
+            (cuerpo, esperado)
+        }));
+    }
+
     pub fn mostrar(&mut self, _ui: &mut Ui, cx: &mut Contexto) -> Option<Value> {
         let completado = self.recibir(cx);
         if !self.abierto {
@@ -199,6 +227,14 @@ impl CierreManual {
         let sucursal = logica::nombre_por_id(&self.sucursales, &sucursal_id).unwrap_or_else(|| "Cargando...".into());
         let (hora_inicio, hora_fin) = (self.hora(Extremo::Inicio), self.hora(Extremo::Fin));
         let error = logica::validar_manual(self.inicio, self.fin, &vendedor_id, &sucursal_id, hora_inicio, hora_fin).err();
+        if error.is_none() {
+            let (desde, hasta) = logica::rango_manual(self.inicio, hora_inicio, self.fin, hora_fin);
+            self.seguir_esperado(cx, logica::cuerpo_manual(&vendedor_id, &sucursal_id, &desde, &hasta));
+        }
+        let arqueo = self.esperado.filter(|_| error.is_none()).map(|esperado| match self.contado {
+            Some(contado) => format!("Efectivo esperado {} · {}", dinero(esperado), diferencia(&logica::arqueo(esperado, contado)).0),
+            None => format!("Efectivo esperado {}", dinero(esperado)),
+        });
         let mut crear = false;
         let mut volver = false;
         let respuesta = v2::Modal::new("cierre-manual", "Cierre manual")
@@ -236,6 +272,10 @@ impl CierreManual {
                                 (color::VERDE_ELEGIDO, color::VERDE_PROFUNDO)
                             };
                             nota(ui, "clock-time", 18.0, &resumen, tam::CONTROL, fondo, tinta, tinta);
+                            if let Some(arqueo) = &arqueo {
+                                ui.add_space(8.0);
+                                nota(ui, "cash", 18.0, arqueo, tam::CONTROL, color::FONDO_APP, color::TEXTO_SECUNDARIO, color::VERDE);
+                            }
                         }
                     }
                 });

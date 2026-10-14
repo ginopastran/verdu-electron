@@ -1,9 +1,10 @@
 use eframe::egui::{self, Align2, Color32, Frame, Rect, ScrollArea, Sense, Stroke, Ui, Vec2};
-use nucleo::cierre::{self as logica, numero, texto_valor, EstadoArqueo};
+use nucleo::cierre::{self as logica, numero, texto_valor};
 use nucleo::formato;
 use serde_json::Value;
 
-use super::dibujo::{dinero, hora_corta, metodo_pago};
+use super::dibujo::{diferencia, dinero, hora_corta, metodo_pago};
+
 use crate::app::Contexto;
 use crate::ui::marca::{color, fuente, radio, tam};
 use crate::ui::v2::{self, tarjetas::celda_texto, Boton, Columna, Tabla};
@@ -106,11 +107,7 @@ fn textos_arqueo(resultado: &Value) -> [(&'static str, String, Color32); 3] {
     let Some(arqueo) = resultado["efectivoContado"].as_f64().map(|contado| logica::arqueo(esperado, contado)) else {
         return [("Esperado en efectivo", dinero(esperado), color::TEXTO), ("Contado", "Sin contar".into(), color::TEXTO_TENUE), ("Diferencia", "—".into(), color::TEXTO_TENUE)];
     };
-    let diferencia = match arqueo.estado {
-        EstadoArqueo::Cuadra => ("Cuadra".to_string(), color::VERDE),
-        EstadoArqueo::Faltan => (format!("Faltan {}", dinero(-arqueo.diferencia)), color::ROJO),
-        EstadoArqueo::Sobran => (format!("Sobran {}", dinero(arqueo.diferencia)), color::DORADO_TEXTO),
-    };
+    let diferencia = diferencia(&arqueo);
     [("Esperado en efectivo", dinero(esperado), color::TEXTO), ("Contado", dinero(arqueo.contado), color::TEXTO), ("Diferencia", diferencia.0, diferencia.1)]
 }
 

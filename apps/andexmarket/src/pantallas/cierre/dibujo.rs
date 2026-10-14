@@ -1,5 +1,6 @@
 use chrono::{NaiveDateTime, Timelike};
 use eframe::egui::{self, text::LayoutJob, Color32, Frame, Margin, Rect, Sense, TextFormat, Ui, Vec2};
+use nucleo::cierre::{Arqueo, EstadoArqueo};
 use nucleo::formato;
 
 use crate::ui::marca::{color, fuente, radio};
@@ -10,6 +11,14 @@ pub fn dinero(valor: f64) -> String {
     let valor = if valor.is_finite() { valor } else { 0.0 };
     let signo = if valor < 0.0 { "−" } else { "" };
     format!("{signo}${}", formato::numero_con(valor.abs(), 0, 2))
+}
+
+pub fn diferencia(arqueo: &Arqueo) -> (String, Color32) {
+    match arqueo.estado {
+        EstadoArqueo::Cuadra => ("Cuadra".to_string(), color::VERDE),
+        EstadoArqueo::Faltan => (format!("Faltan {}", dinero(-arqueo.diferencia)), color::ROJO),
+        EstadoArqueo::Sobran => (format!("Sobran {}", dinero(arqueo.diferencia)), color::DORADO_TEXTO),
+    }
 }
 
 pub fn metodo_pago(clave: &str) -> (String, &'static str, Tono) {
@@ -84,6 +93,11 @@ mod pruebas {
         assert_eq!(dinero(8508.571), "$8.508,57");
         assert_eq!(dinero(-239.0), "−$239");
         assert_eq!(dinero(f64::NAN), "$0");
+        let texto = |esperado: f64, contado: f64| diferencia(&nucleo::cierre::arqueo(esperado, contado)).0;
+        assert_eq!(texto(19800.0, 19500.5), "Faltan $299,5");
+        assert_eq!(texto(19800.0, 20000.0), "Sobran $200");
+        assert_eq!(texto(19800.0, 19800.4), "Cuadra");
+
         let fecha = |h, m| NaiveDate::from_ymd_opt(2026, 10, 10).unwrap().and_hms_opt(h, m, 0).unwrap();
         assert_eq!(hora_corta(fecha(8, 14)), "08:14 a. m.");
         assert_eq!(hora_corta(fecha(12, 36)), "12:36 p. m.");

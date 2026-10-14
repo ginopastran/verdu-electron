@@ -51,6 +51,25 @@ pub fn con_efectivo_contado(mut cuerpo: Value, contado: Option<f64>) -> Value {
     cuerpo
 }
 
+pub fn ruta_esperado(cuerpo: &Value) -> String {
+    let parametros: Vec<String> = ["vendedorId", "sucursalId", "periodo", "fechaInicio", "fechaCierre"]
+        .into_iter()
+        .filter_map(|clave| {
+            let valor = match cuerpo.get(clave)? {
+                Value::String(s) => s.clone(),
+                Value::Number(n) => n.to_string(),
+                _ => return None,
+            };
+            Some(format!("{clave}={}", crate::api::codificar(&valor)))
+        })
+        .collect();
+    format!("/api/cierres/esperado?{}", parametros.join("&"))
+}
+
+pub fn esperado_de(ok: bool, respuesta: &Value) -> Option<f64> {
+    respuesta["esperado"].as_f64().filter(|e| ok && e.is_finite())
+}
+
 pub const METODOS_EFECTIVO: [&str; 2] = ["efectivo", "efectivo d"];
 
 fn monto_metodo(valor: &Value) -> f64 {
@@ -415,7 +434,22 @@ mod pruebas {
     }
 
     #[test]
+    fn el_esperado_se_pide_con_los_mismos_datos_del_cierre() {
+        let usuario = json!({ "id": 11, "sucursalId": 1 });
+        let (inicio, fin) = rango_periodo("mañana", &en_argentina("2026-10-10 09:37:00.619"));
+        assert_eq!(
+            ruta_esperado(&cuerpo_cierre(&usuario, "mañana", &inicio, &fin)),
+            "/api/cierres/esperado?vendedorId=11&sucursalId=1&periodo=ma%C3%B1ana&fechaInicio=2026-10-10T00%3A00%3A00.000Z&fechaCierre=2026-10-10T09%3A37%3A00.619Z"
+        );
+        assert_eq!(ruta_esperado(&json!({ "vendedorId": 3, "periodo": "todo" })), "/api/cierres/esperado?vendedorId=3&periodo=todo");
+        assert_eq!(esperado_de(true, &json!({ "esperado": 53500.5, "ventasPorMetodo": {} })), Some(53500.5));
+        assert_eq!(esperado_de(false, &json!({ "esperado": 1 })), None);
+        assert_eq!(esperado_de(true, &json!({ "message": "Id inválido" })), None);
+    }
+
+    #[test]
     fn efectivo_contado_va_solo_si_se_cargo() {
+
         let cuerpo = json!({ "periodo": "todo" });
         assert_eq!(con_efectivo_contado(cuerpo.clone(), None), cuerpo);
         assert_eq!(con_efectivo_contado(cuerpo, Some(15200.5))["efectivoContado"], 15200.5);
