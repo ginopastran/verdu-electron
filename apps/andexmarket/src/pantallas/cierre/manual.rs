@@ -37,6 +37,7 @@ pub struct CierreManual {
     mes_visible: NaiveDate,
     carga: Option<Tarea<Listas>>,
     envio: Option<Tarea<RespuestaManual>>,
+    contado: Option<f64>,
 }
 
 impl Default for CierreManual {
@@ -51,6 +52,7 @@ impl Default for CierreManual {
             mes_visible: NaiveDate::MIN,
             carga: None,
             envio: None,
+            contado: None,
         };
         manual.valores_por_defecto(logica::ahora_argentina());
         manual
@@ -121,9 +123,10 @@ impl CierreManual {
         self.mes_visible = ahora.date().with_day(1).expect("día 1");
     }
 
-    pub fn abrir(&mut self, cx: &mut Contexto) {
+    pub fn abrir(&mut self, cx: &mut Contexto, contado: Option<f64>) {
         self.valores_por_defecto(logica::ahora_argentina());
         self.abierto = true;
+        self.contado = contado;
         let servicios = cx.servicios.clone();
         self.carga = Some(Tarea::lanzar(&cx.egui, move || cargar_listas(&servicios)));
     }
@@ -159,7 +162,7 @@ impl CierreManual {
                 avisar_impresion(&cx.egui, &impresion);
                 toast::exito(&cx.egui, "Cierre creado correctamente");
                 self.abierto = false;
-                Some(cierre)
+                Some(logica::con_efectivo_contado(cierre, self.contado))
             }
             RespuestaManual::Error(mensaje) => {
                 toast::error(&cx.egui, mensaje);
@@ -175,7 +178,7 @@ impl CierreManual {
             Err(mensaje) => toast::error(&cx.egui, mensaje),
             Ok(()) => {
                 let (desde, hasta) = logica::rango_manual(self.inicio, hora_inicio, self.fin, hora_fin);
-                let cuerpo = logica::cuerpo_manual(&vendedor, &sucursal, &desde, &hasta);
+                let cuerpo = logica::con_efectivo_contado(logica::cuerpo_manual(&vendedor, &sucursal, &desde, &hasta), self.contado);
                 let servicios = cx.servicios.clone();
                 self.envio = Some(Tarea::lanzar(&cx.egui, move || crear_cierre(&servicios, &cuerpo)));
             }

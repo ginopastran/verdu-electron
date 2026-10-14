@@ -3,7 +3,7 @@ pub mod manual;
 pub mod resultado;
 
 use chrono::Utc;
-use eframe::egui::{self, Color32, CursorIcon, Key, Modifiers, Rect, Response, Sense, Stroke, StrokeKind, Ui, Vec2};
+use eframe::egui::{self, Color32, CursorIcon, Id, Key, Modifiers, Rect, Response, Sense, Stroke, StrokeKind, Ui, Vec2};
 use nucleo::cierre::{self as logica, AvisoImpresion, FalloCierre};
 use nucleo::entorno;
 use serde_json::Value;
@@ -12,7 +12,7 @@ use crate::app::{Contexto, Servicios};
 use crate::impresion::{imprimir, Comprobante};
 use crate::tareas::{esperar, Tarea};
 use crate::ui::marca::{color, fuente, mezclar, radio, tam};
-use crate::ui::v2::{self, pintar_tecla, toast, EstiloTecla};
+use crate::ui::v2::{self, pintar_tecla, toast, Contenedor, EstiloTecla};
 use crate::ui::{pintar_icono_solar_en, Peso};
 
 pub enum ResultadoCierre {
@@ -31,6 +31,8 @@ pub struct DialogoCierre {
     abierto: bool,
     tarea: Option<Tarea<RespuestaCierre>>,
     periodo_en_curso: Option<&'static str>,
+    contado: String,
+    contado_enviado: Option<f64>,
     manual: manual::CierreManual,
     resultado: resultado::DialogoResultadoCierre,
 }
@@ -88,6 +90,23 @@ fn atajo(ctx: &egui::Context) -> Option<Accion> {
 impl DialogoCierre {
     pub fn abrir(&mut self) {
         self.abierto = true;
+        self.contado.clear();
+    }
+
+    fn campo_contado(&mut self, ui: &mut Ui, ocupado: bool) -> bool {
+        v2::texto(ui, "Efectivo contado en caja (opcional)", tam::ETIQUETA, Peso::Semi, color::TEXTO_SECUNDARIO);
+        ui.add_space(6.0);
+        let contenedor = Contenedor { alto: 44.0, radio: radio::BOTON_MODAL, relleno_izquierdo: 12.0, relleno_derecho: 12.0, separacion: 6.0, ..Default::default() };
+        let respuesta = contenedor.mostrar(ui, ui.available_width(), |ui| {
+            v2::texto(ui, "$", tam::ENTRADA, Peso::Normal, color::TEXTO_TENUE);
+            v2::entrada_desnuda(&mut self.contado).tam(tam::CUERPO).sugerencia("Lo que hay en la caja").habilitado(!ocupado).id(Id::new("cierre-efectivo-contado")).ui(ui)
+        });
+        self.contado = self.contado.replace(',', ".");
+        self.contado.retain(|c| c.is_ascii_digit() || c == '.');
+        ui.add_space(6.0);
+        v2::texto(ui, "Al cerrar se compara con el efectivo esperado del período.", tam::CHICO, Peso::Normal, color::TEXTO_TENUE);
+        ui.add_space(16.0);
+        respuesta.has_focus()
     }
 
     pub fn abierto(&self) -> bool {
@@ -117,7 +136,9 @@ impl DialogoCierre {
                 .ancho(520.0)
                 .mostrar(&cx.egui, |ui| {
                     let mut accion = None;
+                    let mut escribiendo = false;
                     v2::cuerpo_modal(ui, 20, |ui| {
+                        escribiendo = self.campo_contado(ui, ocupado);
                         let ancho = (ui.available_width() - 10.0) / 2.0;
                         for fila in 0..2 {
                             if fila > 0 {
@@ -135,14 +156,14 @@ impl DialogoCierre {
                         }
                         ui.add_space(24.0);
                     });
-                    if !ocupado {
+                    if !ocupado && !escribiendo {
                         accion = accion.or_else(|| atajo(ui.ctx()));
                     }
                     accion
                 });
             match respuesta.interior {
                 Some(Accion::Periodo(periodo)) => resultado = self.cerrar_caja(periodo, cx).or(resultado),
-                Some(Accion::Manual) => self.manual.abrir(cx),
+                Some(Accion::Manual) => self.manual.abrir(cx, logica::efectivo_contado(&self.contado)),
                 None => {}
             }
             if respuesta.cerrar && self.abierto {
@@ -165,7 +186,7 @@ impl DialogoCierre {
                 avisar_impresion(&cx.egui, &impresion);
                 toast::exito(&cx.egui, format!("Cierre de {periodo} realizado correctamente"));
                 self.abierto = false;
-                self.resultado.abrir(cierre);
+                self.resultado.abrir(logica::con_efectivo_contado(cierre, self.contado_enviado));
                 Some(ResultadoCierre::Completado)
             }
             RespuestaCierre::MananaRequerida => {
@@ -196,7 +217,8 @@ impl DialogoCierre {
             return Some(ResultadoCierre::Cancelado);
         }
         let (inicio, fin) = logica::rango_periodo(periodo, &Utc::now());
-        let cuerpo = logica::cuerpo_cierre(&usuario, periodo, &inicio, &fin);
+        self.contado_enviado = logica::efectivo_contado(&self.contado);
+        let cuerpo = logica::con_efectivo_contado(logica::cuerpo_cierre(&usuario, periodo, &inicio, &fin), self.contado_enviado);
         let servicios = cx.servicios.clone();
         self.periodo_en_curso = Some(periodo);
         self.tarea = Some(Tarea::lanzar(&cx.egui, move || registrar_cierre(&servicios, &cuerpo, periodo.to_string())));

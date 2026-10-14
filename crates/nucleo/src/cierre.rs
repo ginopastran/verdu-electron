@@ -44,6 +44,61 @@ pub fn cuerpo_cierre(usuario: &Value, periodo: &str, inicio: &NaiveDateTime, fin
     Value::Object(cuerpo)
 }
 
+pub fn con_efectivo_contado(mut cuerpo: Value, contado: Option<f64>) -> Value {
+    if let (Some(contado), Some(objeto)) = (contado, cuerpo.as_object_mut()) {
+        objeto.insert("efectivoContado".into(), json!(contado));
+    }
+    cuerpo
+}
+
+pub const METODOS_EFECTIVO: [&str; 2] = ["efectivo", "efectivo d"];
+
+fn monto_metodo(valor: &Value) -> f64 {
+    let valor = valor.get("total").unwrap_or(valor);
+    Some(numero(Some(valor))).filter(|n| n.is_finite()).unwrap_or(0.0)
+}
+
+pub fn efectivo_esperado(ventas_por_metodo: &Value) -> f64 {
+    let total: f64 = ventas_por_metodo
+        .as_object()
+        .into_iter()
+        .flatten()
+        .filter(|(metodo, _)| METODOS_EFECTIVO.contains(&metodo.trim().to_lowercase().as_str()))
+        .map(|(_, monto)| monto_metodo(monto))
+        .sum();
+    crate::cobros::redondear(total, 2)
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum EstadoArqueo {
+    Cuadra,
+    Faltan,
+    Sobran,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Arqueo {
+    pub esperado: f64,
+    pub contado: f64,
+    pub diferencia: f64,
+    pub estado: EstadoArqueo,
+}
+
+pub fn arqueo(esperado: f64, contado: f64) -> Arqueo {
+    let diferencia = crate::cobros::redondear(contado - esperado, 2);
+    let estado = match (diferencia + 0.5).floor() {
+        d if d == 0.0 => EstadoArqueo::Cuadra,
+        d if d < 0.0 => EstadoArqueo::Faltan,
+        _ => EstadoArqueo::Sobran,
+    };
+    let diferencia = if estado == EstadoArqueo::Cuadra { 0.0 } else { diferencia };
+    Arqueo { esperado, contado, diferencia, estado }
+}
+
+pub fn efectivo_contado(texto: &str) -> Option<f64> {
+    crate::cobros::parse_float(&texto.trim().replace(',', ".")).filter(|monto| monto.is_finite() && *monto >= 0.0 && *monto < 1e12)
+}
+
 pub fn id_texto(valor: Option<&Value>) -> String {
     match valor {
         Some(Value::Number(n)) => texto_numero(n.as_f64().unwrap_or(f64::NAN)),
@@ -357,6 +412,37 @@ mod pruebas {
             AvisoImpresion::ErrorImpresora("sin papel".into())
         );
         assert_eq!(aviso_impresion(&json!({ "success": false })), AvisoImpresion::ErrorGeneral("Desconocido".into()));
+    }
+
+    #[test]
+    fn efectivo_contado_va_solo_si_se_cargo() {
+        let cuerpo = json!({ "periodo": "todo" });
+        assert_eq!(con_efectivo_contado(cuerpo.clone(), None), cuerpo);
+        assert_eq!(con_efectivo_contado(cuerpo, Some(15200.5))["efectivoContado"], 15200.5);
+        assert_eq!(efectivo_contado("15200,50"), Some(15200.5));
+        assert_eq!(efectivo_contado("15200.5"), Some(15200.5));
+        assert_eq!(efectivo_contado(" 8000 "), Some(8000.0));
+        assert_eq!(efectivo_contado(""), None);
+        assert_eq!(efectivo_contado("-5"), None);
+        assert_eq!(efectivo_contado("abc"), None);
+    }
+
+    #[test]
+    fn esperado_suma_efectivo_y_efectivo_d_como_la_web() {
+        let ventas = json!({ "efectivo": 52300.5, "Efectivo D": { "total": 1200, "cantidad": 2 }, "tarjeta": 9000, "qr": "800" });
+        assert_eq!(efectivo_esperado(&ventas), 53500.5);
+        assert_eq!(efectivo_esperado(&json!("{}")), 0.0);
+        assert_eq!(efectivo_esperado(&Value::Null), 0.0);
+    }
+
+    #[test]
+    fn diferencia_de_arqueo_con_tolerancia_de_medio_peso() {
+        assert_eq!(arqueo(53500.5, 53500.0), Arqueo { esperado: 53500.5, contado: 53500.0, diferencia: 0.0, estado: EstadoArqueo::Cuadra });
+        assert_eq!(arqueo(53500.5, 53000.0).estado, EstadoArqueo::Faltan);
+        assert_eq!(arqueo(53500.5, 53000.0).diferencia, -500.5);
+        assert_eq!(arqueo(1000.0, 1250.25).diferencia, 250.25);
+        assert_eq!(arqueo(1000.0, 1250.25).estado, EstadoArqueo::Sobran);
+        assert_eq!(arqueo(1000.0, 1000.5).estado, EstadoArqueo::Sobran);
     }
 
     #[test]

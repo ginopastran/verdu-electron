@@ -1,5 +1,5 @@
-use eframe::egui::{self, Align2, Frame, Rect, ScrollArea, Sense, Stroke, Ui, Vec2};
-use nucleo::cierre::{self as logica, numero, texto_valor};
+use eframe::egui::{self, Align2, Color32, Frame, Rect, ScrollArea, Sense, Stroke, Ui, Vec2};
+use nucleo::cierre::{self as logica, numero, texto_valor, EstadoArqueo};
 use nucleo::formato;
 use serde_json::Value;
 
@@ -75,12 +75,7 @@ fn ticket_promedio(resultado: &Value) -> String {
     }
 }
 
-fn estadisticas(ui: &mut Ui, resultado: &Value) {
-    let datos = [
-        ("Total ventas", monto(resultado.get("totalVentas")), color::VERDE),
-        ("Cantidad de ventas", cantidad(resultado.get("cantidadVentas")), color::TEXTO),
-        ("Ticket promedio", ticket_promedio(resultado), color::TEXTO),
-    ];
+fn tarjetas(ui: &mut Ui, datos: [(&str, String, Color32); 3], px: f32) {
     Frame::NONE.stroke(Stroke::new(1.0, color::BORDE_SUAVE)).corner_radius(radio::POPOVER).show(ui, |ui| {
         let ancho = ui.available_width() / 3.0;
         ui.horizontal(|ui| {
@@ -90,11 +85,39 @@ fn estadisticas(ui: &mut Ui, resultado: &Value) {
                     ui.painter().vline(rect.left(), rect.y_range(), Stroke::new(1.0, color::BORDE_SUAVE));
                 }
                 v2::pintar_texto(ui, rect.min + Vec2::new(16.0, 14.0), Align2::LEFT_TOP, etiqueta, tam::CHICO, Peso::Normal, color::TEXTO_APAGADO);
-                let g = v2::galeria_espaciada(ui, valor, fuente(tam::MONTO_CHICO, Peso::Semi), tinta, -0.01 * tam::MONTO_CHICO);
+                let g = v2::galeria_espaciada(ui, valor, fuente(px, Peso::Semi), tinta, -0.01 * px);
                 ui.painter().galley(rect.min + Vec2::new(16.0, 33.0), g, tinta);
             }
         });
     });
+}
+
+fn estadisticas(ui: &mut Ui, resultado: &Value) {
+    let datos = [
+        ("Total ventas", monto(resultado.get("totalVentas")), color::VERDE),
+        ("Cantidad de ventas", cantidad(resultado.get("cantidadVentas")), color::TEXTO),
+        ("Ticket promedio", ticket_promedio(resultado), color::TEXTO),
+    ];
+    tarjetas(ui, datos, tam::MONTO_CHICO);
+}
+
+fn textos_arqueo(resultado: &Value) -> [(&'static str, String, Color32); 3] {
+    let esperado = logica::efectivo_esperado(&resultado["ventasPorMetodo"]);
+    let Some(arqueo) = resultado["efectivoContado"].as_f64().map(|contado| logica::arqueo(esperado, contado)) else {
+        return [("Esperado en efectivo", dinero(esperado), color::TEXTO), ("Contado", "Sin contar".into(), color::TEXTO_TENUE), ("Diferencia", "—".into(), color::TEXTO_TENUE)];
+    };
+    let diferencia = match arqueo.estado {
+        EstadoArqueo::Cuadra => ("Cuadra".to_string(), color::VERDE),
+        EstadoArqueo::Faltan => (format!("Faltan {}", dinero(-arqueo.diferencia)), color::ROJO),
+        EstadoArqueo::Sobran => (format!("Sobran {}", dinero(arqueo.diferencia)), color::DORADO_TEXTO),
+    };
+    [("Esperado en efectivo", dinero(esperado), color::TEXTO), ("Contado", dinero(arqueo.contado), color::TEXTO), ("Diferencia", diferencia.0, diferencia.1)]
+}
+
+fn arqueo(ui: &mut Ui, resultado: &Value) {
+    v2::texto(ui, "Arqueo de efectivo", tam::CUERPO, Peso::Semi, color::TEXTO);
+    ui.add_space(6.0);
+    tarjetas(ui, textos_arqueo(resultado), tam::GRANDE);
 }
 
 fn metodos_de_pago(ui: &mut Ui, metodos: &serde_json::Map<String, Value>) {
@@ -165,6 +188,8 @@ impl DialogoResultadoCierre {
                     if let Some(metodos) = resultado["ventasPorMetodo"].as_object().filter(|_| logica::verdadero(resultado.get("ventasPorMetodo"))) {
                         ui.add_space(14.0);
                         metodos_de_pago(ui, metodos);
+                        ui.add_space(14.0);
+                        arqueo(ui, resultado);
                     }
                     if let Some(lista) = resultado["ventasPorVendedor"].as_array().filter(|v| !v.is_empty()) {
                         ui.add_space(14.0);
@@ -199,6 +224,16 @@ mod pruebas {
         assert_eq!(periodo(&json!("custom")), "Manual");
         assert_eq!(periodo(&json!("mañana")), "Turno mañana");
         assert_eq!(periodo(&json!("todo")), "Todo el día");
+    }
+
+    #[test]
+    fn arqueo_con_y_sin_contado() {
+        let textos = |cierre: Value| textos_arqueo(&cierre).map(|(_, valor, _)| valor);
+        let ventas = json!({ "efectivo": 52300, "efectivo d": 1200, "tarjeta": 9000 });
+        assert_eq!(textos(json!({ "ventasPorMetodo": ventas })), ["$53.500", "Sin contar", "—"]);
+        assert_eq!(textos(json!({ "ventasPorMetodo": ventas, "efectivoContado": 53000 })), ["$53.500", "$53.000", "Faltan $500"]);
+        assert_eq!(textos(json!({ "ventasPorMetodo": ventas, "efectivoContado": 53620.5 })), ["$53.500", "$53.620,5", "Sobran $120,5"]);
+        assert_eq!(textos(json!({ "ventasPorMetodo": ventas, "efectivoContado": 53500.4 })), ["$53.500", "$53.500,4", "Cuadra"]);
     }
 
     #[test]
