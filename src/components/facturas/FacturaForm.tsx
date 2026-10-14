@@ -53,7 +53,13 @@ import { useFacturaTicketPrinting } from "@/hooks/useFacturaTicketPrinting";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { calcularPrecioVisualConIVA } from "@/utils/ivaHelpers";
-import { evaluarCredito, type EstadoCredito } from "@/utils/reglasVenta";
+import {
+  evaluarCredito,
+  montoACuentaCorriente,
+  observacionConAutorizacion,
+  precioDeVenta,
+  type EstadoCredito,
+} from "@/utils/reglasVenta";
 import { useBusiness } from "@/contexts/BusinessContext";
 import { AutorizacionCreditoDialog } from "./AutorizacionCreditoDialog";
 
@@ -454,7 +460,11 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
           );
           if (productoResponse.ok) {
             const productoData = await productoResponse.json();
-            precioBase = productoData.precio;
+            precioBase = precioDeVenta({
+              pricePerUnit: productoData.precio,
+              ofertaPorcentaje: productoData.ofertaPorcentaje,
+              ofertaHasta: productoData.ofertaHasta,
+            });
           }
         } catch (error) {
           console.log(
@@ -621,7 +631,7 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
     }
   };
 
-  const handleSubmit = async (autorizado = false) => {
+  const handleSubmit = async (autorizadoPor: string | null = null) => {
     try {
       // Validaciones
       if (!selectedCliente) {
@@ -638,8 +648,15 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
 
       setLoading(true);
 
-      if (mode === "create" && !autorizado) {
-        const credito = await consultarCredito(selectedCliente.id, total);
+      const observaciones = autorizadoPor
+        ? observacionConAutorizacion(formData.observaciones, autorizadoPor)
+        : formData.observaciones;
+
+      if (mode === "create" && !autorizadoPor) {
+        const credito = await consultarCredito(
+          selectedCliente.id,
+          montoACuentaCorriente(total, formData.pagoInicial)
+        );
         if (credito?.nivel === "excedido") {
           setCreditoPorAutorizar(credito);
           return;
@@ -678,7 +695,7 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
         dataToSend = {
           clienteId: formData.clienteId,
           tipoFactura: formData.tipoFactura,
-          observaciones: formData.observaciones,
+          observaciones,
           listaPrecioId: formData.listaPrecioId,
           pagoInicial: formData.pagoInicial || 0,
           esConsumidorFinal: false, // Siempre false porque cliente es obligatorio
@@ -708,7 +725,7 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
         dataToSend = {
           clienteId: formData.clienteId,
           tipoFactura: formData.tipoFactura,
-          observaciones: formData.observaciones,
+          observaciones,
           listaPrecioId: formData.listaPrecioId,
           pagoInicial: formData.pagoInicial || 0,
           subtotal,
@@ -780,7 +797,7 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
             subtotal,
             impuestos,
             total,
-            observaciones: formData.observaciones,
+            observaciones,
             afip: result.afip || null,
             afipQrUrl: result.factura?.afipQrUrl || null,
           };
@@ -1291,9 +1308,9 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
         emailInicial={adminData?.email || ""}
         businessId={businessId}
         onCancelar={() => setCreditoPorAutorizar(null)}
-        onAutorizado={() => {
+        onAutorizado={(emailAdmin) => {
           setCreditoPorAutorizar(null);
-          handleSubmit(true);
+          handleSubmit(emailAdmin);
         }}
       />
 

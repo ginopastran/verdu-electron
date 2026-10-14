@@ -7,6 +7,8 @@ import {
   efectivoEsperado,
   evaluarCredito,
   leerMonto,
+  montoACuentaCorriente,
+  observacionConAutorizacion,
   ofertaVigente,
   precioDeVenta,
   textoOferta,
@@ -84,4 +86,21 @@ test("el monto contado acepta vacío y rechaza negativos o texto", () => {
   assert.equal(leerMonto("0"), 0);
   assert.equal(leerMonto("-1"), "invalido");
   assert.equal(leerMonto("abc"), "invalido");
+});
+
+test("el límite compara solo lo que queda en cuenta corriente", () => {
+  assert.equal(montoACuentaCorriente(2880.02, 1000), 1880.02);
+  assert.equal(montoACuentaCorriente(2880.02, undefined), 2880.02);
+  assert.equal(montoACuentaCorriente(2880.02, 0), 2880.02);
+  assert.equal(evaluarCredito(9000, 10000, montoACuentaCorriente(3000, 2500)).nivel, "aviso");
+  assert.equal(evaluarCredito(9000, 10000, montoACuentaCorriente(3000, 0)).nivel, "excedido");
+});
+
+test("la autorización de un admin queda en las observaciones", () => {
+  assert.equal(observacionConAutorizacion("", "a@b.com"), "Autorizó exceso de límite: a@b.com");
+  assert.equal(observacionConAutorizacion(undefined, "a@b.com"), "Autorizó exceso de límite: a@b.com");
+  assert.equal(
+    observacionConAutorizacion("Entregar el lunes ", "a@b.com"),
+    "Entregar el lunes\nAutorizó exceso de límite: a@b.com"
+  );
 });

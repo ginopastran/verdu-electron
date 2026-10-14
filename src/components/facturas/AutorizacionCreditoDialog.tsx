@@ -46,7 +46,7 @@ interface AutorizacionCreditoDialogProps {
   emailInicial: string;
   businessId: number | null;
   onCancelar: () => void;
-  onAutorizado: () => void;
+  onAutorizado: (emailAdmin: string) => void;
 }
 
 export function AutorizacionCreditoDialog({
@@ -80,7 +80,7 @@ export function AutorizacionCreditoDialog({
     setError("");
     try {
       await validarAdmin(email.trim(), password, businessId);
-      onAutorizado();
+      onAutorizado(email.trim());
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo validar la contraseña");
     } finally {

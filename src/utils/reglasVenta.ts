@@ -57,6 +57,20 @@ export function evaluarCredito(
   return { nivel, saldo: deuda, limite: tope, nuevoSaldo, excedente: Math.max(excedente, 0) };
 }
 
+export const montoACuentaCorriente = (
+  total: number,
+  pagoInicial: number | null | undefined
+) => redondear(total - (Number(pagoInicial) || 0));
+
+export function observacionConAutorizacion(
+  observaciones: string | null | undefined,
+  emailAdmin: string
+) {
+  const nota = `Autorizó exceso de límite: ${emailAdmin}`;
+  const previa = (observaciones ?? "").trim();
+  return previa ? `${previa}\n${nota}` : nota;
+}
+
 export function descuentoEfectivoDisponible(
   total: number,
   minimo: number | null | undefined
