@@ -7,10 +7,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { descuentoEfectivoDisponible } from "@/utils/reglasVenta";
 
 interface BusinessInfo {
   sistemaPago?: string;
   descuentoEfectivo?: number;
+  descuentoEfectivoMinimo?: number | null;
   [key: string]: any;
 }
 
@@ -37,8 +39,14 @@ export function CashPaymentDialog({
   onConfirm,
   onApplyDiscount,
   isLoading = false,
+  businessInfo,
 }: CashPaymentDialogProps) {
   const hasDiscount = roundedAmount < originalAmount;
+  const minimoDescuento = Number(businessInfo?.descuentoEfectivoMinimo) || 0;
+  const descuentoDisponible = descuentoEfectivoDisponible(
+    originalAmount,
+    minimoDescuento
+  );
 
   // Debug logging
   // console.log("💰 CashPaymentDialog - Valores recibidos:", {
@@ -133,9 +141,16 @@ export function CashPaymentDialog({
               className="bg-blue-50 border-blue-200 hover:bg-blue-100 hover:text-blue-700 text-base py-5 px-4"
               onClick={onApplyDiscount}
               tabIndex={2}
-              disabled={isLoading}
+              disabled={isLoading || !descuentoDisponible}
+              title={
+                descuentoDisponible
+                  ? undefined
+                  : `El descuento en efectivo se aplica desde $${minimoDescuento.toLocaleString()}`
+              }
             >
-              Aplicar D (F5)
+              {descuentoDisponible
+                ? "Aplicar D (F5)"
+                : `Desde $${minimoDescuento.toLocaleString()}`}
             </Button>
           )}
 

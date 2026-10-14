@@ -1,3 +1,4 @@
+import { descuentoEfectivoDisponible } from "@/utils/reglasVenta";
 import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import QRCode from "qrcode";
@@ -485,11 +486,17 @@ export function usePaymentProcessing({
   ) => {
     // Establecer efectivo como método seleccionado
     setSelectedPaymentMethod("efectivo");
-    setApplyingDiscount(withDiscount || !!discountData);
 
     // Calcular los importes para cualquier caso
     const originalTotal = Number(calculateTotal().toFixed(2));
     let finalTotal = originalTotal;
+    const aplicaDescuentoEfectivo =
+      withDiscount &&
+      descuentoEfectivoDisponible(
+        originalTotal,
+        businessInfo?.descuentoEfectivoMinimo
+      );
+    setApplyingDiscount(aplicaDescuentoEfectivo || !!discountData);
 
     // Aplicar descuento si es necesario
     if (discountData) {
@@ -500,7 +507,7 @@ export function usePaymentProcessing({
       } else {
         finalTotal = originalTotal - discountData.amount;
       }
-    } else if (withDiscount && businessInfo?.descuentoEfectivo) {
+    } else if (aplicaDescuentoEfectivo && businessInfo?.descuentoEfectivo) {
       // Usar descuento automático del negocio
       const discountPercentage = Number(businessInfo.descuentoEfectivo);
       const discountAmount = (originalTotal * discountPercentage) / 100;
