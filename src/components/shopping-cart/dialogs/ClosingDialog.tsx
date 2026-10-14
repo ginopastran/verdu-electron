@@ -33,11 +33,14 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { Input } from "@/components/ui/input";
+import { avisarArqueo } from "@/hooks/useClosing";
+import { leerMonto } from "@/utils/reglasVenta";
 
 interface ClosingDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onHandleClosing: (period: string) => void;
+  onHandleClosing: (period: string, efectivoContado: number | null) => void;
   isClosing: boolean;
   searchInputRef: RefObject<HTMLInputElement | null>;
 }
@@ -60,6 +63,46 @@ export const ClosingDialog = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [users, setUsers] = useState<any[]>([]);
   const [sucursales, setSucursales] = useState<any[]>([]);
+  const [contadoTexto, setContadoTexto] = useState("");
+  const contado = leerMonto(contadoTexto);
+
+  useEffect(() => {
+    if (!open) setContadoTexto("");
+  }, [open]);
+
+  const cerrarPeriodo = (period: string) => {
+    if (contado === "invalido") {
+      toast.error("El efectivo contado tiene que ser un monto válido");
+      return;
+    }
+    onHandleClosing(period, contado);
+  };
+
+  const campoContado = (id: string) => (
+    <div className="space-y-2">
+      <label htmlFor={id} className="text-sm font-medium">
+        Efectivo contado en caja (opcional)
+      </label>
+      <Input
+        id={id}
+        type="number"
+        min="0"
+        step="0.01"
+        inputMode="decimal"
+        placeholder="$ 0"
+        value={contadoTexto}
+        onChange={(e) => setContadoTexto(e.target.value)}
+      />
+      {contado === "invalido" ? (
+        <p className="text-sm text-red-600">Ingresá un monto válido</p>
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          Al cerrar se compara con el esperado en efectivo del período y se
+          muestra la diferencia.
+        </p>
+      )}
+    </div>
+  );
 
   // Obtener vendedor y sucursal del usuario logueado automáticamente
   const selectedVendedorId = user?.id?.toString() || "";
@@ -109,6 +152,11 @@ export const ClosingDialog = ({
 
   // Función para crear cierre manual
   const handleCreateCierre = async () => {
+    if (contado === "invalido") {
+      toast.error("El efectivo contado tiene que ser un monto válido");
+      return;
+    }
+
     // Validaciones
     if (!startDate || !endDate || !selectedVendedorId || !selectedSucursalId) {
       toast.error("Por favor, completa todos los campos.");
@@ -167,6 +215,7 @@ export const ClosingDialog = ({
         fechaInicio: fechaInicioUTC.toISOString(),
         fechaCierre: fechaCierreUTC.toISOString(),
         periodo: "custom",
+        ...(contado != null && { efectivoContado: contado }),
       };
 
       const res = await fetch(`${API_URL}/api/cierres`, {
@@ -182,6 +231,7 @@ export const ClosingDialog = ({
 
       const cierreData = await res.json();
       console.log("✅ Datos de cierre recibidos:", cierreData);
+      avisarArqueo(cierreData.ventasPorMetodo, contado);
 
       // Intentar imprimir el ticket de cierre
       try {
@@ -239,6 +289,7 @@ export const ClosingDialog = ({
       setEndDate(new Date());
       setStartTime("00:00");
       setEndTime("23:59");
+      setContadoTexto("");
     } catch (err) {
       toast.error((err as Error).message);
     } finally {
@@ -277,9 +328,10 @@ export const ClosingDialog = ({
               botón
             </DialogDescription>
           </DialogHeader>
+          {campoContado("efectivo-contado")}
           <div className="grid grid-cols-2 gap-4">
             <Button
-              onClick={() => onHandleClosing("mañana")}
+              onClick={() => cerrarPeriodo("mañana")}
               className="h-32 flex flex-col items-center justify-center space-y-2 [&_svg]:size-8"
               variant="outline"
               disabled={isClosing}
@@ -292,7 +344,7 @@ export const ClosingDialog = ({
               <span className="text-base">Mañana (1)</span>
             </Button>
             <Button
-              onClick={() => onHandleClosing("tarde")}
+              onClick={() => cerrarPeriodo("tarde")}
               className="h-32 flex flex-col items-center justify-center space-y-2 [&_svg]:size-8"
               variant="outline"
               disabled={isClosing}
@@ -305,7 +357,7 @@ export const ClosingDialog = ({
               <span className="text-base">Tarde (2)</span>
             </Button>
             <Button
-              onClick={() => onHandleClosing("todo")}
+              onClick={() => cerrarPeriodo("todo")}
               className="h-32 flex flex-col items-center justify-center space-y-2 [&_svg]:size-8"
               variant="outline"
               disabled={isClosing}
@@ -521,6 +573,8 @@ export const ClosingDialog = ({
                 </div>
               </div>
             </div>
+
+            {campoContado("efectivo-contado-manual")}
 
             {/* Información del período seleccionado */}
             {startDate && endDate && (

@@ -2,6 +2,20 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
+import { diferenciaDeCaja, efectivoEsperado } from "@/utils/reglasVenta";
+
+export function avisarArqueo(ventasPorMetodo: unknown, contado: number | null) {
+  if (contado == null) return;
+  const esperado = efectivoEsperado(ventasPorMetodo);
+  const { diferencia, estado } = diferenciaDeCaja(contado, esperado);
+  const titulo =
+    estado === "cuadra"
+      ? "La caja cuadra"
+      : `${estado === "faltan" ? "Faltan" : "Sobran"} $${Math.abs(diferencia).toLocaleString()}`;
+  const description = `Esperado en efectivo $${esperado.toLocaleString()} · Contado $${contado.toLocaleString()}`;
+  if (estado === "cuadra") toast.success(titulo, { description, duration: 20000 });
+  else toast.warning(titulo, { description, duration: 20000 });
+}
 
 // Los tipos de Window están definidos en src/types/electron.d.ts
 
@@ -39,7 +53,10 @@ export const useClosing = (
     });
   };
 
-  const handleClosing = async (period: string) => {
+  const handleClosing = async (
+    period: string,
+    efectivoContado: number | null = null
+  ) => {
     if (!user) {
       toast.error("Debes iniciar sesión para realizar el cierre");
       return;
@@ -129,6 +146,7 @@ export const useClosing = (
         fechaInicio: fechaInicioUTC.toISOString(),
         fechaCierre: fechaCierreUTC.toISOString(),
         periodo: period,
+        ...(efectivoContado != null && { efectivoContado }),
       };
 
       console.log("🔄 Enviando solicitud de cierre con datos:", closingData);
@@ -164,6 +182,7 @@ export const useClosing = (
       }
 
       const cierreData = await responseData;
+      avisarArqueo(cierreData.ventasPorMetodo, efectivoContado);
 
       try {
         // ====== SIMULACIÓN DEL TICKET DE CIERRE ======
