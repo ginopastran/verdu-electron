@@ -53,6 +53,9 @@ import { useFacturaTicketPrinting } from "@/hooks/useFacturaTicketPrinting";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { calcularPrecioVisualConIVA } from "@/utils/ivaHelpers";
+import { evaluarCredito, type EstadoCredito } from "@/utils/reglasVenta";
+import { useBusiness } from "@/contexts/BusinessContext";
+import { AutorizacionCreditoDialog } from "./AutorizacionCreditoDialog";
 
 interface Cliente {
   id: string;
@@ -137,7 +140,10 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
     import.meta.env.VITE_APP_ID || null
   );
   const { handleFacturaTicketPrinting } = useFacturaTicketPrinting();
+  const { adminData, businessId } = useBusiness();
   const [loading, setLoading] = useState(false);
+  const [creditoPorAutorizar, setCreditoPorAutorizar] =
+    useState<EstadoCredito | null>(null);
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
   const [showClienteDialog, setShowClienteDialog] = useState(false);
   const [showProductoDialog, setShowProductoDialog] = useState(false);
@@ -594,7 +600,28 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
     });
   };
 
-  const handleSubmit = async () => {
+  const consultarCredito = async (clienteId: string, monto: number) => {
+    try {
+      const appId = import.meta.env.VITE_APP_ID || null;
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL || "http://localhost:3000"}/api/clientes/${clienteId}`,
+        {
+          headers: {
+            "Content-Type": "application/json",
+            ...(appId && { "X-App-ID": appId }),
+          },
+          credentials: "include",
+        }
+      );
+      if (!response.ok) return null;
+      const cliente = await response.json();
+      return evaluarCredito(cliente.saldo, cliente.limiteCredito, monto);
+    } catch {
+      return null;
+    }
+  };
+
+  const handleSubmit = async (autorizado = false) => {
     try {
       // Validaciones
       if (!selectedCliente) {
@@ -610,6 +637,19 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
       const { subtotal, impuestos, total } = calculateTotals();
 
       setLoading(true);
+
+      if (mode === "create" && !autorizado) {
+        const credito = await consultarCredito(selectedCliente.id, total);
+        if (credito?.nivel === "excedido") {
+          setCreditoPorAutorizar(credito);
+          return;
+        }
+        if (credito?.nivel === "aviso" && credito.limite) {
+          toast.warning("El cliente está cerca de su límite de crédito", {
+            description: `Con esta venta debe ${formatCurrency(credito.nuevoSaldo)} de ${formatCurrency(credito.limite)}.`,
+          });
+        }
+      }
 
       // Determinar si usar AFIP o crear factura local
       const usarAfip =
@@ -1212,7 +1252,7 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
                   Cancelar
                 </Button>
                 <Button
-                  onClick={handleSubmit}
+                  onClick={() => handleSubmit()}
                   disabled={loading}
                   className="bg-emerald-gradient text-white hover:text-white"
                 >
@@ -1244,6 +1284,17 @@ const FacturaForm: React.FC<FacturaFormProps> = ({
         excludeProductIds={excludeProductIds}
         selectedListaPrecio={selectedListaPrecio}
         preciosLista={preciosLista}
+      />
+
+      <AutorizacionCreditoDialog
+        credito={creditoPorAutorizar}
+        emailInicial={adminData?.email || ""}
+        businessId={businessId}
+        onCancelar={() => setCreditoPorAutorizar(null)}
+        onAutorizado={() => {
+          setCreditoPorAutorizar(null);
+          handleSubmit(true);
+        }}
       />
 
       <CantidadProductoDialog
