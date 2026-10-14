@@ -334,3 +334,20 @@ pub fn lista_productos(ctx: &Context, ancla: &Response, menu: &mut Menu, catalog
         })
         .flatten()
 }
+
+#[cfg(test)]
+mod pruebas {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn el_selector_muestra_la_oferta_y_con_lista_manda_la_lista() {
+        let producto = json!({ "id": 5, "precio": 2600, "tipoMedida": "Kg", "ofertaPorcentaje": 10, "ofertaHasta": "2999-01-01T00:00:00.000Z" });
+        let sin_listas = HashMap::new();
+        assert_eq!(precio_producto(&producto, &sin_listas, None), "$2.340,00/kg");
+        assert_eq!(precio_producto(&producto, &HashMap::from([(5, 2450.0)]), None), "$2.450,00/kg");
+        assert_eq!(precio_producto(&producto, &HashMap::from([(5, 0.0)]), None), "$2.340,00/kg");
+        let vencida = json!({ "id": 5, "precio": 2600, "tipoMedida": "Unidad", "ofertaPorcentaje": 10, "ofertaHasta": "2001-01-01T00:00:00.000Z" });
+        assert_eq!(precio_producto(&vencida, &sin_listas, None), "$2.600,00/u");
+    }
+}

@@ -249,20 +249,13 @@ impl FormularioFactura {
             let actualizados = detalles
                 .into_iter()
                 .map(|mut d| {
-                    let base = obtener(s, &format!("/api/productos/{}", d.producto_id))
-                        .filter(|p| p["precio"].as_f64().is_some())
-                        .map(|p| nucleo::carrito::precio_de_venta(&p, chrono::Utc::now()))
-                        .unwrap_or(d.precio_unitario);
-                    let mut nuevo = base;
-                    if let Some(lista) = lista {
-                        if let Some(precio) = obtener(s, &format!("/api/listas-precios/{lista}/productos/{}", d.producto_id))
-                            .and_then(|v| v["precio"].as_f64())
-                            .filter(|p| *p != 0.0)
-                        {
-                            nuevo = precio;
-                        }
-                    }
-                    d.precio_unitario = nuevo;
+                    let producto = obtener(s, &format!("/api/productos/{}", d.producto_id)).filter(|p| p["precio"].as_f64().is_some());
+                    let precio_lista = lista.and_then(|lista| obtener(s, &format!("/api/listas-precios/{lista}/productos/{}", d.producto_id))).and_then(|v| v["precio"].as_f64());
+                    d.precio_unitario = match producto {
+                        Some(producto) => logica::precio_con_lista(&producto, precio_lista),
+                        None => precio_lista.filter(|p| *p != 0.0).unwrap_or(d.precio_unitario),
+                    };
+
                     d.recalcular();
                     d
                 })
