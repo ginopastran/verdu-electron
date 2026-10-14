@@ -797,6 +797,7 @@ mod pruebas {
             iva_porcentaje: Some(10.5),
             lista_precio_id: None,
             lista_precio_nombre: Some("Precio catálogo".into()),
+            ..Default::default()
         }
     }
 

@@ -1,5 +1,6 @@
 mod dialogos;
 mod diseno;
+mod fotos;
 pub mod productos;
 mod vista;
 
@@ -10,6 +11,7 @@ use nucleo::carrito::Producto;
 use serde_json::Value;
 
 use self::dialogos::{DialogoAgregar, DialogoEscanear, Salida};
+use self::fotos::Fotos;
 use self::productos::{FilaLista, ProductoDisponible};
 use self::vista::{AccionCabecera, AccionIndicador, AccionPanel, AccionPestana, Cabecera, Indicadores, Panel};
 use super::cierre::DialogoCierre;
@@ -79,6 +81,7 @@ pub struct Carrito {
     pub balanza: DialogoBalanza,
     productos: Vec<ProductoDisponible>,
     productos_precargados: bool,
+    fotos: Fotos,
     tarea_productos: Option<Tarea<Result<Vec<ProductoDisponible>, String>>>,
     tarea_logo: Option<Tarea<Result<(), String>>>,
     tarea_escaneo: Option<Tarea<ResultadoEscaneo>>,
@@ -136,7 +139,7 @@ impl Carrito {
 
     fn agregar_directo(&mut self, producto: &ProductoDisponible, cantidad: f64, cx: &mut Contexto) {
         let etiqueta = dialogos::etiqueta_base(cx.global.negocio.as_ref());
-        let item = producto.item(cantidad, producto.unidad_o_defecto(), producto.precio, None, &etiqueta);
+        let item = producto.item(cantidad, producto.unidad_o_defecto(), producto.precio_venta(chrono::Utc::now()), None, &etiqueta);
         self.agregar_item(item, cx);
         self.busqueda.limpiar();
         self.enfocar = CUADROS_ENFOQUE;
@@ -179,6 +182,7 @@ impl Carrito {
             }
         }
         let _ = tareas::esperar(&mut self.tarea_logo);
+        self.fotos.recibir(&cx.egui);
         if let Some((producto, cantidad, filas)) = tareas::esperar(&mut self.tarea_escaneo) {
             match filas {
                 Some(filas) => self.escanear.abrir(producto, filas, cantidad, cx.global.negocio.as_ref()),
@@ -438,8 +442,14 @@ impl Carrito {
             mostrar_seleccion: self.busqueda.mostrar_seleccion,
             consulta,
             negocio: negocio.as_ref(),
+            fotos: &self.fotos,
+            ahora: chrono::Utc::now(),
         };
-        if let Some(posicion) = vista::resultados(ui.ctx(), &buscador.caja, visible, &datos) {
+        let (elegido, sin_foto) = vista::resultados(ui.ctx(), &buscador.caja, visible, &datos);
+        for indice in sin_foto {
+            self.fotos.pedir(cx, &self.productos[indice]);
+        }
+        if let Some(posicion) = elegido {
             let indice = self.busqueda.resultados[posicion];
             self.elegir_producto(indice, cx);
         }

@@ -1,7 +1,8 @@
 use std::cmp::Ordering;
 
+use chrono::{DateTime, Utc};
 use nucleo::api::Cliente;
-use nucleo::carrito::Producto;
+use nucleo::carrito::{self, Producto};
 use nucleo::{entorno, formato};
 use serde_json::Value;
 
@@ -16,6 +17,9 @@ pub struct ProductoDisponible {
     pub plu: Option<String>,
     pub iva_incluido: Option<bool>,
     pub iva_porcentaje: Option<f64>,
+    pub oferta_porcentaje: Option<f64>,
+    pub oferta_hasta: Option<DateTime<Utc>>,
+    pub foto: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -55,7 +59,18 @@ impl ProductoDisponible {
             plu: texto_opcional(&p["plu"]),
             iva_incluido: p["ivaIncluido"].as_bool(),
             iva_porcentaje: p["ivaPorcentaje"].as_f64(),
+            oferta_porcentaje: p["ofertaPorcentaje"].as_f64(),
+            oferta_hasta: carrito::fecha_utc(&p["ofertaHasta"]),
+            foto: p["fotoActualizadaEn"].as_str().filter(|f| !f.is_empty()).map(str::to_string),
         }
+    }
+
+    pub fn oferta(&self, ahora: DateTime<Utc>) -> Option<f64> {
+        carrito::oferta_vigente(self.oferta_porcentaje, self.oferta_hasta, ahora)
+    }
+
+    pub fn precio_venta(&self, ahora: DateTime<Utc>) -> f64 {
+        self.oferta(ahora).map_or(self.precio, |p| carrito::precio_con_oferta(self.precio, p))
     }
 
     pub fn unidad_o_defecto(&self) -> String {
@@ -63,6 +78,7 @@ impl ProductoDisponible {
     }
 
     pub fn item(&self, cantidad: f64, unidad: String, precio: f64, lista: Option<(i64, Option<String>)>, etiqueta_base: &str) -> Producto {
+        let oferta = self.oferta(Utc::now()).filter(|_| lista.is_none() && precio != self.precio);
         let (lista_precio_id, lista_precio_nombre) = match lista {
             Some((id, nombre)) => (Some(id), nombre),
             None => (None, Some(etiqueta_base.to_string())),
@@ -80,6 +96,8 @@ impl ProductoDisponible {
             iva_porcentaje: self.iva_porcentaje,
             lista_precio_id,
             lista_precio_nombre,
+            precio_sin_oferta: oferta.map(|_| self.precio),
+            oferta_porcentaje: oferta,
         }
     }
 }
@@ -350,6 +368,25 @@ mod pruebas {
         assert_eq!(interpretar_codigo("tomate", &p), None);
         assert!(es_codigo_directo("77912345"));
         assert!(!es_codigo_directo("7791234500026123"));
+    }
+
+    #[test]
+    fn oferta_del_listado_baja_el_precio_base_y_queda_en_el_item() {
+        let p = ProductoDisponible::desde_backend(&serde_json::json!({
+            "id": 3, "nombre": "Tomate", "precio": 2890, "tipoMedida": "Kg",
+            "ofertaPorcentaje": 20, "ofertaHasta": "2999-01-01T00:00:00.000Z", "fotoActualizadaEn": "2026-10-10T12:00:00.000Z"
+        }));
+        let ahora = Utc::now();
+        assert_eq!(p.oferta(ahora), Some(20.0));
+        assert_eq!(p.precio_venta(ahora), 2312.0);
+        assert_eq!(p.foto.as_deref(), Some("2026-10-10T12:00:00.000Z"));
+        let item = p.item(2.0, "Kg".into(), p.precio_venta(ahora), None, "Precio catálogo");
+        assert_eq!((item.price_per_unit, item.subtotal, item.precio_sin_oferta, item.oferta_porcentaje), (2312.0, 4624.0, Some(2890.0), Some(20.0)));
+        let con_lista = p.item(1.0, "Kg".into(), 2500.0, Some((4, Some("Mayorista".into()))), "Precio catálogo");
+        assert_eq!((con_lista.price_per_unit, con_lista.precio_sin_oferta, con_lista.oferta_porcentaje), (2500.0, None, None));
+        let viejo = ProductoDisponible::desde_backend(&serde_json::json!({ "id": 4, "nombre": "Papa", "precio": 1150 }));
+        assert_eq!((viejo.precio_venta(ahora), viejo.foto.clone()), (1150.0, None));
+        assert_eq!(viejo.item(1.0, "Kg".into(), 1150.0, None, "Precio catálogo").precio_sin_oferta, None);
     }
 
     #[test]

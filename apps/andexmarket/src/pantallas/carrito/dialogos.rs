@@ -250,7 +250,8 @@ impl DialogoAgregar {
         let cargando = self.tarea.is_some();
         let etiqueta = etiqueta_base(negocio);
         let fila = self.fila().cloned();
-        let precio = fila.as_ref().map_or(producto.precio, |f| f.precio);
+        let precio_base = producto.precio_venta(chrono::Utc::now());
+        let precio = fila.as_ref().map_or(precio_base, |f| f.precio);
         let medida = match &fila {
             Some(f) => f.tipo_medida.clone().filter(|t| !t.is_empty()).unwrap_or_else(|| producto.unidad_o_defecto()),
             None => producto.unidad_o_defecto(),
@@ -269,7 +270,7 @@ impl DialogoAgregar {
             parse_float(&self.cantidad)
         };
         let subtotal = (cantidad_vista > 0.0).then(|| visual(precio) * cantidad_vista);
-        let mut opciones = vec![(etiqueta.clone(), pesos(visual(producto.precio)))];
+        let mut opciones = vec![(etiqueta.clone(), pesos(visual(precio_base)))];
         opciones.extend(self.filas.iter().map(|f| (f.nombre_lista.clone(), pesos(visual(f.precio)))));
         let elegida = self.lista.and_then(|id| self.filas.iter().position(|f| f.lista_precio_id == id)).map_or(0, |i| i + 1);
         let subtitulo = subtitulo(&producto, visual(precio), &medida);
@@ -385,7 +386,8 @@ impl DialogoEscanear {
         let etiqueta = etiqueta_base(negocio);
         let medida_producto = producto.unidad_o_defecto();
         let fila = self.lista.and_then(|id| filas.iter().find(|f| f.lista_precio_id == id)).cloned();
-        let precio = fila.as_ref().map_or(producto.precio, |f| f.precio);
+        let precio_base = producto.precio_venta(chrono::Utc::now());
+        let precio = fila.as_ref().map_or(precio_base, |f| f.precio);
         let medida = fila.as_ref().and_then(|f| f.tipo_medida.clone()).filter(|t| !t.is_empty()).unwrap_or_else(|| medida_producto.clone());
         let es_peso = medida == "Kg";
         if self.era_peso != Some(es_peso) {
@@ -405,7 +407,7 @@ impl DialogoEscanear {
             }
         };
         let unidad = |m: &str| if m == "Kg" { " /kg" } else { " /u" };
-        let mut opciones = vec![(etiqueta.clone(), format!("{}{}", pesos(visual(producto.precio)), unidad(&medida_producto)))];
+        let mut opciones = vec![(etiqueta.clone(), format!("{}{}", pesos(visual(precio_base)), unidad(&medida_producto)))];
         opciones.extend(filas.iter().map(|f| {
             let medida_fila = f.tipo_medida.clone().filter(|t| !t.is_empty()).unwrap_or_else(|| medida_producto.clone());
             (f.nombre_lista.clone(), format!("${}{}", monto(visual(f.precio)), unidad(&medida_fila)))

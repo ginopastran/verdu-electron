@@ -160,6 +160,7 @@ fn producto(id: i64, nombre: &str, cantidad: f64, precio: f64, unidad: &str, iva
         iva_porcentaje: Some(iva),
         lista_precio_id: None,
         lista_precio_nombre: Some("Precio catálogo".into()),
+        ..Default::default()
     }
 }
 

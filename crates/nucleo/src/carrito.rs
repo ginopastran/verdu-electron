@@ -1,8 +1,33 @@
 use std::path::PathBuf;
 
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
+use crate::cobros::redondear;
 use crate::iva::precio_visual_con_iva;
+
+pub fn fecha_utc(valor: &Value) -> Option<DateTime<Utc>> {
+    DateTime::parse_from_rfc3339(valor.as_str()?).ok().map(|fecha| fecha.with_timezone(&Utc))
+}
+
+pub fn oferta_vigente(porcentaje: Option<f64>, hasta: Option<DateTime<Utc>>, ahora: DateTime<Utc>) -> Option<f64> {
+    let porcentaje = porcentaje.filter(|p| *p > 0.0 && *p <= 100.0)?;
+    (hasta? >= ahora).then_some(porcentaje)
+}
+
+pub fn oferta_de(producto: &Value, ahora: DateTime<Utc>) -> Option<f64> {
+    oferta_vigente(producto["ofertaPorcentaje"].as_f64(), fecha_utc(&producto["ofertaHasta"]), ahora)
+}
+
+pub fn precio_con_oferta(precio: f64, porcentaje: f64) -> f64 {
+    redondear(precio * (1.0 - porcentaje / 100.0), 2)
+}
+
+pub fn precio_de_venta(producto: &Value, ahora: DateTime<Utc>) -> f64 {
+    let precio = producto["precio"].as_f64().unwrap_or(0.0);
+    oferta_de(producto, ahora).map_or(precio, |p| precio_con_oferta(precio, p))
+}
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -23,6 +48,10 @@ pub struct Producto {
     pub lista_precio_id: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub lista_precio_nombre: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub precio_sin_oferta: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub oferta_porcentaje: Option<f64>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -203,6 +232,32 @@ mod pruebas {
         assert_eq!(carritos.active_screen, 0);
         assert_eq!(carritos.items()[0].name, "a");
         assert!(!carritos.borrar_pantalla(5));
+    }
+
+    #[test]
+    fn oferta_vigente_solo_con_porcentaje_y_fecha_futura() {
+        let ahora = fecha_utc(&serde_json::json!("2026-10-14T15:00:00.000Z")).unwrap();
+        let producto = |porcentaje: Value, hasta: Value| serde_json::json!({ "precio": 2890, "ofertaPorcentaje": porcentaje, "ofertaHasta": hasta });
+        let vigente = producto(serde_json::json!(20), serde_json::json!("2026-10-15T02:59:59.000Z"));
+        assert_eq!(oferta_de(&vigente, ahora), Some(20.0));
+        assert_eq!(precio_de_venta(&vigente, ahora), 2312.0);
+        assert_eq!(oferta_de(&producto(serde_json::json!(20), serde_json::json!("2026-10-14T15:00:00.000Z")), ahora), Some(20.0));
+        let vencida = producto(serde_json::json!(20), serde_json::json!("2026-10-14T14:59:59.000Z"));
+        assert_eq!(oferta_de(&vencida, ahora), None);
+        assert_eq!(precio_de_venta(&vencida, ahora), 2890.0);
+        assert_eq!(oferta_de(&producto(serde_json::json!(0), serde_json::json!("2027-01-01T00:00:00.000Z")), ahora), None);
+        assert_eq!(oferta_de(&producto(Value::Null, serde_json::json!("2027-01-01T00:00:00.000Z")), ahora), None);
+        assert_eq!(oferta_de(&producto(serde_json::json!(15), Value::Null), ahora), None);
+        assert_eq!(precio_de_venta(&serde_json::json!({ "precio": 1150 }), ahora), 1150.0);
+        assert_eq!(precio_con_oferta(1250.0, 15.0), 1062.5);
+        assert_eq!(precio_con_oferta(999.99, 33.0), 669.99);
+    }
+
+    #[test]
+    fn carrito_guardado_sin_campos_de_oferta_sigue_cargando() {
+        let item: Producto = serde_json::from_str(r#"{"id":1,"cartId":"1-a","name":"Tomate","quantity":1,"unit":"Kg","pricePerUnit":100,"subtotal":100,"costo":50}"#).unwrap();
+        assert_eq!(item.precio_sin_oferta, None);
+        assert!(!serde_json::to_string(&item).unwrap().contains("oferta"));
     }
 
     #[test]

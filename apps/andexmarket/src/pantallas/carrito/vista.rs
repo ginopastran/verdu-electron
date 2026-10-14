@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
+use chrono::{DateTime, Utc};
 use eframe::egui::{
-    Align, Color32, Context, CornerRadius, CursorIcon, Galley, Id, Layout, Pos2, Rect, Response, ScrollArea, Sense, Stroke, StrokeKind, Ui,
+    Align, Color32, Context, CornerRadius, CursorIcon, Galley, Id, Layout, Painter, Pos2, Rect, Response, ScrollArea, Sense, Stroke, StrokeKind, Ui,
     UiBuilder, Vec2,
 };
 use nucleo::carrito::{Carritos, Producto};
@@ -10,6 +11,7 @@ use nucleo::iva::precio_visual_con_iva;
 use serde_json::Value;
 
 use super::diseno::{borde_punteado, celdas, galeria_centrada, galeria_cortada, Pista};
+use super::fotos::{self, Fotos};
 use super::productos::{monto, ProductoDisponible};
 use crate::ui::marca::{self, color, fuente, fuente_mono, mezclar, radio, sombra, tam};
 use crate::ui::v2::{self, tarjetas::celda_texto, Avatar, Boton, BotonIcono, Estilo, EstiloTecla, ItemMenu, Popover, Usuario};
@@ -39,6 +41,31 @@ pub fn precio_visual(precio: f64, iva_incluido: Option<bool>, iva_porcentaje: Op
 
 pub fn pesos(valor: f64) -> String {
     format!("${}", monto(valor))
+}
+
+pub fn texto_oferta(porcentaje: f64) -> String {
+    format!("−{} %", formato::numero(porcentaje))
+}
+
+fn insignia_oferta(ui: &Ui, pintor: &Painter, derecha: f32, centro_y: f32, porcentaje: f64) -> f32 {
+    let texto = galeria(ui, texto_oferta(porcentaje), tam::MINI, Peso::Semi, color::VERDE_EXITO);
+    let caja = Rect::from_min_max(
+        Pos2::new(derecha - texto.size().x - 12.0, centro_y - texto.size().y / 2.0 - 1.0),
+        Pos2::new(derecha, centro_y + texto.size().y / 2.0 + 1.0),
+    );
+    pintor.rect_filled(caja, radio::CHIP, color::VERDE_EXITO_FONDO);
+    pintor.galley(caja.center() - texto.size() / 2.0, texto, color::VERDE_EXITO);
+    caja.left()
+}
+
+fn tachado(ui: &Ui, pintor: &Painter, derecha: f32, linea_base: f32, contenido: String) -> f32 {
+    let g = galeria(ui, contenido, tam::XS, Peso::Normal, color::TEXTO_TENUE);
+    let arriba = linea_base - g.size().y * 0.8;
+    let izquierda = derecha - g.size().x;
+    let medio = arriba + g.size().y * 0.55;
+    pintor.galley(Pos2::new(izquierda, arriba), g, color::TEXTO_TENUE);
+    pintor.hline(izquierda..=derecha, medio, Stroke::new(1.0, color::TEXTO_TENUE));
+    izquierda
 }
 
 pub fn kilos(valor: f64) -> String {
@@ -184,9 +211,11 @@ pub struct Resultados<'a> {
     pub mostrar_seleccion: bool,
     pub consulta: &'a str,
     pub negocio: Option<&'a Value>,
+    pub fotos: &'a Fotos,
+    pub ahora: DateTime<Utc>,
 }
 
-pub fn resultados(ctx: &Context, ancla: &Response, visible: bool, datos: &Resultados) -> Option<usize> {
+pub fn resultados(ctx: &Context, ancla: &Response, visible: bool, datos: &Resultados) -> (Option<usize>, Vec<usize>) {
     Popover::new(Id::new("resultados-busqueda"), ancla)
         .visible(visible)
         .ancho(ancla.rect.width())
@@ -198,6 +227,7 @@ pub fn resultados(ctx: &Context, ancla: &Response, visible: bool, datos: &Result
             let ancho = ui.available_width();
             let pintor = ui.painter().clone();
             let mut elegido = None;
+            let mut sin_foto = Vec::new();
             for (posicion, &indice) in datos.indices.iter().enumerate() {
                 let producto = &datos.productos[indice];
                 let (caja, respuesta) = ui.allocate_exact_size(Vec2::new(ancho, 56.0), Sense::click());
@@ -209,15 +239,28 @@ pub fn resultados(ctx: &Context, ancla: &Response, visible: bool, datos: &Result
                     pintor.rect_filled(caja, radio::CONTROL, color::VERDE_ELEGIDO);
                 }
                 let avatar = Rect::from_min_size(Pos2::new(caja.left() + 12.0, caja.center().y - 18.0), Vec2::splat(36.0));
-                Avatar::producto(producto.nombre.chars().next().map(String::from).unwrap_or_default()).pintar(ui, avatar);
-                let precio = precio_visual(producto.precio, producto.iva_incluido, producto.iva_porcentaje, datos.negocio);
+                let con_foto = datos.fotos.uri(producto).is_some_and(|uri| fotos::pintar(ui, avatar, uri, radio::CONTROL));
+                if !con_foto {
+                    Avatar::producto(producto.nombre.chars().next().map(String::from).unwrap_or_default()).pintar(ui, avatar);
+                    if producto.foto.is_some() && ui.is_rect_visible(caja) {
+                        sin_foto.push(indice);
+                    }
+                }
+                let oferta = producto.oferta(datos.ahora);
+                let precio = precio_visual(producto.precio_venta(datos.ahora), producto.iva_incluido, producto.iva_porcentaje, datos.negocio);
                 let precio = galeria(ui, pesos(precio), tam::CUERPO_MAS, Peso::Semi, color::TEXTO);
                 let unidad = galeria(ui, if producto.unidad == "Kg" { " /kg" } else { " /u" }, tam::XS, Peso::Normal, color::TEXTO_APAGADO);
                 let x_unidad = caja.right() - 12.0 - unidad.size().x;
                 let x_precio = x_unidad - precio.size().x;
                 let y_precio = caja.center().y - precio.size().y / 2.0;
                 let linea_base = y_precio + precio.size().y * 0.8;
-                let ancho_texto = x_precio - 12.0 - (avatar.right() + 12.0);
+                let mut limite = x_precio;
+                if let Some(porcentaje) = oferta {
+                    let original = precio_visual(producto.precio, producto.iva_incluido, producto.iva_porcentaje, datos.negocio);
+                    let izquierda = tachado(ui, &pintor, x_precio - 8.0, linea_base, pesos(original));
+                    limite = insignia_oferta(ui, &pintor, izquierda - 8.0, caja.center().y, porcentaje);
+                }
+                let ancho_texto = limite - 12.0 - (avatar.right() + 12.0);
                 let nombre = galeria_cortada(&pintor, &producto.nombre, fuente(tam::CUERPO_MAS, Peso::Medio), color::TEXTO, ancho_texto);
                 let codigos: Vec<String> = [producto.plu.as_ref().map(|plu| format!("PLU {plu}")), producto.codigo_barras.clone()]
                     .into_iter()
@@ -257,9 +300,9 @@ pub fn resultados(ctx: &Context, ancla: &Response, visible: bool, datos: &Result
                 pintor.galley(Pos2::new(x, pie.top() + 8.0), g, color::TEXTO_TENUE);
                 x += ancho_ayuda + 14.0;
             }
-            elegido
+            (elegido, sin_foto)
         })
-        .flatten()
+        .unwrap_or_default()
 }
 
 pub enum AccionPestana {
@@ -387,6 +430,8 @@ pub struct Fila {
     pub lista: Option<String>,
     pub cantidad: String,
     pub precio: String,
+    pub precio_original: Option<String>,
+    pub oferta: Option<f64>,
     pub subtotal: String,
 }
 
@@ -398,6 +443,7 @@ pub fn fila_de_item(item: &Producto, negocio: Option<&Value>) -> Fila {
         let nombre = item.lista_precio_nombre.as_deref().map(str::trim).filter(|n| !n.is_empty());
         nombre.map(str::to_string).unwrap_or_else(|| format!("Lista #{id}"))
     });
+    let oferta = item.oferta_porcentaje.zip(item.precio_sin_oferta);
     Fila {
         cart_id: item.cart_id.clone(),
         nombre: item.name.clone(),
@@ -405,6 +451,8 @@ pub fn fila_de_item(item: &Producto, negocio: Option<&Value>) -> Fila {
         lista,
         cantidad: if por_kilo { kilos(item.quantity) } else { format!("{} u", formato::numero_con(item.quantity, 0, 2)) },
         precio: format!("{}{}", pesos(unitario), if por_kilo { " /kg" } else { " /u" }),
+        precio_original: oferta.map(|(_, original)| pesos(precio_visual(original, item.iva_incluido, item.iva_porcentaje, negocio))),
+        oferta: oferta.map(|(porcentaje, _)| porcentaje),
         subtotal: pesos(unitario * item.quantity),
     }
 }
@@ -461,14 +509,30 @@ pub fn tabla(ui: &mut Ui, caja: Rect, filas: &[Fila], permite_borrar: bool, dest
             let centro_detalle = arriba + alto_nombre + 3.0 + alto_detalle / 2.0;
             let ancho_unidad = unidad.size().x;
             pintor.galley(Pos2::new(x, centro_detalle - unidad.size().y / 2.0), unidad, color::TEXTO_TENUE);
+            let mut x_chip = x + ancho_unidad + 6.0;
             if let Some(chip) = chip {
                 let pintor = pintor.with_clip_rect(c[0].intersect(pintor.clip_rect()));
-                let caja_chip = Rect::from_center_size(Pos2::new(x + ancho_unidad + 6.0 + (chip.size().x + 14.0) / 2.0, centro_detalle), chip.size() + Vec2::new(14.0, 2.0));
+                let caja_chip = Rect::from_center_size(Pos2::new(x_chip + (chip.size().x + 14.0) / 2.0, centro_detalle), chip.size() + Vec2::new(14.0, 2.0));
                 pintor.rect_filled(caja_chip, radio::CHIP, color::DORADO_FONDO);
                 pintor.galley(caja_chip.center() - chip.size() / 2.0, chip, color::DORADO_TEXTO);
+                x_chip = caja_chip.right() + 6.0;
+            }
+            if let Some(porcentaje) = fila.oferta {
+                let pintor = pintor.with_clip_rect(c[0].intersect(pintor.clip_rect()));
+                let ancho_insignia = galeria(ui, texto_oferta(porcentaje), tam::MINI, Peso::Semi, color::VERDE_EXITO).size().x + 12.0;
+                insignia_oferta(ui, &pintor, x_chip + ancho_insignia, centro_detalle, porcentaje);
             }
             celda_texto(&pintor, c[1], &fila.cantidad, tam::DESTACADO, Peso::Normal, color::TEXTO, true);
-            celda_texto(&pintor, c[2], &fila.precio, tam::CUERPO_MAS, Peso::Normal, color::TEXTO_APAGADO, true);
+            match &fila.precio_original {
+                Some(original) => {
+                    let precio = galeria(ui, fila.precio.as_str(), tam::CUERPO_MAS, Peso::Normal, color::TEXTO_APAGADO);
+                    let alto_original = galeria(ui, original.as_str(), tam::XS, Peso::Normal, color::TEXTO_TENUE).size().y;
+                    let arriba = rect.center().y - (alto_original + 2.0 + precio.size().y) / 2.0;
+                    tachado(ui, &pintor, c[2].right(), arriba + alto_original * 0.8, original.clone());
+                    pintor.galley(Pos2::new(c[2].right() - precio.size().x, arriba + alto_original + 2.0), precio, color::TEXTO_APAGADO);
+                }
+                None => celda_texto(&pintor, c[2], &fila.precio, tam::CUERPO_MAS, Peso::Normal, color::TEXTO_APAGADO, true),
+            }
             celda_texto(&pintor, c[3], &fila.subtotal, tam::FILA, Peso::Semi, color::TEXTO, true);
             if permite_borrar {
                 let boton = Rect::from_min_size(Pos2::new(c[4].left(), rect.center().y - 18.0), Vec2::splat(36.0));
