@@ -95,7 +95,7 @@ pub struct FormularioFactura {
     tarea_cuenta: Option<Tarea<(Value, Option<Cuenta>)>>,
     enviar_con_cuenta: bool,
     autorizacion: Autorizacion,
-    autorizado: Option<(Value, f64)>,
+    autorizado: Option<(Value, f64, String)>,
 }
 
 fn obtener(servicios: &Servicios, ruta: &str) -> Option<Value> {
@@ -172,8 +172,11 @@ impl FormularioFactura {
         self.cuenta.map(|cuenta| (cuenta, logica::evaluar_credito(cuenta, total)))
     }
 
-    fn autorizado_para(&self, total: f64) -> bool {
-        self.autorizado.as_ref().is_some_and(|(id, monto)| Some(id) == self.credito_de.as_ref() && total <= monto + 0.005)
+    fn autorizado_para(&self, monto: f64) -> Option<&str> {
+        self.autorizado
+            .as_ref()
+            .filter(|(id, autorizado, _)| Some(id) == self.credito_de.as_ref() && monto <= autorizado + 0.005)
+            .map(|(_, _, email)| email.as_str())
     }
 
     fn buscar_lista(&self, id: Option<i64>) -> Option<Value> {
@@ -353,11 +356,16 @@ impl FormularioFactura {
             self.enviar_con_cuenta = true;
             return;
         }
-        if let Some((cuenta, Credito::Excedido { excedente })) = self.credito(totales.total) {
-            if !self.autorizado_para(totales.total) {
-                let email = cx.global.admin.as_ref().and_then(|a| a["email"].as_str()).unwrap_or_default();
-                self.autorizacion.abrir(cuenta, excedente, email);
-                return;
+        let a_cuenta = logica::a_cuenta(totales.total, pago);
+        let mut observaciones = self.observaciones.clone();
+        if let Some((cuenta, Credito::Excedido { excedente })) = self.credito(a_cuenta) {
+            match self.autorizado_para(a_cuenta) {
+                Some(admin) => observaciones = logica::observacion_con_autorizacion(&observaciones, admin),
+                None => {
+                    let email = cx.global.admin.as_ref().and_then(|a| a["email"].as_str()).unwrap_or_default();
+                    self.autorizacion.abrir(cuenta, excedente, email);
+                    return;
+                }
             }
         }
         let afip = logica::usar_afip(&negocio, &self.tipo_factura);
@@ -373,7 +381,7 @@ impl FormularioFactura {
         let datos = DatosFactura {
             cliente_id: cliente["id"].clone(),
             tipo_factura: &self.tipo_factura,
-            observaciones: &self.observaciones,
+            observaciones: &observaciones,
             lista_precio_id: id_lista(&self.lista_seleccionada),
             pago_inicial: pago,
             fecha_vencimiento: vencimiento.as_deref(),
@@ -381,7 +389,6 @@ impl FormularioFactura {
         };
         let (ruta, cuerpo) = logica::cuerpo_factura(&datos, afip, totales, &negocio);
         let tipo = self.tipo_factura.clone();
-        let observaciones = self.observaciones.clone();
         let servicios = cx.servicios.clone();
         let ctx = cx.egui.clone();
         self.guardando = true;
@@ -511,10 +518,10 @@ impl FormularioFactura {
                 return Some(ResultadoFactura::Cerrada);
             }
         }
-        if let credito::Salida::Autorizada = self.autorizacion.mostrar(cx) {
+        if let credito::Salida::Autorizada(admin) = self.autorizacion.mostrar(cx) {
             let iva = cx.global.negocio.as_ref().is_some_and(|n| n["ivaIncluidoEnPrecios"].as_bool().unwrap_or(false));
             let total = logica::calcular_totales(&self.detalles(), &self.tipo_factura, iva).total;
-            self.autorizado = self.credito_de.clone().map(|id| (id, total));
+            self.autorizado = self.credito_de.clone().map(|id| (id, logica::a_cuenta(total, self.pago()), admin));
             self.enviar(cx);
         }
         if r.cerrar && !self.autorizacion.abierta() {
@@ -539,7 +546,8 @@ impl FormularioFactura {
                 etiqueta(ui, "Cliente");
                 ui.add_space(6.0);
                 self.campo_cliente(ui, izquierda, error_cliente);
-                if let Some((texto_credito, tinta)) = self.credito(totales.total).and_then(|(cuenta, credito)| aviso_credito(cuenta, credito, totales.total)) {
+                let a_cuenta = logica::a_cuenta(totales.total, self.pago());
+                if let Some((texto_credito, tinta)) = self.credito(a_cuenta).and_then(|(cuenta, credito)| aviso_credito(cuenta, credito, a_cuenta)) {
                     ui.add_space(6.0);
                     nota(ui, &texto_credito, tinta, izquierda);
                 }
@@ -927,11 +935,11 @@ fn imprimir_factura(servicios: &Servicios, ctx: &egui::Context, factura: &Value,
     imprimir(servicios, Comprobante::Factura, datos)["success"].as_bool() == Some(true)
 }
 
-fn aviso_credito(cuenta: Cuenta, credito: Credito, total: f64) -> Option<(String, egui::Color32)> {
+fn aviso_credito(cuenta: Cuenta, credito: Credito, a_cuenta: f64) -> Option<(String, egui::Color32)> {
     let limite = cuenta.limite?;
     match credito {
         Credito::Cerca { uso } => Some((
-            format!("Con esta venta usa el {} % del límite de crédito ({} de {}).", formato::numero((uso * 100.0).floor()), formato::pesos(cuenta.saldo + total), formato::pesos(limite)),
+            format!("Con esta venta usa el {} % del límite de crédito ({} de {}).", formato::numero((uso * 100.0).floor()), formato::pesos(cuenta.saldo + a_cuenta), formato::pesos(limite)),
             color::DORADO_TEXTO,
         )),
         Credito::Excedido { excedente } => {
@@ -1001,11 +1009,12 @@ mod tests {
 
     #[test]
     fn el_credito_se_autoriza_por_cliente_y_hasta_el_monto_autorizado() {
-        let mut formulario = FormularioFactura { credito_de: Some(json!("c1")), autorizado: Some((json!("c1"), 1000.0)), ..Default::default() };
-        assert!(formulario.autorizado_para(1000.0));
-        assert!(!formulario.autorizado_para(1000.5));
+        let mut formulario = FormularioFactura { credito_de: Some(json!("c1")), autorizado: Some((json!("c1"), 1000.0, "jefe@b.c".into())), ..Default::default() };
+        assert_eq!(formulario.autorizado_para(1000.0), Some("jefe@b.c"));
+        assert_eq!(formulario.autorizado_para(1000.5), None);
         formulario.credito_de = Some(json!("c2"));
-        assert!(!formulario.autorizado_para(10.0));
+        assert_eq!(formulario.autorizado_para(10.0), None);
+
     }
 
     #[test]

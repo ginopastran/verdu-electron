@@ -215,6 +215,18 @@ fn monto_opcional(valor: &Value) -> Option<f64> {
     .filter(|n: &f64| n.is_finite())
 }
 
+pub fn a_cuenta(total: f64, pago_inicial: Option<f64>) -> f64 {
+    redondear2(total - pago_inicial.filter(|p| p.is_finite() && *p > 0.0).unwrap_or(0.0))
+}
+
+pub fn observacion_con_autorizacion(observaciones: &str, email: &str) -> String {
+    let nota = format!("Autorizó exceso de límite: {}", email.trim());
+    match observaciones.trim() {
+        "" => nota,
+        previas => format!("{previas} | {nota}"),
+    }
+}
+
 pub fn cuenta_cliente(cliente: &Value) -> Cuenta {
     Cuenta { saldo: monto_opcional(&cliente["saldo"]).unwrap_or(0.0), limite: monto_opcional(&cliente["limiteCredito"]) }
 }
@@ -623,7 +635,20 @@ mod tests {
     }
 
     #[test]
+    fn solo_cuenta_lo_que_queda_a_cuenta_y_se_anota_quien_autorizo() {
+        assert_eq!(a_cuenta(20000.0, Some(5000.0)), 15000.0);
+        assert_eq!(a_cuenta(20000.0, None), 20000.0);
+        assert_eq!(a_cuenta(20000.0, Some(-3.0)), 20000.0);
+        let cuenta = cuenta_cliente(&json!({ "saldo": 40000, "limiteCredito": 50000 }));
+        assert_eq!(evaluar_credito(cuenta, a_cuenta(20000.0, Some(10000.0))), Credito::Cerca { uso: 1.0 });
+        assert_eq!(evaluar_credito(cuenta, a_cuenta(20000.0, Some(5000.0))), Credito::Excedido { excedente: 5000.0 });
+        assert_eq!(observacion_con_autorizacion("", " jefe@b.c "), "Autorizó exceso de límite: jefe@b.c");
+        assert_eq!(observacion_con_autorizacion("Entregar lunes", "jefe@b.c"), "Entregar lunes | Autorizó exceso de límite: jefe@b.c");
+    }
+
+    #[test]
     fn regla_del_limite_de_credito() {
+
         assert_eq!(cuenta_cliente(&json!({ "saldo": 12000.5, "limiteCredito": null })), Cuenta { saldo: 12000.5, limite: None });
         assert_eq!(cuenta_cliente(&json!({})), Cuenta { saldo: 0.0, limite: None });
         assert_eq!(evaluar_credito(cuenta_cliente(&json!({ "saldo": 90000, "limiteCredito": null })), 50000.0), Credito::SinLimite);

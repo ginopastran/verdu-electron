@@ -10,7 +10,7 @@ use crate::ui::Peso;
 
 pub enum Salida {
     Nada,
-    Autorizada,
+    Autorizada(String),
     Cancelada,
 }
 
@@ -63,8 +63,9 @@ impl Autorizacion {
             match resultado {
                 Ok(()) => {
                     self.exceso = None;
-                    return Salida::Autorizada;
+                    return Salida::Autorizada(self.email.trim().to_string());
                 }
+
                 Err(mensaje) => {
                     self.error = Some(mensaje);
                     self.enfocar = true;
