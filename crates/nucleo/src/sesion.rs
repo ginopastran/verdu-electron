@@ -163,6 +163,22 @@ pub fn iniciar(api: &Cliente, email: &str, contrasena: &str) -> Result<String, S
     }
 }
 
+pub fn autorizar_admin(base: &str, email: &str, contrasena: &str, business_id: i64) -> Result<(), String> {
+    let aparte = Cliente::new(base);
+    let respuesta = pedir(&aparte, "POST", "/api/login", Some(&json!({ "email": email.trim(), "password": contrasena })), &[])?;
+    if !respuesta.ok() {
+        return Err(mensaje_o(&respuesta.cuerpo, "Credenciales incorrectas"));
+    }
+    let usuario = &respuesta.cuerpo["user"];
+    if !es_admin(usuario) {
+        return Err("El usuario no es administrador".into());
+    }
+    if usuario["businessId"].as_i64() != Some(business_id) {
+        return Err("El administrador no pertenece a este negocio".into());
+    }
+    Ok(())
+}
+
 pub fn pedir_sesion(api: &Cliente, token: &str) -> Result<Value, String> {
     let encabezados = [("Authorization", format!("Bearer {token}")), ("Cache-Control", "no-cache".to_string())];
     let respuesta = pedir(api, "GET", "/api/auth/session", None, &encabezados)?;
@@ -336,6 +352,19 @@ mod pruebas {
         assert!(sesion.contains("authorization: bearer t-1") && sesion.contains("cache-control: no-cache"));
         let negocio = pedidos.recv().unwrap().to_lowercase();
         assert!(negocio.starts_with("get /api/business/7 ") && negocio.contains("authorization: bearer t-1"));
+    }
+
+    #[test]
+    fn autorizar_admin_valida_rol_y_negocio() {
+        let admin = |rol: &str, negocio: i64| (200, json!({ "token": "t-admin", "user": { "id": 1, "rol": { "nombre": rol }, "businessId": negocio } }));
+        let (base, pedidos) = servidor(vec![admin("ADMIN", 7), admin("VENDEDOR", 7), admin("ADMIN", 9), (401, json!({ "message": "Credenciales incorrectas" }))]);
+        assert_eq!(autorizar_admin(&base, " jefe@b.c ", "secreto", 7), Ok(()));
+        let login = pedidos.recv().unwrap();
+        assert!(login.starts_with("POST /api/login "));
+        assert!(login.ends_with(r#"{"email":"jefe@b.c","password":"secreto"}"#));
+        assert_eq!(autorizar_admin(&base, "v@b.c", "x", 7).unwrap_err(), "El usuario no es administrador");
+        assert_eq!(autorizar_admin(&base, "otro@b.c", "x", 7).unwrap_err(), "El administrador no pertenece a este negocio");
+        assert_eq!(autorizar_admin(&base, "jefe@b.c", "mal", 7).unwrap_err(), "Credenciales incorrectas");
     }
 
     #[test]

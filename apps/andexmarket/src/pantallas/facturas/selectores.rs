@@ -273,6 +273,7 @@ pub struct VistaProductos<'a> {
 pub fn precio_producto(producto: &Value, precios: &HashMap<i64, f64>, iva_en_precios: Option<bool>) -> String {
     let id = producto["id"].as_i64().unwrap_or_default();
     let base = numero(producto, "precio");
+    let base = nucleo::carrito::oferta_de(producto, chrono::Utc::now()).map_or(base, |p| nucleo::carrito::precio_con_oferta(base, p));
     let precio = precios.get(&id).copied().filter(|p| *p != 0.0).unwrap_or(base);
     let unidad = if texto(producto, "tipoMedida").eq_ignore_ascii_case("kg") { "/kg" } else { "/u" };
     format!("{}{unidad}", formato::pesos(logica::precio_con_iva(Some(producto), precio, iva_en_precios)))

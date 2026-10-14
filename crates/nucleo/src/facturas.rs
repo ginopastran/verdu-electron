@@ -4,6 +4,7 @@ use chrono::{DateTime, Datelike, NaiveDate, NaiveTime, Utc};
 use serde_json::{json, Map, Value};
 
 use crate::api::{codificar, Cliente};
+use crate::carrito::precio_de_venta;
 use crate::cierre::argentina;
 use crate::formato;
 use crate::iva::precio_visual_con_iva;
@@ -188,7 +189,48 @@ pub fn texto_precio_con_iva(producto: Option<&Value>, precio: f64, iva_incluido_
 pub fn precio_con_lista(producto: &Value, precio_lista: Option<f64>) -> f64 {
     precio_lista
         .filter(|precio| *precio != 0.0 && precio.is_finite())
-        .unwrap_or_else(|| producto["precio"].as_f64().unwrap_or(0.0))
+        .unwrap_or_else(|| precio_de_venta(producto, Utc::now()))
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Cuenta {
+    pub saldo: f64,
+    pub limite: Option<f64>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Credito {
+    SinLimite,
+    Disponible,
+    Cerca { uso: f64 },
+    Excedido { excedente: f64 },
+}
+
+fn monto_opcional(valor: &Value) -> Option<f64> {
+    match valor {
+        Value::Number(n) => n.as_f64(),
+        Value::String(s) => s.trim().parse().ok(),
+        _ => None,
+    }
+    .filter(|n: &f64| n.is_finite())
+}
+
+pub fn cuenta_cliente(cliente: &Value) -> Cuenta {
+    Cuenta { saldo: monto_opcional(&cliente["saldo"]).unwrap_or(0.0), limite: monto_opcional(&cliente["limiteCredito"]) }
+}
+
+pub fn evaluar_credito(cuenta: Cuenta, total: f64) -> Credito {
+    let Some(limite) = cuenta.limite else {
+        return Credito::SinLimite;
+    };
+    let deuda = redondear2(cuenta.saldo + total);
+    if deuda > limite {
+        Credito::Excedido { excedente: redondear2(deuda - limite) }
+    } else if limite > 0.0 && deuda >= limite * 0.8 {
+        Credito::Cerca { uso: deuda / limite }
+    } else {
+        Credito::Disponible
+    }
 }
 
 pub fn cuerpo_edicion(factura: &Value, estado: &str, observaciones: &str) -> Option<Value> {
@@ -569,6 +611,28 @@ mod tests {
         assert_eq!(precio_con_lista(&producto, Some(2450.0)), 2450.0);
         assert_eq!(precio_con_lista(&producto, Some(0.0)), 2600.0);
         assert_eq!(precio_con_lista(&producto, None), 2600.0);
+    }
+
+    #[test]
+    fn precio_base_con_oferta_vigente_y_lista_manda() {
+        let producto = json!({ "id": 5, "precio": 2600, "ofertaPorcentaje": 10, "ofertaHasta": "2999-01-01T00:00:00.000Z" });
+        assert_eq!(precio_con_lista(&producto, None), 2340.0);
+        assert_eq!(precio_con_lista(&producto, Some(2450.0)), 2450.0);
+        let vencida = json!({ "id": 5, "precio": 2600, "ofertaPorcentaje": 10, "ofertaHasta": "2001-01-01T00:00:00.000Z" });
+        assert_eq!(precio_con_lista(&vencida, None), 2600.0);
+    }
+
+    #[test]
+    fn regla_del_limite_de_credito() {
+        assert_eq!(cuenta_cliente(&json!({ "saldo": 12000.5, "limiteCredito": null })), Cuenta { saldo: 12000.5, limite: None });
+        assert_eq!(cuenta_cliente(&json!({})), Cuenta { saldo: 0.0, limite: None });
+        assert_eq!(evaluar_credito(cuenta_cliente(&json!({ "saldo": 90000, "limiteCredito": null })), 50000.0), Credito::SinLimite);
+        let cuenta = cuenta_cliente(&json!({ "saldo": 30000, "limiteCredito": 50000 }));
+        assert_eq!(evaluar_credito(cuenta, 5000.0), Credito::Disponible);
+        assert_eq!(evaluar_credito(cuenta, 10000.0), Credito::Cerca { uso: 0.8 });
+        assert_eq!(evaluar_credito(cuenta, 20000.0), Credito::Cerca { uso: 1.0 });
+        assert_eq!(evaluar_credito(cuenta, 20000.01), Credito::Excedido { excedente: 0.01 });
+        assert_eq!(evaluar_credito(cuenta_cliente(&json!({ "saldo": "0", "limiteCredito": 0 })), 100.0), Credito::Excedido { excedente: 100.0 });
     }
 
     #[test]

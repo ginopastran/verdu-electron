@@ -1,10 +1,11 @@
 use std::collections::HashMap;
 
 use eframe::egui::{self, Align, Align2, CornerRadius, Id, Key, Layout, Rect, Response, ScrollArea, Sense, Stroke, Ui, UiBuilder, Vec2};
-use nucleo::facturas::{self as logica, DatosFactura, Detalle};
+use nucleo::facturas::{self as logica, Credito, Cuenta, DatosFactura, Detalle};
 use nucleo::formato;
 use serde_json::{json, Value};
 
+use super::credito::{self, Autorizacion};
 use super::selectores::{self, Catalogo, Clientes, Menu, VistaProductos};
 use super::texto;
 use crate::app::{Contexto, Servicios};
@@ -89,6 +90,12 @@ pub struct FormularioFactura {
     enfocar: Option<&'static str>,
     desde_orden: bool,
     intento: bool,
+    credito_de: Option<Value>,
+    cuenta: Option<Cuenta>,
+    tarea_cuenta: Option<Tarea<(Value, Option<Cuenta>)>>,
+    enviar_con_cuenta: bool,
+    autorizacion: Autorizacion,
+    autorizado: Option<(Value, f64)>,
 }
 
 fn obtener(servicios: &Servicios, ruta: &str) -> Option<Value> {
@@ -124,6 +131,49 @@ impl FormularioFactura {
         self.cantidad_texto.clear();
         self.error_agregar = false;
         self.enfocar = Some(ID_CLIENTE);
+        self.credito_de = None;
+        self.cuenta = None;
+        self.tarea_cuenta = None;
+        self.enviar_con_cuenta = false;
+        self.autorizado = None;
+    }
+
+    fn seguir_cliente(&mut self, cx: &Contexto) {
+        let id = self.cliente.as_ref().map(|c| c["id"].clone()).filter(|id| !id.is_null());
+        if id == self.credito_de {
+            return;
+        }
+        self.credito_de = id.clone();
+        self.cuenta = None;
+        self.autorizado = None;
+        self.enviar_con_cuenta = false;
+        self.tarea_cuenta = id.map(|id| {
+            let servicios = cx.servicios.clone();
+            Tarea::lanzar(&cx.egui, move || {
+                let clave = id.as_str().map(str::to_string).unwrap_or_else(|| id.to_string());
+                let cuenta = obtener(&servicios, &format!("/api/clientes/{}", nucleo::api::codificar(&clave))).map(|c| logica::cuenta_cliente(&c));
+                (id, cuenta)
+            })
+        });
+    }
+
+    fn recibir_cuenta(&mut self, cx: &mut Contexto) {
+        let Some((id, cuenta)) = esperar(&mut self.tarea_cuenta) else { return };
+        if Some(&id) != self.credito_de.as_ref() {
+            return;
+        }
+        self.cuenta = cuenta;
+        if std::mem::take(&mut self.enviar_con_cuenta) {
+            self.enviar(cx);
+        }
+    }
+
+    fn credito(&self, total: f64) -> Option<(Cuenta, Credito)> {
+        self.cuenta.map(|cuenta| (cuenta, logica::evaluar_credito(cuenta, total)))
+    }
+
+    fn autorizado_para(&self, total: f64) -> bool {
+        self.autorizado.as_ref().is_some_and(|(id, monto)| Some(id) == self.credito_de.as_ref() && total <= monto + 0.005)
     }
 
     fn buscar_lista(&self, id: Option<i64>) -> Option<Value> {
@@ -197,7 +247,8 @@ impl FormularioFactura {
                 .into_iter()
                 .map(|mut d| {
                     let base = obtener(s, &format!("/api/productos/{}", d.producto_id))
-                        .and_then(|p| p["precio"].as_f64())
+                        .filter(|p| p["precio"].as_f64().is_some())
+                        .map(|p| nucleo::carrito::precio_de_venta(&p, chrono::Utc::now()))
                         .unwrap_or(d.precio_unitario);
                     let mut nuevo = base;
                     if let Some(lista) = lista {
@@ -298,6 +349,17 @@ impl FormularioFactura {
             ui::v2::toast::error(&cx.egui, "El pago inicial no puede ser mayor al total");
             return;
         }
+        if self.tarea_cuenta.is_some() {
+            self.enviar_con_cuenta = true;
+            return;
+        }
+        if let Some((cuenta, Credito::Excedido { excedente })) = self.credito(totales.total) {
+            if !self.autorizado_para(totales.total) {
+                let email = cx.global.admin.as_ref().and_then(|a| a["email"].as_str()).unwrap_or_default();
+                self.autorizacion.abrir(cuenta, excedente, email);
+                return;
+            }
+        }
         let afip = logica::usar_afip(&negocio, &self.tipo_factura);
         let pago_parcial = pago.is_some_and(|p| p > 0.0 && p < totales.total);
         let vencimiento = match logica::fecha_dia_mes_anio(&self.fecha_vencimiento) {
@@ -393,6 +455,8 @@ impl FormularioFactura {
             });
         }
         self.recibir(cx);
+        self.seguir_cliente(cx);
+        self.recibir_cuenta(cx);
         self.catalogo.pedir(cx, self.apertura);
         self.catalogo.recibir(cx);
         if self.menu_cliente.abierto {
@@ -420,8 +484,9 @@ impl FormularioFactura {
                 });
             });
             v2::pie_modal(ui, |ui| {
-                let texto_crear = if self.guardando { "Guardando…" } else { "Crear comprobante" };
-                if Boton::primario(texto_crear).radio(radio::BOTON_MODAL).sin_sombra().cargando(self.guardando).ui(ui).clicked() {
+                let ocupado = self.guardando || self.enviar_con_cuenta;
+                let texto_crear = if ocupado { "Guardando…" } else { "Crear comprobante" };
+                if Boton::primario(texto_crear).radio(radio::BOTON_MODAL).sin_sombra().cargando(ocupado).ui(ui).clicked() {
                     accion = Accion::Enviar;
                 }
                 if Boton::secundario("Cancelar").radio(radio::BOTON_MODAL).ui(ui).clicked() {
@@ -446,7 +511,13 @@ impl FormularioFactura {
                 return Some(ResultadoFactura::Cerrada);
             }
         }
-        if r.cerrar {
+        if let credito::Salida::Autorizada = self.autorizacion.mostrar(cx) {
+            let iva = cx.global.negocio.as_ref().is_some_and(|n| n["ivaIncluidoEnPrecios"].as_bool().unwrap_or(false));
+            let total = logica::calcular_totales(&self.detalles(), &self.tipo_factura, iva).total;
+            self.autorizado = self.credito_de.clone().map(|id| (id, total));
+            self.enviar(cx);
+        }
+        if r.cerrar && !self.autorizacion.abierta() {
             self.abierto = false;
             return Some(ResultadoFactura::Cerrada);
         }
@@ -468,6 +539,10 @@ impl FormularioFactura {
                 etiqueta(ui, "Cliente");
                 ui.add_space(6.0);
                 self.campo_cliente(ui, izquierda, error_cliente);
+                if let Some((texto_credito, tinta)) = self.credito(totales.total).and_then(|(cuenta, credito)| aviso_credito(cuenta, credito, totales.total)) {
+                    ui.add_space(6.0);
+                    nota(ui, &texto_credito, tinta, izquierda);
+                }
             });
             ui.vertical(|ui| {
                 ui.set_width(derecha);
@@ -852,6 +927,20 @@ fn imprimir_factura(servicios: &Servicios, ctx: &egui::Context, factura: &Value,
     imprimir(servicios, Comprobante::Factura, datos)["success"].as_bool() == Some(true)
 }
 
+fn aviso_credito(cuenta: Cuenta, credito: Credito, total: f64) -> Option<(String, egui::Color32)> {
+    let limite = cuenta.limite?;
+    match credito {
+        Credito::Cerca { uso } => Some((
+            format!("Con esta venta usa el {} % del límite de crédito ({} de {}).", formato::numero((uso * 100.0).floor()), formato::pesos(cuenta.saldo + total), formato::pesos(limite)),
+            color::DORADO_TEXTO,
+        )),
+        Credito::Excedido { excedente } => {
+            Some((format!("Supera el límite de crédito por {}. Para crearla hace falta autorización de un administrador.", formato::pesos(excedente)), color::ROJO))
+        }
+        Credito::SinLimite | Credito::Disponible => None,
+    }
+}
+
 fn etiqueta(ui: &mut Ui, contenido: &str) {
     v2::texto(ui, contenido, tam::ETIQUETA, Peso::Semi, color::TEXTO_SECUNDARIO);
 }
@@ -898,6 +987,26 @@ fn pie_totales(ui: &mut Ui, tipo: &str, totales: logica::Totales) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn aviso_al_ochenta_por_ciento_y_al_superar_el_limite() {
+        let cuenta = Cuenta { saldo: 30000.0, limite: Some(50000.0) };
+        let aviso = |total: f64| aviso_credito(cuenta, logica::evaluar_credito(cuenta, total), total).map(|(texto, _)| texto);
+        assert_eq!(aviso(5000.0), None);
+        assert_eq!(aviso(12500.0).as_deref(), Some("Con esta venta usa el 85 % del límite de crédito ($42.500,00 de $50.000,00)."));
+        assert_eq!(aviso(25000.0).as_deref(), Some("Supera el límite de crédito por $5.000,00. Para crearla hace falta autorización de un administrador."));
+        let sin_limite = Cuenta { saldo: 1e6, limite: None };
+        assert_eq!(aviso_credito(sin_limite, logica::evaluar_credito(sin_limite, 10.0), 10.0), None);
+    }
+
+    #[test]
+    fn el_credito_se_autoriza_por_cliente_y_hasta_el_monto_autorizado() {
+        let mut formulario = FormularioFactura { credito_de: Some(json!("c1")), autorizado: Some((json!("c1"), 1000.0)), ..Default::default() };
+        assert!(formulario.autorizado_para(1000.0));
+        assert!(!formulario.autorizado_para(1000.5));
+        formulario.credito_de = Some(json!("c2"));
+        assert!(!formulario.autorizado_para(10.0));
+    }
 
     #[test]
     fn cambiar_de_remito_a_factura_y_volver_recalcula_los_precios() {
