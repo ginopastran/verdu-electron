@@ -6,6 +6,8 @@ import { useProductSearch, AvailableProduct } from "@/hooks/useProductSearch";
 import { RefObject } from "react";
 import { useBusinessInfo } from "@/hooks/useBusinessInfo";
 import { calcularPrecioVisualConIVA } from "@/utils/ivaHelpers";
+import { camposDeOferta } from "@/utils/reglasVenta";
+import { EtiquetaOferta, FotoProducto, PrecioTachado } from "./ProductoVisual";
 
 interface ProductSearchProps {
   onProductSelect: (product: AvailableProduct) => void;
@@ -86,7 +88,18 @@ export function ProductSearch({
 
       {showResults && searchResults.length > 0 && (
         <Card className="absolute w-full mt-1 bg-background border shadow-lg p-2 z-10 max-w-2xl rounded-xl">
-          {searchResults.map((product, index) => (
+          {searchResults.map((product, index) => {
+            const oferta = camposDeOferta(product);
+            const visual = (precio: number) =>
+              businessInfo
+                ? calcularPrecioVisualConIVA(
+                    precio,
+                    product.ivaIncluido || false,
+                    product.ivaPorcentaje ?? null,
+                    businessInfo.ivaIncluidoEnPrecios || false
+                  )
+                : precio;
+            return (
             <div
               key={product.id}
               className={cn(
@@ -97,30 +110,35 @@ export function ProductSearch({
               )}
               onClick={() => selectProduct(product)}
             >
-              <div className="text-base flex items-center justify-between">
-                <div className="flex items-center gap-2">
+              <div className="text-base flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <FotoProducto
+                    id={product.id}
+                    fotoActualizadaEn={product.fotoActualizadaEn}
+                    className="size-10"
+                  />
                   {product.plu && (
                     <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-1 rounded">
                       PLU: {product.plu}
                     </span>
                   )}
                   <span>{product.name}</span>
+                  {oferta.ofertaPorcentaje && (
+                    <EtiquetaOferta porcentaje={oferta.ofertaPorcentaje} />
+                  )}
                 </div>
-                <span className="text-emerald-600">
-                  $
-                  {businessInfo
-                    ? calcularPrecioVisualConIVA(
-                        product.pricePerUnit,
-                        product.ivaIncluido || false,
-                        product.ivaPorcentaje ?? null,
-                        businessInfo.ivaIncluidoEnPrecios || false
-                      ).toLocaleString()
-                    : product.pricePerUnit.toLocaleString()}
-                  /{product.unit}
+                <span className="text-emerald-600 flex items-center gap-2 shrink-0">
+                  {oferta.precioSinOferta != null && (
+                    <PrecioTachado precio={visual(oferta.precioSinOferta)} />
+                  )}
+                  <span>
+                    ${visual(oferta.pricePerUnit).toLocaleString()}/{product.unit}
+                  </span>
                 </span>
               </div>
             </div>
-          ))}
+            );
+          })}
         </Card>
       )}
     </div>

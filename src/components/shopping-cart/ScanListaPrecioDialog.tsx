@@ -13,6 +13,7 @@ import { AvailableProduct } from "@/hooks/useProductSearch";
 import { Product } from "@/hooks/useCartState";
 import { useBusinessInfo } from "@/hooks/useBusinessInfo";
 import { calcularPrecioVisualConIVA } from "@/utils/ivaHelpers";
+import { camposDeOferta, textoOferta } from "@/utils/reglasVenta";
 
 export type FilaListaScan = {
   listaPrecioId: number;
@@ -60,8 +61,10 @@ export function ScanListaPrecioDialog({
       ? rows.find((r) => String(r.listaPrecioId) === selectedValue) ?? null
       : null;
 
+  const oferta = product ? camposDeOferta(product) : null;
+
   const precioUnitario =
-    selectedRow?.precio ?? product?.pricePerUnit ?? 0;
+    selectedRow?.precio ?? oferta?.pricePerUnit ?? 0;
 
   // tipoMedida efectivo: el de la lista, o el del producto
   const tipoMedida = selectedRow?.tipoMedida || medidaProducto;
@@ -129,6 +132,9 @@ export function ScanListaPrecioDialog({
       ivaPorcentaje: product.ivaPorcentaje,
       listaPrecioId: selectedRow ? selectedRow.listaPrecioId : null,
       listaPrecioNombre: selectedRow ? selectedRow.nombreLista : etiquetaBase,
+      precioSinOferta: selectedRow ? null : oferta?.precioSinOferta ?? null,
+      ofertaPorcentaje: selectedRow ? null : oferta?.ofertaPorcentaje ?? null,
+      fotoActualizadaEn: product.fotoActualizadaEn ?? null,
     };
 
     onAddToCart(newItem);
@@ -174,7 +180,8 @@ export function ScanListaPrecioDialog({
             autoFocus
           >
             <option value="base">
-              {etiquetaBase} — ${precioVisual(product?.pricePerUnit ?? 0).toLocaleString()} / {medidaProducto}
+              {etiquetaBase} — ${precioVisual(oferta?.pricePerUnit ?? 0).toLocaleString()} / {medidaProducto}
+              {oferta?.ofertaPorcentaje ? ` (${textoOferta(oferta.ofertaPorcentaje)})` : ""}
             </option>
             {rows.map((r) => (
               <option key={r.listaPrecioId} value={String(r.listaPrecioId)}>

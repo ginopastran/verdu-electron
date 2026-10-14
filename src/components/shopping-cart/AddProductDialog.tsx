@@ -17,6 +17,8 @@ import { useScaleWeight } from "@/hooks/useScaleWeight";
 import { useAuth } from "@/contexts/AuthContext";
 import { useBusinessInfo } from "@/hooks/useBusinessInfo";
 import { calcularPrecioVisualConIVA } from "@/utils/ivaHelpers";
+import { camposDeOferta, textoOferta } from "@/utils/reglasVenta";
+import { EtiquetaOferta, PrecioTachado } from "./ProductoVisual";
 
 interface AddProductDialogProps {
   isOpen: boolean;
@@ -137,11 +139,14 @@ export function AddProductDialog({
   const etiquetaBase =
     (businessInfo?.etiquetaPrecioBase || "Precio catálogo").trim();
 
+  const oferta = product ? camposDeOferta(product) : null;
+  const usaPrecioBase = selectedBase || selectedListaId == null;
+
   const precioUnitarioEfectivo = (() => {
-    if (!product) return 0;
-    if (selectedBase || selectedListaId == null) return product.pricePerUnit;
+    if (!product || !oferta) return 0;
+    if (usaPrecioBase) return oferta.pricePerUnit;
     const row = filasLista.find((r) => r.listaPrecioId === selectedListaId);
-    return row?.precio ?? product.pricePerUnit;
+    return row?.precio ?? oferta.pricePerUnit;
   })();
 
   // Medida efectiva: la de la lista seleccionada, o la del producto (precio base)
@@ -219,6 +224,9 @@ export function AddProductDialog({
         listaPrecioNombre: selectedBase
           ? etiquetaBase
           : rowSel?.nombreLista ?? null,
+        precioSinOferta: usaPrecioBase ? oferta?.precioSinOferta ?? null : null,
+        ofertaPorcentaje: usaPrecioBase ? oferta?.ofertaPorcentaje ?? null : null,
+        fotoActualizadaEn: product.fotoActualizadaEn ?? null,
       };
 
       onAddToCart(newItem);
@@ -273,9 +281,20 @@ export function AddProductDialog({
                       ?.nombreLista
                   }`
                 : ""}{" "}
-            — $
-            {precioVisualLinea(precioUnitarioEfectivo).toLocaleString()} /{" "}
+            —{" "}
+            {usaPrecioBase && oferta?.precioSinOferta != null && (
+              <>
+                <PrecioTachado precio={precioVisualLinea(oferta.precioSinOferta)} />{" "}
+              </>
+            )}
+            ${precioVisualLinea(precioUnitarioEfectivo).toLocaleString()} /{" "}
             {tipoMedidaEfectivo}
+            {usaPrecioBase && oferta?.ofertaPorcentaje != null && (
+              <>
+                {" "}
+                <EtiquetaOferta porcentaje={oferta.ofertaPorcentaje} />
+              </>
+            )}
           </DialogDescription>
         </DialogHeader>
 
@@ -309,7 +328,12 @@ export function AddProductDialog({
                 }
               }}
             >
-              <option value="base">{etiquetaBase}</option>
+              <option value="base">
+                {etiquetaBase}
+                {oferta?.ofertaPorcentaje != null
+                  ? ` — $${precioVisualLinea(oferta.pricePerUnit).toLocaleString()} (${textoOferta(oferta.ofertaPorcentaje)})`
+                  : ""}
+              </option>
               {filasLista.map((r) => (
                 <option key={r.listaPrecioId} value={String(r.listaPrecioId)}>
                   {r.nombreLista} — $

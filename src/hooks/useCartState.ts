@@ -15,6 +15,9 @@ export interface Product {
   ivaPorcentaje?: number | null;
   listaPrecioId?: number | null;
   listaPrecioNombre?: string | null;
+  precioSinOferta?: number | null;
+  ofertaPorcentaje?: number | null;
+  fotoActualizadaEn?: string | null;
 }
 
 export interface CartScreen {

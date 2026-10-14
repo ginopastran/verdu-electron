@@ -10,7 +10,25 @@ export interface AvailableProduct {
   plu: string | null;
   ivaIncluido?: boolean;
   ivaPorcentaje?: number | null;
+  ofertaPorcentaje?: number | null;
+  ofertaHasta?: string | null;
+  fotoActualizadaEn?: string | null;
 }
+
+export const productoDisponible = (p: any): AvailableProduct => ({
+  id: p.id,
+  name: p.nombre,
+  pricePerUnit: p.precio,
+  unit: p.tipoMedida,
+  costo: p.costo,
+  codigoBarras: p.codigoBarras,
+  plu: p.plu,
+  ivaIncluido: p.ivaIncluido,
+  ivaPorcentaje: p.ivaPorcentaje,
+  ofertaPorcentaje: p.ofertaPorcentaje ?? null,
+  ofertaHasta: p.ofertaHasta ?? null,
+  fotoActualizadaEn: p.fotoActualizadaEn ?? null,
+});
 
 export function useProductSearch(
   onDirectAddToCart?: (product: AvailableProduct, quantity: number) => void
@@ -80,17 +98,7 @@ export function useProductSearch(
         }
 
         // Transformar los productos al formato usado en el frontend
-        const transformedProducts = allProducts.map((p: any) => ({
-          id: p.id,
-          name: p.nombre,
-          pricePerUnit: p.precio,
-          unit: p.tipoMedida,
-          costo: p.costo,
-          codigoBarras: p.codigoBarras,
-          plu: p.plu,
-          ivaIncluido: p.ivaIncluido,
-          ivaPorcentaje: p.ivaPorcentaje,
-        }));
+        const transformedProducts = allProducts.map(productoDisponible);
 
         setAvailableProducts(transformedProducts);
       } catch (error: any) {

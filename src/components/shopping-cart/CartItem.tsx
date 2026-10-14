@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Product } from "@/hooks/useCartState";
 import { useBusinessInfo } from "@/hooks/useBusinessInfo";
 import { calcularPrecioVisualConIVA } from "@/utils/ivaHelpers";
+import { EtiquetaOferta, FotoProducto, PrecioTachado } from "./ProductoVisual";
 
 interface CartItemProps {
   item: Product;
@@ -22,15 +23,18 @@ export function CartItem({
   const appId = import.meta.env.VITE_APP_ID || null;
   const { businessInfo } = useBusinessInfo(API_URL, appId);
 
+  const visual = (precio: number) =>
+    businessInfo
+      ? calcularPrecioVisualConIVA(
+          precio,
+          item.ivaIncluido || false,
+          item.ivaPorcentaje ?? null,
+          businessInfo.ivaIncluidoEnPrecios || false
+        )
+      : precio;
+
   // Calcular precios visuales con IVA
-  const precioVisualPorUnidad = businessInfo
-    ? calcularPrecioVisualConIVA(
-        item.pricePerUnit,
-        item.ivaIncluido || false,
-        item.ivaPorcentaje ?? null,
-        businessInfo.ivaIncluidoEnPrecios || false
-      )
-    : item.pricePerUnit;
+  const precioVisualPorUnidad = visual(item.pricePerUnit);
 
   const subtotalVisual = precioVisualPorUnidad * item.quantity;
 
@@ -43,7 +47,15 @@ export function CartItem({
       <div className="flex justify-between w-full items-center">
         <div className="flex justify-between items-end gap-10">
           <div className="flex flex-wrap items-center gap-2">
+            <FotoProducto
+              id={item.id}
+              fotoActualizadaEn={item.fotoActualizadaEn}
+              className="size-12"
+            />
             <span className="text-2xl font-medium">{item.name}</span>
+            {item.ofertaPorcentaje != null && item.ofertaPorcentaje > 0 && (
+              <EtiquetaOferta porcentaje={item.ofertaPorcentaje} />
+            )}
             {listaDistintaDefault && (
               <Badge variant="secondary" className="text-xs font-normal shrink-0">
                 {item.listaPrecioNombre?.trim()
@@ -56,8 +68,13 @@ export function CartItem({
             Cantidad: {item.quantity} {item.unit}
           </div>
           <div className="text-muted-foreground">
-            {item.unit === "Kg" ? "$/Kg" : "$/U"}: $
-            {precioVisualPorUnidad.toLocaleString()}
+            {item.unit === "Kg" ? "$/Kg" : "$/U"}:{" "}
+            {item.precioSinOferta != null && (
+              <>
+                <PrecioTachado precio={visual(item.precioSinOferta)} />{" "}
+              </>
+            )}
+            ${precioVisualPorUnidad.toLocaleString()}
           </div>
           <div className="text-muted-foreground">
             SUBTOTAL: ${subtotalVisual.toLocaleString()}

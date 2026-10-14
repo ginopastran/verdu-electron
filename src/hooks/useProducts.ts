@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { AvailableProduct } from "@/hooks/useProductSearch";
+import { AvailableProduct, productoDisponible } from "@/hooks/useProductSearch";
 
 // Tipo para los productos que vienen del backend
 interface BackendProduct {
@@ -54,19 +54,7 @@ export const useProducts = (API_URL: string, appId: string | null) => {
       }
 
       // Transformar los productos al formato usado en el frontend
-      const transformedProducts = allProducts.map(
-        (p: BackendProduct): AvailableProduct => ({
-          id: p.id,
-          name: p.nombre,
-          pricePerUnit: p.precio,
-          unit: p.tipoMedida,
-          costo: p.costo,
-          codigoBarras: p.codigoBarras,
-          plu: p.plu,
-          ivaIncluido: p.ivaIncluido,
-          ivaPorcentaje: p.ivaPorcentaje,
-        })
-      );
+      const transformedProducts = allProducts.map(productoDisponible);
 
       setAvailableProducts(transformedProducts);
     } catch (error) {

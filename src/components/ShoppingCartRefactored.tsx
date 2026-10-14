@@ -24,6 +24,7 @@ import { useTicketPrinting } from "@/hooks/useTicketPrinting";
 import { useCancellationControl } from "@/hooks/useCancellationControl";
 import { AvailableProduct } from "@/hooks/useProductSearch";
 import { getBusinessName } from "@/utils/businessHelpers";
+import { camposDeOferta } from "@/utils/reglasVenta";
 
 // Componentes
 import {
@@ -1108,7 +1109,8 @@ const ShoppingCartRefactored = forwardRef<
 
         lastProcessedCode.current = { code: productKey, timestamp: now };
 
-        let pricePerUnit = product.pricePerUnit;
+        const oferta = camposDeOferta(product);
+        let pricePerUnit = oferta.pricePerUnit;
         let listaPrecioId: number | null = null;
         let listaPrecioNombre: string | null = null;
         const etiquetaBase = (
@@ -1151,7 +1153,7 @@ const ShoppingCartRefactored = forwardRef<
               }
             }
           } catch {
-            pricePerUnit = product.pricePerUnit;
+            pricePerUnit = oferta.pricePerUnit;
           }
         }
 
@@ -1171,6 +1173,9 @@ const ShoppingCartRefactored = forwardRef<
           ivaPorcentaje: product.ivaPorcentaje,
           listaPrecioId,
           listaPrecioNombre: listaPrecioNombre ?? (listaPrecioId ? null : etiquetaBase),
+          precioSinOferta: oferta.precioSinOferta,
+          ofertaPorcentaje: oferta.ofertaPorcentaje,
+          fotoActualizadaEn: product.fotoActualizadaEn ?? null,
         };
 
         cartState.addToCart(newItem);
