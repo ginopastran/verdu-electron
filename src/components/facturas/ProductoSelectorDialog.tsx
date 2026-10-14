@@ -23,6 +23,8 @@ import {
 import { toast } from "sonner";
 import { useBusinessInfo } from "@/hooks/useBusinessInfo";
 import { calcularPrecioVisualConIVA } from "@/utils/ivaHelpers";
+import { camposDeOferta } from "@/utils/reglasVenta";
+import { EtiquetaOferta } from "@/components/shopping-cart/ProductoVisual";
 
 interface Producto {
   id: number;
@@ -33,7 +35,22 @@ interface Producto {
   ivaIncluido?: boolean;
   ivaPorcentaje?: number | null;
   plu?: string | null;
+  precioSinOferta?: number | null;
+  ofertaPorcentaje?: number | null;
 }
+
+const conOferta = (p: any) => {
+  const oferta = camposDeOferta({
+    pricePerUnit: p.precio,
+    ofertaPorcentaje: p.ofertaPorcentaje,
+    ofertaHasta: p.ofertaHasta,
+  });
+  return {
+    precio: oferta.pricePerUnit,
+    precioSinOferta: oferta.precioSinOferta,
+    ofertaPorcentaje: oferta.ofertaPorcentaje,
+  };
+};
 
 interface ListaPrecio {
   id: number;
@@ -88,6 +105,7 @@ const ProductoSelectorDialog: React.FC<ProductoSelectorDialogProps> = ({
       // Transformar productos para incluir campos de IVA y PLU
       const productosCompletos = (data.productos || []).map((p: any) => ({
         ...p,
+        ...conOferta(p),
         ivaIncluido: p.ivaIncluido,
         ivaPorcentaje: p.ivaPorcentaje,
         plu: p.plu,
@@ -351,6 +369,9 @@ const ProductoSelectorDialog: React.FC<ProductoSelectorDialogProps> = ({
                           </span>
                         )}
                         <p className="font-medium">{producto.nombre}</p>
+                        {!enLista && producto.ofertaPorcentaje != null && (
+                          <EtiquetaOferta porcentaje={producto.ofertaPorcentaje} />
+                        )}
                       </div>
                       <div className="text-sm text-muted-foreground flex flex-wrap gap-2 mt-1">
                         <span className="bg-muted px-2 py-1 rounded text-xs">
@@ -370,18 +391,18 @@ const ProductoSelectorDialog: React.FC<ProductoSelectorDialogProps> = ({
                             : formatCurrency(precioLista || producto.precio)}
                         </span>
                         {/* Mostrar precio base tachado si hay precio de lista */}
-                        {precioLista && precioLista !== producto.precio && (
+                        {(precioLista ? precioLista !== (producto.precioSinOferta ?? producto.precio) : producto.precioSinOferta != null) && (
                           <span className="text-xs text-muted-foreground line-through">
                             {businessInfo
                               ? formatCurrency(
                                   calcularPrecioVisualConIVA(
-                                    producto.precio,
+                                    producto.precioSinOferta ?? producto.precio,
                                     producto.ivaIncluido || false,
                                     producto.ivaPorcentaje ?? null,
                                     businessInfo.ivaIncluidoEnPrecios || false
                                   )
                                 )
-                              : formatCurrency(producto.precio)}
+                              : formatCurrency(producto.precioSinOferta ?? producto.precio)}
                           </span>
                         )}
                         {producto.stock !== undefined && (
