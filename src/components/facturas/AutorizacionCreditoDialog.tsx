@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -60,6 +60,7 @@ export function AutorizacionCreditoDialog({
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [validando, setValidando] = useState(false);
+  const passwordRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (credito) {
@@ -89,7 +90,13 @@ export function AutorizacionCreditoDialog({
 
   return (
     <Dialog open={!!credito} onOpenChange={(open) => !open && onCancelar()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent
+        className="sm:max-w-md"
+        onOpenAutoFocus={(e) => {
+          e.preventDefault();
+          passwordRef.current?.focus();
+        }}
+      >
         <DialogHeader>
           <DialogTitle className="text-emerald-gradient font-bold text-2xl">
             Límite de crédito superado
@@ -137,6 +144,7 @@ export function AutorizacionCreditoDialog({
             <Label htmlFor="admin-password">Contraseña</Label>
             <Input
               id="admin-password"
+              ref={passwordRef}
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -148,7 +156,6 @@ export function AutorizacionCreditoDialog({
               }}
               disabled={validando}
               autoComplete="off"
-              autoFocus
             />
           </div>
           {error && <p className="text-sm text-red-600">{error}</p>}

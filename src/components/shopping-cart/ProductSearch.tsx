@@ -110,8 +110,8 @@ export function ProductSearch({
               )}
               onClick={() => selectProduct(product)}
             >
-              <div className="text-base flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 min-w-0">
+              <div className="text-base flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+                <div className="flex flex-wrap items-center gap-2 min-w-0">
                   <FotoProducto
                     id={product.id}
                     fotoActualizadaEn={product.fotoActualizadaEn}
@@ -127,7 +127,7 @@ export function ProductSearch({
                     <EtiquetaOferta porcentaje={oferta.ofertaPorcentaje} />
                   )}
                 </div>
-                <span className="text-emerald-600 flex items-center gap-2 shrink-0">
+                <span className="text-emerald-600 flex items-center gap-2 ml-auto">
                   {oferta.precioSinOferta != null && (
                     <PrecioTachado precio={visual(oferta.precioSinOferta)} />
                   )}
