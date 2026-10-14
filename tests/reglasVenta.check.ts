@@ -2,6 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   camposDeOferta,
+  consultaDeEsperado,
+  datosDeCierre,
   descuentoEfectivoDisponible,
   diferenciaDeCaja,
   efectivoEsperado,
@@ -11,6 +13,8 @@ import {
   observacionConAutorizacion,
   ofertaVigente,
   precioDeVenta,
+  rangoManual,
+  textoArqueo,
   textoOferta,
 } from "../src/utils/reglasVenta.ts";
 
@@ -103,4 +107,44 @@ test("la autorización de un admin queda en las observaciones", () => {
     observacionConAutorizacion("Entregar el lunes ", "a@b.com"),
     "Entregar el lunes\nAutorizó exceso de límite: a@b.com"
   );
+});
+
+test("el arqueo en vivo dice cuadra, faltan o sobran", () => {
+  assert.deepEqual(textoArqueo(10500, 10500), { texto: "Cuadra", estado: "cuadra" });
+  assert.deepEqual(textoArqueo(10200, 10500), { texto: "Faltan $300", estado: "faltan" });
+  assert.deepEqual(textoArqueo(10750.5, 10500), { texto: "Sobran $250,5", estado: "sobran" });
+});
+
+const menosTres = (d: Date) => new Date(d.getTime() - 3 * 60 * 60 * 1000).toISOString();
+
+test("el esperado se pide con los mismos datos que el cierre", () => {
+  const ahora = new Date(2026, 9, 14, 18, 30);
+  const todo = datosDeCierre(77, 5, "todo", ahora);
+  assert.deepEqual(todo, {
+    vendedorId: 77,
+    sucursalId: 5,
+    fechaInicio: menosTres(new Date(2026, 9, 14, 0, 0)),
+    fechaCierre: menosTres(ahora),
+    periodo: "todo",
+  });
+  assert.equal(datosDeCierre(77, 5, "tarde", ahora).fechaInicio, menosTres(new Date(2026, 9, 14, 12, 0)));
+  const temprano = new Date(2026, 9, 14, 11, 0);
+  assert.equal(datosDeCierre(77, 5, "tarde", temprano).fechaInicio, menosTres(new Date(2026, 9, 13, 12, 0)));
+  const q = new URLSearchParams(consultaDeEsperado(todo));
+  assert.equal(q.get("vendedorId"), "77");
+  assert.equal(q.get("sucursalId"), "5");
+  assert.equal(q.get("periodo"), "todo");
+  assert.equal(q.get("fechaInicio"), todo.fechaInicio);
+  assert.equal(q.get("fechaCierre"), todo.fechaCierre);
+});
+
+test("el cierre manual valida el rango y lo pasa a UTC como antes", () => {
+  const dia = new Date(2026, 9, 14);
+  assert.deepEqual(rangoManual(dia, dia, "08:00", "13:15"), {
+    fechaInicio: menosTres(new Date(2026, 9, 14, 8, 0, 0, 0)),
+    fechaCierre: menosTres(new Date(2026, 9, 14, 13, 15, 59, 999)),
+  });
+  assert.equal(rangoManual(undefined, dia, "00:00", "23:59"), "Por favor, completa todos los campos.");
+  assert.equal(rangoManual(dia, new Date(2026, 9, 13), "00:00", "23:59"), "La fecha de fin no puede ser anterior a la fecha de inicio.");
+  assert.equal(rangoManual(dia, dia, "13:00", "13:00"), "La hora de fin debe ser posterior a la hora de inicio.");
 });

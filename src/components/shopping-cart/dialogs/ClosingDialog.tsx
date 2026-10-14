@@ -35,7 +35,72 @@ import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { Input } from "@/components/ui/input";
 import { avisarArqueo } from "@/hooks/useClosing";
-import { leerMonto } from "@/utils/reglasVenta";
+import {
+  consultaDeEsperado,
+  datosDeCierre,
+  leerMonto,
+  rangoManual,
+  textoArqueo,
+} from "@/utils/reglasVenta";
+
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+
+function useEsperado(consulta: string | null) {
+  const [esperado, setEsperado] = useState<number | null>(null);
+
+  useEffect(() => {
+    setEsperado(null);
+    if (!consulta) return;
+    let vigente = true;
+    const appId = import.meta.env.VITE_APP_ID || null;
+    fetch(`${API_URL}/api/cierres/esperado?${consulta}`, {
+      headers: {
+        "Content-Type": "application/json",
+        ...(appId && { "X-App-ID": appId }),
+      },
+      credentials: "include",
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (vigente && typeof d?.esperado === "number") setEsperado(d.esperado);
+      })
+      .catch(() => {});
+    return () => {
+      vigente = false;
+    };
+  }, [consulta]);
+
+  return esperado;
+}
+
+function ArqueoEnVivo({
+  esperado,
+  contado,
+}: {
+  esperado: number | null;
+  contado: number | null | "invalido";
+}) {
+  if (esperado == null) return null;
+  const arqueo = typeof contado === "number" ? textoArqueo(contado, esperado) : null;
+  return (
+    <span className="flex flex-col items-center text-xs font-normal leading-tight">
+      <span className="text-muted-foreground">
+        Esperado ${esperado.toLocaleString("es-AR")}
+      </span>
+      {arqueo && (
+        <span
+          className={
+            arqueo.estado === "cuadra"
+              ? "text-emerald-600 font-medium"
+              : "text-red-600 font-medium"
+          }
+        >
+          {arqueo.texto}
+        </span>
+      )}
+    </span>
+  );
+}
 
 interface ClosingDialogProps {
   open: boolean;
@@ -66,9 +131,35 @@ export const ClosingDialog = ({
   const [contadoTexto, setContadoTexto] = useState("");
   const contado = leerMonto(contadoTexto);
 
+  const [abiertoEn, setAbiertoEn] = useState<Date | null>(null);
+
   useEffect(() => {
     if (!open) setContadoTexto("");
+    setAbiertoEn(open ? new Date() : null);
   }, [open]);
+
+  const consultaPeriodo = (periodo: string) =>
+    abiertoEn && user
+      ? consultaDeEsperado(
+          datosDeCierre(user.id, user.sucursalId, periodo, abiertoEn)
+        )
+      : null;
+  const esperadoManana = useEsperado(consultaPeriodo("mañana"));
+  const esperadoTarde = useEsperado(consultaPeriodo("tarde"));
+  const esperadoTodo = useEsperado(consultaPeriodo("todo"));
+  const rangoEnVivo = createOpen
+    ? rangoManual(startDate, endDate, startTime, endTime)
+    : null;
+  const esperadoManual = useEsperado(
+    rangoEnVivo && typeof rangoEnVivo !== "string" && user
+      ? consultaDeEsperado({
+          vendedorId: user.id,
+          sucursalId: user.sucursalId,
+          periodo: "custom",
+          ...rangoEnVivo,
+        })
+      : null
+  );
 
   const cerrarPeriodo = (period: string) => {
     if (contado === "invalido") {
@@ -97,8 +188,7 @@ export const ClosingDialog = ({
         <p className="text-sm text-red-600">Ingresá un monto válido</p>
       ) : (
         <p className="text-xs text-muted-foreground">
-          Al cerrar se compara con el esperado en efectivo del período y se
-          muestra la diferencia.
+          Se compara con el efectivo esperado de cada período.
         </p>
       )}
     </div>
@@ -157,44 +247,13 @@ export const ClosingDialog = ({
       return;
     }
 
-    // Validaciones
-    if (!startDate || !endDate || !selectedVendedorId || !selectedSucursalId) {
-      toast.error("Por favor, completa todos los campos.");
-      return;
-    }
-
-    // Validar que la fecha de fin no sea anterior a la de inicio
-    if (endDate < startDate) {
+    const rango = rangoManual(startDate, endDate, startTime, endTime);
+    if (typeof rango === "string" || !selectedVendedorId || !selectedSucursalId) {
       toast.error(
-        "La fecha de fin no puede ser anterior a la fecha de inicio."
+        typeof rango === "string" ? rango : "Por favor, completa todos los campos."
       );
       return;
     }
-
-    const [startHour, startMinute] = startTime.split(":").map(Number);
-    const [endHour, endMinute] = endTime.split(":").map(Number);
-
-    // Si es el mismo día, validar que la hora de fin sea posterior a la de inicio
-    if (startDate.getTime() === endDate.getTime()) {
-      if (
-        startHour > endHour ||
-        (startHour === endHour && startMinute >= endMinute)
-      ) {
-        toast.error("La hora de fin debe ser posterior a la hora de inicio.");
-        return;
-      }
-    }
-
-    // Crear fechas en hora local Argentina
-    const fechaInicio = new Date(startDate);
-    fechaInicio.setHours(startHour, startMinute, 0, 0);
-
-    const fechaCierre = new Date(endDate);
-    fechaCierre.setHours(endHour, endMinute, 59, 999);
-
-    // Convertir a UTC (Argentina UTC-3)
-    const fechaInicioUTC = new Date(fechaInicio.getTime() - 3 * 60 * 60 * 1000);
-    const fechaCierreUTC = new Date(fechaCierre.getTime() - 3 * 60 * 60 * 1000);
 
     setIsSubmitting(true);
     try {
@@ -212,8 +271,7 @@ export const ClosingDialog = ({
       const body = {
         vendedorId: Number(selectedVendedorId),
         sucursalId: Number(selectedSucursalId),
-        fechaInicio: fechaInicioUTC.toISOString(),
-        fechaCierre: fechaCierreUTC.toISOString(),
+        ...rango,
         periodo: "custom",
         ...(contado != null && { efectivoContado: contado }),
       };
@@ -342,6 +400,7 @@ export const ClosingDialog = ({
                 <Sun />
               )}
               <span className="text-base">Mañana (1)</span>
+              <ArqueoEnVivo esperado={esperadoManana} contado={contado} />
             </Button>
             <Button
               onClick={() => cerrarPeriodo("tarde")}
@@ -355,6 +414,7 @@ export const ClosingDialog = ({
                 <Moon />
               )}
               <span className="text-base">Tarde (2)</span>
+              <ArqueoEnVivo esperado={esperadoTarde} contado={contado} />
             </Button>
             <Button
               onClick={() => cerrarPeriodo("todo")}
@@ -368,6 +428,7 @@ export const ClosingDialog = ({
                 <CalendarIcon />
               )}
               <span className="text-base">Todo el día (3)</span>
+              <ArqueoEnVivo esperado={esperadoTodo} contado={contado} />
             </Button>
             <Button
               onClick={() => setCreateOpen(true)}
@@ -575,6 +636,7 @@ export const ClosingDialog = ({
             </div>
 
             {campoContado("efectivo-contado-manual")}
+            <ArqueoEnVivo esperado={esperadoManual} contado={contado} />
 
             {/* Información del período seleccionado */}
             {startDate && endDate && (

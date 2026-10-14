@@ -101,6 +101,82 @@ export function diferenciaDeCaja(contado: number, esperado: number) {
   return { diferencia: estado === "cuadra" ? 0 : diferencia, estado };
 }
 
+export function textoArqueo(contado: number, esperado: number) {
+  const { diferencia, estado } = diferenciaDeCaja(contado, esperado);
+  const monto = `$${Math.abs(diferencia).toLocaleString("es-AR")}`;
+  const texto =
+    estado === "cuadra" ? "Cuadra" : `${estado === "faltan" ? "Faltan" : "Sobran"} ${monto}`;
+  return { texto, estado };
+}
+
+const TRES_HORAS = 3 * 60 * 60 * 1000;
+
+export function datosDeCierre(
+  vendedorId: number,
+  sucursalId: number,
+  periodo: string,
+  ahora: Date = new Date()
+) {
+  const inicio = new Date(
+    ahora.getFullYear(),
+    ahora.getMonth(),
+    ahora.getDate(),
+    periodo === "tarde" ? 12 : 0
+  );
+  let fechaInicio = new Date(inicio.getTime() - TRES_HORAS);
+  const fechaCierre = new Date(ahora.getTime() - TRES_HORAS);
+  if (fechaInicio.getTime() >= fechaCierre.getTime()) {
+    fechaInicio = new Date(fechaInicio);
+    fechaInicio.setDate(fechaInicio.getDate() - 1);
+  }
+  return {
+    vendedorId,
+    sucursalId,
+    fechaInicio: fechaInicio.toISOString(),
+    fechaCierre: fechaCierre.toISOString(),
+    periodo,
+  };
+}
+
+export function rangoManual(
+  desde: Date | undefined,
+  hasta: Date | undefined,
+  horaDesde: string,
+  horaHasta: string
+): { fechaInicio: string; fechaCierre: string } | string {
+  if (!desde || !hasta) return "Por favor, completa todos los campos.";
+  if (hasta < desde) return "La fecha de fin no puede ser anterior a la fecha de inicio.";
+  const [h1, m1] = horaDesde.split(":").map(Number);
+  const [h2, m2] = horaHasta.split(":").map(Number);
+  if (desde.getTime() === hasta.getTime() && (h1 > h2 || (h1 === h2 && m1 >= m2))) {
+    return "La hora de fin debe ser posterior a la hora de inicio.";
+  }
+  const inicio = new Date(desde);
+  inicio.setHours(h1, m1, 0, 0);
+  const cierre = new Date(hasta);
+  cierre.setHours(h2, m2, 59, 999);
+  return {
+    fechaInicio: new Date(inicio.getTime() - TRES_HORAS).toISOString(),
+    fechaCierre: new Date(cierre.getTime() - TRES_HORAS).toISOString(),
+  };
+}
+
+export function consultaDeEsperado(datos: {
+  vendedorId: number;
+  sucursalId: number;
+  periodo: string;
+  fechaInicio: string;
+  fechaCierre: string;
+}) {
+  return new URLSearchParams({
+    vendedorId: String(datos.vendedorId),
+    sucursalId: String(datos.sucursalId),
+    periodo: datos.periodo,
+    fechaInicio: datos.fechaInicio,
+    fechaCierre: datos.fechaCierre,
+  }).toString();
+}
+
 export function leerMonto(texto: string): number | null | "invalido" {
   const limpio = texto.trim();
   if (!limpio) return null;
