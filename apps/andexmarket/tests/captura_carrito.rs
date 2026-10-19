@@ -289,6 +289,10 @@ fn otras_medidas_se_eligen_con_el_teclado() {
     escribir(&mut h, "nuez 500 g");
     tecla(&mut h, Key::Enter);
     esperar_red(&mut h);
+    assert!(!h.state_mut().pantallas().carrito.hay_dialogo());
+    tecla(&mut h, Key::ArrowDown);
+    tecla(&mut h, Key::Enter);
+    esperar_red(&mut h);
     assert!(h.state_mut().pantallas().carrito.hay_dialogo());
     escribir(&mut h, "2");
     tecla(&mut h, Key::Enter);

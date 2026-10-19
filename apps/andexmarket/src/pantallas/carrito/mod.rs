@@ -51,7 +51,7 @@ impl Busqueda {
         let encontrados = busqueda::buscar(productos, &self.consulta);
         self.resultados = encontrados.resultados;
         self.otras_medidas = encontrados.otras_medidas;
-        self.seleccion = (!self.visibles().is_empty()).then_some(0);
+        self.seleccion = (!self.resultados.is_empty()).then_some(0);
         self.mostrar_seleccion = true;
         self.no_encontrado = false;
     }
@@ -330,8 +330,7 @@ impl Carrito {
             self.busqueda.limpiar();
             ui.memory_mut(|m| m.request_focus(id_buscador()));
         }
-        if enter {
-            let posicion = self.busqueda.seleccion.unwrap_or(0);
+        if let (true, Some(posicion)) = (enter, self.busqueda.seleccion) {
             let indice = self.busqueda.visibles()[posicion].indice;
             self.elegir_producto(indice, cx);
             return true;
