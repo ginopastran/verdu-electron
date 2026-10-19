@@ -234,9 +234,7 @@ pub fn afip(datos: &Value, ahora: Ahora) -> Vec<u8> {
     let mut ticket = Ticket::new();
     ticket.alinear(CENTRO);
     let ancho_logo = if flotante(&datos["anchoPapel"]) == 58.0 { 370 } else { 556 };
-    if let Some(imagen) = logo(datos, ancho_logo) {
-        ticket.imagen(&imagen);
-    }
+    let con_logo = logo(datos, ancho_logo).inspect(|imagen| ticket.imagen(imagen)).is_some();
 
     ticket.negrita(true);
     ticket.tamano(2, 2);
@@ -246,8 +244,10 @@ pub fn afip(datos: &Value, ahora: Ahora) -> Vec<u8> {
         .map_or("Comercio".into(), texto);
     let razon_social = configurado(datos, "razonSocial").map_or(negocio.clone(), texto);
     let cuit = configurado(datos, "cuit").map_or("00-00000000-0".into(), texto);
-    for linea in lineas_negocio(&negocio.to_ascii_uppercase()) {
-        ticket.texto(&format!("{linea}\n"));
+    if imprime_nombre(datos, con_logo) {
+        for linea in lineas_negocio(&negocio.to_ascii_uppercase()) {
+            ticket.texto(&format!("{linea}\n"));
+        }
     }
     ticket.negrita(false);
     ticket.tamano(1, 1);

@@ -84,7 +84,7 @@ impl Datos {
 
     fn imprimir_venta(&self, mut orden: Value) -> bool {
         cobros::ajustar_total_ticket(&mut orden);
-        let imprimir = || impresion::imprimir(&self.servicios, Comprobante::Venta, orden.clone());
+        let imprimir = || impresion::imprimir(&self.servicios, Comprobante::Venta, orden.clone(), impresion::nombre_con_logo(Some(&self.negocio)));
         let bien = |r: &Value| r["success"] == true;
         if self.doble() {
             let primera = imprimir();
@@ -112,7 +112,7 @@ impl Datos {
     }
 
     fn imprimir_afip(&self, datos: &Value) -> bool {
-        let resultado = impresion::imprimir(&self.servicios, Comprobante::Afip, datos.clone());
+        let resultado = impresion::imprimir(&self.servicios, Comprobante::Afip, datos.clone(), impresion::nombre_con_logo(Some(&self.negocio)));
         resultado["success"] == false || verdad(&resultado["error"]) || verdad(&resultado["printerError"])
     }
 

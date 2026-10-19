@@ -200,9 +200,7 @@ pub fn factura(datos: &Value, ahora: Ahora) -> Vec<u8> {
     let mut ticket = Ticket::new();
     ticket.alinear(CENTRO);
     let ancho_logo = if igual_a(&datos["anchoPapel"], 58.0) { 370 } else { 556 };
-    if let Some(imagen) = logo(datos, ancho_logo) {
-        ticket.imagen(&imagen);
-    }
+    let con_logo = logo(datos, ancho_logo).inspect(|imagen| ticket.imagen(imagen)).is_some();
 
     ticket.negrita(true);
     ticket.tamano(2, 2);
@@ -211,7 +209,9 @@ pub fn factura(datos: &Value, ahora: Ahora) -> Vec<u8> {
         .map(|clave| &datos[clave])
         .find(|valor| !vacio(valor))
         .map_or_else(|| "Mi Negocio".to_string(), texto);
-    ticket.texto(&format!("{}\n", negocio.to_ascii_uppercase()));
+    if imprime_nombre(datos, con_logo) {
+        ticket.texto(&format!("{}\n", negocio.to_ascii_uppercase()));
+    }
     ticket.negrita(false);
     ticket.tamano(1, 1);
 

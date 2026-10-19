@@ -22,6 +22,10 @@ pub fn logo(datos: &Value, ancho: usize) -> Option<Imagen> {
     std::fs::metadata(ruta).is_ok_and(|m| m.len() > 0).then(|| cargar_logo(ruta, ancho)).flatten()
 }
 
+pub fn imprime_nombre(datos: &Value, con_logo: bool) -> bool {
+    !con_logo || datos["imprimirNombreConLogo"] != false
+}
+
 pub fn primero<'a, const N: usize>(valores: [&'a Value; N]) -> &'a Value {
     valores.into_iter().find(|valor| !valor.is_null()).unwrap_or(&Value::Null)
 }

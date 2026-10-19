@@ -94,7 +94,7 @@ pub fn crear_cierre(servicios: &Servicios, cuerpo: &Value) -> RespuestaManual {
         let mensaje = Some(&respuesta.cuerpo["message"]).filter(|m| logica::verdadero(Some(m))).map(logica::texto_valor);
         return RespuestaManual::Error(mensaje.unwrap_or_else(|| "Error al crear el cierre".into()));
     }
-    let impresion = imprimir(servicios, Comprobante::Cierre, respuesta.cuerpo.clone());
+    let impresion = imprimir(servicios, Comprobante::Cierre, respuesta.cuerpo.clone(), true);
     RespuestaManual::Hecho { cierre: respuesta.cuerpo, impresion }
 }
 

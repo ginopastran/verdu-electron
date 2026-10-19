@@ -42,13 +42,18 @@ pub fn guardar_logo_negocio(servicios: &Servicios, bytes: Option<&[u8]>) -> Resu
     }
 }
 
-fn con_impresion(servicios: &Servicios, datos: Value) -> Value {
+pub fn nombre_con_logo(negocio: Option<&Value>) -> bool {
+    negocio.is_none_or(|n| n["imprimirNombreConLogo"] != false)
+}
+
+fn con_impresion(servicios: &Servicios, datos: Value, nombre_con_logo: bool) -> Value {
     let mut mapa = match datos {
         Value::Object(mapa) => mapa,
         _ => Default::default(),
     };
     mapa.insert("anchoPapel".into(), json!(servicios.config.ancho_papel()));
     mapa.insert("impresora".into(), json!(impresora::recurso(&servicios.config)));
+    mapa.insert("imprimirNombreConLogo".into(), json!(nombre_con_logo));
     let logo = ruta_logo_negocio(servicios);
     if logo.exists() {
         mapa.insert("logoPath".into(), json!(logo));
@@ -56,9 +61,9 @@ fn con_impresion(servicios: &Servicios, datos: Value) -> Value {
     Value::Object(mapa)
 }
 
-pub fn imprimir(servicios: &Servicios, comprobante: Comprobante, datos: Value) -> Value {
+pub fn imprimir(servicios: &Servicios, comprobante: Comprobante, datos: Value, nombre_con_logo: bool) -> Value {
     let (exito, prefijo) = comprobante.textos();
-    let datos = con_impresion(servicios, datos);
+    let datos = con_impresion(servicios, datos, nombre_con_logo);
     let resultado = impresora::resolver(&servicios.config).and_then(|nombre| {
         let ahora = hora_argentina();
         let bytes = match comprobante {
@@ -75,5 +80,19 @@ pub fn imprimir(servicios: &Servicios, comprobante: Comprobante, datos: Value) -
     match resultado {
         Ok(()) => json!({ "success": true, "printerError": null, "message": exito }),
         Err(error) => json!({ "success": false, "printerError": error, "message": format!("{prefijo}: {error}") }),
+    }
+}
+
+#[cfg(test)]
+mod pruebas {
+    use super::*;
+
+    #[test]
+    fn el_nombre_con_logo_se_imprime_salvo_que_el_negocio_diga_que_no() {
+        assert!(nombre_con_logo(None));
+        assert!(nombre_con_logo(Some(&json!({ "nombre": "La Huerta" }))));
+        assert!(nombre_con_logo(Some(&json!({ "imprimirNombreConLogo": true }))));
+        assert!(nombre_con_logo(Some(&json!({ "imprimirNombreConLogo": null }))));
+        assert!(!nombre_con_logo(Some(&json!({ "imprimirNombreConLogo": false }))));
     }
 }

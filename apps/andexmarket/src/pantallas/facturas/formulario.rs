@@ -911,10 +911,11 @@ enum Accion {
 
 fn imprimir_factura(servicios: &Servicios, ctx: &egui::Context, factura: &Value, negocio: &Value) -> bool {
     let datos = logica::datos_impresion(factura, negocio);
+    let nombre_con_logo = crate::impresion::nombre_con_logo(Some(negocio));
     if negocio["dobleImpresionEnabled"].as_bool() == Some(true) {
-        let primera = imprimir(servicios, Comprobante::Factura, datos.clone());
+        let primera = imprimir(servicios, Comprobante::Factura, datos.clone(), nombre_con_logo);
         std::thread::sleep(std::time::Duration::from_millis(500));
-        let segunda = imprimir(servicios, Comprobante::Factura, datos);
+        let segunda = imprimir(servicios, Comprobante::Factura, datos, nombre_con_logo);
         let ok = |r: &Value| r["success"].as_bool() == Some(true);
         if ok(&primera) && ok(&segunda) {
             ui::v2::toast::con_detalle(ctx, ui::v2::toast::Tipo::Exito, "Doble ticket de factura impreso correctamente", "Se mandaron 2 impresiones del ticket de factura");
@@ -925,7 +926,7 @@ fn imprimir_factura(servicios: &Servicios, ctx: &egui::Context, factura: &Value,
         }
         return true;
     }
-    imprimir(servicios, Comprobante::Factura, datos)["success"].as_bool() == Some(true)
+    imprimir(servicios, Comprobante::Factura, datos, nombre_con_logo)["success"].as_bool() == Some(true)
 }
 
 fn aviso_credito(cuenta: Cuenta, credito: Credito, a_cuenta: f64) -> Option<(String, egui::Color32)> {

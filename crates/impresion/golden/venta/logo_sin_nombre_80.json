@@ -1,0 +1,1 @@
+{"businessName": "Mercado Central", "vendedor": "Caja 2", "idReal": 98765, "items": [{"nombre": "Manzana roja", "cantidad": 1.5, "precio": 2500.75}], "discountData": {"amount": 250, "type": "otro", "value": 5}, "total": 3501.13, "metodoPago": "transferencia", "anchoPapel": 80, "logoPath": "golden/logos/chico.png", "imprimirNombreConLogo": false}

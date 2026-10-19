@@ -54,13 +54,13 @@ pub fn traer_transacciones(servicios: &Servicios, vendedor_id: &str, incluir_fac
     Ok(logica::del_dia(todas, ahora_argentina().date()))
 }
 
-pub fn reimprimir(servicios: &Servicios, orden: &Value, doble: bool) -> Vec<Value> {
-    let primera = imprimir(servicios, Comprobante::Venta, orden.clone());
+pub fn reimprimir(servicios: &Servicios, orden: &Value, doble: bool, nombre_con_logo: bool) -> Vec<Value> {
+    let primera = imprimir(servicios, Comprobante::Venta, orden.clone(), nombre_con_logo);
     if !doble {
         return vec![primera];
     }
     std::thread::sleep(Duration::from_millis(500));
-    vec![primera, imprimir(servicios, Comprobante::Venta, orden.clone())]
+    vec![primera, imprimir(servicios, Comprobante::Venta, orden.clone(), nombre_con_logo)]
 }
 
 fn avisar_reimpresion(ctx: &egui::Context, resultados: &[Value]) {
@@ -160,9 +160,10 @@ impl DialogoPedidos {
         };
         let orden = logica::para_reimprimir(orden, &logica::nombre_negocio(cx.global.admin.as_ref()));
         let doble = cx.global.negocio.as_ref().is_some_and(|n| n["dobleImpresionEnabled"] == true);
+        let nombre_con_logo = crate::impresion::nombre_con_logo(cx.global.negocio.as_ref());
         let servicios = cx.servicios.clone();
         self.imprimiendo = Some(indice);
-        self.impresion = Some(Tarea::lanzar(&cx.egui, move || reimprimir(&servicios, &orden, doble)));
+        self.impresion = Some(Tarea::lanzar(&cx.egui, move || reimprimir(&servicios, &orden, doble, nombre_con_logo)));
     }
 
     fn recibir(&mut self, cx: &mut Contexto) {

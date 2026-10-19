@@ -122,7 +122,8 @@ impl DialogoImpresion {
         let servicios = cx.servicios.clone();
         let nombre = nombre_del_negocio(cx.global.negocio.as_ref(), cx.global.admin.as_ref());
         let datos = datos_prueba(nombre, &Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true));
-        self.imprimiendo = Some(Tarea::lanzar(&cx.egui, move || imprimir(&servicios, Comprobante::Venta, datos)));
+        let nombre_con_logo = crate::impresion::nombre_con_logo(cx.global.negocio.as_ref());
+        self.imprimiendo = Some(Tarea::lanzar(&cx.egui, move || imprimir(&servicios, Comprobante::Venta, datos, nombre_con_logo)));
     }
 
     fn contenido(&mut self, ui: &mut Ui, cx: &mut Contexto) -> bool {

@@ -73,7 +73,7 @@ pub fn registrar_cierre(servicios: &Servicios, cuerpo: &Value, periodo: String) 
         Some(FalloCierre::MananaRequerida) => RespuestaCierre::MananaRequerida,
         Some(FalloCierre::Mensaje(mensaje)) => RespuestaCierre::Error(mensaje),
         None => {
-            let impresion = imprimir(servicios, Comprobante::Cierre, respuesta.cuerpo.clone());
+            let impresion = imprimir(servicios, Comprobante::Cierre, respuesta.cuerpo.clone(), true);
             RespuestaCierre::Hecho { periodo, cierre: respuesta.cuerpo, impresion }
         }
     }

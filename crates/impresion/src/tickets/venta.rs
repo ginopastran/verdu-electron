@@ -43,9 +43,7 @@ pub fn venta(datos: &Value, ahora: Ahora) -> Vec<u8> {
     let mut ticket = Ticket::new();
     ticket.alinear(CENTRO);
     let ancho_logo = if flotante(&datos["anchoPapel"]) == 58.0 { 370 } else { 556 };
-    if let Some(imagen) = logo(datos, ancho_logo) {
-        ticket.imagen(&imagen);
-    }
+    let con_logo = logo(datos, ancho_logo).inspect(|imagen| ticket.imagen(imagen)).is_some();
 
     ticket.negrita(true);
     ticket.tamano(2, 2);
@@ -56,7 +54,9 @@ pub fn venta(datos: &Value, ahora: Ahora) -> Vec<u8> {
     } else {
         "Verdulería".into()
     };
-    ticket.texto(&format!("{}\n", negocio.to_ascii_uppercase()));
+    if imprime_nombre(datos, con_logo) {
+        ticket.texto(&format!("{}\n", negocio.to_ascii_uppercase()));
+    }
     ticket.negrita(false);
     ticket.tamano(1, 1);
     ticket.texto(&format!("Vendedor: {}\n", vendedor(datos)));
