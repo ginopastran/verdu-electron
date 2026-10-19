@@ -10,10 +10,10 @@ use eframe::egui::{self, Event, Id, Key, Modifiers, Pos2, Rect, Ui, Vec2};
 use nucleo::carrito::Producto;
 use serde_json::Value;
 
-use self::dialogos::{DialogoAgregar, DialogoEscanear, Salida};
+use self::dialogos::{DialogoAgregar, DialogoEscanear, DialogoMonto, Salida};
 use self::fotos::Fotos;
 use self::productos::{FilaLista, ProductoDisponible};
-use self::vista::{AccionCabecera, AccionIndicador, AccionPanel, AccionPestana, Cabecera, Indicadores, Panel};
+use self::vista::{AccionCabecera, AccionFila, AccionIndicador, AccionPanel, AccionPestana, Cabecera, Indicadores, Panel};
 use super::cierre::DialogoCierre;
 use super::cobro::{AccionCobro, Cobro};
 use super::configuracion::balanza::DialogoBalanza;
@@ -90,6 +90,7 @@ pub struct Carrito {
     lector: Lector,
     agregar: DialogoAgregar,
     escanear: DialogoEscanear,
+    monto: DialogoMonto,
     borrar_pantalla: Option<usize>,
     cerrar_sesion_en: Option<f64>,
     ultimo_frame: Option<u64>,
@@ -126,6 +127,10 @@ impl Carrito {
             return;
         }
         self.ultimo_escaneo = Some((clave, ahora));
+        if producto.precio_libre {
+            self.monto.abrir(producto);
+            return;
+        }
         if cx.global.negocio_bool("popupListaPreciosEnabled") {
             let api = cx.servicios.api.clone();
             self.tarea_escaneo = Some(Tarea::lanzar(&cx.egui, move || {
@@ -161,6 +166,7 @@ impl Carrito {
         self.agregar = DialogoAgregar::default();
         self.agregar.peso_manual = cx.global.usuario.as_ref().is_some_and(|u| u["permisos"]["pesoManualEnabled"] == Value::Bool(true));
         self.escanear = DialogoEscanear::default();
+        self.monto = DialogoMonto::default();
         self.borrar_pantalla = None;
         self.cerrar_sesion_en = None;
         self.enfocar = CUADROS_ENFOQUE;
@@ -267,6 +273,7 @@ impl Carrito {
     pub fn hay_dialogo(&self) -> bool {
         self.agregar.abierto()
             || self.escanear.abierto()
+            || self.monto.abierto()
             || self.borrar_pantalla.is_some()
             || self.cobro.ocupado()
             || self.factura.abierto()
@@ -279,7 +286,11 @@ impl Carrito {
     fn elegir_producto(&mut self, indice: usize, cx: &Contexto) {
         let producto = self.productos[indice].clone();
         self.busqueda.limpiar();
-        self.agregar.abrir(producto, cx);
+        if producto.precio_libre {
+            self.monto.abrir(producto);
+        } else {
+            self.agregar.abrir(producto, cx);
+        }
     }
 
     fn teclas_busqueda(&mut self, ui: &Ui, cx: &Contexto) -> bool {
@@ -574,9 +585,14 @@ impl Carrito {
             }
             vista::Destello { cart_id: &n.cart_id, avance: avance.clamp(0.0, 1.0), desplazar }
         });
-        let quitar = vista::tabla(ui, caja, &filas, !cancelacion_controlada(cx), destello.as_ref(), Id::new(("carrito-items", activa)));
-        if let Some(cart_id) = quitar {
-            cx.global.carritos.quitar(&cart_id);
+        match vista::tabla(ui, caja, &filas, !cancelacion_controlada(cx), destello.as_ref(), Id::new(("carrito-items", activa))) {
+            Some(AccionFila::Quitar(cart_id)) => cx.global.carritos.quitar(&cart_id),
+            Some(AccionFila::Editar(cart_id)) => {
+                if let Some(item) = cx.global.carritos.items().iter().find(|item| item.cart_id == cart_id) {
+                    self.monto.editar(item);
+                }
+            }
+            None => {}
         }
     }
 
@@ -601,6 +617,15 @@ impl Carrito {
                 self.busqueda.limpiar();
                 self.enfocar = CUADROS_ENFOQUE;
             }
+            Salida::Nada => {}
+        }
+        match self.monto.mostrar(ui, cx) {
+            Salida::Agregar(item) => {
+                self.agregar_item(item, cx);
+                self.busqueda.limpiar();
+                self.enfocar = CUADROS_ENFOQUE;
+            }
+            Salida::Cerrar => self.enfocar = CUADROS_ENFOQUE,
             Salida::Nada => {}
         }
         if let Some(indice) = self.borrar_pantalla {

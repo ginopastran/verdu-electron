@@ -814,6 +814,16 @@ mod pruebas {
     }
 
     #[test]
+    fn precio_libre_viaja_como_una_unidad_al_monto_cargado() {
+        let libre = Producto { id: 9, cart_id: "9-x".into(), name: "Varios".into(), quantity: 1.0, unit: "Unidad".into(), price_per_unit: 2750.5, subtotal: 2750.5, precio_libre: true, ..Default::default() };
+        let orden = &items_orden(&[libre.clone()], true)[0];
+        assert_eq!((orden["cantidad"].as_f64(), orden["precioHistorico"].as_f64(), orden["subtotal"].as_f64()), (Some(1.0), Some(2750.5), Some(2750.5)));
+        let afip = &items_afip(&[libre])[0];
+        assert_eq!((afip["cantidad"].as_f64(), afip["precio"].as_f64(), afip["subtotal"].as_f64()), (Some(1.0), Some(2750.5), Some(2750.5)));
+        assert!(orden.get("precioLibre").is_none() && afip.get("precioLibre").is_none());
+    }
+
+    #[test]
     fn formatos_como_javascript() {
         assert_eq!(fijo(1122.475, 2), "1122.47");
         assert_eq!(fijo(22449.5 * 0.05, 2), "1122.48");

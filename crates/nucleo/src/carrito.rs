@@ -52,6 +52,8 @@ pub struct Producto {
     pub precio_sin_oferta: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub oferta_porcentaje: Option<f64>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub precio_libre: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -148,6 +150,15 @@ impl Carritos {
             None => pantalla.items.push(nuevo),
         }
         self.guardar();
+    }
+
+    pub fn fijar_monto(&mut self, cart_id: &str, monto: f64) {
+        if let Some(item) = self.screens[self.active_screen].items.iter_mut().find(|item| item.cart_id == cart_id && item.precio_libre) {
+            item.quantity = 1.0;
+            item.price_per_unit = monto;
+            item.subtotal = redondear(monto, 2);
+            self.guardar();
+        }
     }
 
     pub fn quitar(&mut self, cart_id: &str) {
@@ -258,6 +269,24 @@ mod pruebas {
         let item: Producto = serde_json::from_str(r#"{"id":1,"cartId":"1-a","name":"Tomate","quantity":1,"unit":"Kg","pricePerUnit":100,"subtotal":100,"costo":50}"#).unwrap();
         assert_eq!(item.precio_sin_oferta, None);
         assert!(!serde_json::to_string(&item).unwrap().contains("oferta"));
+    }
+
+    #[test]
+    fn linea_de_precio_libre_cambia_solo_el_monto() {
+        let mut carritos = Carritos::default();
+        carritos.agregar(Producto { cart_id: "libre".into(), quantity: 1.0, price_per_unit: 1500.0, subtotal: 1500.0, precio_libre: true, ..Default::default() });
+        carritos.agregar(Producto { cart_id: "comun".into(), quantity: 2.0, price_per_unit: 100.0, subtotal: 200.0, ..Default::default() });
+        carritos.fijar_monto("libre", 2750.5);
+        carritos.fijar_monto("comun", 9999.0);
+        let items = carritos.items();
+        assert_eq!((items[0].quantity, items[0].price_per_unit, items[0].subtotal), (1.0, 2750.5, 2750.5));
+        assert_eq!((items[1].quantity, items[1].price_per_unit, items[1].subtotal), (2.0, 100.0, 200.0));
+        assert_eq!(carritos.total(), 2950.5);
+        let guardado = serde_json::to_string(&items[0]).unwrap();
+        assert!(guardado.contains("\"precioLibre\":true"), "{guardado}");
+        assert!(!serde_json::to_string(&items[1]).unwrap().contains("precioLibre"));
+        let leido: Producto = serde_json::from_str(&guardado).unwrap();
+        assert!(leido.precio_libre);
     }
 
     #[test]

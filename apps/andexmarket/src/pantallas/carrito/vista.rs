@@ -423,8 +423,14 @@ pub fn fila_pestanas(ui: &mut Ui, area: Rect, carritos: &Carritos, indicadores: 
     FilaPestanas { pestana, indicador, alto }
 }
 
+pub enum AccionFila {
+    Quitar(String),
+    Editar(String),
+}
+
 pub struct Fila {
     pub cart_id: String,
+    pub precio_libre: bool,
     pub nombre: String,
     pub por_kilo: bool,
     pub lista: Option<String>,
@@ -444,8 +450,23 @@ pub fn fila_de_item(item: &Producto, negocio: Option<&Value>) -> Fila {
         nombre.map(str::to_string).unwrap_or_else(|| format!("Lista #{id}"))
     });
     let oferta = item.oferta_porcentaje.zip(item.precio_sin_oferta);
+    if item.precio_libre {
+        return Fila {
+            cart_id: item.cart_id.clone(),
+            precio_libre: true,
+            nombre: item.name.clone(),
+            por_kilo: false,
+            lista: Some("Precio a definir".into()),
+            cantidad: "1 u".into(),
+            precio: pesos(unitario),
+            precio_original: None,
+            oferta: None,
+            subtotal: pesos(unitario),
+        };
+    }
     Fila {
         cart_id: item.cart_id.clone(),
+        precio_libre: false,
         nombre: item.name.clone(),
         por_kilo,
         lista,
@@ -463,7 +484,7 @@ pub struct Destello<'a> {
     pub desplazar: bool,
 }
 
-pub fn tabla(ui: &mut Ui, caja: Rect, filas: &[Fila], permite_borrar: bool, destello: Option<&Destello>, id: Id) -> Option<String> {
+pub fn tabla(ui: &mut Ui, caja: Rect, filas: &[Fila], permite_borrar: bool, destello: Option<&Destello>, id: Id) -> Option<AccionFila> {
     let pintor = ui.painter().clone();
     pintor.rect(caja, radio::TARJETA, color::BLANCO, Stroke::new(1.0, color::BORDE), StrokeKind::Inside);
     let interior = caja.shrink(1.0);
@@ -480,11 +501,15 @@ pub fn tabla(ui: &mut Ui, caja: Rect, filas: &[Fila], permite_borrar: bool, dest
     let cuerpo = Rect::from_min_max(Pos2::new(interior.left(), encabezado.bottom()), Pos2::new(interior.right(), interior.bottom() - radio::TARJETA as f32 / 2.0));
     let mut hijo = ui.new_child(UiBuilder::new().max_rect(cuerpo).layout(Layout::top_down(Align::Min)));
     hijo.set_clip_rect(cuerpo.intersect(ui.clip_rect()));
-    let mut quitar = None;
+    let mut accion = None;
     ScrollArea::vertical().id_salt(id).auto_shrink(false).show(&mut hijo, |ui| {
         let pintor = ui.painter().clone();
         for (posicion, fila) in filas.iter().enumerate() {
-            let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 68.0), Sense::hover());
+            let sentido = if fila.precio_libre { Sense::click() } else { Sense::hover() };
+            let (rect, respuesta) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 68.0), sentido);
+            if fila.precio_libre && respuesta.on_hover_text("Doble clic para cambiar el monto").double_clicked() {
+                accion = Some(AccionFila::Editar(fila.cart_id.clone()));
+            }
             if let Some(d) = destello.filter(|d| d.cart_id == fila.cart_id) {
                 if d.avance < 1.0 {
                     pintor.rect_filled(rect, 0, color::DORADO_FONDO.gamma_multiply(1.0 - d.avance));
@@ -500,7 +525,7 @@ pub fn tabla(ui: &mut Ui, caja: Rect, filas: &[Fila], permite_borrar: bool, dest
             pintor.galley(Pos2::new(c[0].left(), rect.center().y - numero.size().y / 2.0), numero, color::TEXTO_TENUE);
             let x = c[0].left() + 26.0 + 12.0;
             let nombre = galeria_cortada(&pintor, &fila.nombre, fuente(tam::FILA, Peso::Medio), color::TEXTO, c[0].right() - x);
-            let unidad = galeria(ui, if fila.por_kilo { "Por kilo" } else { "Por unidad" }, tam::XS, Peso::Normal, color::TEXTO_TENUE);
+            let unidad = galeria(ui, if fila.precio_libre { "Monto" } else if fila.por_kilo { "Por kilo" } else { "Por unidad" }, tam::XS, Peso::Normal, color::TEXTO_TENUE);
             let chip = fila.lista.as_ref().map(|l| galeria(ui, l.as_str(), tam::MINI, Peso::Semi, color::DORADO_TEXTO));
             let alto_detalle = unidad.size().y.max(chip.as_ref().map_or(0.0, |g| g.size().y + 2.0));
             let alto_nombre = nombre.size().y;
@@ -538,12 +563,12 @@ pub fn tabla(ui: &mut Ui, caja: Rect, filas: &[Fila], permite_borrar: bool, dest
                 let boton = Rect::from_min_size(Pos2::new(c[4].left(), rect.center().y - 18.0), Vec2::splat(36.0));
                 let mut celda = ui.new_child(UiBuilder::new().id_salt(("quitar-item", &fila.cart_id)).max_rect(boton));
                 if BotonIcono::quitar().tam(36.0).radio(radio::CONTROL).tam_icono(19.0).ui(&mut celda).on_hover_text("Quitar").clicked() {
-                    quitar = Some(fila.cart_id.clone());
+                    accion = Some(AccionFila::Quitar(fila.cart_id.clone()));
                 }
             }
         }
     });
-    quitar
+    accion
 }
 
 fn columnas_tabla(ui: &Ui, filas: &[Fila], estrecha: bool) -> [Pista; 5] {

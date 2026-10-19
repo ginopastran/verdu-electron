@@ -20,6 +20,7 @@ pub struct ProductoDisponible {
     pub oferta_porcentaje: Option<f64>,
     pub oferta_hasta: Option<DateTime<Utc>>,
     pub foto: Option<String>,
+    pub precio_libre: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -62,6 +63,7 @@ impl ProductoDisponible {
             oferta_porcentaje: p["ofertaPorcentaje"].as_f64(),
             oferta_hasta: carrito::fecha_utc(&p["ofertaHasta"]),
             foto: p["fotoActualizadaEn"].as_str().filter(|f| !f.is_empty()).map(str::to_string),
+            precio_libre: p["precioLibre"].as_bool().unwrap_or(false),
         }
     }
 
@@ -98,6 +100,24 @@ impl ProductoDisponible {
             lista_precio_nombre,
             precio_sin_oferta: oferta.map(|_| self.precio),
             oferta_porcentaje: oferta,
+            precio_libre: false,
+        }
+    }
+
+    pub fn item_libre(&self, monto: f64) -> Producto {
+        Producto {
+            id: self.id,
+            cart_id: id_unico(self.id),
+            name: self.nombre.clone(),
+            quantity: 1.0,
+            unit: "Unidad".into(),
+            price_per_unit: monto,
+            subtotal: redondear(monto, 2),
+            costo: self.costo,
+            iva_incluido: Some(true),
+            iva_porcentaje: self.iva_porcentaje,
+            precio_libre: true,
+            ..Default::default()
         }
     }
 }
@@ -387,6 +407,22 @@ mod pruebas {
         let viejo = ProductoDisponible::desde_backend(&serde_json::json!({ "id": 4, "nombre": "Papa", "precio": 1150 }));
         assert_eq!((viejo.precio_venta(ahora), viejo.foto.clone()), (1150.0, None));
         assert_eq!(viejo.item(1.0, "Kg".into(), 1150.0, None, "Precio catálogo").precio_sin_oferta, None);
+    }
+
+    #[test]
+    fn precio_libre_arma_una_linea_de_una_unidad_con_el_monto() {
+        let p = ProductoDisponible::desde_backend(&serde_json::json!({
+            "id": 9, "nombre": "Varios", "precio": 0, "tipoMedida": "Kg", "precioLibre": true,
+            "ofertaPorcentaje": 20, "ofertaHasta": "2999-01-01T00:00:00.000Z", "ivaIncluido": false, "ivaPorcentaje": 21
+        }));
+        assert!(p.precio_libre);
+        let item = p.item_libre(1234.5);
+        assert_eq!((item.quantity, item.price_per_unit, item.subtotal, item.unit.as_str()), (1.0, 1234.5, 1234.5, "Unidad"));
+        assert!(item.precio_libre);
+        assert_eq!((item.precio_sin_oferta, item.oferta_porcentaje, item.lista_precio_id), (None, None, None));
+        let comun = ProductoDisponible::desde_backend(&serde_json::json!({ "id": 4, "nombre": "Papa", "precio": 1150 }));
+        assert!(!comun.precio_libre);
+        assert!(!comun.item(1.0, "Kg".into(), 1150.0, None, "Precio catálogo").precio_libre);
     }
 
     #[test]

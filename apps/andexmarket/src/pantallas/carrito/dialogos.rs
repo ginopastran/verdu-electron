@@ -456,6 +456,108 @@ impl DialogoEscanear {
     }
 }
 
+enum DestinoMonto {
+    Nuevo(ProductoDisponible),
+    Editar { cart_id: String, nombre: String, actual: f64 },
+}
+
+#[derive(Default)]
+pub struct DialogoMonto {
+    destino: Option<DestinoMonto>,
+    monto: String,
+    enfocar: bool,
+}
+
+impl DialogoMonto {
+    pub fn abierto(&self) -> bool {
+        self.destino.is_some()
+    }
+
+    pub fn abrir(&mut self, producto: ProductoDisponible) {
+        *self = DialogoMonto { destino: Some(DestinoMonto::Nuevo(producto)), enfocar: true, ..Default::default() };
+    }
+
+    pub fn editar(&mut self, item: &Producto) {
+        let destino = DestinoMonto::Editar { cart_id: item.cart_id.clone(), nombre: item.name.clone(), actual: item.price_per_unit };
+        *self = DialogoMonto { destino: Some(destino), enfocar: true, ..Default::default() };
+    }
+
+    pub fn mostrar(&mut self, ui: &mut Ui, cx: &mut Contexto) -> Salida {
+        let Some(destino) = &self.destino else {
+            return Salida::Nada;
+        };
+        let (nombre, sugerencia) = match destino {
+            DestinoMonto::Nuevo(producto) => (producto.nombre.clone(), "Ej: 2500".to_string()),
+            DestinoMonto::Editar { nombre, actual, .. } => (nombre.clone(), format!("Actual: {}", pesos(*actual))),
+        };
+        let editando = matches!(destino, DestinoMonto::Editar { .. });
+        let id = Id::new("monto-a-cobrar-campo");
+        let monto = parse_float(&self.monto);
+        let valido = monto.is_finite() && monto > 0.0;
+        let respuesta = Modal::new("monto-a-cobrar", "Monto a cobrar").subtitulo(&nombre).icono("tag").ancho(440.0).mostrar(ui.ctx(), |ui| {
+            v2::cuerpo_modal(ui, 20, |ui| {
+                etiqueta_campo(ui, "Precio a definir: ingresá el monto de este producto");
+                ui.add_space(6.0);
+                let contenedor = Contenedor { alto: 52.0, separacion: 8.0, ..Default::default() };
+                let campo = contenedor.mostrar(ui, ui.available_width(), |ui| {
+                    v2::texto(ui, "$", tam::DESTACADO, Peso::Normal, color::TEXTO_TENUE);
+                    let ancho = ui.available_width();
+                    ui.allocate_ui_with_layout(Vec2::new(ancho, 50.0), Layout::left_to_right(Align::Center), |ui| {
+                        v2::entrada_desnuda(&mut self.monto).id(id).tam(tam::GRANDE).peso(Peso::Medio).sugerencia(sugerencia.as_str()).ui(ui)
+                    })
+                    .inner
+                });
+                if self.monto.contains(',') {
+                    self.monto = self.monto.replace(',', ".");
+                }
+                self.monto.retain(|c| c.is_ascii_digit() || c == '.');
+                if std::mem::take(&mut self.enfocar) || (campo.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter))) {
+                    campo.request_focus();
+                }
+                ui.add_space(16.0);
+                fila_subtotal(ui, valido.then_some(monto));
+            });
+            v2::pie_modal(ui, |ui| {
+                let texto = if editando { "Cambiar monto" } else { "Agregar a la orden" };
+                let confirmar = Boton::primario(texto)
+                    .icono(if editando { "check" } else { "cart-plus" })
+                    .color_icono(color::DORADO)
+                    .tam_icono(18.0)
+                    .tecla("Enter")
+                    .radio(radio::BOTON_MODAL)
+                    .sin_sombra()
+                    .habilitado(valido)
+                    .ui(ui)
+                    .clicked();
+                let cancelar = Boton::secundario("Cancelar").radio(radio::BOTON_MODAL).ui(ui).clicked();
+                (confirmar, cancelar)
+            })
+        });
+        let (confirmar, cancelar) = respuesta.interior;
+        if cancelar || respuesta.cerrar {
+            self.destino = None;
+            return Salida::Cerrar;
+        }
+        let enter = !self.monto.is_empty() && ui.input(|i| i.key_pressed(Key::Enter));
+        if !(confirmar || enter) {
+            return Salida::Nada;
+        }
+        if !valido {
+            toast::error(&cx.egui, "El monto debe ser mayor que cero");
+            self.enfocar = true;
+            return Salida::Nada;
+        }
+        match self.destino.take() {
+            Some(DestinoMonto::Nuevo(producto)) => Salida::Agregar(producto.item_libre(monto)),
+            Some(DestinoMonto::Editar { cart_id, .. }) => {
+                cx.global.carritos.fijar_monto(&cart_id, monto);
+                Salida::Cerrar
+            }
+            None => Salida::Nada,
+        }
+    }
+}
+
 pub fn confirmar_borrado(ui: &mut Ui, numero: usize, productos: usize) -> Option<bool> {
     let plural = if productos == 1 { "" } else { "s" };
     let titulo = format!("¿Cerrar la Orden {numero}?");

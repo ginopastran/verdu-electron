@@ -597,3 +597,101 @@ fn menu_usuario_abre_impresion_y_balanza() {
 }
 
 const Y_MENU_IMPRESION: f32 = 140.0;
+
+fn con_precio_libre() -> Vec<ProductoDisponible> {
+    let mut lista = productos();
+    lista.push(ProductoDisponible::desde_backend(&json!({
+        "id": 99, "nombre": "Varios verdulería", "precio": 0, "tipoMedida": "Kg", "costo": 0, "precioLibre": true,
+        "codigoBarras": "7790001009999", "plu": "999", "ivaIncluido": true, "ivaPorcentaje": 10.5,
+        "ofertaPorcentaje": 20, "ofertaHasta": "2999-01-01T00:00:00.000Z"
+    })));
+    lista
+}
+
+fn arnes_precio_libre(global: Global, tam: [f32; 2], wgpu: bool) -> Harness<'static, App> {
+    let mut app = App::de_prueba(global, servicios());
+    app.pantallas().carrito.precargar_productos(con_precio_libre());
+    let constructor = Harness::builder().with_size(tam).with_step_dt(1.0 / 20.0);
+    let constructor = if wgpu { constructor.wgpu() } else { constructor };
+    let mut h = constructor.build_ui_state(|ui, app: &mut App| app.mostrar(ui), app);
+    h.run_steps(3);
+    h
+}
+
+fn esperar_escaneo(h: &mut Harness<'_, App>) {
+    for _ in 0..20 {
+        h.step();
+        std::thread::sleep(Duration::from_millis(10));
+    }
+}
+
+#[test]
+fn precio_libre_pide_el_monto_en_vez_de_la_cantidad() {
+    let mut h = arnes_precio_libre(global(POR_DEFECTO), [1200.0, 800.0], false);
+    escribir(&mut h, "varios");
+    tecla(&mut h, Key::Enter);
+    assert!(h.state_mut().pantallas().carrito.hay_dialogo());
+    tecla(&mut h, Key::Enter);
+    assert!(h.state_mut().global().carritos.items().is_empty());
+    escribir(&mut h, "0");
+    tecla(&mut h, Key::Enter);
+    assert!(h.state_mut().global().carritos.items().is_empty());
+    tecla(&mut h, Key::Backspace);
+    escribir(&mut h, "2500,5");
+    tecla(&mut h, Key::Enter);
+    h.run_steps(3);
+    let items = h.state_mut().global().carritos.items().to_vec();
+    assert_eq!(items.len(), 1);
+    assert_eq!((items[0].id, items[0].quantity, items[0].price_per_unit, items[0].subtotal), (99, 1.0, 2500.5, 2500.5));
+    assert!(items[0].precio_libre);
+    assert_eq!((items[0].oferta_porcentaje, items[0].lista_precio_id), (None, None));
+
+    escribir(&mut h, "7790001009999");
+    esperar_escaneo(&mut h);
+    assert!(h.state_mut().pantallas().carrito.hay_dialogo());
+    assert_eq!(h.state_mut().global().carritos.items().len(), 1);
+    tecla(&mut h, Key::Escape);
+    h.run_steps(3);
+    assert!(!h.state_mut().pantallas().carrito.hay_dialogo());
+    assert_eq!(h.state_mut().global().carritos.items().len(), 1);
+
+    h.run_steps(70);
+    escribir(&mut h, "0999000013552");
+    esperar_escaneo(&mut h);
+    assert!(h.state_mut().pantallas().carrito.hay_dialogo());
+    escribir(&mut h, "800");
+    tecla(&mut h, Key::Enter);
+    h.run_steps(3);
+    let items = h.state_mut().global().carritos.items().to_vec();
+    assert_eq!(items.len(), 2);
+    assert_eq!((items[1].quantity, items[1].price_per_unit), (1.0, 800.0));
+
+    let fila = Pos2::new(300.0, 216.0);
+    h.event(Event::PointerMoved(fila));
+    h.run_steps(1);
+    for pressed in [true, false, true, false] {
+        h.event(Event::PointerButton { pos: fila, button: PointerButton::Primary, pressed, modifiers: Modifiers::NONE });
+    }
+    h.run_steps(6);
+    assert!(h.state_mut().pantallas().carrito.hay_dialogo());
+    escribir(&mut h, "3100");
+    tecla(&mut h, Key::Enter);
+    h.run_steps(3);
+    let items = h.state_mut().global().carritos.items().to_vec();
+    assert_eq!((items[0].quantity, items[0].price_per_unit, items[0].subtotal), (1.0, 3100.0, 3100.0));
+}
+
+#[test]
+fn capturas_precio_libre() {
+    for (sufijo, tam) in TAMANOS {
+        let mut h = arnes_precio_libre(con_items(POR_DEFECTO), tam, true);
+        escribir(&mut h, "varios");
+        tecla(&mut h, Key::Enter);
+        escribir(&mut h, "2500");
+        h.run_steps(6);
+        h.render().expect("render").save(comun::carpeta_capturas().join(format!("30b-modal-monto-a-cobrar-{sufijo}.png"))).expect("guardar captura");
+        tecla(&mut h, Key::Enter);
+        h.run_steps(100);
+        h.render().expect("render").save(comun::carpeta_capturas().join(format!("12b-pos-precio-libre-{sufijo}.png"))).expect("guardar captura");
+    }
+}
