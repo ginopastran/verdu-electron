@@ -1,7 +1,6 @@
-use std::cmp::Ordering;
-
 use chrono::{DateTime, Utc};
 use nucleo::api::Cliente;
+use nucleo::busqueda::ItemBusqueda;
 use nucleo::carrito::{self, Producto};
 use nucleo::{entorno, formato};
 use serde_json::Value;
@@ -21,6 +20,14 @@ pub struct ProductoDisponible {
     pub oferta_hasta: Option<DateTime<Utc>>,
     pub foto: Option<String>,
     pub precio_libre: bool,
+    pub alias: Vec<String>,
+    pub busqueda: ItemBusqueda,
+}
+
+impl AsRef<ItemBusqueda> for ProductoDisponible {
+    fn as_ref(&self) -> &ItemBusqueda {
+        &self.busqueda
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -50,7 +57,7 @@ fn texto_opcional(valor: &Value) -> Option<String> {
 
 impl ProductoDisponible {
     pub fn desde_backend(p: &Value) -> Self {
-        ProductoDisponible {
+        let producto = ProductoDisponible {
             id: p["id"].as_i64().unwrap_or(0),
             nombre: p["nombre"].as_str().unwrap_or_default().to_string(),
             precio: numero(&p["precio"]),
@@ -64,7 +71,15 @@ impl ProductoDisponible {
             oferta_hasta: carrito::fecha_utc(&p["ofertaHasta"]),
             foto: p["fotoActualizadaEn"].as_str().filter(|f| !f.is_empty()).map(str::to_string),
             precio_libre: p["precioLibre"].as_bool().unwrap_or(false),
-        }
+            alias: p["alias"].as_array().into_iter().flatten().filter_map(|a| a.as_str().map(str::to_string)).collect(),
+            busqueda: ItemBusqueda::default(),
+        };
+        producto.indexado()
+    }
+
+    pub fn indexado(mut self) -> Self {
+        self.busqueda = ItemBusqueda::nuevo(&self.nombre, &self.alias, self.codigo_barras.as_deref(), self.plu.as_deref());
+        self
     }
 
     pub fn oferta(&self, ahora: DateTime<Utc>) -> Option<f64> {
@@ -197,56 +212,6 @@ pub fn listas_de_precios(api: &Cliente, producto: i64) -> Option<Vec<FilaLista>>
     )
 }
 
-fn plegar(texto: &str) -> String {
-    texto
-        .to_lowercase()
-        .chars()
-        .map(|c| match c {
-            'á' | 'à' | 'ä' | 'â' => 'a',
-            'é' | 'è' | 'ë' | 'ê' => 'e',
-            'í' | 'ì' | 'ï' | 'î' => 'i',
-            'ó' | 'ò' | 'ö' | 'ô' => 'o',
-            'ú' | 'ù' | 'ü' | 'û' => 'u',
-            'ñ' => 'n',
-            otro => otro,
-        })
-        .collect()
-}
-
-fn comparar_local(a: &str, b: &str) -> Ordering {
-    plegar(a).cmp(&plegar(b)).then_with(|| a.cmp(b))
-}
-
-pub fn buscar(productos: &[ProductoDisponible], consulta: &str) -> Vec<usize> {
-    if consulta.is_empty() {
-        return Vec::new();
-    }
-    let q = consulta.to_lowercase();
-    let mut resultados: Vec<usize> = productos
-        .iter()
-        .enumerate()
-        .filter(|(_, p)| p.nombre.to_lowercase().contains(&q) || p.plu.as_ref().is_some_and(|plu| plu.to_lowercase().contains(&q)))
-        .map(|(i, _)| i)
-        .collect();
-    let empieza_con_numero = |nombre: &str| nombre.chars().next().is_some_and(|c| c.is_ascii_digit());
-    resultados.sort_by(|&ia, &ib| {
-        let (a, b) = (&productos[ia], &productos[ib]);
-        let plu = |p: &ProductoDisponible| p.plu.as_ref().map(|x| x.to_lowercase());
-        let (pa, pb) = (plu(a), plu(b));
-        let exacto = |p: &Option<String>| p.as_deref() == Some(q.as_str());
-        let empieza = |p: &Option<String>| p.as_ref().is_some_and(|x| x.starts_with(&q));
-        let nombre_empieza = |p: &ProductoDisponible| p.nombre.to_lowercase().starts_with(&q);
-        let numero_coincide = |p: &ProductoDisponible| empieza_con_numero(&p.nombre) && p.nombre.to_lowercase().contains(&q);
-        exacto(&pb)
-            .cmp(&exacto(&pa))
-            .then(empieza(&pb).cmp(&empieza(&pa)))
-            .then(nombre_empieza(b).cmp(&nombre_empieza(a)))
-            .then(numero_coincide(b).cmp(&numero_coincide(a)))
-            .then_with(|| comparar_local(&a.nombre, &b.nombre))
-    });
-    resultados
-}
-
 pub fn es_codigo_directo(valor: &str) -> bool {
     (8..=13).contains(&valor.len()) && valor.bytes().all(|b| b.is_ascii_digit())
 }
@@ -353,6 +318,7 @@ mod pruebas {
             codigo_barras: codigo.map(Into::into),
             ..Default::default()
         }
+        .indexado()
     }
 
     fn catalogo() -> Vec<ProductoDisponible> {
@@ -367,14 +333,16 @@ mod pruebas {
     }
 
     #[test]
-    fn busqueda_ordena_como_la_ui_react() {
-        let p = catalogo();
-        let nombres: Vec<&str> = buscar(&p, "ma").iter().map(|&i| p[i].nombre.as_str()).collect();
-        assert_eq!(nombres, ["Mandarina", "Manzana roja", "Huevos blancos maple x30", "Tomate perito"]);
-        let por_plu: Vec<i64> = buscar(&p, "01").iter().map(|&i| p[i].id).collect();
-        assert_eq!(por_plu, [13, 1]);
-        assert_eq!(buscar(&p, "013").first().map(|&i| p[i].id), Some(13));
-        assert!(buscar(&p, "").is_empty());
+    fn el_catalogo_queda_indexado_con_alias() {
+        let p = ProductoDisponible::desde_backend(&serde_json::json!({ "id": 9, "nombre": "Precinto plástico 200 mm", "codigoBarras": "0077900123456", "alias": ["Brida", "Sujetacables"] }));
+        assert_eq!(p.alias, ["Brida", "Sujetacables"]);
+        let lista = [p, ProductoDisponible::desde_backend(&serde_json::json!({ "id": 4, "nombre": "Papa negra", "plu": "103" }))];
+        let ids = |q: &str| nucleo::busqueda::buscar(&lista, q).resultados.iter().map(|r| lista[r.indice].id).collect::<Vec<_>>();
+        assert_eq!(ids("sujetacables"), [9]);
+        assert_eq!(ids("precinto 200"), [9]);
+        assert_eq!(ids("0077900123456"), [9]);
+        assert_eq!(ids("103"), [4]);
+        assert!(ProductoDisponible::desde_backend(&serde_json::json!({ "id": 1, "nombre": "Sin alias" })).alias.is_empty());
     }
 
     #[test]

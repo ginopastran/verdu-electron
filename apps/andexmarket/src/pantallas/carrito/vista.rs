@@ -5,6 +5,7 @@ use eframe::egui::{
     Align, Color32, Context, CornerRadius, CursorIcon, Galley, Id, Layout, Painter, Pos2, Rect, Response, ScrollArea, Sense, Stroke, StrokeKind, Ui,
     UiBuilder, Vec2,
 };
+use nucleo::busqueda::Resultado;
 use nucleo::carrito::{Carritos, Producto};
 use nucleo::formato;
 use nucleo::iva::precio_visual_con_iva;
@@ -206,7 +207,9 @@ pub fn buscador(ui: &mut Ui, rect: Rect, consulta: &mut String, id: Id) -> Busca
 
 pub struct Resultados<'a> {
     pub productos: &'a [ProductoDisponible],
-    pub indices: &'a [usize],
+    pub resultados: &'a [Resultado],
+    pub otras_medidas: bool,
+    pub no_encontrado: bool,
     pub seleccion: Option<usize>,
     pub mostrar_seleccion: bool,
     pub consulta: &'a str,
@@ -228,7 +231,16 @@ pub fn resultados(ctx: &Context, ancla: &Response, visible: bool, datos: &Result
             let pintor = ui.painter().clone();
             let mut elegido = None;
             let mut sin_foto = Vec::new();
-            for (posicion, &indice) in datos.indices.iter().enumerate() {
+            if datos.otras_medidas {
+                let aviso = galeria_cortada(&pintor, &format!("No hay productos con esa medida para “{}”", datos.consulta), fuente(tam::CHICO, Peso::Normal), color::TEXTO_APAGADO, ancho - 24.0);
+                let titulo = galeria(ui, "Otras medidas", tam::XS, Peso::Semi, color::DORADO_TEXTO);
+                let (caja, _) = ui.allocate_exact_size(Vec2::new(ancho, 14.0 + aviso.size().y + 6.0 + titulo.size().y + 8.0), Sense::hover());
+                let alto_aviso = aviso.size().y;
+                pintor.galley(Pos2::new(caja.left() + 12.0, caja.top() + 14.0), aviso, color::TEXTO_APAGADO);
+                pintor.galley(Pos2::new(caja.left() + 12.0, caja.top() + 14.0 + alto_aviso + 6.0), titulo, color::DORADO_TEXTO);
+            }
+            for (posicion, resultado) in datos.resultados.iter().enumerate() {
+                let indice = resultado.indice;
                 let producto = &datos.productos[indice];
                 let (caja, respuesta) = ui.allocate_exact_size(Vec2::new(ancho, 56.0), Sense::click());
                 let elegida = datos.seleccion == Some(posicion);
@@ -267,15 +279,21 @@ pub fn resultados(ctx: &Context, ancla: &Response, visible: bool, datos: &Result
                     .flatten()
                     .filter(|c| !c.trim().is_empty())
                     .collect();
-                let detalle = (!codigos.is_empty()).then(|| galeria_cortada(&pintor, &codigos.join(" · "), fuente_mono(tam::XS, Peso::Normal), color::TEXTO_TENUE, ancho_texto));
-                let alto = nombre.size().y + detalle.as_ref().map_or(0.0, |d| 1.0 + d.size().y);
+                let parecido = resultado.aproximado.then(|| galeria(ui, "Parecido", tam::XS, Peso::Semi, color::DORADO_TEXTO));
+                let ancho_parecido = parecido.as_ref().map_or(0.0, |p| p.size().x + 8.0);
+                let detalle = (!codigos.is_empty()).then(|| galeria_cortada(&pintor, &codigos.join(" · "), fuente_mono(tam::XS, Peso::Normal), color::TEXTO_TENUE, ancho_texto - ancho_parecido));
+                let alto_detalle = detalle.as_ref().map(|d| d.size().y).into_iter().chain(parecido.as_ref().map(|p| p.size().y)).fold(0.0, f32::max);
+                let alto = nombre.size().y + if alto_detalle > 0.0 { 1.0 + alto_detalle } else { 0.0 };
                 let mut y = caja.center().y - alto / 2.0;
                 let x = avatar.right() + 12.0;
                 let alto_nombre = nombre.size().y;
                 pintor.galley(Pos2::new(x, y), nombre, color::TEXTO);
                 y += alto_nombre + 1.0;
+                if let Some(parecido) = parecido {
+                    pintor.galley(Pos2::new(x, y), parecido, color::DORADO_TEXTO);
+                }
                 if let Some(detalle) = detalle {
-                    pintor.galley(Pos2::new(x, y), detalle, color::TEXTO_TENUE);
+                    pintor.galley(Pos2::new(x + ancho_parecido, y), detalle, color::TEXTO_TENUE);
                 }
                 pintor.galley(Pos2::new(x_unidad, linea_base - unidad.size().y * 0.8), unidad, color::TEXTO_APAGADO);
                 pintor.galley(Pos2::new(x_precio, y_precio), precio, color::TEXTO);
@@ -283,8 +301,8 @@ pub fn resultados(ctx: &Context, ancla: &Response, visible: bool, datos: &Result
                     elegido = Some(posicion);
                 }
             }
-            if datos.indices.is_empty() {
-                let mensaje = format!("No hay productos que coincidan con “{}”", datos.consulta);
+            if datos.resultados.is_empty() {
+                let mensaje = if datos.no_encontrado { format!("No encontrado: “{}”", datos.consulta) } else { format!("No hay productos que coincidan con “{}”", datos.consulta) };
                 let mensaje = galeria_cortada(&pintor, &mensaje, fuente(tam::CUERPO, Peso::Normal), color::TEXTO_APAGADO, ancho - 24.0);
                 let (caja, _) = ui.allocate_exact_size(Vec2::new(ancho, 36.0 + mensaje.size().y), Sense::hover());
                 pintor.galley(caja.center() - mensaje.size() / 2.0, mensaje, color::TEXTO_APAGADO);

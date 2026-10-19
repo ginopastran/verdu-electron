@@ -7,6 +7,7 @@ mod vista;
 use std::time::Duration;
 
 use eframe::egui::{self, Event, Id, Key, Modifiers, Pos2, Rect, Ui, Vec2};
+use nucleo::busqueda::{self, Resultado};
 use nucleo::carrito::Producto;
 use serde_json::Value;
 
@@ -38,16 +39,25 @@ pub fn id_buscador() -> Id {
 #[derive(Default)]
 struct Busqueda {
     consulta: String,
-    resultados: Vec<usize>,
+    resultados: Vec<Resultado>,
+    otras_medidas: Vec<Resultado>,
     seleccion: Option<usize>,
     mostrar_seleccion: bool,
+    no_encontrado: bool,
 }
 
 impl Busqueda {
     fn filtrar(&mut self, productos: &[ProductoDisponible]) {
-        self.resultados = productos::buscar(productos, &self.consulta);
-        self.seleccion = (!self.resultados.is_empty()).then_some(0);
+        let encontrados = busqueda::buscar(productos, &self.consulta);
+        self.resultados = encontrados.resultados;
+        self.otras_medidas = encontrados.otras_medidas;
+        self.seleccion = (!self.visibles().is_empty()).then_some(0);
         self.mostrar_seleccion = true;
+        self.no_encontrado = false;
+    }
+
+    fn visibles(&self) -> &[Resultado] {
+        if self.resultados.is_empty() { &self.otras_medidas } else { &self.resultados }
     }
 
     fn limpiar(&mut self) {
@@ -305,10 +315,10 @@ impl Carrito {
                 i.key_pressed(Key::Escape),
             )
         });
-        if self.busqueda.resultados.is_empty() {
+        if self.busqueda.visibles().is_empty() {
             return false;
         }
-        let total = self.busqueda.resultados.len();
+        let total = self.busqueda.visibles().len();
         self.busqueda.mostrar_seleccion |= abajo || arriba;
         if abajo {
             self.busqueda.seleccion = Some(self.busqueda.seleccion.map_or(0, |s| (s + 1).min(total - 1)));
@@ -322,7 +332,7 @@ impl Carrito {
         }
         if enter {
             let posicion = self.busqueda.seleccion.unwrap_or(0);
-            let indice = self.busqueda.resultados[posicion];
+            let indice = self.busqueda.visibles()[posicion].indice;
             self.elegir_producto(indice, cx);
             return true;
         }
@@ -366,6 +376,8 @@ impl Carrito {
             let producto = self.productos[indice].clone();
             self.agregar_escaneado(producto, cantidad, cx);
             self.busqueda.limpiar();
+        } else if codigo.len() >= 8 && codigo.bytes().all(|b| b.is_ascii_digit()) && codigo == self.busqueda.consulta.trim() {
+            self.busqueda.no_encontrado = true;
         }
     }
 
@@ -444,11 +456,13 @@ impl Carrito {
         }
         let consulta = self.busqueda.consulta.trim();
         let hay_consulta = !consulta.is_empty() && !(consulta.len() >= 8 && consulta.bytes().all(|b| b.is_ascii_digit()));
-        let visible = (hay_consulta || !self.busqueda.resultados.is_empty()) && !self.hay_dialogo();
+        let visible = (hay_consulta || !self.busqueda.visibles().is_empty() || self.busqueda.no_encontrado) && !self.hay_dialogo();
         let negocio = cx.global.negocio.clone();
         let datos = vista::Resultados {
             productos: &self.productos,
-            indices: &self.busqueda.resultados,
+            resultados: self.busqueda.visibles(),
+            otras_medidas: self.busqueda.resultados.is_empty() && !self.busqueda.otras_medidas.is_empty(),
+            no_encontrado: self.busqueda.no_encontrado,
             seleccion: self.busqueda.seleccion,
             mostrar_seleccion: self.busqueda.mostrar_seleccion,
             consulta,
@@ -461,7 +475,7 @@ impl Carrito {
             self.fotos.pedir(cx, &self.productos[indice]);
         }
         if let Some(posicion) = elegido {
-            let indice = self.busqueda.resultados[posicion];
+            let indice = self.busqueda.visibles()[posicion].indice;
             self.elegir_producto(indice, cx);
         }
         if visible {

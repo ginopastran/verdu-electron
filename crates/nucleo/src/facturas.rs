@@ -4,6 +4,7 @@ use chrono::{DateTime, Datelike, NaiveDate, NaiveTime, Utc};
 use serde_json::{json, Map, Value};
 
 use crate::api::{codificar, Cliente};
+use crate::busqueda::{buscar, ItemBusqueda};
 use crate::carrito::precio_de_venta;
 use crate::cierre::argentina;
 use crate::formato;
@@ -504,19 +505,12 @@ pub fn parsear_float(texto: &str) -> Option<f64> {
     numero.parse().ok()
 }
 
-pub fn filtrar_productos(productos: &[Value], busqueda: &str, excluidos: &[i64]) -> Vec<Value> {
-    let busqueda = busqueda.trim().to_lowercase();
-    productos
-        .iter()
-        .filter(|p| !excluidos.contains(&p["id"].as_i64().unwrap_or(i64::MIN)))
-        .filter(|p| {
-            busqueda.is_empty()
-                || p["nombre"].as_str().unwrap_or_default().to_lowercase().contains(&busqueda)
-                || p["plu"].as_str().is_some_and(|plu| !plu.is_empty() && plu.to_lowercase().contains(&busqueda))
-                || p["codigoBarras"].as_str().is_some_and(|codigo| !codigo.is_empty() && codigo.contains(&busqueda))
-        })
-        .cloned()
-        .collect()
+pub fn filtrar_productos(productos: &[Value], indice: &[ItemBusqueda], busqueda: &str, excluidos: &[i64]) -> Vec<Value> {
+    let incluido = |p: &&Value| !excluidos.contains(&p["id"].as_i64().unwrap_or(i64::MIN));
+    if busqueda.trim().is_empty() {
+        return productos.iter().filter(incluido).cloned().collect();
+    }
+    buscar(indice, busqueda).resultados.iter().filter_map(|r| productos.get(r.indice)).filter(incluido).cloned().collect()
 }
 
 pub fn parsear_numero(texto: &str) -> Option<f64> {
@@ -830,13 +824,21 @@ mod tests {
     }
 
     #[test]
-    fn filtrar_productos_por_nombre_plu_y_codigo() {
-        let productos = vec![json!({ "id": 1, "nombre": "Tomate", "plu": "001" }), json!({ "id": 2, "nombre": "Papa", "plu": null, "codigoBarras": "7790002000046" })];
-        assert_eq!(filtrar_productos(&productos, "00", &[]).len(), 2);
-        assert_eq!(filtrar_productos(&productos, "001", &[]).len(), 1);
-        assert_eq!(filtrar_productos(&productos, "779000", &[]).len(), 1);
-        assert_eq!(filtrar_productos(&productos, "", &[1]).len(), 1);
-        assert_eq!(filtrar_productos(&productos, " PA ", &[]).len(), 1);
+    fn filtrar_productos_con_la_busqueda_unificada() {
+        let productos = vec![
+            json!({ "id": 1, "nombre": "Tomate", "plu": "001" }),
+            json!({ "id": 2, "nombre": "Papa", "plu": null, "codigoBarras": "7790002000046", "alias": ["Patata"] }),
+        ];
+        let indice: Vec<ItemBusqueda> = productos.iter().map(ItemBusqueda::de_json).collect();
+        let ids = |q: &str, excluidos: &[i64]| filtrar_productos(&productos, &indice, q, excluidos).iter().map(|p| p["id"].as_i64().unwrap()).collect::<Vec<_>>();
+        assert_eq!(ids("001", &[]), [1]);
+        assert_eq!(ids("779000", &[]), [2]);
+        assert_eq!(ids("7790002000046", &[]), [2]);
+        assert_eq!(ids("", &[1]), [2]);
+        assert_eq!(ids(" PA ", &[]), [2]);
+        assert_eq!(ids("patata", &[]), [2]);
+        assert_eq!(ids("tomte", &[]), [1]);
+        assert!(ids("tomate", &[1]).is_empty());
     }
 
     #[test]

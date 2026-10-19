@@ -1,4 +1,5 @@
 pub mod api;
+pub mod busqueda;
 pub mod carrito;
 pub mod cierre;
 pub mod cobros;

@@ -743,7 +743,7 @@ impl FormularioFactura {
         let excluidos: Vec<i64> = self.filas.iter().map(|f| f.detalle.producto_id).collect();
         let elegido_intacto = self.producto_elegido.as_ref().is_some_and(|p| texto(p, "nombre") == self.producto_texto);
         let consulta = if elegido_intacto { String::new() } else { self.producto_texto.clone() };
-        let filtrados = logica::filtrar_productos(&self.catalogo.lista, &consulta, &excluidos);
+        let filtrados = logica::filtrar_productos(&self.catalogo.lista, &self.catalogo.indice, &consulta, &excluidos);
         if let Some(posicion) = self.menu_producto.teclas(ui, id_buscar, filtrados.len().min(selectores::PRODUCTOS_VISIBLES)) {
             self.elegir_producto(filtrados[posicion].clone());
         }

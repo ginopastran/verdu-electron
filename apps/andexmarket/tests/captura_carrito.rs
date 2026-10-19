@@ -266,6 +266,38 @@ fn pos_buscador_sin_resultados() {
 }
 
 #[test]
+fn pos_buscador_parecido() {
+    capturar("13c-pos-buscador-parecido", || con_items(POR_DEFECTO), |h, _| escribir(h, "tomte"));
+}
+
+#[test]
+fn pos_buscador_otras_medidas() {
+    capturar("13d-pos-buscador-otras-medidas", || con_items(POR_DEFECTO), |h, _| escribir(h, "nuez 500 g"));
+}
+
+#[test]
+fn pos_buscador_codigo_no_encontrado() {
+    capturar("15b-pos-buscador-codigo-no-encontrado", || con_items(POR_DEFECTO), |h, _| {
+        escribir(h, "7790001099999");
+        esperar_red(h);
+    });
+}
+
+#[test]
+fn otras_medidas_se_eligen_con_el_teclado() {
+    let mut h = arnes(global(POR_DEFECTO), [1366.0, 768.0], false);
+    escribir(&mut h, "nuez 500 g");
+    tecla(&mut h, Key::Enter);
+    esperar_red(&mut h);
+    assert!(h.state_mut().pantallas().carrito.hay_dialogo());
+    escribir(&mut h, "2");
+    tecla(&mut h, Key::Enter);
+    h.run_steps(3);
+    let items = h.state_mut().global().carritos.items().to_vec();
+    assert_eq!((items.len(), items[0].id, items[0].quantity), (1, 24, 2.0));
+}
+
+#[test]
 fn pos_menu_usuario() {
     capturar("16-pos-menu-usuario", || con_items(POR_DEFECTO), |h, tam| clic(h, Pos2::new(tam[0] - 100.0, 34.0)));
 }
@@ -316,7 +348,7 @@ fn pos_responsive() {
 #[test]
 fn pos_buscador_muchos_resultados() {
     capturar("13b-pos-buscador-muchos-resultados", || con_items(POR_DEFECTO), |h, _| {
-        escribir(h, "a");
+        escribir(h, "7790001");
         for _ in 0..9 {
             tecla(h, Key::ArrowDown);
         }

@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use eframe::egui::{self, Context, CursorIcon, Id, Key, Modifiers, Pos2, Rect, Response, Sense, Stroke, Ui, Vec2};
+use nucleo::busqueda::ItemBusqueda;
 use nucleo::facturas::{self as logica};
 use nucleo::formato;
 use serde_json::Value;
@@ -178,6 +179,7 @@ pub struct Catalogo {
     cargando: bool,
     error: Option<String>,
     pub lista: Vec<Value>,
+    pub indice: Vec<ItemBusqueda>,
     tarea: Option<Tarea<Result<Value, String>>>,
 }
 
@@ -196,7 +198,10 @@ impl Catalogo {
         let Some(resultado) = esperar(&mut self.tarea) else { return };
         self.cargando = false;
         match resultado {
-            Ok(datos) => self.lista = datos["productos"].as_array().cloned().unwrap_or_default(),
+            Ok(datos) => {
+                self.lista = datos["productos"].as_array().cloned().unwrap_or_default();
+                self.indice = self.lista.iter().map(ItemBusqueda::de_json).collect();
+            }
             Err(error) => {
                 self.error = Some(mensaje_error(&error));
                 toast::error(&cx.egui, "Error al cargar la lista de productos");
