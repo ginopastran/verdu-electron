@@ -251,13 +251,7 @@ pub fn interpretar_codigo(codigo: &str, productos: &[ProductoDisponible]) -> Opt
     }
     let solo_digitos = codigo.bytes().all(|b| b.is_ascii_digit());
     if solo_digitos && (8..=15).contains(&codigo.len()) {
-        let exacto = productos.iter().position(|p| p.codigo_barras.as_deref() == Some(codigo));
-        let parecido = || {
-            productos.iter().position(|p| {
-                p.codigo_barras.as_deref().is_some_and(|c| !c.is_empty() && (c.contains(codigo) || codigo.contains(c)))
-            })
-        };
-        if let Some(indice) = exacto.or_else(parecido) {
+        if let Some(indice) = productos.iter().position(|p| p.codigo_barras.as_deref() == Some(codigo)) {
             return Some((indice, 1.0));
         }
     }
@@ -383,6 +377,11 @@ mod pruebas {
         assert_eq!(interpretar_codigo("013000000002", &p), None);
         assert_eq!(interpretar_codigo("999000013552", &p), None);
         assert_eq!(interpretar_codigo("tomate", &p), None);
+        let mut con_ean8 = catalogo();
+        con_ean8.push(producto(30, "Chicle", None, Some("77912345")));
+        assert_eq!(interpretar_codigo("7791234500099", &con_ean8), None);
+        assert_eq!(interpretar_codigo("779123450002", &con_ean8), None);
+        assert_eq!(interpretar_codigo("77912345", &con_ean8), Some((6, 1.0)));
         assert!(es_codigo_directo("77912345"));
         assert!(!es_codigo_directo("7791234500026123"));
     }
