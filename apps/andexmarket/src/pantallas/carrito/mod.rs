@@ -258,7 +258,14 @@ impl Carrito {
             .carritos
             .items()
             .iter()
-            .map(|item| ProductoInicial { id: item.id, nombre: item.name.clone(), precio: item.price_per_unit, cantidad: item.quantity, subtotal: item.subtotal })
+            .map(|item| ProductoInicial {
+                id: item.id,
+                nombre: item.name.clone(),
+                precio: item.price_per_unit,
+                cantidad: item.quantity,
+                subtotal: item.subtotal,
+                precio_libre: item.precio_libre,
+            })
             .collect();
         self.factura.abrir(iniciales);
     }

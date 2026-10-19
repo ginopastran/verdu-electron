@@ -138,11 +138,23 @@ pub struct Detalle {
     pub cantidad: f64,
     pub precio_unitario: f64,
     pub subtotal: f64,
+    pub precio_libre: bool,
 }
 
 impl Detalle {
     pub fn nuevo(producto_id: i64, producto: Option<Value>, descripcion: String, cantidad: f64, precio: f64) -> Self {
-        Detalle { producto_id, producto, descripcion, cantidad, precio_unitario: precio, subtotal: precio * cantidad }
+        Detalle { producto_id, producto, descripcion, cantidad, precio_unitario: precio, subtotal: precio * cantidad, precio_libre: false }
+    }
+
+    pub fn libre(mut self) -> Self {
+        self.precio_libre = true;
+        self.cantidad = 1.0;
+        let producto = self.producto.get_or_insert_with(|| json!({}));
+        if let Some(mapa) = producto.as_object_mut() {
+            mapa.insert("precioLibre".into(), json!(true));
+        }
+        self.recalcular();
+        self
     }
 
     pub fn recalcular(&mut self) {
@@ -167,11 +179,23 @@ pub fn iva_visible(tipo_factura: &str, iva_incluido_en_precios: Option<bool>) ->
     iva_incluido_en_precios.filter(|_| tipo_factura != "remito")
 }
 
+pub fn es_precio_libre(producto: &Value) -> bool {
+    producto["precioLibre"].as_bool().unwrap_or(false)
+}
+
+fn iva_incluido_en_producto(producto: Option<&Value>) -> bool {
+    producto.is_some_and(|p| p["ivaIncluido"].as_bool().unwrap_or(false) || es_precio_libre(p))
+}
+
+pub fn precio_libre_sin_monto(detalles: &[Detalle]) -> Option<&Detalle> {
+    detalles.iter().find(|d| d.precio_libre && !(d.precio_unitario > 0.0))
+}
+
 pub fn precio_con_iva(producto: Option<&Value>, precio: f64, iva_incluido_en_precios: Option<bool>) -> f64 {
     match iva_incluido_en_precios {
         Some(en_precios) => precio_visual_con_iva(
             precio,
-            producto.is_some_and(|p| p["ivaIncluido"].as_bool().unwrap_or(false)),
+            iva_incluido_en_producto(producto),
             producto.and_then(|p| p["ivaPorcentaje"].as_f64()),
             en_precios,
         ),
@@ -316,8 +340,7 @@ pub fn calcular_totales(detalles: &[Detalle], tipo_factura: &str, iva_incluido_e
         }
         let producto = detalle.producto.as_ref();
         let porcentaje = producto.and_then(|p| p["ivaPorcentaje"].as_f64()).unwrap_or(21.0);
-        let iva_incluido =
-            producto.is_some_and(|p| p["ivaIncluido"].as_bool().unwrap_or(false)) || iva_incluido_en_precios;
+        let iva_incluido = detalle.precio_libre || iva_incluido_en_producto(producto) || iva_incluido_en_precios;
         if iva_incluido {
             let base = redondear2(detalle.subtotal / (1.0 + porcentaje / 100.0));
             subtotal_sin_iva += base;
@@ -821,6 +844,24 @@ mod tests {
         assert_eq!(parsear_float("12.5abc"), Some(12.5));
         assert_eq!(parsear_float(""), None);
         assert_eq!(parsear_float("1e3"), Some(1000.0));
+    }
+
+    #[test]
+    fn precio_libre_cuenta_con_iva_incluido_y_exige_monto() {
+        let varios = json!({ "id": 9, "ivaIncluido": false, "ivaPorcentaje": 21.0, "precioLibre": true });
+        let libre = Detalle::nuevo(9, Some(varios.clone()), "Varios".into(), 3.0, 1210.0).libre();
+        assert_eq!((libre.cantidad, libre.subtotal), (1.0, 1210.0));
+        let totales = calcular_totales(&[libre.clone()], "A", false);
+        assert_eq!((totales.subtotal, totales.impuestos, totales.total), (1000.0, 210.0, 1210.0));
+        assert_eq!(precio_con_iva(Some(&varios), 1210.0, Some(false)), 1210.0);
+        let sin_producto = Detalle::nuevo(9, None, "Varios".into(), 1.0, 500.0).libre();
+        assert_eq!(calcular_totales(&[sin_producto.clone()], "A", false).total, 500.0);
+        assert_eq!(sin_producto.a_json()["producto"]["precioLibre"], true);
+        let comun = Detalle::nuevo(1, Some(json!({ "ivaIncluido": false, "ivaPorcentaje": 21.0 })), "Tomate".into(), 1.0, 1000.0);
+        assert_eq!(calcular_totales(&[comun.clone()], "A", false).total, 1210.0);
+        assert!(precio_libre_sin_monto(&[comun.clone(), libre]).is_none());
+        let en_cero = Detalle::nuevo(9, Some(varios), "Varios".into(), 1.0, 0.0).libre();
+        assert_eq!(precio_libre_sin_monto(&[comun, en_cero]).map(|d| d.producto_id), Some(9));
     }
 
     #[test]

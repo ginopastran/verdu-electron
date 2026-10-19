@@ -276,6 +276,9 @@ pub struct VistaProductos<'a> {
 }
 
 pub fn precio_producto(producto: &Value, precios: &HashMap<i64, f64>, iva_en_precios: Option<bool>) -> String {
+    if logica::es_precio_libre(producto) {
+        return "Precio a definir".into();
+    }
     let id = producto["id"].as_i64().unwrap_or_default();
     let base = numero(producto, "precio");
     let base = nucleo::carrito::oferta_de(producto, chrono::Utc::now()).map_or(base, |p| nucleo::carrito::precio_con_oferta(base, p));

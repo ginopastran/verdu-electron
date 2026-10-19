@@ -22,6 +22,7 @@ pub struct ProductoInicial {
     pub precio: f64,
     pub cantidad: f64,
     pub subtotal: f64,
+    pub precio_libre: bool,
 }
 
 pub enum ResultadoFactura {
@@ -249,6 +250,9 @@ impl FormularioFactura {
             let actualizados = detalles
                 .into_iter()
                 .map(|mut d| {
+                    if d.precio_libre {
+                        return d;
+                    }
                     let producto = obtener(s, &format!("/api/productos/{}", d.producto_id)).filter(|p| p["precio"].as_f64().is_some());
                     let precio_lista = lista.and_then(|lista| obtener(s, &format!("/api/listas-precios/{lista}/productos/{}", d.producto_id))).and_then(|v| v["precio"].as_f64());
                     d.precio_unitario = match producto {
@@ -271,12 +275,15 @@ impl FormularioFactura {
         self.lanzar(cx, move |s| {
             let detalles = iniciales
                 .into_iter()
-                .map(|inicial| match obtener(s, &format!("/api/productos/{}", inicial.id)) {
-                    Some(producto) => {
-                        let nombre = texto(&producto, "nombre").to_string();
-                        Detalle::nuevo(inicial.id, Some(producto), nombre, inicial.cantidad, inicial.precio)
-                    }
-                    None => Detalle::nuevo(inicial.id, None, inicial.nombre, inicial.cantidad, inicial.precio),
+                .map(|inicial| {
+                    let detalle = match obtener(s, &format!("/api/productos/{}", inicial.id)) {
+                        Some(producto) => {
+                            let nombre = texto(&producto, "nombre").to_string();
+                            Detalle::nuevo(inicial.id, Some(producto), nombre, inicial.cantidad, inicial.precio)
+                        }
+                        None => Detalle::nuevo(inicial.id, None, inicial.nombre, inicial.cantidad, inicial.precio),
+                    };
+                    if inicial.precio_libre { detalle.libre() } else { detalle }
                 })
                 .collect();
             Respuesta::Iniciales(apertura, detalles)
@@ -339,6 +346,10 @@ impl FormularioFactura {
         }
         let negocio = cx.global.negocio.clone().unwrap_or(Value::Null);
         let detalles = self.detalles();
+        if let Some(detalle) = logica::precio_libre_sin_monto(&detalles) {
+            ui::v2::toast::con_detalle(&cx.egui, ui::v2::toast::Tipo::Error, "Falta el monto de un producto con precio a definir", detalle.descripcion.clone());
+            return;
+        }
         let totales = logica::calcular_totales(&detalles, &self.tipo_factura, negocio["ivaIncluidoEnPrecios"].as_bool().unwrap_or(false));
         let pago = self.pago();
         if pago.is_some_and(|p| p > totales.total) {
@@ -726,10 +737,20 @@ impl FormularioFactura {
             return;
         };
         let id = producto["id"].as_i64().unwrap_or_default();
-        let precio_lista = self.lista_seleccionada.as_ref().and(self.precios_lista.get(&id).copied());
-        let precio = logica::precio_con_lista(&producto, precio_lista);
         let nombre = texto(&producto, "nombre").to_string();
-        self.filas.push(Fila::new(Detalle::nuevo(id, Some(producto), nombre, cantidad, precio), iva_en_precios));
+        let detalle = if logica::es_precio_libre(&producto) {
+            let monto = logica::redondear2(cantidad);
+            if monto <= 0.0 {
+                self.error_agregar = true;
+                return;
+            }
+            Detalle::nuevo(id, Some(producto), nombre, 1.0, monto).libre()
+        } else {
+            let precio_lista = self.lista_seleccionada.as_ref().and(self.precios_lista.get(&id).copied());
+            let precio = logica::precio_con_lista(&producto, precio_lista);
+            Detalle::nuevo(id, Some(producto), nombre, cantidad, precio)
+        };
+        self.filas.push(Fila::new(detalle, iva_en_precios));
         self.producto_elegido = None;
         self.producto_texto.clear();
         self.cantidad_texto.clear();
@@ -785,7 +806,9 @@ impl FormularioFactura {
             let vista = VistaProductos { filtrados: &filtrados, precios: &self.precios_lista, iva_en_precios };
             elegido = selectores::lista_productos(ui.ctx(), &ancla, &mut self.menu_producto, &self.catalogo, &vista);
             let campo = Contenedor { alto: 38.0, radio: 9, relleno_izquierdo: 10.0, relleno_derecho: 10.0, ..Default::default() };
-            let cantidad = campo.mostrar(ui, 90.0, |ui| v2::entrada_desnuda(&mut self.cantidad_texto).tam(tam::CONTROL).sugerencia("Cant.").id(id_cantidad).ui(ui));
+            let libre = self.producto_elegido.as_ref().filter(|_| elegido_intacto).is_some_and(logica::es_precio_libre);
+            let sugerencia = if libre { "Monto $" } else { "Cant." };
+            let cantidad = campo.mostrar(ui, 90.0, |ui| v2::entrada_desnuda(&mut self.cantidad_texto).tam(tam::CONTROL).sugerencia(sugerencia).id(id_cantidad).ui(ui));
             if cantidad.changed() {
                 self.cantidad_texto.retain(|c| c.is_ascii_digit() || c == '.' || c == ',');
                 self.error_agregar = false;
@@ -866,7 +889,7 @@ impl FormularioFactura {
                         let celda = |c: usize| Rect::from_center_size(celdas[c].center(), Vec2::new(celdas[c].width(), 32.0));
                         let campo = Contenedor { alto: 32.0, radio: radio::ICONO, relleno_izquierdo: 8.0, relleno_derecho: 8.0, separacion: 4.0, ..Default::default() };
                         let mut hijo = ui.new_child(UiBuilder::new().max_rect(celda(1)));
-                        let r = campo.mostrar(&mut hijo, celda(1).width(), |ui| v2::entrada_desnuda(&mut fila.cantidad).tam(tam::CONTROL).id(Id::new(("factura-cant", i))).ui(ui));
+                        let r = campo.mostrar(&mut hijo, celda(1).width(), |ui| v2::entrada_desnuda(&mut fila.cantidad).tam(tam::CONTROL).habilitado(!d.precio_libre).id(Id::new(("factura-cant", i))).ui(ui));
                         if r.changed() {
                             d.cantidad = logica::parsear_numero(&fila.cantidad).unwrap_or(0.0);
                             d.recalcular();
@@ -1009,6 +1032,20 @@ mod tests {
         formulario.credito_de = Some(json!("c2"));
         assert_eq!(formulario.autorizado_para(10.0), None);
 
+    }
+
+    #[test]
+    fn el_producto_con_precio_a_definir_se_agrega_con_el_monto_tipeado() {
+        let varios = json!({ "id": 9, "nombre": "Varios", "precio": 0, "ivaIncluido": false, "ivaPorcentaje": 21.0, "precioLibre": true });
+        let mut formulario = FormularioFactura { producto_elegido: Some(varios), cantidad_texto: "1500,5".into(), ..Default::default() };
+        formulario.agregar_producto(Some(false));
+        let detalle = &formulario.filas[0].detalle;
+        assert!(detalle.precio_libre);
+        assert_eq!((detalle.cantidad, detalle.precio_unitario, detalle.subtotal), (1.0, 1500.5, 1500.5));
+        assert_eq!(formulario.filas[0].precio, "1500,5");
+        let mut sin_monto = FormularioFactura { producto_elegido: Some(json!({ "id": 9, "precioLibre": true })), cantidad_texto: "0".into(), ..Default::default() };
+        sin_monto.agregar_producto(Some(false));
+        assert!(sin_monto.filas.is_empty() && sin_monto.error_agregar);
     }
 
     #[test]

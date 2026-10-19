@@ -94,6 +94,7 @@ fn productos_carrito() -> Vec<ProductoInicial> {
             precio: i["pricePerUnit"].as_f64().unwrap(),
             cantidad: i["quantity"].as_f64().unwrap(),
             subtotal: i["subtotal"].as_f64().unwrap(),
+            precio_libre: false,
         })
         .collect()
 }
