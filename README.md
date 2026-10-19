@@ -1,3 +1,5 @@
+> **Rama deprecada.** Esta es la versión Electron (3.x) del POS y ya no se mantiene. El POS actual es AndexMarket 4.x en Rust, en la rama [`egui`](../../tree/egui). Las versiones 4.x reemplazan a esta sola, por actualización automática. No publiques más releases 3.x desde acá: GitHub tomaría esa como `latest` y rompería las actualizaciones.
+
 # VerduSoft POS - Guía de Instalación
 
 Esta guía te ayudará a instalar y configurar todos los componentes necesarios para ejecutar el sistema de punto de venta.
