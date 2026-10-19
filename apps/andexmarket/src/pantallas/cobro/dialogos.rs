@@ -691,7 +691,7 @@ impl Cobro {
         let r = v2::Modal::new(("cobro-exacto", lado == Lado::Afip), "Cobro en efectivo")
             .subtitulo("Ingresá con cuánto paga el cliente para calcular el vuelto")
             .icono("cash")
-            .ancho(480.0)
+            .ancho(600.0)
             .mostrar(&ctx, |ui| {
                 v2::cuerpo_modal(ui, 20, |ui| {
                     panel(ui, color::FONDO_APP, None, radio::POPOVER, margen(16, 18), |ui| {
@@ -739,24 +739,19 @@ impl Cobro {
                     confirmar = true;
                 }
                 let texto = if cargando { "Registrando…" } else { "Confirmar cobro" };
-                if ofrecer_descuento {
-                    pie(ui, 20, 0, |ui| {
+                pie(ui, 20, 22, |ui| {
+                    confirmar |= boton(texto, Estilo::Primario).tecla("Enter").cargando(cargando).habilitado(habilitado || cargando).ui(ui).clicked();
+                    cancelar = boton("Cancelar", Estilo::Secundario).habilitado(!cargando).ui(ui).clicked();
+                    if ofrecer_descuento {
                         let etiqueta = match minimo.filter(|_| !alcanza) {
                             Some(m) => format!("Desde {}", dinero(m)),
                             None => porcentaje.map_or("Descuento efectivo".to_string(), |p| format!("Descuento efectivo {}%", formato::numero(p))),
                         };
-                        aplicar_d |= boton(etiqueta, Estilo::Dorado).tecla("F5").relleno(14.0).habilitado(!cargando && alcanza).ui(ui).clicked();
-                        cancelar = boton("Cancelar", Estilo::Secundario).habilitado(!cargando).ui(ui).clicked();
-                    });
-                    pie(ui, 10, 22, |ui| {
-                        confirmar |= boton(texto, Estilo::Primario).tecla("Enter").cargando(cargando).habilitado(habilitado || cargando).ui(ui).clicked();
-                    });
-                } else {
-                    pie(ui, 20, 22, |ui| {
-                        confirmar |= boton(texto, Estilo::Primario).tecla("Enter").cargando(cargando).habilitado(habilitado || cargando).ui(ui).clicked();
-                        cancelar = boton("Cancelar", Estilo::Secundario).habilitado(!cargando).ui(ui).clicked();
-                    });
-                }
+                        ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
+                            aplicar_d |= boton(etiqueta, Estilo::Dorado).tecla("F5").relleno(14.0).habilitado(!cargando && alcanza).ui(ui).clicked();
+                        });
+                    }
+                });
             });
         if r.cerrar || cancelar {
             self.cerrar_efectivo(lado);
