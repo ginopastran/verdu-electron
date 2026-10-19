@@ -528,12 +528,12 @@ pub fn parsear_float(texto: &str) -> Option<f64> {
     numero.parse().ok()
 }
 
-pub fn filtrar_productos(productos: &[Value], indice: &[ItemBusqueda], busqueda: &str, excluidos: &[i64]) -> Vec<Value> {
-    let incluido = |p: &&Value| !excluidos.contains(&p["id"].as_i64().unwrap_or(i64::MIN));
+pub fn filtrar_productos(productos: &[Value], indice: &[ItemBusqueda], busqueda: &str, excluidos: &[i64]) -> Vec<usize> {
+    let incluido = |i: &usize| productos.get(*i).is_some_and(|p| !excluidos.contains(&p["id"].as_i64().unwrap_or(i64::MIN)));
     if busqueda.trim().is_empty() {
-        return productos.iter().filter(incluido).cloned().collect();
+        return (0..productos.len()).filter(incluido).collect();
     }
-    buscar(indice, busqueda).resultados.iter().filter_map(|r| productos.get(r.indice)).filter(incluido).cloned().collect()
+    buscar(indice, busqueda).resultados.iter().map(|r| r.indice).filter(incluido).collect()
 }
 
 pub fn parsear_numero(texto: &str) -> Option<f64> {
@@ -871,7 +871,7 @@ mod tests {
             json!({ "id": 2, "nombre": "Papa", "plu": null, "codigoBarras": "7790002000046", "alias": ["Patata"] }),
         ];
         let indice: Vec<ItemBusqueda> = productos.iter().map(ItemBusqueda::de_json).collect();
-        let ids = |q: &str, excluidos: &[i64]| filtrar_productos(&productos, &indice, q, excluidos).iter().map(|p| p["id"].as_i64().unwrap()).collect::<Vec<_>>();
+        let ids = |q: &str, excluidos: &[i64]| filtrar_productos(&productos, &indice, q, excluidos).iter().map(|&i| productos[i]["id"].as_i64().unwrap()).collect::<Vec<_>>();
         assert_eq!(ids("001", &[]), [1]);
         assert_eq!(ids("779000", &[]), [2]);
         assert_eq!(ids("7790002000046", &[]), [2]);

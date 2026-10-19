@@ -29,6 +29,10 @@ fn mensaje_error(error: &str) -> String {
 }
 
 fn pedir_json(cx: &Contexto, ruta: String) -> Tarea<Result<Value, String>> {
+    pedir_json_con(cx, ruta, |cuerpo| cuerpo)
+}
+
+fn pedir_json_con<T: Send + 'static>(cx: &Contexto, ruta: String, convertir: impl FnOnce(Value) -> T + Send + 'static) -> Tarea<Result<T, String>> {
     let api = cx.servicios.api.clone();
     Tarea::lanzar(&cx.egui, move || {
         let respuesta = api.pedir("GET", &ruta, None, &[]).map_err(|e| e.mensaje)?;
@@ -37,7 +41,7 @@ fn pedir_json(cx: &Contexto, ruta: String) -> Tarea<Result<Value, String>> {
         }
         match respuesta.cuerpo {
             Value::String(texto) => Err(format!("Unexpected token '<', \"{}\"... is not valid JSON", texto.chars().take(10).collect::<String>())),
-            cuerpo => Ok(cuerpo),
+            cuerpo => Ok(convertir(cuerpo)),
         }
     })
 }
@@ -180,7 +184,8 @@ pub struct Catalogo {
     error: Option<String>,
     pub lista: Vec<Value>,
     pub indice: Vec<ItemBusqueda>,
-    tarea: Option<Tarea<Result<Value, String>>>,
+    pub version: u32,
+    tarea: Option<Tarea<Result<(Vec<Value>, Vec<ItemBusqueda>), String>>>,
 }
 
 impl Catalogo {
@@ -191,16 +196,21 @@ impl Catalogo {
         self.de_apertura = Some(apertura);
         self.cargando = true;
         self.error = None;
-        self.tarea = Some(pedir_json(cx, "/api/productos?limit=1000".into()));
+        self.tarea = Some(pedir_json_con(cx, "/api/productos?limit=1000".into(), |datos| {
+            let lista = datos["productos"].as_array().cloned().unwrap_or_default();
+            let indice = lista.iter().map(ItemBusqueda::de_json).collect();
+            (lista, indice)
+        }));
     }
 
     pub fn recibir(&mut self, cx: &Contexto) {
         let Some(resultado) = esperar(&mut self.tarea) else { return };
         self.cargando = false;
         match resultado {
-            Ok(datos) => {
-                self.lista = datos["productos"].as_array().cloned().unwrap_or_default();
-                self.indice = self.lista.iter().map(ItemBusqueda::de_json).collect();
+            Ok((lista, indice)) => {
+                self.lista = lista;
+                self.indice = indice;
+                self.version += 1;
             }
             Err(error) => {
                 self.error = Some(mensaje_error(&error));
@@ -270,7 +280,7 @@ pub fn lista_clientes(ctx: &Context, ancla: &Response, menu: &mut Menu, clientes
 }
 
 pub struct VistaProductos<'a> {
-    pub filtrados: &'a [Value],
+    pub filtrados: &'a [usize],
     pub precios: &'a HashMap<i64, f64>,
     pub iva_en_precios: Option<bool>,
 }
@@ -304,7 +314,7 @@ pub fn lista_productos(ctx: &Context, ancla: &Response, menu: &mut Menu, catalog
                 return None;
             }
             let mut elegido = None;
-            for (posicion, producto) in datos.filtrados.iter().take(PRODUCTOS_VISIBLES).enumerate() {
+            for (posicion, producto) in datos.filtrados.iter().take(PRODUCTOS_VISIBLES).filter_map(|&i| catalogo.lista.get(i)).enumerate() {
                 let (caja, respuesta) = menu.fila(ui, posicion, ALTO_PRODUCTO, color::VERDE_ELEGIDO);
                 let precio = precio_producto(producto, datos.precios, datos.iva_en_precios);
                 let precio = v2::pintar_texto(ui, Pos2::new(caja.right() - 10.0, caja.center().y), egui::Align2::RIGHT_CENTER, precio, tam::CONTROL, Peso::Semi, color::TEXTO);

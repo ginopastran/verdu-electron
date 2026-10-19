@@ -37,6 +37,8 @@ const ID_CLIENTE: &str = "factura-cliente";
 const ID_PRODUCTO: &str = "factura-producto-buscar";
 const ID_CANTIDAD: &str = "factura-producto-cantidad";
 
+type ClaveFiltro = (String, Vec<i64>, u32);
+
 struct Fila {
     detalle: Detalle,
     cantidad: String,
@@ -83,6 +85,7 @@ pub struct FormularioFactura {
     clientes: Clientes,
     menu_cliente: Menu,
     catalogo: Catalogo,
+    filtro: Option<(ClaveFiltro, Vec<usize>)>,
     menu_producto: Menu,
     producto_texto: String,
     producto_elegido: Option<Value>,
@@ -730,6 +733,18 @@ impl FormularioFactura {
         self.enfocar = Some(ID_CANTIDAD);
     }
 
+    fn filtrar(&mut self, consulta: String, excluidos: Vec<i64>) -> Vec<usize> {
+        let clave = (consulta, excluidos, self.catalogo.version);
+        match &self.filtro {
+            Some((anterior, filtrados)) if *anterior == clave => filtrados.clone(),
+            _ => {
+                let filtrados = logica::filtrar_productos(&self.catalogo.lista, &self.catalogo.indice, &clave.0, &clave.1);
+                self.filtro = Some((clave, filtrados.clone()));
+                filtrados
+            }
+        }
+    }
+
     fn agregar_producto(&mut self, iva_en_precios: Option<bool>) {
         let cantidad = logica::parsear_numero(&self.cantidad_texto).filter(|c| *c > 0.0);
         let (Some(producto), Some(cantidad)) = (self.producto_elegido.clone(), cantidad) else {
@@ -764,9 +779,9 @@ impl FormularioFactura {
         let excluidos: Vec<i64> = self.filas.iter().map(|f| f.detalle.producto_id).collect();
         let elegido_intacto = self.producto_elegido.as_ref().is_some_and(|p| texto(p, "nombre") == self.producto_texto);
         let consulta = if elegido_intacto { String::new() } else { self.producto_texto.clone() };
-        let filtrados = logica::filtrar_productos(&self.catalogo.lista, &self.catalogo.indice, &consulta, &excluidos);
+        let filtrados = self.filtrar(consulta, excluidos);
         if let Some(posicion) = self.menu_producto.teclas(ui, id_buscar, filtrados.len().min(selectores::PRODUCTOS_VISIBLES)) {
-            self.elegir_producto(filtrados[posicion].clone());
+            self.elegir_producto(self.catalogo.lista[filtrados[posicion]].clone());
         }
         self.pedir_foco(ui, ID_PRODUCTO);
         self.pedir_foco(ui, ID_CANTIDAD);
@@ -828,7 +843,7 @@ impl FormularioFactura {
                 .clicked();
         });
         if let Some(posicion) = elegido {
-            self.elegir_producto(filtrados[posicion].clone());
+            self.elegir_producto(self.catalogo.lista[filtrados[posicion]].clone());
         }
         if agregar {
             self.agregar_producto(iva_en_precios);
@@ -1046,6 +1061,19 @@ mod tests {
         let mut sin_monto = FormularioFactura { producto_elegido: Some(json!({ "id": 9, "precioLibre": true })), cantidad_texto: "0".into(), ..Default::default() };
         sin_monto.agregar_producto(Some(false));
         assert!(sin_monto.filas.is_empty() && sin_monto.error_agregar);
+    }
+
+    #[test]
+    fn el_filtro_de_productos_se_recalcula_solo_si_cambia_la_consulta_o_el_catalogo() {
+        let mut formulario = FormularioFactura::default();
+        formulario.catalogo.lista = vec![json!({ "id": 1, "nombre": "Tomate" }), json!({ "id": 2, "nombre": "Papa" })];
+        formulario.catalogo.indice = formulario.catalogo.lista.iter().map(nucleo::busqueda::ItemBusqueda::de_json).collect();
+        assert_eq!(formulario.filtrar("papa".into(), vec![]), [1]);
+        formulario.catalogo.lista.clear();
+        assert_eq!(formulario.filtrar("papa".into(), vec![]), [1]);
+        assert!(formulario.filtrar("papa".into(), vec![2]).is_empty());
+        formulario.catalogo.version += 1;
+        assert!(formulario.filtrar("papa".into(), vec![]).is_empty());
     }
 
     #[test]
