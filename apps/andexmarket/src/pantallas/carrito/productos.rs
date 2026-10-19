@@ -212,6 +212,35 @@ pub fn listas_de_precios(api: &Cliente, producto: i64) -> Option<Vec<FilaLista>>
     )
 }
 
+pub const TOPE_MONTO_LIBRE: f64 = 10_000_000.0;
+pub const RAFAGA_LECTOR: f64 = 0.25;
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum RevisionMonto {
+    Valido(f64),
+    Invalido,
+    Codigo,
+    ConfirmarTope(f64),
+}
+
+pub fn revisar_monto(texto: &str, rafaga: bool, tope_confirmado: bool) -> RevisionMonto {
+    let monto = parse_float(texto);
+    if rafaga && texto.len() >= 8 && texto.bytes().all(|b| b.is_ascii_digit()) {
+        return RevisionMonto::Codigo;
+    }
+    if !monto.is_finite() || monto <= 0.0 {
+        return RevisionMonto::Invalido;
+    }
+    let monto = redondear(monto, 2);
+    if monto <= 0.0 {
+        RevisionMonto::Invalido
+    } else if monto > TOPE_MONTO_LIBRE && !tope_confirmado {
+        RevisionMonto::ConfirmarTope(monto)
+    } else {
+        RevisionMonto::Valido(monto)
+    }
+}
+
 pub fn es_codigo_directo(valor: &str) -> bool {
     (8..=13).contains(&valor.len()) && valor.bytes().all(|b| b.is_ascii_digit())
 }
@@ -391,6 +420,20 @@ mod pruebas {
         let comun = ProductoDisponible::desde_backend(&serde_json::json!({ "id": 4, "nombre": "Papa", "precio": 1150 }));
         assert!(!comun.precio_libre);
         assert!(!comun.item(1.0, "Kg".into(), 1150.0, None, "Precio catálogo").precio_libre);
+    }
+
+    #[test]
+    fn el_monto_libre_rechaza_codigos_escaneados_y_pide_confirmar_montos_enormes() {
+        assert_eq!(revisar_monto("2500.556", false, false), RevisionMonto::Valido(2500.56));
+        assert_eq!(revisar_monto("7791234000010", true, false), RevisionMonto::Codigo);
+        assert_eq!(revisar_monto("7791234000010", false, false), RevisionMonto::ConfirmarTope(7791234000010.0));
+        assert_eq!(revisar_monto("7791234000010", false, true), RevisionMonto::Valido(7791234000010.0));
+        assert_eq!(revisar_monto("1500", true, false), RevisionMonto::Valido(1500.0));
+        assert_eq!(revisar_monto("12000000.50", true, false), RevisionMonto::ConfirmarTope(12000000.5));
+        assert_eq!(revisar_monto("10000000", false, false), RevisionMonto::Valido(10000000.0));
+        assert_eq!(revisar_monto("0", false, false), RevisionMonto::Invalido);
+        assert_eq!(revisar_monto("0.001", false, false), RevisionMonto::Invalido);
+        assert_eq!(revisar_monto("", false, false), RevisionMonto::Invalido);
     }
 
     #[test]

@@ -727,3 +727,24 @@ fn capturas_precio_libre() {
         h.render().expect("render").save(comun::carpeta_capturas().join(format!("12b-pos-precio-libre-{sufijo}.png"))).expect("guardar captura");
     }
 }
+
+#[test]
+fn monto_libre_no_acepta_un_escaneo_y_confirma_montos_altos() {
+    let mut h = arnes_precio_libre(global(POR_DEFECTO), [1200.0, 800.0], false);
+    escribir(&mut h, "varios");
+    tecla(&mut h, Key::Enter);
+    escribir(&mut h, "7791234000010");
+    tecla(&mut h, Key::Enter);
+    h.run_steps(3);
+    assert!(h.state_mut().pantallas().carrito.hay_dialogo());
+    assert!(h.state_mut().global().carritos.items().is_empty());
+    assert_eq!(toast::titulo_actual(&h.ctx).as_deref(), Some("Eso parece un código escaneado"));
+    escribir(&mut h, "15000000");
+    h.run_steps(10);
+    tecla(&mut h, Key::Enter);
+    assert!(h.state_mut().global().carritos.items().is_empty());
+    tecla(&mut h, Key::Enter);
+    h.run_steps(3);
+    let items = h.state_mut().global().carritos.items().to_vec();
+    assert_eq!((items.len(), items[0].price_per_unit), (1, 15_000_000.0));
+}

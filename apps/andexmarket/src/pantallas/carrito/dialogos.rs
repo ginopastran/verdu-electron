@@ -3,7 +3,7 @@ use nucleo::carrito::Producto;
 use serde_json::Value;
 
 use super::diseno::galeria_cortada;
-use super::productos::{self, monto, numero_js, parse_float, FilaLista, ProductoDisponible};
+use super::productos::{self, monto, numero_js, parse_float, revisar_monto, FilaLista, ProductoDisponible, RevisionMonto, RAFAGA_LECTOR};
 use super::vista::{kilos, pesos, precio_visual};
 use crate::app::Contexto;
 use crate::tareas::{self, Tarea};
@@ -466,6 +466,8 @@ pub struct DialogoMonto {
     destino: Option<DestinoMonto>,
     monto: String,
     enfocar: bool,
+    escribiendo_desde: Option<f64>,
+    tope_confirmado: Option<f64>,
 }
 
 impl DialogoMonto {
@@ -492,8 +494,11 @@ impl DialogoMonto {
         };
         let editando = matches!(destino, DestinoMonto::Editar { .. });
         let id = Id::new("monto-a-cobrar-campo");
+        let ahora = ui.input(|i| i.time);
+        let antes = self.monto.clone();
         let monto = parse_float(&self.monto);
         let valido = monto.is_finite() && monto > 0.0;
+        let tope = self.tope_confirmado.is_some();
         let respuesta = Modal::new("monto-a-cobrar", "Monto a cobrar").subtitulo(&nombre).icono("tag").ancho(440.0).mostrar(ui.ctx(), |ui| {
             v2::cuerpo_modal(ui, 20, |ui| {
                 etiqueta_campo(ui, "Precio a definir: ingresá el monto de este producto");
@@ -511,6 +516,10 @@ impl DialogoMonto {
                     self.monto = self.monto.replace(',', ".");
                 }
                 self.monto.retain(|c| c.is_ascii_digit() || c == '.');
+                if tope {
+                    ui.add_space(8.0);
+                    v2::texto(ui, format!("Es un monto muy alto ({}). Confirmá de nuevo para cargarlo.", pesos(monto)), tam::CHICO, Peso::Medio, color::ROJO);
+                }
                 if std::mem::take(&mut self.enfocar) || (campo.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter))) {
                     campo.request_focus();
                 }
@@ -518,7 +527,7 @@ impl DialogoMonto {
                 fila_subtotal(ui, valido.then_some(monto));
             });
             v2::pie_modal(ui, |ui| {
-                let texto = if editando { "Cambiar monto" } else { "Agregar a la orden" };
+                let texto = if tope { "Sí, cargar este monto" } else if editando { "Cambiar monto" } else { "Agregar a la orden" };
                 let confirmar = Boton::primario(texto)
                     .icono(if editando { "check" } else { "cart-plus" })
                     .color_icono(color::DORADO)
@@ -538,15 +547,42 @@ impl DialogoMonto {
             self.destino = None;
             return Salida::Cerrar;
         }
+        if self.monto != antes {
+            if antes.is_empty() {
+                self.escribiendo_desde = Some(ahora);
+            }
+            if self.tope_confirmado.is_some_and(|confirmado| confirmado != parse_float(&self.monto)) {
+                self.tope_confirmado = None;
+            }
+        }
+        if self.monto.is_empty() {
+            self.escribiendo_desde = None;
+        }
         let enter = !self.monto.is_empty() && ui.input(|i| i.key_pressed(Key::Enter));
         if !(confirmar || enter) {
             return Salida::Nada;
         }
-        if !valido {
-            toast::error(&cx.egui, "El monto debe ser mayor que cero");
-            self.enfocar = true;
-            return Salida::Nada;
-        }
+        let rafaga = enter && self.escribiendo_desde.is_some_and(|desde| ahora - desde < RAFAGA_LECTOR);
+        let monto = match revisar_monto(&self.monto, rafaga, tope) {
+            RevisionMonto::Valido(monto) => monto,
+            RevisionMonto::Invalido => {
+                toast::error(&cx.egui, "El monto debe ser mayor que cero");
+                self.enfocar = true;
+                return Salida::Nada;
+            }
+            RevisionMonto::Codigo => {
+                toast::con_detalle(&cx.egui, toast::Tipo::Error, "Eso parece un código escaneado", "Ingresá el monto a cobrar a mano");
+                self.monto.clear();
+                self.escribiendo_desde = None;
+                self.enfocar = true;
+                return Salida::Nada;
+            }
+            RevisionMonto::ConfirmarTope(monto) => {
+                self.tope_confirmado = Some(monto);
+                self.enfocar = true;
+                return Salida::Nada;
+            }
+        };
         match self.destino.take() {
             Some(DestinoMonto::Nuevo(producto)) => Salida::Agregar(producto.item_libre(monto)),
             Some(DestinoMonto::Editar { cart_id, .. }) => {
