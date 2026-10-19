@@ -336,7 +336,7 @@ impl Cobro {
                 self.afip.procesando = true;
                 let descuento = match (self.descuento, aplicando, porcentaje) {
                     (Some(desc), _, _) => Some(desc),
-                    (None, true, Some(p)) => Some(Descuento::porcentaje(p, 0.0)),
+                    (None, true, Some(p)) => Some(Descuento::porcentaje(p, redondear(original - cobrar, 2))),
                     _ => None,
                 };
                 let aviso = d.ctx.clone();

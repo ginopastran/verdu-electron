@@ -361,6 +361,66 @@ fn efectivo() {
 }
 
 #[test]
+fn exacto_con_descuento_efectivo() {
+    en_ambos(true, |e| {
+        e.h.state_mut().global.negocio.as_mut().unwrap()["descuentoEfectivo"] = json!(15);
+        let original = (e.h.state().global.carritos.total_con_iva(Some(true)) * 100.0).round() / 100.0;
+        let esperado = original - original * 15.0 / 100.0;
+        e.iniciar(AccionCobro::Pagar);
+        e.tecla(Key::Num3);
+        e.capturar("42b-modal-exacto");
+        e.tecla(Key::F5);
+        e.capturar("42c-modal-exacto-descuento");
+        e.escribir("50000");
+        e.tecla(Key::Enter);
+        e.esperar(|e| !e.pedidos("/api/ordenes").is_empty());
+        let cuerpo = &e.pedidos("/api/ordenes")[0];
+        assert!((cuerpo["total"].as_f64().unwrap() - esperado).abs() < 0.01, "{cuerpo}");
+        assert_eq!(cuerpo["tieneDescuento"], true, "{cuerpo}");
+        assert_eq!(cuerpo["valorDescuento"], 15.0);
+        assert!((cuerpo["montoDescuento"].as_f64().unwrap() - (original - esperado)).abs() < 0.01, "{cuerpo}");
+        e.esperar(|e| !e.h.state().cobro.ocupado());
+    });
+}
+
+#[test]
+fn exacto_afip_con_descuento_efectivo() {
+    let mut e = harness(true, TAMANOS[1]);
+    e.h.state_mut().global.negocio.as_mut().unwrap()["descuentoEfectivo"] = json!(15);
+    let original = (e.h.state().global.carritos.total_con_iva(Some(true)) * 100.0).round() / 100.0;
+    let esperado = original - original * 15.0 / 100.0;
+    e.iniciar(AccionCobro::PagarAfip);
+    e.tecla(Key::Num3);
+    e.tecla(Key::F5);
+    e.escribir("50000");
+    e.tecla(Key::Enter);
+    e.esperar(|e| !e.pedidos("/api/facturas/crear-afip").is_empty());
+    let cuerpo = &e.pedidos("/api/facturas/crear-afip")[0];
+    assert!((cuerpo["total"].as_f64().unwrap() - esperado).abs() < 0.01, "{cuerpo}");
+    assert_eq!(cuerpo["tieneDescuento"], true, "{cuerpo}");
+    assert_eq!(cuerpo["valorDescuento"], 15.0);
+    assert!((cuerpo["montoDescuento"].as_f64().unwrap() - (original - esperado)).abs() < 0.01, "{cuerpo}");
+    e.esperar(|e| !e.h.state().cobro.ocupado());
+}
+
+#[test]
+fn exacto_respeta_el_minimo_del_descuento_efectivo() {
+    let mut e = harness(true, TAMANOS[1]);
+    e.h.state_mut().global.negocio.as_mut().unwrap()["descuentoEfectivo"] = json!(15);
+    e.h.state_mut().global.negocio.as_mut().unwrap()["descuentoEfectivoMinimo"] = json!(1_000_000);
+    e.iniciar(AccionCobro::Pagar);
+    e.tecla(Key::Num3);
+    e.tecla(Key::F5);
+    e.capturar("42d-modal-exacto-minimo");
+    e.escribir("50000");
+    e.tecla(Key::Enter);
+    e.esperar(|e| !e.pedidos("/api/ordenes").is_empty());
+    let cuerpo = &e.pedidos("/api/ordenes")[0];
+    assert_eq!(cuerpo["tieneDescuento"], false, "{cuerpo}");
+    e.esperar(|e| !e.h.state().cobro.ocupado());
+}
+
+#[test]
 fn mixto() {
     en_ambos(false, |e| {
         e.iniciar(AccionCobro::Pagar);

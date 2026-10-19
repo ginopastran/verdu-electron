@@ -677,10 +677,15 @@ impl Cobro {
         let ctx = cx.egui.clone();
         let subtotal = cx.global.carritos.total();
         let descuento = self.descuento;
+        let porcentaje = cx.global.negocio.as_ref().and_then(cobros::descuento_efectivo);
+        let minimo = cx.global.negocio.as_ref().and_then(cobros::minimo_descuento_efectivo);
         let p = self.proc_mut(lado);
         let cargando = p.procesando;
         let Some(e) = p.efectivo.as_mut() else { return };
-        let total = e.cobrar;
+        let (total, original, aplicando) = (e.cobrar, e.original, e.aplicando);
+        let alcanza = minimo.is_none_or(|m| original >= m);
+        let ofrecer_descuento = !aplicando && descuento.is_none();
+        let mut aplicar_d = tope && !cargando && ofrecer_descuento && alcanza && ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::F5));
         let mut confirmar = false;
         let mut cancelar = false;
         let r = v2::Modal::new(("cobro-exacto", lado == Lado::Afip), "Cobro en efectivo")
@@ -695,6 +700,12 @@ impl Cobro {
                             ui.add_space(8.0);
                             let etiqueta = format!("Descuento ({})", d.etiqueta());
                             fila(ui, t(&etiqueta, tam::CUERPO, Peso::Normal, color::VERDE_EXITO), t(&dinero(-d.monto), tam::CUERPO, Peso::Normal, color::VERDE_EXITO));
+                            ui.add_space(8.0);
+                        } else if aplicando && total < original {
+                            fila(ui, t("Subtotal", tam::CUERPO, Peso::Normal, color::TEXTO_APAGADO), t(&dinero(original), tam::CUERPO, Peso::Normal, color::TEXTO));
+                            ui.add_space(8.0);
+                            let etiqueta = format!("Descuento efectivo ({}%)", formato::numero(porcentaje.unwrap_or(0.0)));
+                            fila(ui, t(&etiqueta, tam::CUERPO, Peso::Normal, color::VERDE_EXITO), t(&dinero(total - original), tam::CUERPO, Peso::Normal, color::VERDE_EXITO));
                             ui.add_space(8.0);
                         }
                         fila(ui, t("Total a pagar", tam::ENTRADA, Peso::Medio, color::TEXTO), t(&dinero(total), tam::MONTO_MEDIO, Peso::Semi, color::VERDE).espaciado(-0.02));
@@ -727,14 +738,32 @@ impl Cobro {
                 if tope && habilitado && enter(&ctx) {
                     confirmar = true;
                 }
-                pie(ui, 20, 22, |ui| {
-                    let texto = if cargando { "Registrando…" } else { "Confirmar cobro" };
-                    confirmar |= boton(texto, Estilo::Primario).tecla("Enter").cargando(cargando).habilitado(habilitado || cargando).ui(ui).clicked();
-                    cancelar = boton("Cancelar", Estilo::Secundario).habilitado(!cargando).ui(ui).clicked();
-                });
+                let texto = if cargando { "Registrando…" } else { "Confirmar cobro" };
+                if ofrecer_descuento {
+                    pie(ui, 20, 0, |ui| {
+                        let etiqueta = match minimo.filter(|_| !alcanza) {
+                            Some(m) => format!("Desde {}", dinero(m)),
+                            None => porcentaje.map_or("Descuento efectivo".to_string(), |p| format!("Descuento efectivo {}%", formato::numero(p))),
+                        };
+                        aplicar_d |= boton(etiqueta, Estilo::Dorado).tecla("F5").relleno(14.0).habilitado(!cargando && alcanza).ui(ui).clicked();
+                        cancelar = boton("Cancelar", Estilo::Secundario).habilitado(!cargando).ui(ui).clicked();
+                    });
+                    pie(ui, 10, 22, |ui| {
+                        confirmar |= boton(texto, Estilo::Primario).tecla("Enter").cargando(cargando).habilitado(habilitado || cargando).ui(ui).clicked();
+                    });
+                } else {
+                    pie(ui, 20, 22, |ui| {
+                        confirmar |= boton(texto, Estilo::Primario).tecla("Enter").cargando(cargando).habilitado(habilitado || cargando).ui(ui).clicked();
+                        cancelar = boton("Cancelar", Estilo::Secundario).habilitado(!cargando).ui(ui).clicked();
+                    });
+                }
             });
         if r.cerrar || cancelar {
             self.cerrar_efectivo(lado);
+            return;
+        }
+        if aplicar_d {
+            self.aplicar_descuento_efectivo(cx, lado);
             return;
         }
         if confirmar {
