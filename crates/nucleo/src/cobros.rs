@@ -178,7 +178,7 @@ pub fn montos_efectivo(total: f64, descuento: Option<&Descuento>, descuento_efec
         (None, None) => original,
     };
     if pago_exacto {
-        (original, final_)
+        (original, redondear(final_, 2))
     } else {
         (original, redondear_a_50(final_))
     }
@@ -865,6 +865,9 @@ mod pruebas {
         assert!((f - 20204.55).abs() < 1e-9);
         let fijo_ = Descuento::fijo(1500.0, 1500.0);
         assert_eq!(montos_efectivo(22449.5, Some(&fijo_), None, false), (22449.5, 20900.0));
+        assert_eq!(montos_efectivo(1234.57, None, Some(10.0), true), (1234.57, 1111.11));
+        assert_eq!(montos_efectivo(1234.57, Some(&Descuento::porcentaje(10.0, 0.0)), None, true), (1234.57, 1111.11));
+        assert_eq!(validar_pago_exacto("1111.11", montos_efectivo(1234.57, None, Some(10.0), true).1), Ok(1111.11));
         assert_eq!(descuento_efectivo(&json!({ "descuentoEfectivo": 10 })), Some(10.0));
         assert_eq!(descuento_efectivo(&json!({ "descuentoEfectivo": "5" })), Some(5.0));
         assert_eq!(descuento_efectivo(&json!({ "descuentoEfectivo": 0 })), None);
