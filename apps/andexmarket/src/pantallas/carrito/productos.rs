@@ -21,7 +21,107 @@ pub struct ProductoDisponible {
     pub foto: Option<String>,
     pub precio_libre: bool,
     pub alias: Vec<String>,
+    pub listas: ListasConfig,
     pub busqueda: ItemBusqueda,
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct ListasConfig {
+    pub configurada: bool,
+    pub habilitadas: Vec<i64>,
+    pub predeterminada_id: Option<i64>,
+    pub predeterminada_nombre: Option<String>,
+    pub predeterminada: Option<FilaLista>,
+}
+
+impl ListasConfig {
+    pub fn desde_backend(valor: &Value) -> Self {
+        if !valor["configurada"].as_bool().unwrap_or(false) {
+            return ListasConfig::default();
+        }
+        let pred = &valor["predeterminada"];
+        let id = pred["id"].as_i64();
+        let nombre = pred["nombre"].as_str().map(str::to_string);
+        let precio = numero(&pred["precio"]);
+        let disponible = pred["disponible"].as_bool().unwrap_or(false) && precio > 0.0;
+        ListasConfig {
+            configurada: true,
+            habilitadas: valor["habilitadas"].as_array().into_iter().flatten().filter_map(Value::as_i64).collect(),
+            predeterminada_id: id,
+            predeterminada_nombre: nombre.clone(),
+            predeterminada: id.filter(|_| disponible).map(|id| FilaLista {
+                lista_precio_id: id,
+                precio,
+                nombre_lista: nombre.unwrap_or_else(|| format!("Lista #{id}")),
+                tipo_medida: pred["tipoMedida"].as_str().filter(|t| !t.is_empty()).map(str::to_string),
+                contenido: pred["contenido"].as_f64().filter(|c| *c > 0.0),
+            }),
+        }
+    }
+
+    pub fn filas_visibles(&self, filas: Vec<FilaLista>) -> Vec<FilaLista> {
+        if !self.configurada {
+            return filas;
+        }
+        let mut visibles: Vec<FilaLista> = self
+            .habilitadas
+            .iter()
+            .filter_map(|id| filas.iter().find(|f| f.lista_precio_id == *id).cloned())
+            .filter(|f| f.precio > 0.0)
+            .collect();
+        if visibles.is_empty() {
+            visibles.extend(self.predeterminada.clone());
+        }
+        visibles
+    }
+
+    pub fn elegida_inicial(&self, filas: &[FilaLista]) -> Option<i64> {
+        self.predeterminada_id.filter(|id| self.configurada && filas.iter().any(|f| f.lista_precio_id == *id))
+    }
+
+    pub fn aviso_sin_predeterminada(&self, filas: &[FilaLista]) -> Option<String> {
+        if !self.configurada || self.elegida_inicial(filas).is_some() {
+            return None;
+        }
+        let nombre = self.predeterminada_nombre.clone().unwrap_or_else(|| "la lista predeterminada".into());
+        Some(if filas.is_empty() {
+            format!("Este producto no tiene precio en {nombre} ni en otra lista de su categoría. Cargalo en Productos para poder venderlo.")
+        } else {
+            format!("Este producto no tiene precio en {nombre}. Elegí otra lista para venderlo.")
+        })
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum Escaneo {
+    Base,
+    Directo(FilaLista),
+    Elegir,
+}
+
+pub fn decidir_escaneo(producto: &ProductoDisponible, pesado: bool, popup: bool) -> Escaneo {
+    if !producto.listas.configurada {
+        return Escaneo::Base;
+    }
+    match &producto.listas.predeterminada {
+        Some(fila) if !popup && es_kg(&medida_de(Some(fila), producto)) == pesado => Escaneo::Directo(fila.clone()),
+        _ => Escaneo::Elegir,
+    }
+}
+
+pub fn es_kg(medida: &str) -> bool {
+    medida.eq_ignore_ascii_case("kg")
+}
+
+pub fn medida_de(fila: Option<&FilaLista>, producto: &ProductoDisponible) -> String {
+    fila.and_then(|f| f.tipo_medida.clone()).filter(|t| !t.is_empty()).unwrap_or_else(|| producto.unidad_o_defecto())
+}
+
+pub fn descuenta_stock(fila: Option<&FilaLista>, producto: &ProductoDisponible) -> bool {
+    match fila {
+        None => true,
+        Some(f) => f.contenido.is_some_and(|c| c > 0.0) || es_kg(&medida_de(Some(f), producto)) == es_kg(&producto.unidad_o_defecto()),
+    }
 }
 
 impl AsRef<ItemBusqueda> for ProductoDisponible {
@@ -36,6 +136,7 @@ pub struct FilaLista {
     pub precio: f64,
     pub nombre_lista: String,
     pub tipo_medida: Option<String>,
+    pub contenido: Option<f64>,
 }
 
 fn numero(valor: &Value) -> f64 {
@@ -72,6 +173,7 @@ impl ProductoDisponible {
             foto: p["fotoActualizadaEn"].as_str().filter(|f| !f.is_empty()).map(str::to_string),
             precio_libre: p["precioLibre"].as_bool().unwrap_or(false),
             alias: p["alias"].as_array().into_iter().flatten().filter_map(|a| a.as_str().map(str::to_string)).collect(),
+            listas: ListasConfig::desde_backend(&p["listasConfig"]),
             busqueda: ItemBusqueda::default(),
         };
         producto.indexado()
@@ -206,6 +308,7 @@ pub fn listas_de_precios(api: &Cliente, producto: i64) -> Option<Vec<FilaLista>>
                     precio: numero(&x["precio"]),
                     nombre_lista: x["listaPrecio"]["nombre"].as_str().map(str::to_string).unwrap_or_else(|| format!("Lista #{id}")),
                     tipo_medida: x["listaPrecio"]["tipoMedida"].as_str().or(x["tipoMedida"].as_str()).map(str::to_string),
+                    contenido: x["contenido"].as_f64().filter(|c| *c > 0.0),
                 }
             })
             .collect(),
@@ -353,6 +456,89 @@ mod pruebas {
             producto(20, "Ananá", None, Some("7791234500026")),
             producto(13, "Batata", Some("013"), None),
         ]
+    }
+
+    fn fila(id: i64, nombre: &str, precio: f64, medida: &str) -> FilaLista {
+        FilaLista { lista_precio_id: id, precio, nombre_lista: nombre.into(), tipo_medida: Some(medida.into()), contenido: None }
+    }
+
+    fn alimento(disponible: bool) -> ProductoDisponible {
+        ProductoDisponible::desde_backend(&serde_json::json!({
+            "id": 3145, "nombre": "COMPLETE GATITO BEBE", "precio": 5320, "tipoMedida": "Kg", "plu": "237",
+            "listasConfig": {
+                "configurada": true,
+                "habilitadas": [11, 12],
+                "predeterminada": { "id": 11, "nombre": "Suelto KG", "precio": 6489.15, "tipoMedida": "Kg", "contenido": null, "disponible": disponible }
+            }
+        }))
+    }
+
+    fn farmaco() -> ProductoDisponible {
+        ProductoDisponible::desde_backend(&serde_json::json!({
+            "id": 3636, "nombre": "APOQUEL 3.6 MG", "precio": 24111.45, "tipoMedida": "Unidad",
+            "listasConfig": {
+                "configurada": true,
+                "habilitadas": [14, 13],
+                "predeterminada": { "id": 14, "nombre": "Blister", "precio": 16663.5, "tipoMedida": "Unidad", "disponible": true }
+            }
+        }))
+    }
+
+    #[test]
+    fn la_categoria_muestra_solo_sus_listas_en_orden_y_elige_la_predeterminada() {
+        let p = farmaco();
+        let filas = p.listas.filas_visibles(vec![fila(13, "Caja", 33327.0, "Unidad"), fila(12, "Bolsa", 9.0, "Unidad"), fila(14, "Blister", 16663.5, "Unidad")]);
+        assert_eq!(filas.iter().map(|f| f.nombre_lista.as_str()).collect::<Vec<_>>(), ["Blister", "Caja"]);
+        assert_eq!(p.listas.elegida_inicial(&filas), Some(14));
+        assert_eq!(p.listas.aviso_sin_predeterminada(&filas), None);
+    }
+
+    #[test]
+    fn sin_configurar_conserva_el_precio_base_y_todas_las_listas() {
+        let p = producto(1, "Tomate", None, None);
+        let filas = p.listas.filas_visibles(vec![fila(1, "Mayorista", 900.0, "Kg")]);
+        assert_eq!(filas.len(), 1);
+        assert_eq!(p.listas.elegida_inicial(&filas), None);
+        assert_eq!(decidir_escaneo(&p, false, false), Escaneo::Base);
+    }
+
+    #[test]
+    fn sin_precio_en_la_predeterminada_pide_elegir_otra_lista() {
+        let p = alimento(false);
+        assert_eq!(p.listas.predeterminada, None);
+        let filas = p.listas.filas_visibles(vec![fila(12, "Bolsa", 97337.24, "Unidad")]);
+        assert_eq!(p.listas.elegida_inicial(&filas), None);
+        assert!(p.listas.aviso_sin_predeterminada(&filas).unwrap().contains("Suelto KG"));
+        assert_eq!(decidir_escaneo(&p, true, false), Escaneo::Elegir);
+    }
+
+    #[test]
+    fn sin_conexion_queda_la_predeterminada_del_listado() {
+        let p = alimento(true);
+        let filas = p.listas.filas_visibles(Vec::new());
+        assert_eq!(filas.len(), 1);
+        assert_eq!(filas[0].precio, 6489.15);
+    }
+
+    #[test]
+    fn el_escaneo_usa_la_predeterminada_solo_si_la_medida_coincide() {
+        let suelto = alimento(true);
+        assert!(matches!(decidir_escaneo(&suelto, true, false), Escaneo::Directo(f) if f.lista_precio_id == 11));
+        assert_eq!(decidir_escaneo(&suelto, false, false), Escaneo::Elegir);
+        assert_eq!(decidir_escaneo(&suelto, true, true), Escaneo::Elegir);
+        let blister = farmaco();
+        assert!(matches!(decidir_escaneo(&blister, false, false), Escaneo::Directo(f) if f.precio == 16663.5));
+        assert_eq!(decidir_escaneo(&blister, true, false), Escaneo::Elegir);
+    }
+
+    #[test]
+    fn una_lista_de_otra_medida_sin_contenido_no_descuenta_stock() {
+        let p = alimento(true);
+        let bolsa = fila(12, "Bolsa", 97337.24, "Unidad");
+        assert!(!descuenta_stock(Some(&bolsa), &p));
+        assert!(descuenta_stock(Some(&FilaLista { contenido: Some(15.0), ..bolsa }), &p));
+        assert!(descuenta_stock(Some(&fila(11, "Suelto KG", 6489.15, "Kg")), &p));
+        assert!(descuenta_stock(None, &p));
     }
 
     #[test]

@@ -181,6 +181,30 @@ fn pie(ui: &mut Ui, habilitado: bool, agregando: bool) -> (bool, bool) {
     })
 }
 
+fn aviso(ui: &mut Ui, contenido: &str) {
+    v2::parrafo(ui, contenido, tam::CHICO, color::DORADO_TEXTO, 1.4, ui.available_width());
+    ui.add_space(12.0);
+}
+
+fn indice_elegido(filas: &[FilaLista], lista: Option<i64>, con_base: bool) -> usize {
+    match lista.and_then(|id| filas.iter().position(|f| f.lista_precio_id == id)) {
+        Some(i) => i + usize::from(con_base),
+        None if con_base => 0,
+        None => usize::MAX,
+    }
+}
+
+fn lista_de_indice(filas: &[FilaLista], indice: usize, con_base: bool) -> Option<i64> {
+    indice.checked_sub(usize::from(con_base)).and_then(|i| filas.get(i)).map(|f| f.lista_precio_id)
+}
+
+fn aviso_stock(fila: Option<&FilaLista>, producto: &ProductoDisponible) -> Option<String> {
+    let fila = fila?;
+    (!productos::descuenta_stock(Some(fila), producto)).then(|| {
+        format!("{} no tiene equivalencia de stock cargada para este producto: esta venta no descuenta stock.", fila.nombre_lista)
+    })
+}
+
 fn por_medida(medida: &str) -> &'static str {
     if medida == "Kg" {
         "por kilo"
@@ -207,6 +231,7 @@ pub struct DialogoAgregar {
     lista: Option<i64>,
     agregando_hasta: Option<f64>,
     enfocar: bool,
+    era_peso: Option<bool>,
 }
 
 impl DialogoAgregar {
@@ -238,9 +263,8 @@ impl DialogoAgregar {
         let negocio = cx.global.negocio.clone();
         let negocio = negocio.as_ref();
         if let Some(resultado) = tareas::esperar(&mut self.tarea) {
-            self.filas = resultado.unwrap_or_default();
-            let por_defecto = negocio.and_then(|n| n["listaPrecioPorDefectoId"].as_i64());
-            self.lista = por_defecto.filter(|id| self.filas.iter().any(|f| f.lista_precio_id == *id));
+            self.filas = producto.listas.filas_visibles(resultado.unwrap_or_default());
+            self.lista = producto.listas.elegida_inicial(&self.filas);
         }
         let ahora = ui.input(|i| i.time);
         if self.agregando_hasta.is_some_and(|hasta| ahora >= hasta) {
@@ -250,13 +274,19 @@ impl DialogoAgregar {
         let cargando = self.tarea.is_some();
         let etiqueta = etiqueta_base(negocio);
         let fila = self.fila().cloned();
+        let con_base = !producto.listas.configurada;
+        let sin_lista = !con_base && fila.is_none();
         let precio_base = producto.precio_venta(chrono::Utc::now());
         let precio = fila.as_ref().map_or(precio_base, |f| f.precio);
-        let medida = match &fila {
-            Some(f) => f.tipo_medida.clone().filter(|t| !t.is_empty()).unwrap_or_else(|| producto.unidad_o_defecto()),
-            None => producto.unidad_o_defecto(),
-        };
-        let es_peso = medida == "Kg";
+        let medida = productos::medida_de(fila.as_ref(), &producto);
+        let es_peso = productos::es_kg(&medida);
+        if self.era_peso.is_some_and(|antes| antes != es_peso) {
+            self.cantidad.clear();
+            self.enfocar = true;
+        }
+        self.era_peso = Some(es_peso);
+        let aviso_lista = if cargando || !sin_lista { None } else { producto.listas.aviso_sin_predeterminada(&self.filas) };
+        let aviso_stock = aviso_stock(fila.as_ref(), &producto);
         let visual = |unitario: f64| precio_visual(unitario, producto.iva_incluido, producto.iva_porcentaje, negocio);
         let permiso_manual = cx.global.usuario.as_ref().is_some_and(|u| u["permisos"]["pesoManualEnabled"] == Value::Bool(true));
         let id_cantidad = Id::new("agregar-producto-cantidad");
@@ -269,11 +299,11 @@ impl DialogoAgregar {
         } else {
             parse_float(&self.cantidad)
         };
-        let subtotal = (cantidad_vista > 0.0).then(|| visual(precio) * cantidad_vista);
-        let mut opciones = vec![(etiqueta.clone(), pesos(visual(precio_base)))];
+        let subtotal = (cantidad_vista > 0.0 && !sin_lista).then(|| visual(precio) * cantidad_vista);
+        let mut opciones = if con_base { vec![(etiqueta.clone(), pesos(visual(precio_base)))] } else { Vec::new() };
         opciones.extend(self.filas.iter().map(|f| (f.nombre_lista.clone(), pesos(visual(f.precio)))));
-        let elegida = self.lista.and_then(|id| self.filas.iter().position(|f| f.lista_precio_id == id)).map_or(0, |i| i + 1);
-        let subtitulo = subtitulo(&producto, visual(precio), &medida);
+        let elegida = indice_elegido(&self.filas, self.lista, con_base);
+        let subtitulo = if sin_lista { "Elegí una lista de precios".to_string() } else { subtitulo(&producto, visual(precio), &medida) };
         let mut agregar = false;
         let respuesta = Modal::new("agregar-producto", &producto.nombre).subtitulo(&subtitulo).icono("cart-plus").ancho(520.0).mostrar(ui.ctx(), |ui| {
             v2::cuerpo_modal(ui, 20, |ui| {
@@ -286,9 +316,12 @@ impl DialogoAgregar {
                     etiqueta_campo(ui, "Lista de precios");
                     ui.add_space(8.0);
                     if let Some(indice) = tarjetas_listas(ui, &opciones, elegida) {
-                        self.lista = indice.checked_sub(1).map(|i| self.filas[i].lista_precio_id);
+                        self.lista = lista_de_indice(&self.filas, indice, con_base);
                     }
                     ui.add_space(16.0);
+                }
+                if let Some(texto) = aviso_lista.as_deref().or(aviso_stock.as_deref()) {
+                    aviso(ui, texto);
                 }
                 if es_peso && permiso_manual {
                     interruptor(ui, &mut self.peso_manual, "Ingresar peso manualmente");
@@ -312,7 +345,7 @@ impl DialogoAgregar {
                 ui.add_space(16.0);
                 fila_subtotal(ui, subtotal);
             });
-            let (clic_agregar, clic_cancelar) = pie(ui, !agregando && !cargando, agregando);
+            let (clic_agregar, clic_cancelar) = pie(ui, !agregando && !cargando && !sin_lista, agregando);
             agregar = clic_agregar;
             clic_cancelar
         });
@@ -324,7 +357,7 @@ impl DialogoAgregar {
         if enter && !agregando && !cargando && ((es_peso && !self.peso_manual) || !self.cantidad.is_empty()) {
             agregar = true;
         }
-        if !agregar || agregando || cargando {
+        if !agregar || agregando || cargando || sin_lista {
             return Salida::Nada;
         }
         self.agregando_hasta = Some(ahora + 0.5);
@@ -367,11 +400,12 @@ impl DialogoEscanear {
         self.datos.is_some()
     }
 
-    pub fn abrir(&mut self, producto: ProductoDisponible, filas: Vec<FilaLista>, cantidad: f64, negocio: Option<&Value>) {
-        let por_defecto = negocio.and_then(|n| n["listaPrecioPorDefectoId"].as_i64());
-        self.lista = por_defecto
-            .filter(|id| filas.iter().any(|f| f.lista_precio_id == *id))
-            .or(filas.first().map(|f| f.lista_precio_id));
+    pub fn abrir(&mut self, producto: ProductoDisponible, filas: Vec<FilaLista>, cantidad: f64) {
+        self.lista = if producto.listas.configurada {
+            producto.listas.elegida_inicial(&filas)
+        } else {
+            filas.first().map(|f| f.lista_precio_id)
+        };
         self.datos = Some((producto, filas, cantidad));
         self.cantidad.clear();
         self.era_peso = None;
@@ -386,10 +420,14 @@ impl DialogoEscanear {
         let etiqueta = etiqueta_base(negocio);
         let medida_producto = producto.unidad_o_defecto();
         let fila = self.lista.and_then(|id| filas.iter().find(|f| f.lista_precio_id == id)).cloned();
+        let con_base = !producto.listas.configurada;
+        let sin_lista = !con_base && fila.is_none();
         let precio_base = producto.precio_venta(chrono::Utc::now());
         let precio = fila.as_ref().map_or(precio_base, |f| f.precio);
-        let medida = fila.as_ref().and_then(|f| f.tipo_medida.clone()).filter(|t| !t.is_empty()).unwrap_or_else(|| medida_producto.clone());
-        let es_peso = medida == "Kg";
+        let medida = productos::medida_de(fila.as_ref(), &producto);
+        let es_peso = productos::es_kg(&medida);
+        let aviso_lista = if sin_lista { producto.listas.aviso_sin_predeterminada(&filas) } else { None };
+        let aviso_stock = aviso_stock(fila.as_ref(), &producto);
         if self.era_peso != Some(es_peso) {
             let base = if cantidad_inicial > 0.0 { cantidad_inicial } else { 1.0 };
             self.cantidad = if es_peso { numero_js((base * 1000.0).round()) } else { numero_js(base) };
@@ -407,23 +445,26 @@ impl DialogoEscanear {
             }
         };
         let unidad = |m: &str| if m == "Kg" { " /kg" } else { " /u" };
-        let mut opciones = vec![(etiqueta.clone(), format!("{}{}", pesos(visual(precio_base)), unidad(&medida_producto)))];
+        let mut opciones = if con_base { vec![(etiqueta.clone(), format!("{}{}", pesos(visual(precio_base)), unidad(&medida_producto)))] } else { Vec::new() };
         opciones.extend(filas.iter().map(|f| {
-            let medida_fila = f.tipo_medida.clone().filter(|t| !t.is_empty()).unwrap_or_else(|| medida_producto.clone());
+            let medida_fila = productos::medida_de(Some(f), &producto);
             (f.nombre_lista.clone(), format!("${}{}", monto(visual(f.precio)), unidad(&medida_fila)))
         }));
-        let elegida = self.lista.and_then(|id| filas.iter().position(|f| f.lista_precio_id == id)).map_or(0, |i| i + 1);
-        let subtitulo = format!("{} · {}", producto.nombre, subtitulo(&producto, visual(precio), &medida));
-        let subtotal = (cantidad_final > 0.0).then(|| visual(precio) * cantidad_final);
+        let elegida = indice_elegido(&filas, self.lista, con_base);
+        let subtitulo = if sin_lista { producto.nombre.clone() } else { format!("{} · {}", producto.nombre, subtitulo(&producto, visual(precio), &medida)) };
+        let subtotal = (cantidad_final > 0.0 && !sin_lista).then(|| visual(precio) * cantidad_final);
         let mut confirmar = false;
         let respuesta = Modal::new("escanear-lista", "Elegí la lista de precios").subtitulo(&subtitulo).icono("tag").ancho(520.0).mostrar(ui.ctx(), |ui| {
             v2::cuerpo_modal(ui, 20, |ui| {
                 etiqueta_campo(ui, "Lista de precios");
                 ui.add_space(8.0);
                 if let Some(indice) = tarjetas_listas(ui, &opciones, elegida) {
-                    self.lista = indice.checked_sub(1).map(|i| filas[i].lista_precio_id);
+                    self.lista = lista_de_indice(&filas, indice, con_base);
                 }
                 ui.add_space(16.0);
+                if let Some(texto) = aviso_lista.as_deref().or(aviso_stock.as_deref()) {
+                    aviso(ui, texto);
+                }
                 etiqueta_campo(ui, if es_peso { "Peso en gramos" } else { "Unidades" });
                 ui.add_space(6.0);
                 let id_cantidad = Id::new("escanear-lista-cantidad");
@@ -435,7 +476,7 @@ impl DialogoEscanear {
                 ui.add_space(16.0);
                 fila_subtotal(ui, subtotal);
             });
-            let (agregar, cancelar) = pie(ui, cantidad_final > 0.0, false);
+            let (agregar, cancelar) = pie(ui, cantidad_final > 0.0 && !sin_lista, false);
             confirmar = agregar;
             cancelar
         });
@@ -446,7 +487,7 @@ impl DialogoEscanear {
         if ui.input(|i| i.key_pressed(Key::Enter)) {
             confirmar = true;
         }
-        if !confirmar || cantidad_final <= 0.0 {
+        if !confirmar || cantidad_final <= 0.0 || sin_lista {
             return Salida::Nada;
         }
         let lista = fila.as_ref().map(|f| (f.lista_precio_id, Some(f.nombre_lista.clone())));

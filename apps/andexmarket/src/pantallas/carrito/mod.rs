@@ -127,7 +127,7 @@ impl Carrito {
         }
     }
 
-    fn agregar_escaneado(&mut self, producto: ProductoDisponible, cantidad: f64, cx: &mut Contexto) {
+    fn agregar_escaneado(&mut self, producto: ProductoDisponible, cantidad: f64, pesado: bool, cx: &mut Contexto) {
         if self.tarea_escaneo.is_some() {
             return;
         }
@@ -141,7 +141,23 @@ impl Carrito {
             self.monto.abrir(producto);
             return;
         }
-        if cx.global.negocio_bool("popupListaPreciosEnabled") {
+        let popup = cx.global.negocio_bool("popupListaPreciosEnabled");
+        match productos::decidir_escaneo(&producto, pesado, popup) {
+            productos::Escaneo::Directo(fila) => {
+                let medida = productos::medida_de(Some(&fila), &producto);
+                let item = producto.item(cantidad, medida, fila.precio, Some((fila.lista_precio_id, Some(fila.nombre_lista.clone()))), "");
+                self.agregar_item(item, cx);
+                self.busqueda.limpiar();
+                self.enfocar = CUADROS_ENFOQUE;
+                return;
+            }
+            productos::Escaneo::Elegir if !pesado => {
+                self.agregar.abrir(producto, cx);
+                return;
+            }
+            productos::Escaneo::Elegir | productos::Escaneo::Base => {}
+        }
+        if popup || producto.listas.configurada {
             let api = cx.servicios.api.clone();
             self.tarea_escaneo = Some(Tarea::lanzar(&cx.egui, move || {
                 let filas = productos::listas_de_precios(&api, producto.id).filter(|f| !f.is_empty());
@@ -200,8 +216,13 @@ impl Carrito {
         let _ = tareas::esperar(&mut self.tarea_logo);
         self.fotos.recibir(&cx.egui);
         if let Some((producto, cantidad, filas)) = tareas::esperar(&mut self.tarea_escaneo) {
+            let filas = if producto.listas.configurada { Some(producto.listas.filas_visibles(filas.unwrap_or_default())) } else { filas };
+            let filas = filas.filter(|f| !f.is_empty());
             match filas {
-                Some(filas) => self.escanear.abrir(producto, filas, cantidad, cx.global.negocio.as_ref()),
+                Some(filas) => self.escanear.abrir(producto, filas, cantidad),
+                None if producto.listas.configurada => {
+                    toast::error(&cx.egui, &producto.listas.aviso_sin_predeterminada(&[]).unwrap_or_default());
+                }
                 None => self.agregar_directo(&producto, cantidad, cx),
             }
         }
@@ -380,7 +401,8 @@ impl Carrito {
     fn procesar_codigo(&mut self, codigo: &str, cx: &mut Contexto) {
         if let Some((indice, cantidad)) = productos::interpretar_codigo(codigo, &self.productos) {
             let producto = self.productos[indice].clone();
-            self.agregar_escaneado(producto, cantidad, cx);
+            let pesado = producto.codigo_barras.as_deref() != Some(codigo);
+            self.agregar_escaneado(producto, cantidad, pesado, cx);
             self.busqueda.limpiar();
         } else if codigo.len() >= 8 && codigo.bytes().all(|b| b.is_ascii_digit()) && codigo == self.busqueda.consulta.trim() {
             self.busqueda.no_encontrado = true;
@@ -392,7 +414,7 @@ impl Carrito {
         let valor = self.busqueda.consulta.clone();
         if productos::es_codigo_directo(&valor) {
             if let Some(producto) = self.productos.iter().find(|p| p.codigo_barras.as_deref() == Some(valor.as_str())).cloned() {
-                self.agregar_escaneado(producto, 1.0, cx);
+                self.agregar_escaneado(producto, 1.0, false, cx);
                 self.busqueda.limpiar();
             }
         }

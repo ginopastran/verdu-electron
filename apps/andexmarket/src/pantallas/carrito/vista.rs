@@ -462,8 +462,7 @@ pub struct Fila {
 pub fn fila_de_item(item: &Producto, negocio: Option<&Value>) -> Fila {
     let unitario = precio_visual(item.price_per_unit, item.iva_incluido, item.iva_porcentaje, negocio);
     let por_kilo = item.unit == "Kg";
-    let lista_por_defecto = negocio.and_then(|n| n["listaPrecioPorDefectoId"].as_i64());
-    let lista = item.lista_precio_id.filter(|id| Some(*id) != lista_por_defecto).map(|id| {
+    let lista = item.lista_precio_id.map(|id| {
         let nombre = item.lista_precio_nombre.as_deref().map(str::trim).filter(|n| !n.is_empty());
         nombre.map(str::to_string).unwrap_or_else(|| format!("Lista #{id}"))
     });
