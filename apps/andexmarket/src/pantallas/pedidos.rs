@@ -308,36 +308,36 @@ impl DialogoPedidos {
 
 fn cargando_transacciones(ui: &mut Ui) {
     let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 280.0), Sense::hover());
-    let g = v2::galeria(ui, "Cargando transacciones…", fuente(tam::CUERPO, Peso::Normal), color::VERDE);
+    let g = v2::galeria(ui, "Cargando transacciones…", fuente(tam::CUERPO, Peso::Normal), color::verde());
     let izquierda = rect.center().x - (24.0 + 12.0 + g.size().x) / 2.0;
-    v2::girando(ui, Rect::from_min_size(egui::pos2(izquierda, rect.center().y - 12.0), Vec2::splat(24.0)), color::VERDE);
-    ui.painter().galley(egui::pos2(izquierda + 36.0, rect.center().y - g.size().y / 2.0), g, color::VERDE);
+    v2::girando(ui, Rect::from_min_size(egui::pos2(izquierda, rect.center().y - 12.0), Vec2::splat(24.0)), color::verde());
+    ui.painter().galley(egui::pos2(izquierda + 36.0, rect.center().y - g.size().y / 2.0), g, color::verde());
 }
 
 fn vacio(ui: &mut Ui) {
     let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 240.0), Sense::hover());
     let g = v2::galeria(ui, "No hay órdenes ni facturas B registradas hoy", fuente(tam::CUERPO_MAS, Peso::Normal), color::TEXTO_APAGADO);
     let arriba = rect.center().y - (38.0 + 10.0 + g.size().y) / 2.0;
-    pintar_icono_solar_en(ui, Rect::from_min_size(egui::pos2(rect.center().x - 19.0, arriba), Vec2::splat(38.0)), "receipt", color::SOBRE_OSCURO_APAGADO);
+    pintar_icono_solar_en(ui, Rect::from_min_size(egui::pos2(rect.center().x - 19.0, arriba), Vec2::splat(38.0)), "receipt", color::sobre_oscuro_apagado());
     ui.painter().galley(egui::pos2(rect.center().x - g.size().x / 2.0, arriba + 48.0), g, color::TEXTO_APAGADO);
 }
 
 fn boton_reimprimir(ui: &mut Ui, celda: Rect, indice: usize, imprimiendo: bool, girando: bool) -> Response {
     let texto = if girando { "Imprimiendo…" } else { "Reimprimir" };
-    let g = v2::galeria(ui, texto, fuente(tam::CHICO, Peso::Medio), color::VERDE);
+    let g = v2::galeria(ui, texto, fuente(tam::CHICO, Peso::Medio), color::verde());
     let ancho = 10.0 + 15.0 + 6.0 + g.size().x + 10.0;
     let rect = Rect::from_min_size(egui::pos2(celda.right() - ancho, celda.center().y - 16.0), Vec2::new(ancho, 32.0));
     let respuesta = ui.interact(rect, ui.id().with(("reimprimir", indice)), if imprimiendo { Sense::hover() } else { Sense::click() });
     let encima = !imprimiendo && respuesta.hovered();
-    let (fondo, borde) = if encima { (color::VERDE_ELEGIDO, color::VERDE) } else { (color::BLANCO, color::BORDE) };
+    let (fondo, borde) = if encima { (color::verde_elegido(), color::verde()) } else { (color::BLANCO, color::BORDE) };
     ui.painter().rect(rect, radio::ICONO, fondo, Stroke::new(1.0, borde), StrokeKind::Inside);
     let icono = Rect::from_min_size(egui::pos2(rect.left() + 10.0, rect.center().y - 7.5), Vec2::splat(15.0));
     if girando {
-        v2::girando(ui, icono, color::VERDE);
+        v2::girando(ui, icono, color::verde());
     } else {
-        pintar_icono_solar_en(ui, icono, "printer", color::VERDE);
+        pintar_icono_solar_en(ui, icono, "printer", color::verde());
     }
-    ui.painter().galley(egui::pos2(icono.right() + 6.0, rect.center().y - g.size().y / 2.0), g, color::VERDE);
+    ui.painter().galley(egui::pos2(icono.right() + 6.0, rect.center().y - g.size().y / 2.0), g, color::verde());
     if imprimiendo {
         respuesta
     } else {
@@ -351,15 +351,15 @@ fn boton_pagina(ui: &mut Ui, contenido: Result<&str, usize>, activo: bool, habil
     let encima = habilitado && respuesta.hovered();
     match contenido {
         Ok(icono) => {
-            let borde = if encima { color::VERDE } else { color::BORDE };
+            let borde = if encima { color::verde() } else { color::BORDE };
             ui.painter().rect(rect, radio::ICONO, Color32::TRANSPARENT, Stroke::new(1.0, borde.gamma_multiply(alfa)), StrokeKind::Inside);
             pintar_icono_solar_en(ui, Rect::from_center_size(rect.center(), Vec2::splat(16.0)), icono, color::TEXTO.gamma_multiply(alfa));
         }
         Err(numero) => {
             let (fondo, tinta, peso) = if activo {
-                (color::VERDE, color::BLANCO, Peso::Semi)
+                (color::verde(), color::BLANCO, Peso::Semi)
             } else if encima {
-                (color::FONDO_APP, color::VERDE, Peso::Normal)
+                (color::FONDO_APP, color::verde(), Peso::Normal)
             } else {
                 (Color32::TRANSPARENT, color::TEXTO_SECUNDARIO, Peso::Normal)
             };

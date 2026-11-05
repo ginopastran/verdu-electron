@@ -128,6 +128,10 @@ impl App {
                 Evento::Estado(estado) => self.global.estado_balanza = estado,
             }
         }
+        let tema = self.global.negocio.as_ref().and_then(|n| n["tema"].as_str());
+        if ui::marca::color::aplicar_tema(tema) {
+            ui.ctx().request_repaint();
+        }
         let mut contexto = Contexto { global: &mut self.global, servicios: &self.servicios, egui: ui.ctx().clone() };
         self.pantallas.mostrar(ui, &mut contexto);
         ui::v2::toast::pintar(ui.ctx());

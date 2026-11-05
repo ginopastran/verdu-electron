@@ -212,7 +212,7 @@ fn tarjeta_metodo(ui: &mut Ui, rect: Rect, id: Id, numero: &str, etiqueta: &str,
     let encima = habilitado && respuesta.hovered();
     let mut hijo = ui.new_child(UiBuilder::new().max_rect(rect));
     hijo.multiply_opacity(if habilitado || elegido || girando { 1.0 } else { 0.45 });
-    let borde = if encima { color::VERDE } else { colores.borde };
+    let borde = if encima { color::verde() } else { colores.borde };
     hijo.painter().rect(rect, radio::TARJETA, colores.fondo, Stroke::new(1.5, borde), StrokeKind::Inside);
     let tecla = Rect::from_min_size(rect.min + Vec2::splat(10.0), Vec2::splat(24.0));
     v2::pintar_tecla(&hijo, tecla, numero, &EstiloTecla::CUADRADA, color::TEXTO_SECUNDARIO);
@@ -220,13 +220,13 @@ fn tarjeta_metodo(ui: &mut Ui, rect: Rect, id: Id, numero: &str, etiqueta: &str,
     let arriba = rect.center().y - (36.0 + 10.0 + alto_etiqueta) / 2.0;
     let centro_icono = egui::pos2(rect.center().x, arriba + 18.0);
     if girando {
-        v2::girando(&hijo, Rect::from_center_size(centro_icono, Vec2::splat(34.0)), color::VERDE);
+        v2::girando(&hijo, Rect::from_center_size(centro_icono, Vec2::splat(34.0)), color::verde());
     } else {
-        pintar_icono_solar_en(&hijo, Rect::from_center_size(centro_icono, Vec2::splat(36.0)), icono, color::VERDE);
+        pintar_icono_solar_en(&hijo, Rect::from_center_size(centro_icono, Vec2::splat(36.0)), icono, color::verde());
     }
     v2::pintar_texto(&hijo, egui::pos2(rect.center().x, arriba + 46.0 + alto_etiqueta / 2.0), Align2::CENTER_CENTER, etiqueta, tam::ENTRADA, Peso::Semi, color::TEXTO);
     if foco && habilitado {
-        marca::pintar_anillo(ui.painter(), rect, radio::TARJETA, color::ANILLO_FOCO);
+        marca::pintar_anillo(ui.painter(), rect, radio::TARJETA, color::anillo_foco());
     }
     respuesta.on_hover_cursor(if habilitado { CursorIcon::PointingHand } else { CursorIcon::Default }).clicked()
 }
@@ -556,7 +556,7 @@ impl Cobro {
                     let (separador, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 1.0), Sense::hover());
                     ui.painter().rect_filled(separador, 0, color::BORDE);
                     ui.add_space(10.0);
-                    fila(ui, t("Total", tam::GRANDE, Peso::Semi, color::TEXTO), t(&dinero(subtotal - calculado), tam::GRANDE, Peso::Semi, color::VERDE));
+                    fila(ui, t("Total", tam::GRANDE, Peso::Semi, color::TEXTO), t(&dinero(subtotal - calculado), tam::GRANDE, Peso::Semi, color::verde()));
                 });
                 calculado
             });
@@ -623,7 +623,7 @@ impl Cobro {
                             tachar(ui, tachado, color::TEXTO_TENUE);
                             ui.add_space(8.0);
                         }
-                        fila(ui, t(&etiqueta, tam::ENTRADA, Peso::Medio, color::TEXTO), t(&dinero(cobrar), tam::MONTO_MEDIO, Peso::Semi, color::VERDE).espaciado(-0.02));
+                        fila(ui, t(&etiqueta, tam::ENTRADA, Peso::Medio, color::TEXTO), t(&dinero(cobrar), tam::MONTO_MEDIO, Peso::Semi, color::verde()).espaciado(-0.02));
                         if con_descuento {
                             ui.add_space(8.0);
                             linea(ui, Align2::LEFT_CENTER, &nota, tam::CHICO, Peso::Normal, color::VERDE_EXITO, 0.0);
@@ -708,7 +708,7 @@ impl Cobro {
                             fila(ui, t(&etiqueta, tam::CUERPO, Peso::Normal, color::VERDE_EXITO), t(&dinero(total - original), tam::CUERPO, Peso::Normal, color::VERDE_EXITO));
                             ui.add_space(8.0);
                         }
-                        fila(ui, t("Total a pagar", tam::ENTRADA, Peso::Medio, color::TEXTO), t(&dinero(total), tam::MONTO_MEDIO, Peso::Semi, color::VERDE).espaciado(-0.02));
+                        fila(ui, t("Total a pagar", tam::ENTRADA, Peso::Medio, color::TEXTO), t(&dinero(total), tam::MONTO_MEDIO, Peso::Semi, color::verde()).espaciado(-0.02));
                     });
                     ui.add_space(14.0);
                     etiqueta_campo(ui, "Con cuánto paga el cliente");
@@ -789,7 +789,7 @@ impl Cobro {
                 panel(ui, color::FONDO_APP, None, radio::POPOVER, margen(14, 14), |ui| {
                     linea(ui, Align2::CENTER_CENTER, "Total a pagar", tam::ETIQUETA, Peso::Normal, color::TEXTO_APAGADO, 0.0);
                     ui.add_space(4.0);
-                    linea(ui, Align2::CENTER_CENTER, &dinero(total), tam::MONTO_MEDIO, Peso::Semi, color::VERDE, -0.02);
+                    linea(ui, Align2::CENTER_CENTER, &dinero(total), tam::MONTO_MEDIO, Peso::Semi, color::verde(), -0.02);
                     if let Some(d) = descuento {
                         ui.add_space(4.0);
                         let texto = format!("Incluye descuento {}: {}", d.etiqueta(), dinero(-d.monto));
@@ -798,7 +798,7 @@ impl Cobro {
                 });
                 ui.add_space(14.0);
                 let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), alto_linea(tam::ETIQUETA)), Sense::hover());
-                pintar_icono_solar_en(ui, Rect::from_min_size(egui::pos2(rect.left(), rect.center().y - 8.0), Vec2::splat(16.0)), "cash", color::VERDE);
+                pintar_icono_solar_en(ui, Rect::from_min_size(egui::pos2(rect.left(), rect.center().y - 8.0), Vec2::splat(16.0)), "cash", color::verde());
                 v2::pintar_texto(ui, egui::pos2(rect.left() + 22.0, rect.center().y), Align2::LEFT_CENTER, "Parte en efectivo", tam::ETIQUETA, Peso::Semi, color::TEXTO_SECUNDARIO);
                 ui.add_space(6.0);
                 let id = Id::new(("cobro-mixto-efectivo", afip));
@@ -821,7 +821,7 @@ impl Cobro {
                 let etiqueta = if p.segundo == "tarjeta" { "Resto con tarjeta" } else { "Resto por transferencia" };
                 let restante = dinero(cobros::mixto_restante(total, &p.efectivo_mixto));
                 panel(ui, color::BLANCO, Some(color::BORDE_SUAVE), radio::CAMPO, margen(12, 16), |ui| {
-                    fila(ui, t(etiqueta, tam::CUERPO, Peso::Normal, color::TEXTO_SECUNDARIO), t(&restante, tam::GRANDE, Peso::Semi, color::VERDE));
+                    fila(ui, t(etiqueta, tam::CUERPO, Peso::Normal, color::TEXTO_SECUNDARIO), t(&restante, tam::GRANDE, Peso::Semi, color::verde()));
                 });
             });
             let habilitado = cobros::mixto_habilitado(total, &p.efectivo_mixto, procesando);
@@ -867,14 +867,14 @@ impl Cobro {
                     }
                     (Some(_), None) => v2::tarjetas::pintar_shimmer(ui, area, radio::ICONO, true),
                     (None, _) => {
-                        v2::girando(ui, Rect::from_center_size(area.center() - Vec2::new(0.0, 14.0), Vec2::splat(30.0)), color::VERDE);
+                        v2::girando(ui, Rect::from_center_size(area.center() - Vec2::new(0.0, 14.0), Vec2::splat(30.0)), color::verde());
                         v2::pintar_texto(ui, area.center() + Vec2::new(0.0, 20.0), Align2::CENTER_CENTER, "Generando código QR…", tam::CONTROL, Peso::Normal, color::TEXTO_APAGADO);
                     }
                 }
                 if acreditado {
                     let circulo = Rect::from_center_size(marco.center(), Vec2::splat(84.0));
                     ui.painter().add(sombra::ICONO_EXITO.forma(circulo, radio::PASTILLA));
-                    ui.painter().rect_filled(circulo, radio::PASTILLA, color::VERDE);
+                    ui.painter().rect_filled(circulo, radio::PASTILLA, color::verde());
                     pintar_icono_solar_en(ui, Rect::from_center_size(circulo.center(), Vec2::splat(46.0)), "check", color::BLANCO);
                 }
                 if let Some(datos) = &qr {
@@ -909,7 +909,7 @@ impl Cobro {
                     cancelar = Boton::secundario("Cancelar cobro").modal().ui(ui).clicked();
                     if pendiente && qr.is_some() {
                         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                            manual |= Boton::secundario("Confirmar manualmente").modal().icono("check").tam_icono(16.0).color_icono(color::VERDE).ui(ui).clicked();
+                            manual |= Boton::secundario("Confirmar manualmente").modal().icono("check").tam_icono(16.0).color_icono(color::verde()).ui(ui).clicked();
                         });
                     }
                 });
@@ -1146,7 +1146,7 @@ fn encabezado_completada(ui: &mut Ui, con_factura: bool) -> bool {
     ui.with_layout(Layout::left_to_right(Align::Min), |ui| {
         ui.spacing_mut().item_spacing.x = 14.0;
         let (caja, _) = ui.allocate_exact_size(Vec2::splat(42.0), Sense::hover());
-        ui.painter().rect_filled(caja, radio::CAMPO, color::VERDE);
+        ui.painter().rect_filled(caja, radio::CAMPO, color::verde());
         pintar_icono_solar_en(ui, Rect::from_center_size(caja.center(), Vec2::splat(23.0)), "check", color::BLANCO);
         let ancho_textos = ui.available_width() - 32.0 - 12.0;
         ui.allocate_ui_with_layout(Vec2::new(ancho_textos, 0.0), Layout::top_down(Align::Min), |ui| {

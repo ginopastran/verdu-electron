@@ -126,7 +126,7 @@ impl Menu {
             ui.scroll_to_rect(caja, None);
         }
         if resaltada {
-            ui.painter().rect_filled(caja, radio::ICONO, color::VERDE_ELEGIDO);
+            ui.painter().rect_filled(caja, radio::ICONO, color::verde_elegido());
         } else if respuesta.hovered() {
             ui.painter().rect_filled(caja, radio::ICONO, hover);
         }
@@ -315,7 +315,7 @@ pub fn lista_productos(ctx: &Context, ancla: &Response, menu: &mut Menu, catalog
             }
             let mut elegido = None;
             for (posicion, producto) in datos.filtrados.iter().take(PRODUCTOS_VISIBLES).filter_map(|&i| catalogo.lista.get(i)).enumerate() {
-                let (caja, respuesta) = menu.fila(ui, posicion, ALTO_PRODUCTO, color::VERDE_ELEGIDO);
+                let (caja, respuesta) = menu.fila(ui, posicion, ALTO_PRODUCTO, color::verde_elegido());
                 let precio = precio_producto(producto, datos.precios, datos.iva_en_precios);
                 let precio = v2::pintar_texto(ui, Pos2::new(caja.right() - 10.0, caja.center().y), egui::Align2::RIGHT_CENTER, precio, tam::CONTROL, Peso::Semi, color::TEXTO);
                 let x = caja.left() + 10.0;

@@ -269,12 +269,12 @@ impl CierreManual {
                             let (fondo, tinta) = if self.inicio != self.fin {
                                 (color::DORADO_FONDO, color::DORADO_TEXTO)
                             } else {
-                                (color::VERDE_ELEGIDO, color::VERDE_PROFUNDO)
+                                (color::verde_elegido(), color::verde_profundo())
                             };
                             nota(ui, "clock-time", 18.0, &resumen, tam::CONTROL, fondo, tinta, tinta);
                             if let Some(arqueo) = &arqueo {
                                 ui.add_space(8.0);
-                                nota(ui, "cash", 18.0, arqueo, tam::CONTROL, color::FONDO_APP, color::TEXTO_SECUNDARIO, color::VERDE);
+                                nota(ui, "cash", 18.0, arqueo, tam::CONTROL, color::FONDO_APP, color::TEXTO_SECUNDARIO, color::verde());
                             }
                         }
                     }
@@ -349,7 +349,7 @@ fn columna_hora(ui: &mut Ui, id: Id, valor: &mut usize, cantidad: usize, centrar
             let elegido = *valor == numero;
             let (caja, respuesta) = ui.allocate_exact_size(Vec2::new(52.0, 30.0), Sense::click());
             let fondo = if elegido {
-                color::VERDE
+                color::verde()
             } else if respuesta.hovered() {
                 color::FONDO_APP
             } else {
@@ -438,9 +438,9 @@ fn celda_dia(ui: &Ui, caja: Rect, dia: NaiveDate, primero: NaiveDate, elegida: N
     let deshabilitado = dia > hoy;
     let respuesta: Response = ui.interact(caja, ui.id().with(("dia", dia)), if deshabilitado { Sense::hover() } else { Sense::click() });
     let (fondo, tinta, peso) = if elegida == dia {
-        (color::VERDE, color::BLANCO, Peso::Semi)
+        (color::verde(), color::BLANCO, Peso::Semi)
     } else if dia == hoy {
-        (color::VERDE_CHIP, color::VERDE, Peso::Semi)
+        (color::verde_chip(), color::verde(), Peso::Semi)
     } else if respuesta.hovered() && !deshabilitado {
         (color::FONDO_APP, color::TEXTO, Peso::Normal)
     } else {

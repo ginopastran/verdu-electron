@@ -804,7 +804,7 @@ impl FormularioFactura {
                     })
                     .inner;
                 if let Some(precio) = &precio {
-                    v2::texto(ui, precio.clone(), tam::XS, Peso::Semi, color::VERDE);
+                    v2::texto(ui, precio.clone(), tam::XS, Peso::Semi, color::verde());
                 }
                 entrada
             });
@@ -1001,7 +1001,7 @@ fn columnas(fila: Rect, anchos: &[f32; 5]) -> [Rect; 5] {
 fn pie_totales(ui: &mut Ui, tipo: &str, totales: logica::Totales) {
     let con_iva = tipo != "remito" && totales.impuestos > 0.0;
     let (fila, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 30.0), Sense::hover());
-    pintar_icono_solar_en(ui, Rect::from_center_size(egui::pos2(fila.left() + 8.0, fila.center().y), Vec2::splat(16.0)), "info", color::VERDE);
+    pintar_icono_solar_en(ui, Rect::from_center_size(egui::pos2(fila.left() + 8.0, fila.center().y), Vec2::splat(16.0)), "info", color::verde());
     v2::pintar_texto(
         ui,
         egui::pos2(fila.left() + 24.0, fila.center().y),

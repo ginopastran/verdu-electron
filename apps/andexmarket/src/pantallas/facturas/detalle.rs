@@ -263,10 +263,10 @@ fn saldo(ui: &mut Ui, factura: &Value) -> AccionesSaldo {
         v2::texto(ui, "Saldo pendiente", tam::ETIQUETA, Peso::Medio, color::TEXTO_APAGADO);
         v2::titulo(ui, pesos(saldo), tam::MONTO, -0.02, if saldo > 0.0 { color::ROJO } else { color::VERDE_EXITO });
         let (barra, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 8.0), Sense::hover());
-        ui.painter().rect_filled(barra, radio::PASTILLA, color::VERDE_CHIP);
+        ui.painter().rect_filled(barra, radio::PASTILLA, color::verde_chip());
         let avance = (logica::porcentaje_pagado(factura) as f32 / 100.0).clamp(0.0, 1.0);
         if avance > 0.0 {
-            ui.painter().rect_filled(Rect::from_min_size(barra.min, Vec2::new(barra.width() * avance, 8.0)), radio::PASTILLA, color::VERDE);
+            ui.painter().rect_filled(Rect::from_min_size(barra.min, Vec2::new(barra.width() * avance, 8.0)), radio::PASTILLA, color::verde());
         }
         let (fila, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 16.0), Sense::hover());
         v2::pintar_texto(ui, fila.left_center(), Align2::LEFT_CENTER, format!("Pagado {}", pesos(pagado)), tam::ETIQUETA, Peso::Normal, color::TEXTO_APAGADO);

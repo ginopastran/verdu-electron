@@ -36,16 +36,16 @@ impl Estilo {
             fondo: color::BLANCO,
             fondo_hover: color::BLANCO,
             borde: Some(color::BORDE),
-            borde_hover: Some(color::VERDE),
+            borde_hover: Some(color::verde()),
             texto: color::TEXTO,
-            texto_hover: color::VERDE,
+            texto_hover: color::verde(),
             icono: None,
             tecla: EstiloTecla::CLARA,
         };
         match self {
             Estilo::Primario => Colores {
-                fondo: color::VERDE,
-                fondo_hover: color::VERDE_PROFUNDO,
+                fondo: color::verde(),
+                fondo_hover: color::verde_profundo(),
                 borde: None,
                 borde_hover: None,
                 texto: color::BLANCO,
@@ -84,9 +84,9 @@ impl Estilo {
                 ..base
             },
             Estilo::ContornoMarca => Colores {
-                fondo_hover: color::VERDE_ELEGIDO,
-                borde: Some(color::VERDE),
-                texto: color::VERDE,
+                fondo_hover: color::verde_elegido(),
+                borde: Some(color::verde()),
+                texto: color::verde(),
                 ..base
             },
             Estilo::Fantasma => Colores {
@@ -95,12 +95,12 @@ impl Estilo {
                 borde: None,
                 borde_hover: None,
                 texto: color::TEXTO_SECUNDARIO,
-                texto_hover: color::VERDE,
+                texto_hover: color::verde(),
                 ..base
             },
             Estilo::FantasmaOscuro => Colores {
                 fondo: Color32::TRANSPARENT,
-                fondo_hover: color::VERDE_HOVER_OSCURO,
+                fondo_hover: color::verde_hover_oscuro(),
                 borde: None,
                 borde_hover: None,
                 texto: color::SOBRE_OSCURO,
@@ -355,7 +355,7 @@ impl<'a> BotonIcono<'a> {
             radio: radio::ICONO,
             color: color::TEXTO_APAGADO,
             fondo_hover: color::FONDO_APP,
-            color_hover: color::VERDE,
+            color_hover: color::verde(),
             habilitado: true,
             cargando: false,
         }

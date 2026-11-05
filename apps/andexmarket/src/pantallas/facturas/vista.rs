@@ -17,7 +17,7 @@ pub fn fondo(ui: &Ui) {
 
 pub fn encabezado(ui: &mut Ui, volver: &str, titulo: &str) -> bool {
     let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), alto::ENCABEZADO), Sense::hover());
-    ui.painter().rect_filled(rect, 0, color::VERDE_PROFUNDO);
+    ui.painter().rect_filled(rect, 0, color::verde_profundo());
     let mut fila = ui.new_child(UiBuilder::new().max_rect(rect.shrink2(Vec2::new(20.0, 0.0))).layout(Layout::left_to_right(Align::Center)));
     fila.spacing_mut().item_spacing.x = 16.0;
     let clic = Boton::new(volver, Estilo::FantasmaOscuro)
@@ -31,7 +31,7 @@ pub fn encabezado(ui: &mut Ui, volver: &str, titulo: &str) -> bool {
         .peso(Peso::Medio)
         .ui(&mut fila)
         .clicked();
-    v2::separador_vertical(&mut fila, 28.0, color::VERDE);
+    v2::separador_vertical(&mut fila, 28.0, color::verde());
     v2::texto(&mut fila, titulo, tam::FILA, Peso::Semi, color::BLANCO);
     fila.with_layout(Layout::right_to_left(Align::Center), |ui| {
         ui.add(imagen("andex-market-text.png").fit_to_exact_size(Vec2::new(112.0, 112.0 * 28.0 / 230.0)).tint(Color32::from_white_alpha(230)));
@@ -148,8 +148,8 @@ pub fn fila_pago(ui: &mut Ui, pago: &Value, relleno: f32, borde_arriba: bool) {
     ui.painter().hline(rect.x_range(), linea, Stroke::new(1.0, color::BORDE_SUAVE));
     let (icono, etiqueta) = metodo(texto(pago, "metodoPago"));
     let caja = Rect::from_min_size(egui::pos2(rect.left(), rect.center().y - 17.0), Vec2::splat(34.0));
-    ui.painter().rect_filled(caja, radio::CONTROL, color::VERDE_CHIP);
-    v2::pintar_icono(ui, caja.center(), icono, 18.0, color::VERDE);
+    ui.painter().rect_filled(caja, radio::CONTROL, color::verde_chip());
+    v2::pintar_icono(ui, caja.center(), icono, 18.0, color::verde());
     let monto = v2::pintar_texto(
         ui,
         egui::pos2(rect.right(), rect.center().y),
@@ -180,14 +180,14 @@ pub fn cargando(ui: &mut Ui, alto: f32, mensaje: &str) {
     let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), alto), Sense::hover());
     let g = v2::galeria(ui, mensaje, fuente(tam::CUERPO, Peso::Normal), color::TEXTO_APAGADO);
     let x = rect.center().x - (30.0 + g.size().x) / 2.0;
-    v2::girando(ui, Rect::from_center_size(egui::pos2(x + 10.0, rect.center().y), Vec2::splat(20.0)), color::VERDE);
+    v2::girando(ui, Rect::from_center_size(egui::pos2(x + 10.0, rect.center().y), Vec2::splat(20.0)), color::verde());
     ui.painter().galley(egui::pos2(x + 30.0, rect.center().y - g.size().y / 2.0), g, color::TEXTO_APAGADO);
 }
 
 pub fn vacio(ui: &mut Ui, icono: &str, mensaje: &str) {
     ui.add_space(48.0);
     let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 34.0), Sense::hover());
-    v2::pintar_icono(ui, rect.center(), icono, 34.0, color::SOBRE_OSCURO_APAGADO);
+    v2::pintar_icono(ui, rect.center(), icono, 34.0, color::sobre_oscuro_apagado());
     ui.add_space(8.0);
     let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 18.0), Sense::hover());
     v2::pintar_texto(ui, rect.center(), Align2::CENTER_CENTER, mensaje, tam::CUERPO_MAS, Peso::Normal, color::TEXTO_APAGADO);
@@ -203,8 +203,8 @@ pub fn boton_pagina(ui: &mut Ui, etiqueta: &str, icono: &str, icono_a_la_derecha
     let (rect, respuesta) = ui.allocate_exact_size(Vec2::new(ancho, 32.0), if habilitado { Sense::click() } else { Sense::hover() });
     let encima = habilitado && respuesta.hovered();
     let alfa = if habilitado { 1.0 } else { 0.4 };
-    let tinta = if encima { color::VERDE } else { color::TEXTO_SECUNDARIO }.gamma_multiply(alfa);
-    let borde = if encima { color::VERDE } else { color::BORDE }.gamma_multiply(alfa);
+    let tinta = if encima { color::verde() } else { color::TEXTO_SECUNDARIO }.gamma_multiply(alfa);
+    let borde = if encima { color::verde() } else { color::BORDE }.gamma_multiply(alfa);
     ui.painter().rect(rect, radio::ICONO, color::BLANCO, Stroke::new(1.0, borde), StrokeKind::Inside);
     let (x_icono, x_texto) = if icono_a_la_derecha {
         (rect.right() - 10.0 - 7.5, rect.left() + 10.0)

@@ -318,15 +318,15 @@ fn opcion_periodo(ui: &mut Ui, ancho: f32, numero: usize, opcion: &OpcionPeriodo
     let girando = en_curso.is_some() && en_curso == opcion.periodo;
     let alfa = if ocupado && !girando { 0.45 } else { 1.0 };
     let (fondo, borde, texto, detalle, icono, tecla) = if manual {
-        (color::VERDE_PROFUNDO, color::VERDE_PROFUNDO, color::BLANCO, color::SOBRE_OSCURO_APAGADO, color::DORADO, EstiloTecla::CUADRADA_OSCURA)
+        (color::verde_profundo(), color::verde_profundo(), color::BLANCO, color::sobre_oscuro_apagado(), color::DORADO, EstiloTecla::CUADRADA_OSCURA)
     } else if girando {
-        (color::VERDE_ELEGIDO, color::VERDE, color::TEXTO, color::TEXTO_APAGADO, color::VERDE, EstiloTecla::CUADRADA)
+        (color::verde_elegido(), color::verde(), color::TEXTO, color::TEXTO_APAGADO, color::verde(), EstiloTecla::CUADRADA)
     } else {
-        (color::BLANCO, color::BORDE, color::TEXTO, color::TEXTO_APAGADO, color::VERDE, EstiloTecla::CUADRADA)
+        (color::BLANCO, color::BORDE, color::TEXTO, color::TEXTO_APAGADO, color::verde(), EstiloTecla::CUADRADA)
     };
     let avance = ui.ctx().animate_bool_with_time(respuesta.id.with("hover"), !ocupado && respuesta.hovered(), 0.15);
     let tinta = |c: Color32| if c.is_opaque() { mezclar(color::BLANCO, c, alfa) } else { c.gamma_multiply(alfa) };
-    let borde = mezclar(borde, color::VERDE, avance);
+    let borde = mezclar(borde, color::verde(), avance);
     ui.painter().rect(rect, radio::TARJETA, tinta(fondo), Stroke::new(1.5, tinta(borde)), StrokeKind::Inside);
     let tecla = EstiloTecla { fondo: tinta(tecla.fondo), borde: tecla.borde.map(tinta), texto: tecla.texto.map(tinta), ..tecla };
     pintar_tecla(ui, Rect::from_min_size(rect.min + Vec2::splat(10.0), Vec2::splat(24.0)), &numero.to_string(), &tecla, tinta(texto));

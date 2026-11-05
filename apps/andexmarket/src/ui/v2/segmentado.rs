@@ -53,9 +53,9 @@ pub fn segmentado(ui: &mut Ui, segmentos: &[Segmento], activo: &mut usize, ancho
         }
         let elegido = *activo == indice;
         let (fondo_item, texto_color, peso) = match (estilo, elegido) {
-            (EstiloSegmentado::Claro, true) => (color::BLANCO, color::VERDE_PROFUNDO, Peso::Semi),
+            (EstiloSegmentado::Claro, true) => (color::BLANCO, color::verde_profundo(), Peso::Semi),
             (EstiloSegmentado::Claro, false) => (Color32::TRANSPARENT, color::TEXTO_APAGADO, Peso::Normal),
-            (EstiloSegmentado::Filtro, true) => (color::VERDE, color::BLANCO, Peso::Semi),
+            (EstiloSegmentado::Filtro, true) => (color::verde(), color::BLANCO, Peso::Semi),
             (EstiloSegmentado::Filtro, false) => (Color32::TRANSPARENT, color::TEXTO_SECUNDARIO, Peso::Medio),
         };
         if elegido {
@@ -86,7 +86,7 @@ pub struct ColoresEleccion {
 
 pub fn colores_eleccion(activo: bool) -> ColoresEleccion {
     if activo {
-        ColoresEleccion { borde: color::VERDE, fondo: color::VERDE_ELEGIDO, texto: color::VERDE_PROFUNDO }
+        ColoresEleccion { borde: color::verde(), fondo: color::verde_elegido(), texto: color::verde_profundo() }
     } else {
         ColoresEleccion { borde: color::BORDE, fondo: color::BLANCO, texto: color::TEXTO_SECUNDARIO }
     }
@@ -95,7 +95,7 @@ pub fn colores_eleccion(activo: bool) -> ColoresEleccion {
 pub fn opcion_eleccion(ui: &mut Ui, tam_opcion: Vec2, radio_opcion: u8, activo: bool, grosor: f32, contenido: impl FnOnce(&Ui, Rect, ColoresEleccion)) -> Response {
     let (rect, respuesta) = ui.allocate_exact_size(tam_opcion, Sense::click());
     let colores = colores_eleccion(activo);
-    let borde = if respuesta.hovered() { color::VERDE } else { colores.borde };
+    let borde = if respuesta.hovered() { color::verde() } else { colores.borde };
     ui.painter().rect(rect, radio_opcion, colores.fondo, Stroke::new(grosor, borde), StrokeKind::Inside);
     contenido(ui, rect, colores);
     respuesta.on_hover_cursor(CursorIcon::PointingHand)

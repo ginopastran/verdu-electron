@@ -245,8 +245,8 @@ impl Lista {
                 valor: &con_saldo,
                 detalle: &detalle_cantidad,
                 icono: "file-text",
-                fondo_icono: color::VERDE_CHIP,
-                color_icono: color::VERDE,
+                fondo_icono: color::verde_chip(),
+                color_icono: color::verde(),
                 color_valor: color::TEXTO,
             },
             Kpi {
@@ -254,8 +254,8 @@ impl Lista {
                 valor: &cobrado,
                 detalle: &detalle_cobrado,
                 icono: "hand-coins",
-                fondo_icono: color::VERDE_CHIP,
-                color_icono: color::VERDE,
+                fondo_icono: color::verde_chip(),
+                color_icono: color::verde(),
                 color_valor: color::VERDE_EXITO,
             },
         ];
@@ -538,7 +538,7 @@ fn fila(ui: &mut Ui, tabla: &Tabla, factura: &Value) -> Option<Accion> {
         if BotonIcono::new("square-pen").ui(&mut acciones).on_hover_text("Editar").clicked() {
             accion = Some(Accion::Editar);
         }
-        if BotonIcono::new("history").colores(color::VERDE, color::VERDE_CHIP, color::VERDE).ui(&mut acciones).on_hover_text("Ver pagos").clicked() {
+        if BotonIcono::new("history").colores(color::verde(), color::verde_chip(), color::verde()).ui(&mut acciones).on_hover_text("Ver pagos").clicked() {
             accion = Some(Accion::VerPagos);
         }
         if saldo > 0.0 {

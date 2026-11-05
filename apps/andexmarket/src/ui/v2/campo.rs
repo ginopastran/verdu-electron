@@ -51,10 +51,10 @@ impl Contenedor {
         let mut formas = Vec::new();
         let borde = match (self.error, enfocado, self.borde) {
             (true, _, _) => Some(color::ROJO_ERROR_BORDE),
-            (false, true, _) => Some(color::VERDE),
+            (false, true, _) => Some(color::verde()),
             (false, false, borde) => borde,
         };
-        let anillo = if enfocado && !self.error { Some(self.anillo.unwrap_or(color::ANILLO_FOCO)) } else { self.anillo };
+        let anillo = if enfocado && !self.error { Some(self.anillo.unwrap_or(color::anillo_foco())) } else { self.anillo };
         if let Some(c) = anillo {
             formas.push(Shape::Rect(egui::epaint::RectShape::stroke(rect, self.radio, Stroke::new(3.0, c), StrokeKind::Outside)));
         }

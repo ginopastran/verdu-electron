@@ -105,7 +105,7 @@ impl AgregarPago {
                 ui.add_space(14.0);
                 let (fila, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 17.0), Sense::hover());
                 v2::pintar_texto(ui, fila.left_center(), Align2::LEFT_CENTER, "Monto", tam::ETIQUETA, Peso::Semi, color::TEXTO_SECUNDARIO);
-                let enlace = v2::pintar_texto(ui, fila.right_center(), Align2::RIGHT_CENTER, "Saldo total", tam::CHICO, Peso::Semi, color::VERDE);
+                let enlace = v2::pintar_texto(ui, fila.right_center(), Align2::RIGHT_CENTER, "Saldo total", tam::CHICO, Peso::Semi, color::verde());
                 if ui.interact(enlace, Id::new("pago-saldo-total"), Sense::click()).on_hover_cursor(CursorIcon::PointingHand).clicked() {
                     self.monto = logica::texto_entrada(maximo);
                     self.error_monto = None;

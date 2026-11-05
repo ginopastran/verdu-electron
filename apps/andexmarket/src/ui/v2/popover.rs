@@ -164,7 +164,7 @@ pub fn desplegable(ui: &mut Ui, id: impl Hash + std::fmt::Debug, seleccion: &mut
     let abierto = Popup::is_id_open(ui.ctx(), id);
     let (rect, mut respuesta) = ui.allocate_exact_size(Vec2::new(ancho, alto), Sense::click());
     let borde = if abierto {
-        color::VERDE
+        color::verde()
     } else if respuesta.hovered() {
         color::BORDE_HOVER
     } else {
@@ -187,7 +187,7 @@ pub fn desplegable(ui: &mut Ui, id: impl Hash + std::fmt::Debug, seleccion: &mut
             let activo = indice == *seleccion;
             let (caja, r) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 32.0), Sense::click());
             let fondo = if activo {
-                color::VERDE_ELEGIDO
+                color::verde_elegido()
             } else if r.hovered() {
                 color::FONDO_APP
             } else {
@@ -197,7 +197,7 @@ pub fn desplegable(ui: &mut Ui, id: impl Hash + std::fmt::Debug, seleccion: &mut
             let g = galeria(ui, opcion.as_str(), fuente(tam::CONTROL, if activo { Peso::Semi } else { Peso::Normal }), color::TEXTO);
             ui.painter().galley(egui::pos2(caja.left() + 10.0, caja.center().y - g.size().y / 2.0), g, color::TEXTO);
             if activo {
-                pintar_icono_solar_en(ui, Rect::from_center_size(egui::pos2(caja.right() - 18.0, caja.center().y), Vec2::splat(16.0)), "check", color::VERDE);
+                pintar_icono_solar_en(ui, Rect::from_center_size(egui::pos2(caja.right() - 18.0, caja.center().y), Vec2::splat(16.0)), "check", color::verde());
             }
             if r.on_hover_cursor(CursorIcon::PointingHand).clicked() {
                 elegido = Some(indice);
@@ -227,7 +227,7 @@ pub fn item_menu(ui: &mut Ui, item: &ItemMenu) -> Response {
     if respuesta.hovered() {
         ui.painter().rect_filled(rect, radio::CHIP_ICONO, color::FONDO_APP);
     }
-    let (texto_color, icono_color) = if item.peligro { (color::ROJO, color::ROJO) } else { (color::TEXTO, color::VERDE) };
+    let (texto_color, icono_color) = if item.peligro { (color::ROJO, color::ROJO) } else { (color::TEXTO, color::verde()) };
     pintar_icono_solar_en(ui, Rect::from_center_size(egui::pos2(rect.left() + 19.0, rect.center().y), Vec2::splat(18.0)), item.icono, icono_color);
     let g = galeria(ui, item.etiqueta, fuente(tam::CUERPO, Peso::Normal), texto_color);
     ui.painter().galley(egui::pos2(rect.left() + 38.0, rect.center().y - g.size().y / 2.0), g, texto_color);
@@ -249,12 +249,12 @@ pub fn menu_usuario(ui: &mut Ui, id: impl Hash + std::fmt::Debug, usuario: &Usua
     let id = ui.make_persistent_id(id);
     let abierto = Popup::is_id_open(ui.ctx(), id);
     let nombre = galeria(ui, usuario.nombre, fuente(tam::CONTROL, Peso::Medio), color::BLANCO);
-    let detalle = galeria(ui, usuario.detalle, fuente(tam::MINI, Peso::Normal), color::SOBRE_OSCURO_APAGADO);
+    let detalle = galeria(ui, usuario.detalle, fuente(tam::MINI, Peso::Normal), color::sobre_oscuro_apagado());
     let ancho_textos = if compacto { 0.0 } else { nombre.size().x.max(detalle.size().x) + 10.0 };
     let ancho = 6.0 + 32.0 + 10.0 + ancho_textos + 16.0 + 10.0;
     let (rect, respuesta) = ui.allocate_exact_size(Vec2::new(ancho, 44.0), Sense::click());
     if abierto || respuesta.hovered() {
-        ui.painter().rect_filled(rect, radio::CAMPO, color::VERDE_HOVER_OSCURO);
+        ui.painter().rect_filled(rect, radio::CAMPO, color::verde_hover_oscuro());
     }
     let caja_avatar = Rect::from_min_size(egui::pos2(rect.left() + 6.0, rect.center().y - 16.0), Vec2::splat(32.0));
     Avatar::new(super::iniciales(usuario.nombre)).pintar(ui, caja_avatar);
@@ -264,10 +264,10 @@ pub fn menu_usuario(ui: &mut Ui, id: impl Hash + std::fmt::Debug, usuario: &Usua
         let y = rect.center().y - alto_textos / 2.0;
         let alto_nombre = nombre.size().y;
         ui.painter().galley(egui::pos2(x, y), nombre, color::BLANCO);
-        ui.painter().galley(egui::pos2(x, y + alto_nombre), detalle, color::SOBRE_OSCURO_APAGADO);
+        ui.painter().galley(egui::pos2(x, y + alto_nombre), detalle, color::sobre_oscuro_apagado());
         x += ancho_textos;
     }
-    pintar_icono_solar_en(ui, Rect::from_min_size(egui::pos2(x, rect.center().y - 8.0), Vec2::splat(16.0)), "chevron-down", color::SOBRE_OSCURO_APAGADO);
+    pintar_icono_solar_en(ui, Rect::from_min_size(egui::pos2(x, rect.center().y - 8.0), Vec2::splat(16.0)), "chevron-down", color::sobre_oscuro_apagado());
     if respuesta.clicked() {
         Popover::alternar(ui.ctx(), id);
     }

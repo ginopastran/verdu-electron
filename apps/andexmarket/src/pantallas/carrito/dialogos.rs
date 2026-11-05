@@ -59,7 +59,7 @@ fn tarjetas_listas(ui: &mut Ui, opciones: &[(String, String)], elegida: usize) -
                 let activa = indice == elegida;
                 let respuesta = v2::opcion_eleccion(ui, Vec2::new(ancho_tarjeta, 60.0), radio::CAMPO, activa, 1.5, |ui, rect, _| {
                     let pintor = ui.painter();
-                    let tinta_nombre = if activa { color::VERDE } else { color::TEXTO_APAGADO };
+                    let tinta_nombre = if activa { color::verde() } else { color::TEXTO_APAGADO };
                     let nombre = galeria_cortada(pintor, nombre, fuente(tam::ETIQUETA, Peso::Medio), tinta_nombre, rect.width() - 27.0);
                     let precio = galeria_cortada(pintor, precio, fuente(tam::DESTACADO, Peso::Semi), color::TEXTO, rect.width() - 27.0);
                     let x = rect.left() + 13.5;
@@ -86,7 +86,7 @@ fn interruptor(ui: &mut Ui, activo: &mut bool, etiqueta: &str) {
     let avance = ui.ctx().animate_bool_with_time(respuesta.id, *activo, 0.16);
     let pista = Rect::from_min_size(Pos2::new(rect.left(), rect.center().y - 10.0), Vec2::new(36.0, 20.0));
     let pintor = ui.painter();
-    pintor.rect_filled(pista, radio::PASTILLA, mezclar(color::INTERRUPTOR_APAGADO, color::VERDE, avance));
+    pintor.rect_filled(pista, radio::PASTILLA, mezclar(color::INTERRUPTOR_APAGADO, color::verde(), avance));
     let perilla = Rect::from_min_size(Pos2::new(pista.left() + 2.0 + 16.0 * avance, pista.top() + 2.0), Vec2::splat(16.0));
     pintor.add(sombra::SEGMENTO.forma(perilla, radio::PASTILLA));
     pintor.rect_filled(perilla, radio::PASTILLA, color::BLANCO);
@@ -97,15 +97,15 @@ fn interruptor(ui: &mut Ui, activo: &mut bool, etiqueta: &str) {
 
 fn tarjeta_peso(ui: &mut Ui, peso: &str, conectada: bool) {
     let ancho = ui.available_width();
-    let estado = v2::galeria(ui, if conectada { "Peso estable" } else { "Balanza desconectada" }, fuente(tam::CHICO, Peso::Normal), color::SOBRE_OSCURO_APAGADO);
+    let estado = v2::galeria(ui, if conectada { "Peso estable" } else { "Balanza desconectada" }, fuente(tam::CHICO, Peso::Normal), color::sobre_oscuro_apagado());
     let valor = v2::galeria_espaciada(ui, peso, fuente(44.0, Peso::Semi), color::BLANCO, -0.02 * 44.0);
     let (rect, _) = ui.allocate_exact_size(Vec2::new(ancho, 20.0 + estado.size().y + 6.0 + 44.0 + 20.0), Sense::hover());
     let pintor = ui.painter();
-    pintor.rect_filled(rect, radio::TARJETA, color::VERDE_PROFUNDO);
+    pintor.rect_filled(rect, radio::TARJETA, color::verde_profundo());
     let centro_estado = rect.top() + 20.0 + estado.size().y / 2.0;
     pintor.circle_filled(Pos2::new(rect.left() + 22.0 + 3.5, centro_estado), 3.5, if conectada { color::VERDE_PUNTO } else { color::DORADO });
     let alto_estado = estado.size().y;
-    pintor.galley(Pos2::new(rect.left() + 22.0 + 13.0, centro_estado - alto_estado / 2.0), estado, color::SOBRE_OSCURO_APAGADO);
+    pintor.galley(Pos2::new(rect.left() + 22.0 + 13.0, centro_estado - alto_estado / 2.0), estado, color::sobre_oscuro_apagado());
     let arriba_valor = rect.top() + 20.0 + alto_estado + 6.0;
     pintor.galley(Pos2::new(rect.left() + 22.0, arriba_valor + (44.0 - valor.size().y) / 2.0), valor, color::BLANCO);
     let icono = Rect::from_min_size(Pos2::new(rect.right() - 22.0 - 34.0, rect.bottom() - 20.0 - 34.0), Vec2::splat(34.0));
@@ -130,7 +130,7 @@ fn campo_gramos(ui: &mut Ui, texto: &mut String, id: Id) -> Response {
 
 fn boton_paso(ui: &mut Ui, simbolo: &str) -> Response {
     let (rect, respuesta) = ui.allocate_exact_size(Vec2::splat(52.0), Sense::click());
-    let borde = if respuesta.hovered() { color::VERDE } else { color::BORDE };
+    let borde = if respuesta.hovered() { color::verde() } else { color::BORDE };
     ui.painter().rect(rect, radio::CAMPO, color::BLANCO, Stroke::new(1.0, borde), StrokeKind::Inside);
     v2::pintar_texto(ui, rect.center(), egui::Align2::CENTER_CENTER, simbolo, 22.0, Peso::Normal, color::TEXTO_SECUNDARIO);
     respuesta.on_hover_cursor(CursorIcon::PointingHand)

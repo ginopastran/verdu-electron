@@ -31,8 +31,8 @@ impl<'a> Modal<'a> {
             titulo,
             subtitulo: "",
             icono: None,
-            fondo_icono: color::VERDE_CHIP,
-            color_icono: color::VERDE,
+            fondo_icono: color::verde_chip(),
+            color_icono: color::verde(),
             cerrable: true,
         }
     }
@@ -67,7 +67,7 @@ impl<'a> Modal<'a> {
     }
 
     pub fn exito(self) -> Self {
-        self.tono_icono(color::VERDE, color::BLANCO)
+        self.tono_icono(color::verde(), color::BLANCO)
     }
 
     pub fn sin_cerrar(mut self) -> Self {

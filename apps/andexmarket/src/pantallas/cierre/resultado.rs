@@ -10,7 +10,9 @@ use crate::ui::marca::{color, fuente, radio, tam};
 use crate::ui::v2::{self, tarjetas::celda_texto, Boton, Columna, Tabla};
 use crate::ui::{pintar_icono_solar_en, Peso};
 
-const COLORES_BARRA: [eframe::egui::Color32; 4] = [color::VERDE, color::VERDE_PROFUNDO, color::DORADO, color::SOBRE_OSCURO_TENUE];
+fn colores_barra() -> [eframe::egui::Color32; 4] {
+    [color::verde(), color::verde_profundo(), color::DORADO, color::sobre_oscuro_tenue()]
+}
 
 #[derive(Default)]
 pub struct DialogoResultadoCierre {
@@ -95,7 +97,7 @@ fn tarjetas(ui: &mut Ui, datos: [(&str, String, Color32); 3], px: f32) {
 
 fn estadisticas(ui: &mut Ui, resultado: &Value) {
     let datos = [
-        ("Total ventas", monto(resultado.get("totalVentas")), color::VERDE),
+        ("Total ventas", monto(resultado.get("totalVentas")), color::verde()),
         ("Cantidad de ventas", cantidad(resultado.get("cantidadVentas")), color::TEXTO),
         ("Ticket promedio", ticket_promedio(resultado), color::TEXTO),
     ];
@@ -126,14 +128,14 @@ fn metodos_de_pago(ui: &mut Ui, metodos: &serde_json::Map<String, Value>) {
         ui.add_space(4.0);
         let (fila, _) = ui.allocate_exact_size(Vec2::new(ancho, 30.0), Sense::hover());
         let (etiqueta, icono, _) = metodo_pago(clave);
-        pintar_icono_solar_en(ui, Rect::from_center_size(egui::pos2(fila.left() + 8.0, fila.center().y), Vec2::splat(16.0)), icono, color::VERDE);
+        pintar_icono_solar_en(ui, Rect::from_center_size(egui::pos2(fila.left() + 8.0, fila.center().y), Vec2::splat(16.0)), icono, color::verde());
         v2::pintar_texto(ui, egui::pos2(fila.left() + 24.0, fila.center().y), Align2::LEFT_CENTER, etiqueta, tam::CONTROL, Peso::Normal, color::TEXTO);
         let barra = Rect::from_min_max(egui::pos2(fila.left() + 142.0, fila.center().y - 4.0), egui::pos2(fila.right() - 132.0, fila.center().y + 4.0));
-        ui.painter().rect_filled(barra, radio::PASTILLA, color::VERDE_CHIP);
+        ui.painter().rect_filled(barra, radio::PASTILLA, color::verde_chip());
         let proporcion = (importe(Some(valor)) / maximo).clamp(0.0, 1.0) as f32;
         if proporcion > 0.0 {
             let lleno = Rect::from_min_size(barra.min, Vec2::new(barra.width() * proporcion, barra.height()));
-            ui.painter().rect_filled(lleno, radio::PASTILLA, COLORES_BARRA[indice % COLORES_BARRA.len()]);
+            ui.painter().rect_filled(lleno, radio::PASTILLA, colores_barra()[indice % 4]);
         }
         v2::pintar_texto(ui, fila.right_center(), Align2::RIGHT_CENTER, monto(Some(valor)), tam::CONTROL, Peso::Semi, color::TEXTO);
     }

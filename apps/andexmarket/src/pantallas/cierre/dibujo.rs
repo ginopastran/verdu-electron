@@ -15,7 +15,7 @@ pub fn dinero(valor: f64) -> String {
 
 pub fn diferencia(arqueo: &Arqueo) -> (String, Color32) {
     match arqueo.estado {
-        EstadoArqueo::Cuadra => ("Cuadra".to_string(), color::VERDE),
+        EstadoArqueo::Cuadra => ("Cuadra".to_string(), color::verde()),
         EstadoArqueo::Faltan => (format!("Faltan {}", dinero(-arqueo.diferencia)), color::ROJO),
         EstadoArqueo::Sobran => (format!("Sobran {}", dinero(arqueo.diferencia)), color::DORADO_TEXTO),
     }
@@ -68,7 +68,7 @@ pub fn nota(ui: &mut Ui, icono: &str, tam_icono: f32, contenido: &str, px: f32, 
 pub fn caja_entrada(ui: &mut Ui, ancho: f32, alto: f32, abierto: bool) -> (Rect, egui::Response) {
     let (rect, respuesta) = ui.allocate_exact_size(Vec2::new(ancho, alto), Sense::click());
     let borde = if abierto {
-        color::VERDE
+        color::verde()
     } else if respuesta.hovered() {
         color::BORDE_HOVER
     } else {
@@ -76,7 +76,7 @@ pub fn caja_entrada(ui: &mut Ui, ancho: f32, alto: f32, abierto: bool) -> (Rect,
     };
     ui.painter().rect(rect, radio::CONTROL, color::BLANCO, egui::Stroke::new(1.0, borde), egui::StrokeKind::Inside);
     if abierto {
-        crate::ui::marca::pintar_anillo(ui.painter(), rect, radio::CONTROL, color::ANILLO_FOCO);
+        crate::ui::marca::pintar_anillo(ui.painter(), rect, radio::CONTROL, color::anillo_foco());
     }
     (rect, respuesta.on_hover_cursor(egui::CursorIcon::PointingHand))
 }

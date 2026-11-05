@@ -105,7 +105,7 @@ impl AdminLogin {
         let izquierda = Rect::from_min_max(pantalla.min, egui::pos2(mitad, pantalla.bottom()));
         let derecha = Rect::from_min_max(egui::pos2(mitad, pantalla.top()), pantalla.max);
         let pintor = ui.painter().with_clip_rect(pantalla);
-        pintor.rect_filled(izquierda, 0, color::VERDE_PROFUNDO);
+        pintor.rect_filled(izquierda, 0, color::verde_profundo());
         pintor.rect_filled(derecha, 0, color::FONDO_APP);
         panel_marca(ui, izquierda);
         let zona = derecha.shrink(40.0);
@@ -120,8 +120,8 @@ impl AdminLogin {
         let cargando = self.tarea.is_some();
         let mut enviar = false;
         let (caja, _) = ui.allocate_exact_size(Vec2::splat(48.0), Sense::hover());
-        ui.painter().rect_filled(caja, radio::POPOVER, color::VERDE_CHIP);
-        v2::pintar_icono(ui, caja.center(), "shield", 26.0, color::VERDE);
+        ui.painter().rect_filled(caja, radio::POPOVER, color::verde_chip());
+        v2::pintar_icono(ui, caja.center(), "shield", 26.0, color::verde());
         ui.add_space(22.0);
         v2::titulo(ui, "Configuración inicial", 26.0, -0.02, color::TEXTO);
         ui.add_space(6.0);
@@ -220,7 +220,7 @@ fn panel_marca(ui: &mut Ui, panel: Rect) {
         ancho,
         1.55,
     );
-    let version = v2::galeria(ui, format!("Andex Market POS · v{}", env!("CARGO_PKG_VERSION")), fuente(12.5, Peso::Normal), color::SOBRE_OSCURO_TENUE);
+    let version = v2::galeria(ui, format!("Andex Market POS · v{}", env!("CARGO_PKG_VERSION")), fuente(12.5, Peso::Normal), color::sobre_oscuro_tenue());
     let alto_medio = etiqueta.size().y + 18.0 + titulo.alto() + 18.0 + bajada.alto();
     let alto_pie = 28.0 * PASOS.len() as f32 + 12.0 * (PASOS.len() - 1) as f32 + 12.0 + 12.0 + version.size().y;
     let libre = (interior.height() - 32.0 - alto_medio - alto_pie).max(0.0);
@@ -236,12 +236,12 @@ fn panel_marca(ui: &mut Ui, panel: Rect) {
     let mut y = (interior.bottom() - alto_pie).round();
     for (indice, paso) in PASOS.iter().enumerate() {
         let circulo = egui::pos2(x + 14.0, y + 14.0);
-        ui.painter().circle_filled(circulo, 14.0, color::VERDE_HOVER_OSCURO);
+        ui.painter().circle_filled(circulo, 14.0, color::verde_hover_oscuro());
         v2::pintar_texto(ui, circulo, Align2::CENTER_CENTER, (indice + 1).to_string(), 13.0, Peso::Semi, color::DORADO);
         v2::pintar_texto(ui, egui::pos2(x + 40.0, circulo.y), Align2::LEFT_CENTER, *paso, 14.0, Peso::Normal, color::SOBRE_OSCURO_LISTA);
         y += 28.0 + 12.0;
     }
-    ui.painter().galley(egui::pos2(x, y + 12.0), version, color::SOBRE_OSCURO_TENUE);
+    ui.painter().galley(egui::pos2(x, y + 12.0), version, color::sobre_oscuro_tenue());
 }
 
 fn caja_error(ui: &mut Ui, mensaje: &str, ancho: f32) {
@@ -266,7 +266,7 @@ fn casilla(ui: &mut Ui, marcada: bool, texto: &str, habilitada: bool) -> egui::R
     let tam = Vec2::new(18.0 + 10.0 + galeria.size().x, galeria.size().y.max(18.0));
     let (rect, respuesta) = ui.allocate_exact_size(tam, if habilitada { Sense::click() } else { Sense::hover() });
     let caja = Rect::from_min_size(egui::pos2(rect.left(), rect.center().y - 9.0), Vec2::splat(18.0));
-    let (borde, fondo) = if marcada { (color::VERDE, color::VERDE) } else { (color::BORDE_HOVER, color::BLANCO) };
+    let (borde, fondo) = if marcada { (color::verde(), color::verde()) } else { (color::BORDE_HOVER, color::BLANCO) };
     ui.painter().rect(caja, radio::TECLA, fondo, Stroke::new(1.5, borde), StrokeKind::Inside);
     if marcada {
         v2::pintar_icono(ui, caja.center(), "check", 14.0, color::BLANCO);

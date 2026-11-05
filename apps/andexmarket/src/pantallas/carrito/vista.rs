@@ -139,7 +139,7 @@ impl Cabecera<'_> {
 
     pub fn pintar_fondo(ui: &mut Ui, disposicion: &Disposicion) {
         let barra = disposicion.barra;
-        ui.painter().rect_filled(barra, 0, color::VERDE_PROFUNDO);
+        ui.painter().rect_filled(barra, 0, color::verde_profundo());
         let marca = Rect::from_min_size(Pos2::new(barra.left() + 20.0, barra.top()), Vec2::new(ANCHO_MARCA, barra.height()));
         let mut hijo = ui.new_child(UiBuilder::new().max_rect(marca).layout(Layout::left_to_right(Align::Center)));
         hijo.spacing_mut().item_spacing.x = 10.0;
@@ -163,7 +163,7 @@ impl Cabecera<'_> {
             _ => None,
         };
         hijo.add_space(6.0);
-        v2::separador_vertical(&mut hijo, 28.0, color::VERDE);
+        v2::separador_vertical(&mut hijo, 28.0, color::verde());
         hijo.add_space(6.0);
         for (icono, etiqueta, a) in self.botones().into_iter().rev() {
             let texto = if disposicion.amplia { etiqueta } else { "" };
@@ -194,7 +194,7 @@ pub fn buscador(ui: &mut Ui, rect: Rect, consulta: &mut String, id: Id) -> Busca
     let mut hijo = ui.new_child(UiBuilder::new().max_rect(interior).layout(Layout::left_to_right(Align::Center)));
     hijo.spacing_mut().item_spacing.x = 10.0;
     let (icono, _) = hijo.allocate_exact_size(Vec2::splat(20.0), Sense::hover());
-    pintar_icono_solar_en(&hijo, icono, "barcode", color::VERDE);
+    pintar_icono_solar_en(&hijo, icono, "barcode", color::verde());
     let ancho = (hijo.available_width() - if con_texto { 42.0 } else { 0.0 }).max(10.0);
     let campo = hijo
         .allocate_ui_with_layout(Vec2::new(ancho, 44.0), Layout::left_to_right(Align::Center), |ui| {
@@ -248,7 +248,7 @@ pub fn resultados(ctx: &Context, ancla: &Response, visible: bool, datos: &Result
                     ui.scroll_to_rect(caja, None);
                 }
                 if elegida || respuesta.hovered() {
-                    pintor.rect_filled(caja, radio::CONTROL, color::VERDE_ELEGIDO);
+                    pintor.rect_filled(caja, radio::CONTROL, color::verde_elegido());
                 }
                 let avatar = Rect::from_min_size(Pos2::new(caja.left() + 12.0, caja.center().y - 18.0), Vec2::splat(36.0));
                 let con_foto = datos.fotos.uri(producto).is_some_and(|uri| fotos::pintar(ui, avatar, uri, radio::CONTROL));
@@ -363,9 +363,9 @@ pub fn fila_pestanas(ui: &mut Ui, area: Rect, carritos: &Carritos, indicadores: 
         let activa = carritos.active_screen == indice;
         let borrable = indice > 0;
         let (fondo, borde, tinta, fondo_contador, tinta_contador, tinta_cruz) = if activa {
-            (color::VERDE_PROFUNDO, color::VERDE_PROFUNDO, color::BLANCO, color::DORADO, color::VERDE_PROFUNDO, color::SOBRE_OSCURO_APAGADO)
+            (color::verde_profundo(), color::verde_profundo(), color::BLANCO, color::DORADO, color::verde_profundo(), color::sobre_oscuro_apagado())
         } else {
-            (color::BLANCO, color::BORDE, color::TEXTO_SECUNDARIO, color::VERDE_CHIP, color::VERDE, color::TEXTO_TENUE)
+            (color::BLANCO, color::BORDE, color::TEXTO_SECUNDARIO, color::verde_chip(), color::verde(), color::TEXTO_TENUE)
         };
         let texto = galeria(ui, format!("Orden {}", indice + 1), tam::CUERPO, if activa { Peso::Semi } else { Peso::Medio }, tinta);
         let cantidad = galeria(ui, pantalla.items.len().to_string(), tam::XS, Peso::Medio, tinta_contador);
@@ -408,8 +408,8 @@ pub fn fila_pestanas(ui: &mut Ui, area: Rect, carritos: &Carritos, indicadores: 
         if encima {
             pintor.rect_filled(caja, radio::BOTON_MODAL, color::BLANCO);
         }
-        let tinta = if encima { color::VERDE } else { color::TEXTO_SECUNDARIO };
-        borde_punteado(&pintor, caja, radio::BOTON_MODAL as f32, if encima { color::VERDE } else { color::BORDE_HOVER });
+        let tinta = if encima { color::verde() } else { color::TEXTO_SECUNDARIO };
+        borde_punteado(&pintor, caja, radio::BOTON_MODAL as f32, if encima { color::verde() } else { color::BORDE_HOVER });
         pintar_icono_solar_en(ui, Rect::from_min_size(Pos2::new(caja.left() + 12.0, caja.center().y - 7.5), Vec2::splat(15.0)), "plus", tinta);
         pintor.galley(Pos2::new(caja.left() + 33.0, caja.center().y - texto.size().y / 2.0), texto, tinta);
         if respuesta.clicked() {
@@ -616,8 +616,8 @@ pub fn orden_vacia(ui: &Ui, caja: Rect, orden: usize) {
     let centro_x = caja.center().x;
     let mut y = (caja.center().y - alto / 2.0).max(caja.top() + 32.0);
     let icono = Rect::from_min_size(Pos2::new(centro_x - 36.0, y), Vec2::splat(72.0));
-    pintor.rect_filled(icono, radio::MODAL, color::VERDE_ELEGIDO);
-    pintar_icono_solar_en(ui, Rect::from_center_size(icono.center(), Vec2::splat(38.0)), "cart", color::VERDE);
+    pintor.rect_filled(icono, radio::MODAL, color::verde_elegido());
+    pintar_icono_solar_en(ui, Rect::from_center_size(icono.center(), Vec2::splat(38.0)), "cart", color::verde());
     y += 72.0 + 14.0;
     let alto_titulo = titulo.size().y;
     pintor.galley(Pos2::new(centro_x - titulo.size().x / 2.0, y), titulo, color::TEXTO);
@@ -646,21 +646,21 @@ pub struct Panel {
 
 pub fn panel(ui: &mut Ui, area: Rect, datos: &Panel) -> Option<AccionPanel> {
     let pintor = ui.painter().clone();
-    let titulo = v2::galeria_espaciada(ui, "TOTAL", fuente(tam::ETIQUETA, Peso::Medio), color::SOBRE_OSCURO_APAGADO, 0.06 * tam::ETIQUETA);
-    let cantidad = galeria(ui, format!("{} producto{}", datos.productos, if datos.productos == 1 { "" } else { "s" }), tam::CHICO, Peso::Normal, color::SOBRE_OSCURO_APAGADO);
+    let titulo = v2::galeria_espaciada(ui, "TOTAL", fuente(tam::ETIQUETA, Peso::Medio), color::sobre_oscuro_apagado(), 0.06 * tam::ETIQUETA);
+    let cantidad = galeria(ui, format!("{} producto{}", datos.productos, if datos.productos == 1 { "" } else { "s" }), tam::CHICO, Peso::Normal, color::sobre_oscuro_apagado());
     let total = v2::galeria_espaciada(ui, pesos(datos.total), fuente(tam::TOTAL, Peso::Semi), color::BLANCO, -0.03 * tam::TOTAL);
-    let iva = galeria(ui, format!("IVA incluido · Orden {}", datos.orden), tam::CHICO, Peso::Normal, color::SOBRE_OSCURO_TENUE);
+    let iva = galeria(ui, format!("IVA incluido · Orden {}", datos.orden), tam::CHICO, Peso::Normal, color::sobre_oscuro_tenue());
     let alto_fila = titulo.size().y.max(cantidad.size().y);
     let alto_total = tam::TOTAL * 1.1;
     let tarjeta = Rect::from_min_size(area.min, Vec2::new(area.width(), 22.0 + alto_fila + 6.0 + alto_total + 6.0 + iva.size().y + 20.0));
-    pintor.rect_filled(tarjeta, radio::PANEL, color::VERDE_PROFUNDO);
+    pintor.rect_filled(tarjeta, radio::PANEL, color::verde_profundo());
     let mut y = tarjeta.top() + 22.0;
-    pintor.galley(Pos2::new(tarjeta.left() + 22.0, y + (alto_fila - titulo.size().y) / 2.0), titulo, color::SOBRE_OSCURO_APAGADO);
-    pintor.galley(Pos2::new(tarjeta.right() - 22.0 - cantidad.size().x, y + (alto_fila - cantidad.size().y) / 2.0), cantidad, color::SOBRE_OSCURO_APAGADO);
+    pintor.galley(Pos2::new(tarjeta.left() + 22.0, y + (alto_fila - titulo.size().y) / 2.0), titulo, color::sobre_oscuro_apagado());
+    pintor.galley(Pos2::new(tarjeta.right() - 22.0 - cantidad.size().x, y + (alto_fila - cantidad.size().y) / 2.0), cantidad, color::sobre_oscuro_apagado());
     y += alto_fila + 6.0;
     pintor.galley(Pos2::new(tarjeta.left() + 22.0, y + (alto_total - total.size().y) / 2.0), total, color::BLANCO);
     y += alto_total + 6.0;
-    pintor.galley(Pos2::new(tarjeta.left() + 22.0, y), iva, color::SOBRE_OSCURO_TENUE);
+    pintor.galley(Pos2::new(tarjeta.left() + 22.0, y), iva, color::sobre_oscuro_tenue());
 
     let mut laterales = Vec::new();
     if datos.afip {
@@ -707,18 +707,18 @@ fn boton_cobrar(ui: &mut Ui, rect: Rect, datos: &Panel) -> bool {
     sombra_apagada.set_opacity(opacidad);
     sombra_apagada.painter().add(sombra::BOTON_COBRAR.forma(rect, radio::POPOVER));
     let pintor = ui.painter().clone();
-    pintor.rect_filled(rect, radio::POPOVER, tinte(mezclar(color::VERDE, color::VERDE_PROFUNDO, avance)));
+    pintor.rect_filled(rect, radio::POPOVER, tinte(mezclar(color::verde(), color::verde_profundo(), avance)));
     pintar_icono_solar_en(ui, Rect::from_min_size(Pos2::new(rect.left() + 18.0, rect.center().y - 13.0), Vec2::splat(26.0)), "wallet", tinte(color::DORADO));
     let (titulo, detalle) = if datos.afip { ("Cobrar con factura", None) } else { ("Cobrar", Some("Efectivo, tarjeta, QR o mixto")) };
     let titulo = galeria(ui, titulo, tam::FILA, Peso::Semi, color::BLANCO);
-    let detalle = detalle.map(|d| galeria(ui, d, tam::XS, Peso::Normal, tinte(color::SOBRE_OSCURO_APAGADO)));
+    let detalle = detalle.map(|d| galeria(ui, d, tam::XS, Peso::Normal, tinte(color::sobre_oscuro_apagado())));
     let x = rect.left() + 18.0 + 26.0 + 14.0;
     let alto_detalle = detalle.as_ref().map_or(0.0, |d| 1.0 + d.size().y);
     let arriba = rect.center().y - (titulo.size().y + alto_detalle) / 2.0;
     let alto_titulo = titulo.size().y;
     pintor.galley(Pos2::new(x, arriba), titulo, color::BLANCO);
     if let Some(detalle) = detalle {
-        pintor.galley(Pos2::new(x, arriba + alto_titulo + 1.0), detalle, tinte(color::SOBRE_OSCURO_APAGADO));
+        pintor.galley(Pos2::new(x, arriba + alto_titulo + 1.0), detalle, tinte(color::sobre_oscuro_apagado()));
     }
     let tam_tecla = v2::medir_tecla(ui, "F2", &EstiloTecla::SOBRE_OSCURO);
     let tecla = Rect::from_min_size(Pos2::new(rect.right() - 18.0 - tam_tecla.x, rect.center().y - tam_tecla.y / 2.0), tam_tecla);
@@ -730,7 +730,7 @@ fn accion_lateral(ui: &mut Ui, rect: Rect, etiqueta: &str, icono: &str, tecla: &
     let respuesta = clic(ui, rect, Id::new("accion-lateral").with(tecla));
     let avance = ui.ctx().animate_bool_with_time(respuesta.id.with("hover"), respuesta.hovered(), 0.15);
     let (borde, tinta, tinta_icono, fondo_hover) =
-        if peligro { (color::ROJO_BORDE, color::ROJO, color::ROJO_INTENSO, color::ROJO_FONDO) } else { (color::BORDE, color::TEXTO, color::VERDE, color::FONDO_APP) };
+        if peligro { (color::ROJO_BORDE, color::ROJO, color::ROJO_INTENSO, color::ROJO_FONDO) } else { (color::BORDE, color::TEXTO, color::verde(), color::FONDO_APP) };
     let pintor = ui.painter();
     pintor.rect(rect, radio::CAMPO, mezclar(color::BLANCO, fondo_hover, avance), Stroke::new(1.0, borde), StrokeKind::Inside);
     pintar_icono_solar_en(ui, Rect::from_min_size(Pos2::new(rect.left() + 14.0, rect.center().y - 10.5), Vec2::splat(21.0)), icono, tinta_icono);

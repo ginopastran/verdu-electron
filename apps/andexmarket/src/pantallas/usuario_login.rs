@@ -319,7 +319,7 @@ fn encabezado(ui: &mut Ui, franja: Rect, cx: &Contexto) -> bool {
             if let Some(admin) = &cx.global.admin {
                 let negocio = admin["businessName"].as_str().filter(|n| !n.is_empty()).unwrap_or("Negocio");
                 ui.add_space(10.0);
-                v2::texto(ui, negocio, 15.0, Peso::Semi, color::VERDE_PROFUNDO);
+                v2::texto(ui, negocio, 15.0, Peso::Semi, color::verde_profundo());
                 ui.add_space(10.0);
                 v2::texto(ui, format!("· configurado por {}", texto_de(&admin["nombre"])), 13.0, Peso::Normal, color::TEXTO_TENUE);
             }
@@ -429,7 +429,7 @@ fn tarjeta_vendedor(ui: &mut Ui, celda: Rect, vendedor: &Value, nombre: &str, in
             ui.painter().add(sombra::AVATAR.forma(avatar, radio::AVATAR_GRANDE));
             egui::Image::from_texture(textura).corner_radius(radio::AVATAR_GRANDE).paint_at(ui, avatar);
         }
-        None => Avatar::vendedor(v2::iniciales(nombre), color::AVATARES[indice % color::AVATARES.len()]).pintar(ui, avatar),
+        None => Avatar::vendedor(v2::iniciales(nombre), color::avatares()[indice % color::avatares().len()]).pintar(ui, avatar),
     }
     if indice < 9 {
         let numero = Rect::from_min_size(avatar.min + Vec2::splat(10.0), Vec2::splat(26.0));
@@ -443,9 +443,9 @@ fn tarjeta_vendedor(ui: &mut Ui, celda: Rect, vendedor: &Value, nombre: &str, in
 }
 
 fn etiqueta_admin(ui: &Ui, avatar: Rect) {
-    let galeria = v2::galeria_espaciada(ui, "ADMIN", fuente(11.0, Peso::Semi), color::VERDE_PROFUNDO, 11.0 * 0.04);
+    let galeria = v2::galeria_espaciada(ui, "ADMIN", fuente(11.0, Peso::Semi), color::verde_profundo(), 11.0 * 0.04);
     let tam = galeria.size() + Vec2::new(14.0, 6.0);
     let caja = Rect::from_min_size(avatar.max - Vec2::splat(10.0) - tam, tam);
     ui.painter().rect_filled(caja, radio::CHIP, color::DORADO);
-    ui.painter().galley(caja.min + Vec2::new(7.0, 3.0), galeria, color::VERDE_PROFUNDO);
+    ui.painter().galley(caja.min + Vec2::new(7.0, 3.0), galeria, color::verde_profundo());
 }

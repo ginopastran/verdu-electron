@@ -7,17 +7,14 @@ const fn rgba(r: u8, g: u8, b: u8, a: u8) -> Color32 {
 }
 
 pub mod color {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
     use eframe::egui::Color32;
 
     use super::rgba;
 
-    pub const VERDE_PROFUNDO: Color32 = Color32::from_rgb(0x0A, 0x3A, 0x2B);
-    pub const VERDE: Color32 = Color32::from_rgb(0x1F, 0x54, 0x44);
-    pub const VERDE_HOVER_OSCURO: Color32 = Color32::from_rgb(0x13, 0x46, 0x34);
     pub const VERDE_EXITO: Color32 = Color32::from_rgb(0x14, 0x65, 0x3F);
     pub const VERDE_PUNTO: Color32 = Color32::from_rgb(0x22, 0xA0, 0x6B);
-    pub const VERDE_CHIP: Color32 = Color32::from_rgb(0xEA, 0xF2, 0xEE);
-    pub const VERDE_ELEGIDO: Color32 = Color32::from_rgb(0xF1, 0xF7, 0xF4);
     pub const VERDE_EXITO_FONDO: Color32 = Color32::from_rgb(0xE3, 0xF1, 0xEA);
     pub const VERDE_TOAST: Color32 = Color32::from_rgb(0x6F, 0xC7, 0x9F);
 
@@ -50,8 +47,6 @@ pub mod color {
 
     pub const SOBRE_OSCURO: Color32 = Color32::from_rgb(0xE3, 0xEC, 0xE7);
     pub const SOBRE_OSCURO_ICONO: Color32 = Color32::from_rgb(0xB6, 0xC4, 0xBD);
-    pub const SOBRE_OSCURO_APAGADO: Color32 = Color32::from_rgb(0x9D, 0xB8, 0xAC);
-    pub const SOBRE_OSCURO_TENUE: Color32 = Color32::from_rgb(0x7F, 0xA8, 0x97);
     pub const SOBRE_OSCURO_PARRAFO: Color32 = Color32::from_rgb(0xB6, 0xCE, 0xC3);
     pub const SOBRE_OSCURO_LISTA: Color32 = Color32::from_rgb(0xD0, 0xDD, 0xD6);
 
@@ -70,7 +65,6 @@ pub mod color {
     pub const GRIS_AVATAR: Color32 = Color32::from_rgb(0x3B, 0x4A, 0x43);
 
     pub const OVERLAY_MODAL: Color32 = rgba(10, 24, 18, 115);
-    pub const ANILLO_FOCO: Color32 = rgba(31, 84, 68, 38);
     pub const ANILLO_BUSQUEDA: Color32 = rgba(211, 152, 1, 89);
     pub const BLANCO_10: Color32 = rgba(255, 255, 255, 26);
     pub const BLANCO_12: Color32 = rgba(255, 255, 255, 31);
@@ -79,7 +73,113 @@ pub mod color {
     pub const BLANCO_25: Color32 = rgba(255, 255, 255, 64);
     pub const ROJO_12: Color32 = rgba(220, 38, 38, 31);
 
-    pub const AVATARES: [Color32; 5] = [VERDE, VERDE_PROFUNDO, DORADO_AVATAR, VERDE_HOVER_OSCURO, GRIS_AVATAR];
+    struct Paleta {
+        id: &'static str,
+        profundo: Color32,
+        activo: Color32,
+        primario: Color32,
+        chip: Color32,
+        elegido: Color32,
+        icono_oscuro: Color32,
+        texto_oscuro: Color32,
+    }
+
+    const fn rgb(c: [u8; 3]) -> Color32 {
+        Color32::from_rgb(c[0], c[1], c[2])
+    }
+
+    const fn paleta(id: &'static str, c: [[u8; 3]; 7]) -> Paleta {
+        Paleta { id, profundo: rgb(c[0]), activo: rgb(c[1]), primario: rgb(c[2]), chip: rgb(c[3]), elegido: rgb(c[4]), icono_oscuro: rgb(c[5]), texto_oscuro: rgb(c[6]) }
+    }
+
+    const PALETAS: [Paleta; 6] = [
+        paleta("andex", [[10, 58, 43], [19, 70, 52], [31, 84, 68], [234, 242, 238], [241, 247, 244], [127, 168, 151], [157, 184, 172]]),
+        paleta("oceano", [[11, 42, 74], [19, 56, 95], [30, 79, 134], [232, 240, 250], [241, 246, 252], [127, 156, 192], [160, 183, 212]]),
+        paleta("vino", [[59, 13, 28], [79, 21, 39], [122, 35, 64], [247, 234, 238], [251, 242, 245], [184, 134, 149], [209, 169, 181]]),
+        paleta("grafito", [[28, 33, 40], [42, 49, 58], [61, 71, 84], [237, 239, 242], [244, 245, 247], [143, 153, 166], [174, 182, 193]]),
+        paleta("terracota", [[58, 26, 14], [79, 36, 20], [138, 59, 30], [248, 237, 231], [252, 244, 240], [192, 140, 116], [214, 174, 155]]),
+        paleta("violeta", [[37, 23, 74], [51, 33, 95], [75, 51, 145], [239, 234, 249], [246, 243, 252], [156, 140, 200], [184, 171, 218]]),
+    ];
+
+    static TEMA: AtomicUsize = AtomicUsize::new(0);
+
+    fn actual() -> &'static Paleta {
+        &PALETAS[TEMA.load(Ordering::Relaxed).min(PALETAS.len() - 1)]
+    }
+
+    fn indice(id: Option<&str>) -> usize {
+        id.and_then(|id| PALETAS.iter().position(|p| p.id == id)).unwrap_or(0)
+    }
+
+    pub fn aplicar_tema(id: Option<&str>) -> bool {
+        let indice = indice(id);
+        TEMA.swap(indice, Ordering::Relaxed) != indice
+    }
+
+    pub fn tema() -> &'static str {
+        actual().id
+    }
+
+    pub fn verde_profundo() -> Color32 {
+        actual().profundo
+    }
+
+    pub fn verde_hover_oscuro() -> Color32 {
+        actual().activo
+    }
+
+    pub fn verde() -> Color32 {
+        actual().primario
+    }
+
+    pub fn verde_chip() -> Color32 {
+        actual().chip
+    }
+
+    pub fn verde_elegido() -> Color32 {
+        actual().elegido
+    }
+
+    pub fn sobre_oscuro_tenue() -> Color32 {
+        actual().icono_oscuro
+    }
+
+    pub fn sobre_oscuro_apagado() -> Color32 {
+        actual().texto_oscuro
+    }
+
+    pub fn anillo_foco() -> Color32 {
+        let c = verde();
+        rgba(c.r(), c.g(), c.b(), 38)
+    }
+
+    pub fn avatares() -> [Color32; 5] {
+        [verde(), verde_profundo(), DORADO_AVATAR, verde_hover_oscuro(), GRIS_AVATAR]
+    }
+
+    #[cfg(test)]
+    mod pruebas {
+        use super::*;
+
+        #[test]
+        fn sin_tema_o_desconocido_usa_andex_con_los_colores_de_siempre() {
+            for id in [None, Some("andex"), Some("inexistente")] {
+                let p = &PALETAS[indice(id)];
+                assert_eq!(p.id, "andex");
+                assert_eq!(p.profundo, Color32::from_rgb(0x0A, 0x3A, 0x2B));
+                assert_eq!(p.primario, Color32::from_rgb(0x1F, 0x54, 0x44));
+                assert_eq!(p.chip, Color32::from_rgb(0xEA, 0xF2, 0xEE));
+            }
+        }
+
+        #[test]
+        fn cada_tema_de_la_web_tiene_su_paleta() {
+            for id in ["andex", "oceano", "vino", "grafito", "terracota", "violeta"] {
+                assert_eq!(PALETAS[indice(Some(id))].id, id);
+            }
+            assert_eq!(PALETAS[indice(Some("oceano"))].primario, Color32::from_rgb(30, 79, 134));
+        }
+    }
 }
 
 pub mod tam {

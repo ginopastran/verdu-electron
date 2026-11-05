@@ -167,7 +167,7 @@ impl DialogoImpresion {
             } else {
                 "Sin logo del negocio: el ticket sale sin logo. Cargalo en Administración › Configuración."
             };
-            nota(ui, "info", 17.0, logo, tam::ETIQUETA, color::FONDO_APP, color::TEXTO_SECUNDARIO, color::VERDE);
+            nota(ui, "info", 17.0, logo, tam::ETIQUETA, color::FONDO_APP, color::TEXTO_SECUNDARIO, color::verde());
         });
         v2::pie_modal(ui, |ui| {
             let probando = self.imprimiendo.is_some();

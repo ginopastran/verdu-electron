@@ -162,13 +162,13 @@ pub enum Tono {
 impl Tono {
     pub fn colores(self) -> (Color32, Color32) {
         match self {
-            Tono::Marca => (color::VERDE_CHIP, color::VERDE),
+            Tono::Marca => (color::verde_chip(), color::verde()),
             Tono::Exito => (color::VERDE_EXITO_FONDO, color::VERDE_EXITO),
             Tono::Aviso => (color::DORADO_FONDO, color::DORADO_TEXTO),
             Tono::Peligro => (color::ROJO_FONDO, color::ROJO),
             Tono::Azul => (color::AZUL_FONDO, color::AZUL),
             Tono::Violeta => (color::VIOLETA_FONDO, color::VIOLETA),
-            Tono::Admin => (color::DORADO, color::VERDE_PROFUNDO),
+            Tono::Admin => (color::DORADO, color::verde_profundo()),
         }
     }
 }
@@ -240,7 +240,7 @@ impl Avatar {
             lado: 32.0,
             radio: radio::CHIP_ICONO,
             fondo: color::DORADO,
-            color: color::VERDE_PROFUNDO,
+            color: color::verde_profundo(),
             tam_texto: tam::ETIQUETA,
             peso: Peso::Negrita,
             sombra: None,
@@ -248,7 +248,7 @@ impl Avatar {
     }
 
     pub fn producto(texto: impl Into<String>) -> Self {
-        Avatar { lado: 36.0, radio: radio::CONTROL, fondo: color::VERDE_CHIP, color: color::VERDE, tam_texto: tam::CUERPO, peso: Peso::Semi, ..Self::new(texto) }
+        Avatar { lado: 36.0, radio: radio::CONTROL, fondo: color::verde_chip(), color: color::verde(), tam_texto: tam::CUERPO, peso: Peso::Semi, ..Self::new(texto) }
     }
 
     pub fn vendedor(texto: impl Into<String>, fondo: Color32) -> Self {

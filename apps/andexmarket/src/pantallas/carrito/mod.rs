@@ -546,7 +546,7 @@ impl Carrito {
     fn cuerpo(&mut self, ui: &mut Ui, cx: &mut Contexto, rect: Rect) {
         if cx.global.negocio_cargando {
             let centro = rect.center();
-            v2::girando(ui, Rect::from_center_size(centro - Vec2::new(0.0, 22.0), Vec2::splat(48.0)), color::VERDE);
+            v2::girando(ui, Rect::from_center_size(centro - Vec2::new(0.0, 22.0), Vec2::splat(48.0)), color::verde());
             ui.painter().text(centro + Vec2::new(0.0, 26.0), egui::Align2::CENTER_CENTER, "Cargando configuración del negocio...", fuente(tam::CUERPO, Peso::Normal), color::TEXTO_APAGADO);
             return;
         }

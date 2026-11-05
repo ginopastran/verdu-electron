@@ -185,12 +185,12 @@ impl Actualizacion {
                 pintor.rect(caja, radio::TARJETA, color::BLANCO, Stroke::new(1.0, color::BORDE), StrokeKind::Inside);
                 let interior = caja.shrink(20.0);
                 let chip = Rect::from_min_size(interior.min, Vec2::splat(36.0));
-                pintor.rect_filled(chip, radio::CONTROL, color::VERDE_CHIP);
+                pintor.rect_filled(chip, radio::CONTROL, color::verde_chip());
                 let caja_icono = Rect::from_center_size(chip.center(), Vec2::splat(20.0));
                 if self.estado == Estado::Descargando {
-                    v2::girando(ui, caja_icono, color::VERDE);
+                    v2::girando(ui, caja_icono, color::verde());
                 } else {
-                    pintar_icono_solar_en(ui, caja_icono, icono, color::VERDE);
+                    pintar_icono_solar_en(ui, caja_icono, icono, color::verde());
                 }
                 let mut derecha = interior.right();
                 if let Some(version) = &version {
@@ -224,10 +224,10 @@ impl Actualizacion {
                 .clicked()
                 .then_some(Accion::Instalar),
             Estado::Descargando => {
-                let g = v2::galeria(ui, "Descargando...", fuente(tam::CUERPO, Peso::Medio), color::VERDE);
+                let g = v2::galeria(ui, "Descargando...", fuente(tam::CUERPO, Peso::Medio), color::verde());
                 let inicio = fila.center().x - (16.0 + 8.0 + g.size().x) / 2.0;
-                v2::girando(ui, Rect::from_center_size(Pos2::new(inicio + 8.0, fila.center().y), Vec2::splat(16.0)), color::VERDE);
-                ui.painter().galley(Pos2::new(inicio + 24.0, fila.center().y - g.size().y / 2.0), g, color::VERDE);
+                v2::girando(ui, Rect::from_center_size(Pos2::new(inicio + 8.0, fila.center().y), Vec2::splat(16.0)), color::verde());
+                ui.painter().galley(Pos2::new(inicio + 24.0, fila.center().y - g.size().y / 2.0), g, color::verde());
                 None
             }
             _ => {
@@ -262,7 +262,7 @@ impl Actualizacion {
         egui::Area::new(Id::new("aviso-actualizacion")).order(Order::Tooltip).fixed_pos(pantalla.min).show(ctx, |ui| {
             let titulo = v2::galeria(ui, aviso.titulo.clone(), fuente(tam::CUERPO, Peso::Medio), color::BLANCO);
             let detalle = v2::galeria(ui, aviso.detalle.clone(), fuente(tam::CHICO, Peso::Normal), color::TEXTO_DESHABILITADO);
-            let texto_boton = v2::galeria(ui, accion.texto_aviso(), fuente(tam::CHICO, Peso::Semi), color::VERDE_PROFUNDO);
+            let texto_boton = v2::galeria(ui, accion.texto_aviso(), fuente(tam::CHICO, Peso::Semi), color::verde_profundo());
             let ancho_boton = texto_boton.size().x + 24.0;
             let ancho_texto = titulo.size().x.max(detalle.size().x);
             let alto_texto = titulo.size().y + 1.0 + detalle.size().y;
@@ -284,7 +284,7 @@ impl Actualizacion {
             respuesta.widget_info(|| WidgetInfo::labeled(WidgetType::Button, true, accion.texto_aviso()));
             let fondo = if respuesta.hovered() { color::DORADO_BORDE } else { color::DORADO };
             pintor.rect_filled(boton, radio::ICONO, fondo.gamma_multiply(opacidad));
-            pintor.galley_with_override_text_color(boton.center() - texto_boton.size() / 2.0, texto_boton, color::VERDE_PROFUNDO.gamma_multiply(opacidad));
+            pintor.galley_with_override_text_color(boton.center() - texto_boton.size() / 2.0, texto_boton, color::verde_profundo().gamma_multiply(opacidad));
             cerrar = respuesta.on_hover_cursor(egui::CursorIcon::PointingHand).clicked();
         });
         if cerrar {

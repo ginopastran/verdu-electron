@@ -114,12 +114,12 @@ fn estado_conexion(ui: &mut Ui, estado: &Value, puerto: &str) {
 }
 
 fn peso_actual(ui: &mut Ui, peso: &Value) {
-    Frame::NONE.fill(color::VERDE_PROFUNDO).corner_radius(radio::TARJETA).inner_margin(Margin::symmetric(20, 18)).show(ui, |ui| {
+    Frame::NONE.fill(color::verde_profundo()).corner_radius(radio::TARJETA).inner_margin(Margin::symmetric(20, 18)).show(ui, |ui| {
         let ancho = ui.available_width();
         ui.set_width(ancho);
         ui.horizontal(|ui| {
             ui.vertical(|ui| {
-                v2::texto(ui, "Peso actual", tam::CHICO, Peso::Normal, color::SOBRE_OSCURO_APAGADO);
+                v2::texto(ui, "Peso actual", tam::CHICO, Peso::Normal, color::sobre_oscuro_apagado());
                 ui.add_space(4.0);
                 v2::titulo(ui, peso_en_kilos(peso), 36.0, -0.02, color::BLANCO);
             });
