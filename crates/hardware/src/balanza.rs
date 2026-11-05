@@ -68,7 +68,7 @@ impl Balanza {
         let balanza = self.clone();
         if config["modo"] == "serie" {
             thread::spawn(move || balanza.leer_serie(config, detener));
-        } else {
+        } else if config["modo"] == "archivo" {
             thread::spawn(move || balanza.vigilar_archivo(detener));
         }
     }
@@ -184,6 +184,7 @@ pub fn config_balanza(config: &Config) -> Value {
         "formato": "8N1",
         "consulta": "enq",
         "unidadEntera": "gramos",
+        "etiqueta": "importe",
     });
     if let Value::Object(guardada) = config.get("balanza") {
         for (clave, valor) in guardada {

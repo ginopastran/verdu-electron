@@ -399,6 +399,20 @@ impl Carrito {
     }
 
     fn procesar_codigo(&mut self, codigo: &str, cx: &mut Contexto) {
+        let balanza = hardware::balanza::config_balanza(&cx.servicios.config);
+        if balanza["modo"] == "etiqueta" && !self.productos.iter().any(|p| p.codigo_barras.as_deref() == Some(codigo)) {
+            if let Some((indice, lectura, pesable)) = productos::etiqueta_cuora(codigo, &self.productos, balanza["etiqueta"] != "peso") {
+                let producto = self.productos[indice].clone();
+                match productos::cantidad_de_etiqueta(lectura, productos::precio_estimado(&producto, pesable), pesable) {
+                    Some(cantidad) => {
+                        self.agregar_escaneado(producto, cantidad, pesable, cx);
+                        self.busqueda.limpiar();
+                    }
+                    None => toast::error(&cx.egui, format!("{} no tiene precio: no se puede calcular la cantidad de la etiqueta", producto.nombre)),
+                }
+                return;
+            }
+        }
         if let Some((indice, cantidad)) = productos::interpretar_codigo(codigo, &self.productos) {
             let producto = self.productos[indice].clone();
             let pesado = producto.codigo_barras.as_deref() != Some(codigo);

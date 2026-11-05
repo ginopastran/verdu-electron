@@ -12,7 +12,13 @@ use crate::ui::Peso;
 
 type Puertos = Vec<(String, Option<String>)>;
 
-const ORIGENES: [(&str, &str, &str, bool); 2] = [("serie", "Puerto serie", "Croma / RS-232", false), ("archivo", "Archivo", "C:\\Peso\\peso.json", true)];
+const ORIGENES: [(&str, &str, &str, bool); 3] = [
+    ("serie", "Puerto serie", "Croma / RS-232", false),
+    ("etiqueta", "Etiqueta impresa", "Systel Cuora Max", false),
+    ("archivo", "Archivo", "C:\\Peso\\peso.json", true),
+];
+const ETIQUETAS: [(&str, &str); 2] = [("importe", "20/21 + PLU + importe (de fábrica)"), ("peso", "20/21 + PLU + peso en gramos")];
+const AYUDA_ETIQUETA: &str = "La Cuora Max no envía el peso por cable: según el manual de Systel, el puerto USB y la red sirven para sincronizar artículos con Qendra. El POS toma el producto y la cantidad del código EAN-13 que imprime la balanza en la etiqueta o el ticket. Con importe, la cantidad sale de dividir por el precio del POS, así que los precios tienen que coincidir con los de la balanza; si se configura el código con peso (20PPPPCCCCCC en el menú Config. equipo › Balanza › Código de barras), no depende del precio.";
 const VELOCIDADES: [u32; 6] = [1200, 2400, 4800, 9600, 19200, 115200];
 const FORMATOS: [&str; 4] = ["8N1", "7E1", "7O1", "8E1"];
 const LECTURAS: [(&str, &str); 2] = [("enq", "Por consulta"), ("continuo", "Continua")];
@@ -50,7 +56,7 @@ fn pares(opciones: &[(&str, &str)]) -> Vec<(String, String)> {
 fn origenes(ui: &mut Ui, config: &mut Value) {
     etiqueta(ui, "Origen del peso", tam::ETIQUETA, Peso::Semi);
     ui.add_space(6.0);
-    let ancho = (ui.available_width() - 8.0) / 2.0;
+    let ancho = (ui.available_width() - 8.0 * (ORIGENES.len() as f32 - 1.0)) / ORIGENES.len() as f32;
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 8.0;
         for (modo, titulo, detalle, mono) in ORIGENES {
@@ -189,8 +195,20 @@ impl DialogoBalanza {
                 ui.add_space(16.0);
                 estado_conexion(ui, &cx.global.estado_balanza, &texto_valor(&config["puerto"]));
             }
-            ui.add_space(16.0);
-            peso_actual(ui, &cx.global.peso);
+            if config["modo"] == "etiqueta" {
+                ui.add_space(16.0);
+                etiqueta(ui, "Código de la etiqueta", tam::ETIQUETA, Peso::Semi);
+                ui.add_space(6.0);
+                if let Some(formato) = elegir(ui, "etiqueta", &config["etiqueta"], &pares(&ETIQUETAS), "", 42.0) {
+                    config["etiqueta"] = json!(formato);
+                }
+                ui.add_space(10.0);
+                let ancho = ui.available_width();
+                v2::parrafo(ui, AYUDA_ETIQUETA, tam::CHICO, color::TEXTO_APAGADO, 1.45, ancho);
+            } else {
+                ui.add_space(16.0);
+                peso_actual(ui, &cx.global.peso);
+            }
         });
         v2::pie_modal(ui, |ui| {
             if Boton::primario("Guardar").modal().habilitado(self.config.is_some()).ui(ui).clicked() {

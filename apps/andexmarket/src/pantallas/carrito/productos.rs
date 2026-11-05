@@ -375,6 +375,63 @@ pub fn interpretar_codigo(codigo: &str, productos: &[ProductoDisponible]) -> Opt
     Some((indice, kilos))
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum LecturaEtiqueta {
+    Kilos(f64),
+    Unidades(f64),
+    Importe(f64),
+}
+
+pub fn ean13_valido(codigo: &str) -> bool {
+    let digitos: Vec<u32> = codigo.chars().filter_map(|c| c.to_digit(10)).collect();
+    if digitos.len() != 13 || codigo.len() != 13 {
+        return false;
+    }
+    let suma: u32 = digitos[..12].iter().enumerate().map(|(i, d)| if i % 2 == 0 { *d } else { d * 3 }).sum();
+    (10 - suma % 10) % 10 == digitos[12]
+}
+
+pub fn etiqueta_cuora(codigo: &str, productos: &[ProductoDisponible], con_importe: bool) -> Option<(usize, LecturaEtiqueta, bool)> {
+    if !ean13_valido(codigo) {
+        return None;
+    }
+    let pesable = match &codigo[0..2] {
+        "20" => true,
+        "21" => false,
+        _ => return None,
+    };
+    let plu: f64 = codigo[2..6].parse().ok()?;
+    let valor: f64 = codigo[6..12].parse().ok()?;
+    if plu <= 0.0 || valor <= 0.0 {
+        return None;
+    }
+    let indice = productos.iter().position(|p| p.plu.as_deref().and_then(numero_de_texto) == Some(plu))?;
+    let lectura = match (con_importe, pesable) {
+        (true, _) => LecturaEtiqueta::Importe(valor / 100.0),
+        (false, true) => LecturaEtiqueta::Kilos(valor / 1000.0),
+        (false, false) => LecturaEtiqueta::Unidades(valor),
+    };
+    Some((indice, lectura, pesable))
+}
+
+pub fn precio_estimado(producto: &ProductoDisponible, pesable: bool) -> f64 {
+    match &producto.listas.predeterminada {
+        Some(fila) if producto.listas.configurada && es_kg(&medida_de(Some(fila), producto)) == pesable => fila.precio,
+        _ => producto.precio_venta(Utc::now()),
+    }
+}
+
+pub fn cantidad_de_etiqueta(lectura: LecturaEtiqueta, precio: f64, pesable: bool) -> Option<f64> {
+    let cantidad = match lectura {
+        LecturaEtiqueta::Kilos(kilos) => kilos,
+        LecturaEtiqueta::Unidades(unidades) => unidades,
+        LecturaEtiqueta::Importe(importe) if precio > 0.0 => importe / precio,
+        LecturaEtiqueta::Importe(_) => return None,
+    };
+    let cantidad = if pesable { redondear(cantidad, 3) } else { cantidad.round() };
+    (cantidad > 0.0).then_some(cantidad)
+}
+
 fn numero_de_texto(texto: &str) -> Option<f64> {
     let limpio = texto.trim();
     if limpio.is_empty() { Some(0.0) } else { limpio.parse().ok() }
@@ -445,6 +502,53 @@ mod pruebas {
             ..Default::default()
         }
         .indexado()
+    }
+
+    fn con_control(doce: &str) -> String {
+        let suma: u32 = doce.chars().enumerate().map(|(i, c)| c.to_digit(10).unwrap() * if i % 2 == 0 { 1 } else { 3 }).sum();
+        format!("{doce}{}", (10 - suma % 10) % 10)
+    }
+
+    fn durazno() -> Vec<ProductoDisponible> {
+        let mut p = producto(7, "Durazno", Some("261"), None);
+        p.precio = 4.8;
+        let mut f = producto(8, "Facturas", Some("428"), None);
+        f.precio = 0.8;
+        f.unidad = "Unidad".into();
+        vec![producto(1, "Otro", Some("12"), Some("7790000000001")), p, f]
+    }
+
+    #[test]
+    fn lee_la_etiqueta_de_fabrica_de_la_cuora_max_del_manual() {
+        assert!(ean13_valido("2002610013638"));
+        let (indice, lectura, pesable) = etiqueta_cuora("2002610013638", &durazno(), true).unwrap();
+        assert_eq!((indice, lectura, pesable), (1, LecturaEtiqueta::Importe(13.63), true));
+        assert_eq!(cantidad_de_etiqueta(lectura, 4.8, true), Some(2.84));
+    }
+
+    #[test]
+    fn etiqueta_con_peso_no_depende_del_precio() {
+        let codigo = con_control("200261002840");
+        let (_, lectura, _) = etiqueta_cuora(&codigo, &durazno(), false).unwrap();
+        assert_eq!(lectura, LecturaEtiqueta::Kilos(2.84));
+        assert_eq!(cantidad_de_etiqueta(lectura, 0.0, true), Some(2.84));
+    }
+
+    #[test]
+    fn etiqueta_por_unidad_redondea_a_unidades() {
+        let codigo = con_control("210428000960");
+        let (indice, lectura, pesable) = etiqueta_cuora(&codigo, &durazno(), true).unwrap();
+        assert_eq!((indice, pesable), (2, false));
+        assert_eq!(cantidad_de_etiqueta(lectura, 0.8, false), Some(12.0));
+    }
+
+    #[test]
+    fn descarta_etiquetas_mal_leidas_de_suma_o_sin_producto() {
+        assert_eq!(etiqueta_cuora("2002610013639", &durazno(), true), None);
+        assert_eq!(etiqueta_cuora(&con_control("220200002607"), &durazno(), true), None);
+        assert_eq!(etiqueta_cuora(&con_control("209999001000"), &durazno(), true), None);
+        assert_eq!(etiqueta_cuora(&con_control("200261000000"), &durazno(), true), None);
+        assert_eq!(cantidad_de_etiqueta(LecturaEtiqueta::Importe(10.0), 0.0, true), None);
     }
 
     fn catalogo() -> Vec<ProductoDisponible> {
